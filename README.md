@@ -30,6 +30,7 @@ This workspace currently contains planning documentation. Application implementa
 ## Documentation
 
 - [Product and delivery roadmap](docs/salesmora-product-roadmap.md) — requirements, architecture, integrations, phases, subscription tiers, and acceptance criteria
+- [Interactive prototype plan](docs/interactive-prototype-plan.md) — screen-by-screen prototype order, interactions, review gates, and open decisions
 - [User journeys](docs/user-journeys.md) — current decisions and open questions for login, lead-source setup, website capture, and Gmail intake
 - [Campaign dashboard](docs/campaign-dashboard.md) — confirmed campaign metrics and a proposed layout for monitoring campaign activity
 - [Reporting and data export](docs/reporting-and-data-export.md) — proposed reporting surfaces, Phase 1 reports and CSV exports, access controls, and later-phase options
