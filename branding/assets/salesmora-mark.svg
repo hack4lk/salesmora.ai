@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144" role="img" aria-labelledby="title desc">
+  <title id="title">SalesMora Mosaic mark</title>
+  <desc id="desc">Four connected tiles in Blue and Seafoam representing the SalesMora workspace.</desc>
+  <rect x="21" y="22" width="44" height="44" rx="13" fill="#3B6FA5"/>
+  <rect x="78" y="22" width="44" height="30" rx="11" fill="#7CCBB7"/>
+  <rect x="78" y="64" width="44" height="58" rx="13" fill="#3B6FA5"/>
+  <rect x="21" y="78" width="44" height="44" rx="13" fill="#7CCBB7"/>
+</svg>

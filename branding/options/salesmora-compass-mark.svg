@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144" role="img" aria-labelledby="title">
+  <title id="title">SalesMora Compass symbol</title>
+  <path d="M72 13 131 72 72 131 13 72Z" fill="#EDF2FF" stroke="#315BCE" stroke-width="7" stroke-linejoin="round"/>
+  <path d="m91 53-12 34-26 14 12-34Z" fill="#315BCE" stroke="#315BCE" stroke-width="5" stroke-linejoin="round"/>
+  <path d="m91 53-12 34-14-20Z" fill="#70E0C2"/>
+  <circle cx="72" cy="72" r="5" fill="#182230"/>
+</svg>

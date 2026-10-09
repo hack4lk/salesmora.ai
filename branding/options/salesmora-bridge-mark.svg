@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144" role="img" aria-labelledby="title">
+  <title id="title">SalesMora Bridge symbol</title>
+  <path d="M25 111V77a47 47 0 0 1 94 0v34" fill="none" stroke="#315BCE" stroke-width="10" stroke-linecap="round"/>
+  <path d="M25 92h35l12-16 13 16h34" fill="none" stroke="#47BFA4" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="25" cy="92" r="7" fill="#315BCE"/><circle cx="119" cy="92" r="7" fill="#315BCE"/>
+</svg>

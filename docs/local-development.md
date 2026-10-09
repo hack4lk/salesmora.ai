@@ -8,7 +8,7 @@ Use Docker Compose to run local infrastructure that should behave consistently a
 
 - **PostgreSQL** for application records and durable workflow state.
 - **Redis** for the background job queue.
-- **Mailpit** as a local SMTP sink and inbox for inspecting test email without delivering it to real recipients.
+- **Mailpit** as a local SMTP sink and inbox for inspecting test email without delivering it to real recipients. Production outbound email uses Resend; Mailpit is local development only.
 - **MinIO (optional)** as a local S3-compatible object store for exercising job-attachment upload and download flows without touching a production bucket.
 
 Run the Next.js web application and Node.js worker as separate processes. Initially, running them on the host gives developers fast hot reload and straightforward debugging while they connect to PostgreSQL and Redis in Docker. Compose can later run all five services (`web`, `worker`, `postgres`, `redis`, and `mailpit`) when a fully containerized workflow is useful. This mirrors the planned Railway topology of a web service, worker, PostgreSQL, and Redis.
@@ -28,10 +28,22 @@ flowchart LR
 ## Prerequisites
 
 - Docker Desktop or Docker Engine with Docker Compose v2.
-- Node.js LTS and npm, using the same major Node.js version in local development, CI, and Railway.
+- Node.js LTS and pnpm, using the same major Node.js version in local development, CI, and Railway.
 - Git and an editor.
 
 Pin PostgreSQL and Redis image versions in `compose.yaml` and match the PostgreSQL major version to the Railway environment. Avoid floating `latest` tags so that local development and deployment use predictable database behavior. Compose supports health checks, service-name networking, and named volumes for persistent local data. [Docker Compose quickstart](https://docs.docker.com/compose/gettingstarted/)
+
+## UI component development with Storybook
+
+Once the Next.js application and shared React components exist, use Storybook as an isolated workbench for building, documenting, and reviewing component states. Keep it as a development tool; production routes remain in the Next.js app. The current workspace has no app package or Storybook scripts yet, so add the setup when the application is initialized rather than treating these notes as runnable commands.
+
+Use Storybook's official Next.js setup and choose its Next.js Vite framework when it is compatible with the Next.js version selected for the app. For App Router projects, enable the documented `nextjs.appDirectory` setting. Put stories near their components as `*.stories.tsx`; use args/controls for variants and mock data and callbacks so stories do not depend on live accounts or services. A shared preview decorator should load the SalesMora theme, global styles, fonts, MUI theme provider, and any required providers so stories match the application.
+
+Use Material UI (MUI) as the default component framework when its accessible components fit the interaction. Centralize the SalesMora.ai workspace brand tokens and MUI component overrides in `packages/ui`; add the MUI App Router cache provider described in MUI's official Next.js integration guide when the app is initialized. Use `@mui/icons-material` for in-product icons through the shared icon exports. Do not add favicon files or browser icon metadata/routes, and do not use website favicons as UI icons.
+
+Start with the app shell and shared primitives (buttons, fields, badges, cards, dialogs, and drawers), then add composite CRM components such as lead tables, job boards, estimate previews, and integration cards. Cover useful states such as default, loading, empty, validation error, disabled, and plan/permission limited. Stories support component-level review and interaction checks; verify complete navigation and user journeys in the running application as well.
+
+References: [Storybook for Next.js with Vite](https://storybook.js.org/docs/get-started/frameworks/nextjs-vite), [Storybook for Next.js](https://storybook.js.org/docs/get-started/frameworks/nextjs), [writing stories](https://storybook.js.org/docs/writing-stories), [args and controls](https://storybook.js.org/docs/writing-stories/args), [Material UI with Next.js](https://mui.com/material-ui/integrations/nextjs/), and [Material UI icons](https://mui.com/material-ui/material-icons/).
 
 ## Compose infrastructure
 
@@ -142,7 +154,7 @@ Exercise both accepted and rejected file-size cases, including the Phase 1 maxim
 
 Use Knex with the PostgreSQL driver (`pg`) for database access and schema migrations. Keep the Knex configuration and migration files in source control. Store migration state in Knex's migrations table, use timestamped migration names, and include both `up` and `down` implementations where a safe reversal is possible. Knex runs migrations in transactions by default where the database supports them, and its CLI provides migration listing and rollback commands. [Knex migrations guide](https://knexjs.org/guide/migrations)
 
-Suggested npm scripts once the application code is in place:
+Suggested package scripts once the application code is in place (run them with pnpm):
 
 ```json
 {
@@ -159,10 +171,10 @@ Suggested npm scripts once the application code is in place:
 Local migration loop:
 
 ```bash
-npm install
+pnpm install
 docker compose --env-file .env.local up -d postgres redis mailpit
-npm run db:migrate
-npm run db:seed:dev
+pnpm run db:migrate
+pnpm run db:seed:dev
 ```
 
 When changing the schema, generate a migration, implement and review both directions, then test the sequence **latest → rollback → latest** against a disposable database. Keep seed data separate from migrations: migrations change schema and required structural data; repeatable development seeds create fictional sample organizations, users, leads, jobs, and workflow examples.
@@ -181,11 +193,11 @@ When changing the schema, generate a migration, implement and review both direct
 After the Next.js and worker packages/scripts exist, start them in separate terminals for useful logs and debugger control:
 
 ```bash
-npm run dev
-npm run worker:dev
+pnpm run dev
+pnpm run worker:dev
 ```
 
-The Next.js server should handle the UI and request-response endpoints. The worker should consume durable jobs from Redis and use shared application/domain modules and the same PostgreSQL schema. Delayed actions, email intake, connector execution, and LangChain work should be tested through the queue rather than simulated by long-running HTTP requests.
+The Next.js server should handle the UI and request-response endpoints. The worker should consume durable BullMQ jobs from Redis and use shared application/domain modules and the same PostgreSQL schema. Delayed actions, email intake, connector execution, and LangChain work should be tested through the queue rather than simulated by long-running HTTP requests. Production Redis must use AOF persistence, `maxmemory-policy=noeviction`, and a persistent volume; this requires a custom Railway configuration and makes Redis operations, upgrades, and recovery our responsibility. Validate the exact deployment in staging before launch.
 
 ## Testing locally
 
@@ -199,4 +211,4 @@ The Next.js server should handle the UI and request-response endpoints. The work
 
 ## Local services vs. Railway
 
-Local development should resemble production in service boundaries and runtime configuration, while keeping local data and credentials isolated. Railway should run the Next.js web service, a separate Node.js worker, PostgreSQL, and Redis; the worker need not have a public domain. Configure Railway's deploy pipeline to run the Knex migration command once, with a backup and recovery plan for risky schema changes. Railway documents this multi-service pattern for Next.js applications with PostgreSQL and Redis-backed background workers. [Railway full-stack Next.js guide](https://docs.railway.com/guides/fullstack-nextjs)
+Local development should resemble production in service boundaries and runtime configuration, while keeping local data and credentials isolated. Railway should run the Next.js web service, a separate Node.js worker, PostgreSQL, and Redis; the worker need not have a public domain. The BullMQ Redis service needs AOF persistence, `maxmemory-policy=noeviction`, and a persistent volume. Railway's standard Redis docs do not confirm these settings, so use a custom-configured deployment and verify it in staging; this makes Redis configuration, upgrades, backups, and recovery our responsibility. Configure Railway's deploy pipeline to run the Knex migration command once, with a backup and recovery plan for risky schema changes. Railway documents this multi-service pattern for Next.js applications with PostgreSQL and Redis-backed background workers. [Railway full-stack Next.js guide](https://docs.railway.com/guides/fullstack-nextjs)

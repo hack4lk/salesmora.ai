@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 160" role="img" aria-labelledby="title desc">
+  <title id="title">SalesMora Bridge logo concept</title>
+  <desc id="desc">A blue arch connecting two points with a mint path crossing the bridge beside the SalesMora wordmark.</desc>
+  <path d="M25 121V87a47 47 0 0 1 94 0v34" transform="translate(0 -10)" fill="none" stroke="#315BCE" stroke-width="10" stroke-linecap="round"/><path d="M25 92h35l12-16 13 16h34" fill="none" stroke="#47BFA4" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="25" cy="92" r="7" fill="#315BCE"/><circle cx="119" cy="92" r="7" fill="#315BCE"/>
+  <text x="158" y="94" fill="#182230" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="48" font-weight="700" letter-spacing="-2.2">SalesMora</text><text x="431" y="94" fill="#315BCE" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="32" font-weight="650" letter-spacing="-1">.ai</text>
+</svg>

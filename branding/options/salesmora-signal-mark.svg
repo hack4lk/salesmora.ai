@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 144" role="img" aria-labelledby="title">
+  <title id="title">SalesMora Signal symbol</title>
+  <path d="M24 112 60 78l27 18 38-54" fill="none" stroke="#315BCE" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="24" cy="112" r="12" fill="#315BCE"/><circle cx="60" cy="78" r="12" fill="#47BFA4"/><circle cx="87" cy="96" r="12" fill="#315BCE"/><circle cx="125" cy="42" r="12" fill="#47BFA4"/>
+</svg>

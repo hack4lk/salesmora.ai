@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 160" role="img" aria-labelledby="title desc">
+  <title id="title">SalesMora Compass logo concept</title>
+  <desc id="desc">A blue outlined compass diamond with a mint directional needle beside the SalesMora wordmark.</desc>
+  <path d="M72 21 131 80 72 139 13 80Z" fill="#EDF2FF" stroke="#315BCE" stroke-width="7" stroke-linejoin="round"/><path d="m91 61-12 34-26 14 12-34Z" fill="#315BCE" stroke="#315BCE" stroke-width="5" stroke-linejoin="round"/><path d="m91 61-12 34-14-20Z" fill="#70E0C2"/><circle cx="72" cy="80" r="5" fill="#182230"/>
+  <text x="158" y="94" fill="#182230" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="48" font-weight="700" letter-spacing="-2.2">SalesMora</text><text x="431" y="94" fill="#315BCE" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="32" font-weight="650" letter-spacing="-1">.ai</text>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 160" role="img" aria-labelledby="title desc">
+  <title id="title">SalesMora Orbit logo concept</title>
+  <desc id="desc">A blue center orb surrounded by an orbital path with mint connection points beside the SalesMora wordmark.</desc>
+  <circle cx="72" cy="80" r="18" fill="#315BCE"/><ellipse cx="72" cy="80" rx="53" ry="27" transform="rotate(-35 72 80)" fill="none" stroke="#315BCE" stroke-width="9"/><circle cx="111" cy="48" r="10" fill="#70E0C2" stroke="#fff" stroke-width="4"/><circle cx="37" cy="111" r="5" fill="#47BFA4"/>
+  <text x="158" y="94" fill="#182230" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="48" font-weight="700" letter-spacing="-2.2">SalesMora</text><text x="431" y="94" fill="#315BCE" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="32" font-weight="650" letter-spacing="-1">.ai</text>
+</svg>
