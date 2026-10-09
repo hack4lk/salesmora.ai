@@ -17,7 +17,7 @@ Use Mermaid in Markdown under `docs/diagrams/`. Keep the detailed prose rules in
 | 3 | Website/widget campaign journey | How are a form and link configured, approved, published, paused, and submitted? | Planned |
 | 4 | Gmail campaign setup journey | How does OAuth, mailbox scope, phrase logic, field mapping, samples, and activation work? | Planned |
 | 5 | Gmail intake and review processing | How are messages deduplicated, mapped, flagged, reviewed, approved, or sent through authorized automatic intake? | Planned |
-| 6 | Campaign workflow and follow-up sequence | How do assignment, notifications, CRM routing, integrations, tasks, SMTP sends, review, timing, and stop conditions execute? | Planned |
+| 6 | Campaign workflow and follow-up sequence | How do assignment, notifications, CRM routing, integrations, tasks, Resend sends, BullMQ scheduling/retries, review, timing, and stop conditions execute? | Planned |
 | 7 | Lead-to-job and job operations | How does a selected pipeline stage create a job, and how are assignment, deadlines, statuses, and alerts handled? | Planned |
 | 8 | Core domain data model (ERD) | Which tenant-scoped records and relationships are needed for users, leads, campaigns, jobs, and history? | Planned |
 | 9 | Workflow data and execution model | How are triggers, conditions, actions, delayed steps, approvals, retries, and idempotency represented? | Planned |
@@ -25,7 +25,7 @@ Use Mermaid in Markdown under `docs/diagrams/`. Keep the detailed prose rules in
 | 11 | Connector/plugin architecture and routing | How does a campaign route records to modular integrations, handle failures, and honor plan entitlements? | Planned |
 | 12 | Subscription and entitlement model | How do plan state, feature access, usage limits, upgrade/downgrade, and grace periods affect the product? | Planned |
 | 13 | Reporting and export data flow | How do tenant-scoped records become reports and CSV exports under role permissions? | Planned |
-| 14 | Railway deployment and service architecture | How do Next.js, Node worker, PostgreSQL/Knex, Redis, SMTP, OAuth providers, and deployment jobs relate? | Planned; cross-check against roadmap |
+| 14 | Railway deployment and service architecture | How do Next.js, Node worker, PostgreSQL/Knex, BullMQ/Redis, Resend API/webhooks, OAuth providers, and deployment jobs relate? | Planned; cross-check against roadmap |
 
 ## Diagram conventions
 
@@ -43,7 +43,7 @@ Use Mermaid in Markdown under `docs/diagrams/`. Keep the detailed prose rules in
 - Gmail read-only OAuth, case-insensitive AND/OR phrase matching, explicit field mappings, sample selection/paste and retention, and Intake Review.
 - Message-ID deduplication and contact duplicate review actions.
 - Campaign-level assignment, notifications, CRM stage/tags, destination routing, and follow-up sequences.
-- Shared SMTP sender/no-reply identity with client-branded content; Gmail remains read-only.
+- Shared Resend sender/no-reply identity with client-branded content; Gmail remains read-only.
 - Exact-email sender matching for incoming Gmail messages that pauses follow-ups.
 - Human email review actions, reminders, sequence timing and stop rules.
 - Campaign/job lifecycle, team assignment, deadlines, status alerts, pause/archive/restore, duplication, and shared templates.

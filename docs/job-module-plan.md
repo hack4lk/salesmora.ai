@@ -6,11 +6,12 @@
 
 Give a small service business one reliable place to monitor work after a qualified lead becomes a job. The module should make it easy to see what is active, who owns each job, what stage it is in, and what deadlines or updates need attention.
 
-The job record should preserve the context that led to the work: customer/contact, source lead, requested service, campaign, and relevant activity. The module should remain useful for a one-person operator while supporting a growing office and field team.
+The job record should preserve the context that led to the work: customer, source lead, requested service, campaign, and relevant activity. In the MVP, customer contact details are fields on the customer record rather than a separate contact entity. The module should remain useful for a one-person operator while supporting a growing office and field team.
 
 ## 2. Goals
 
 - Convert a lead into a job at a pipeline stage chosen by the business.
+- Use the default lead stages **New**, **Contacted**, **Estimate sent**, and **Won**, plus **Lost** as a closed outcome. **Won** is the default lead-to-job conversion stage; job progress is tracked with job statuses after conversion.
 - Support job assignment, status/progress tracking, and deadlines.
 - Make active, waiting, overdue, unassigned, and recently changed jobs easy to find.
 - Notify the assigned team about relevant assignment, status, and deadline events.
@@ -20,7 +21,12 @@ The job record should preserve the context that led to the work: customer/contac
 
 ## 3. Confirmed requirements
 
+### Workspace roles and job access
+
+Use **Owner**, **Admin**, and **Member** as permission roles. **Office** and **Field** are work profiles for home-screen presentation only; they do not grant additional access. Organization Owners and Admins can access and manage business-wide job data. Members can access jobs assigned to them and perform permitted day-to-day updates. A work profile must never bypass these role and assignment checks.
+
 - A campaign admin chooses the pipeline stage that converts a lead into a job. Reaching that stage creates the job; lead approval alone does not.
+- Default the conversion stage to **Won**. The MVP uses the fixed lead stages **New**, **Contacted**, **Estimate sent**, **Won**, and **Lost**; do not allow stage renaming, reordering, or additions in the MVP.
 - Users can also create a job manually without a lead, for example for a repeat customer or direct call. Link the customer; the source lead is optional.
 - Manual job creation should happen through an agent conversation. The minimum required details are a customer and job title; collect other details only when the user wants to provide them.
 - The agent searches existing customers before linking one. If there are multiple plausible matches, ask the user to select; if none is found, offer to create a customer inline.
@@ -54,9 +60,9 @@ The job record should preserve the context that led to the work: customer/contac
 - Admins can configure multiple deadline reminder offsets, including chosen days before or after the deadline and reminders on the due date.
 - The Jobs workspace's **Deadlines coming up** group uses those configured offsets rather than a separate fixed time window.
 - A job created from a lead stops that lead's campaign follow-up sequence.
-- Owners/admins and office managers can view and manage all jobs and configure business-wide job rules. Field team members can view assigned jobs and update progress, Waiting reasons, and notes, but cannot reassign jobs or change business-wide settings.
-- Only the job's primary owner and organization owners/admins can set, change, or remove its completion deadline. An office manager can do so only if they are also the job's primary owner or an organization owner/admin.
-- Only the job's primary owner and organization owners/admins can set, change, or remove its scheduled work date or arrival window. An office manager can do so only if they are also the job's primary owner or an organization owner/admin.
+- Organization Owners/Admins can view and manage all jobs and configure business-wide job rules. Members can view assigned jobs and update permitted progress, Waiting reasons, and notes, but cannot reassign jobs or change business-wide settings. Office/Field work profiles do not change this access.
+- Only the job's primary owner and organization Owners/Admins can set, change, or remove its completion deadline.
+- Only the job's primary owner and organization Owners/Admins can set, change, or remove its scheduled work date or arrival window.
 - A saved progress note cannot be edited or deleted by its author or an administrator. Keep the original actor and timestamp; corrections are additional notes in the activity history.
 
 ### Subscription availability
@@ -100,8 +106,8 @@ Proposed sections on a job record:
 2. **Progress:** Status history and the current next action or blocked reason, if supplied by the team.
 3. **Team:** Primary assignee and any additional participants, with reassignment controls governed by role permissions.
 4. **Dates:** Created date, scheduled dates when supported, deadline, and reminders.
-5. **Related records:** Source lead, customer/contact, campaign, and estimate/schedule records when those features exist.
-6. **Files:** Job attachments with filename, file type, size, uploader, and upload time; download access is checked against current job permissions. The uploader, owners/admins, and office managers may remove an attachment. Removing a file requires a dialog such as: **“Permanently delete ‘[filename]’? This document will be lost forever and cannot be recovered.”** The user must choose **Delete permanently** to continue.
+5. **Related records:** Source lead, customer, campaign, and estimate/schedule records when those features exist.
+6. **Files:** Job attachments with filename, file type, size, uploader, and upload time; download access is checked against current job permissions. The uploader (while still authorized) and organization Owners/Admins may remove an attachment. Removing a file requires a dialog such as: **“Permanently delete ‘[filename]’? This document will be lost forever and cannot be recovered.”** The user must choose **Delete permanently** to continue.
 7. **Activity:** A single chronological history of status/assignment changes, notes, reminders, file upload/removal events, and important workflow events. Open newest-first, with older entries available by scrolling. Phase 1 has no event-type filters; add them later if long histories become difficult to scan.
 
 Keep job data entered by the team separate from immutable event history so that updates do not erase who changed a job or when.
@@ -153,9 +159,9 @@ At job creation, apply the rule selected by the campaign/business configuration:
 
 Use one primary owner for clear accountability, with optional additional team members. The campaign/business rule chooses the primary owner; campaigns can preselect default additional team members, and users can adjust the team per job. For manual jobs, use the business-wide job assignment rule when the user does not name an owner. If no rule exists, have the agent ask the user to choose an owner rather than silently assigning the creator.
 
-When the primary owner changes, remove the previous owner from the job team by default while keeping existing optional team members assigned. This ends the previous owner's job-based access and future job notifications; organization-wide access held by an owner/admin or office manager still applies. Preserve the previous assignment in job history. Every assignment or reassignment records who changed it and when. Notify the previous and new assignee, plus configured recipients, according to notification preferences. Avoid sending duplicate alerts when the same assignment is replayed by a retry.
+When the primary owner changes, remove the previous owner from the job team by default while keeping existing optional team members assigned. This ends the previous owner's job-based access and future job notifications; organization-wide access held by an Owner/Admin still applies. Preserve the previous assignment in job history. Every assignment or reassignment records who changed it and when. Notify the previous and new assignee, plus configured recipients, according to notification preferences. Avoid sending duplicate alerts when the same assignment is replayed by a retry.
 
-When an optional team member is removed, send one final in-app and email notice that they were removed from the job, then end their job-based access and future job notifications. Retain the assignment history. Organization-wide access held by an owner/admin or office manager still applies.
+When an optional team member is removed, send one final in-app and email notice that they were removed from the job, then end their job-based access and future job notifications. Retain the assignment history. Organization-wide access held by an Owner/Admin still applies.
 
 ## 8. Deadlines and reminders
 
@@ -174,7 +180,7 @@ Do not apply one fixed calendar deadline across every job in a reusable campaign
 
 - Let admins configure one or more offsets before the deadline, on the due date, and after it.
 - Notify the assigned job team by default; allow admins to include other members and themselves.
-- Allow both in-app and email notifications; email uses the shared SMTP provider and SalesMora no-reply identity.
+- Allow both in-app and email notifications; email uses SalesMora's Resend account and no-reply identity.
 - Recalculate or cancel pending reminders when the deadline changes.
 - When an authorized user sets, changes, or removes a completion deadline, immediately notify the assigned team in-app and by email; recalculate or cancel pending reminders to match the new deadline.
 - Stop pending deadline reminders once the job is Completed or Canceled, while retaining reminder history.
@@ -214,7 +220,7 @@ The agent can reduce setup work and help teams keep jobs current, while preservi
 - Recommend a status update based on user-provided notes, but require confirmation before changing the job status or notifying the team.
 - Help an admin define job reminders and assignment rules in plain language, then show a reviewable summary before activation.
 
-The agent must not invent agreed pricing, confirm a schedule with a customer, or send customer communications without explicit authorization. Any approved system-generated email continues to use the shared SMTP provider, not Gmail.
+The agent must not invent agreed pricing, confirm a schedule with a customer, or send customer communications without explicit authorization. Any approved system-generated email uses Resend through SalesMora, not Gmail.
 
 ## 11. Reporting and exports
 
@@ -254,7 +260,7 @@ Phase 1 includes job file attachments and an optional completion deadline on eac
 | Phase | Job module scope |
 |---|---|
 | **1 — CRM foundation** | Job record, link from lead/customer, movable status board and sortable table, primary assignment, status and activity history, team-visible job chat with the agent, private job file attachments (including files attached while creating a progress note), optional per-job completion deadline (unset by default) with basic due/overdue indicator and alert, basic in-app notification, job counts and CSV export. |
-| **2 — Capture and workflow** | Campaign-configured lead-to-job stage conversion, campaign-origin visibility, workflow-triggered job creation, per-job checklists made of simple named steps with a done/not-done state (no per-item assignee or due date), linking an existing job attachment to a progress note after the note has been saved, and alternate card/list layouts for the job detail page. |
+| **2 — Workflow automation and extensions** | Campaign-configured lead-to-job stage conversion, workflow-triggered job creation, per-job checklists made of simple named steps with a done/not-done state (no per-item assignee or due date), linking an existing job attachment to a progress note after the note has been saved, and alternate card/list layouts for the job detail page. |
 | **3 — Operations** | Configurable multi-offset deadline reminders, expanded team email notification rules, richer progress controls, calendar/scheduling integration, and operational reports. |
 | **4 — Expansion** | Estimates/accounting integration, advanced job templates, capacity and profitability reports, and validated AI-assisted job operations. |
 
@@ -274,7 +280,7 @@ Phase 2 supports zero or one optional checklist per job. A job can have no check
 
 ## 15. Open decisions
 
-- Exact prices and other plan limits remain part of the broader subscription design.
+- Subscription prices and core quotas are provisionally defined in the product roadmap; validate them before billing launch. Active jobs and existing CRM history are not capped by plan. Attachment storage limits and behavior are specified in Section 4; do not add other job-specific entitlement limits without a product decision.
 
 ## 16. Detailed user journey walkthrough
 
@@ -284,7 +290,7 @@ This walkthrough turns the confirmed job rules into the user-facing sequence. It
 
 1. The user selects **Jobs** from the main navigation.
 2. The workspace opens to the active status board by default. The user can switch to the sortable table view.
-3. Owners/admins and office managers see all business jobs. Field team members see only jobs assigned to them.
+3. Organization Owners/Admins see all business jobs. Members see jobs assigned to them. Office/Field work profiles may change the view's priorities but do not widen record access.
 4. The workspace shows the attention groups for overdue/upcoming deadlines, unassigned jobs, and jobs in **Waiting**, with links to the affected records.
 5. **Completed** and **Canceled** jobs stay out of the default active board and are available through the closed-jobs view or filter.
 6. An authorized user can open a job card/row or start a conversational manual job creation flow. The user can also start job creation from a customer profile, with that customer preselected.
@@ -297,8 +303,8 @@ This section details the actions a user can take after opening a job, including 
 
 ### In-job journey 1 — Edit core job details
 
-1. An owner/admin or office manager can open **Edit details** on the job page, or ask the agent to change details in natural language.
-2. They can update the job title, description, service, and location. Field team members do not edit these core fields; they can update progress and notes.
+1. The job's primary owner or an organization Owner/Admin can open **Edit details** on the job page, or ask the agent to change details in natural language.
+2. They can update the job title, description, service, and location. Other Members do not edit these core fields by default; assigned Members can update permitted progress and notes.
 3. The direct editor presents current values with clear **Save** and **Cancel** actions. The agent summarizes the proposed field changes and asks for confirmation before saving. Invalid values are identified; canceling discards the unsaved changes.
 4. On save, the updated values appear on the job detail page and job cards/table rows that show those fields. Add an activity event with the editor, timestamp, and changed fields, regardless of whether the direct editor or agent was used.
 
@@ -314,8 +320,8 @@ This section details the actions a user can take after opening a job, including 
 8. Phase 1 accepts JPEG, PNG, HEIC, and WebP images, plus PDF, DOCX, XLSX, and TXT documents. Reject archive and executable file types.
 9. Limit each attachment to 10 MB; show the limit before the user selects or uploads files, and explain when an individual file exceeds it.
 10. Show in-app previews for images and PDFs. Other supported document types download for viewing. Re-check job authorization before serving a preview or download and record downloads in activity.
-11. The uploader, while still authorized to access the job, and owners/admins or office managers can edit an attachment description after upload. Save the change to activity history with the editor, timestamp, and changed description.
-12. The uploader, while still authorized to access the job, and owners/admins or office managers can permanently remove an attachment. Before deletion, require the irreversible confirmation dialog naming the document and stating it will be lost forever; after confirmation, make it unavailable, destroy its per-file encryption key, and retain only non-content audit metadata.
+11. The uploader, while still authorized to access the job, and organization Owners/Admins can edit an attachment description after upload. Save the change to activity history with the editor, timestamp, and changed description.
+12. The uploader, while still authorized to access the job, and organization Owners/Admins can permanently remove an attachment. Before deletion, require the irreversible confirmation dialog naming the document and stating it will be lost forever; after confirmation, make it unavailable, destroy its per-file encryption key, and retain only non-content audit metadata.
 
 ### In-job journey 3 — Add a progress note
 
@@ -329,21 +335,21 @@ This section details the actions a user can take after opening a job, including 
 
 ### In-job journey 4 — Change the primary owner
 
-1. An owner/admin or office manager opens the Team section and selects **Change owner**.
+1. An organization Owner/Admin opens the Team section and selects **Change owner**.
 2. They select a new primary owner from active organization members and review the change before saving.
-3. On save, the new person becomes the primary owner and the previous owner is removed from the job team. This ends the previous owner's job-based access and future notifications; an owner/admin or office manager retains organization-wide access through their role.
+3. On save, the new person becomes the primary owner and the previous owner is removed from the job team. This ends the previous owner's job-based access and future notifications; organization Owners/Admins retain organization-wide access through their role.
 4. Keep existing optional team members assigned. Record the previous and new owner, the actor, and the timestamp in assignment history. Send the assignment-change notification to the previous and new owner and any configured recipients; do not send future job notifications to the previous owner unless they are separately added back to the job.
 
 ### In-job journey 5 — Manage optional team members
 
-1. An owner/admin or office manager opens the Team section and selects **Manage team**.
+1. An organization Owner/Admin opens the Team section and selects **Manage team**.
 2. They can add active organization members as optional participants or remove current participants. Review the changes before saving.
-3. Adding a member gives them job-based access and future job notifications, with an in-app and email notice that they were added. When removing a member, send one final in-app and email notice that they were removed, then end their job-based access and future notifications; an owner/admin or office manager retains organization-wide access through their role.
+3. Adding a member gives them job-based access and future job notifications, with an in-app and email notice that they were added. When removing a member, send one final in-app and email notice that they were removed, then end their job-based access and future notifications; organization Owners/Admins retain organization-wide access through their role.
 4. Record each addition and removal with the actor and timestamp in assignment history. Removed members remain visible in historical assignment records but cannot open the job through job-based access.
 
 ### In-job journey 6 — Schedule or reschedule work
 
-1. The job's primary owner or an organization owner/admin starts a scheduling conversation from the job detail page and tells the agent the new work date and, optionally, an arrival-time window.
+1. The job's primary owner or an organization Owner/Admin starts a scheduling conversation from the job detail page and tells the agent the new work date and, optionally, an arrival-time window.
 2. The agent shows the current schedule and proposed change, then asks the user to confirm before saving. The user can correct the proposal or cancel.
 3. On confirmation, save the scheduled date and optional arrival window, recording the actor, timestamp, and prior/new values in job activity.
 4. Setting a date on a job in **Needs Scheduling** moves it to **Scheduled**. Removing the scheduled date from a job in **Scheduled** returns it to **Needs Scheduling**.
@@ -351,7 +357,7 @@ This section details the actions a user can take after opening a job, including 
 
 ### In-job journey 7 — Change the completion deadline
 
-1. The job's primary owner or an organization owner/admin starts a deadline conversation from the job detail page and asks to set, change, or remove the completion deadline.
+1. The job's primary owner or an organization Owner/Admin starts a deadline conversation from the job detail page and asks to set, change, or remove the completion deadline.
 2. The agent shows the current deadline and proposes the requested new date or no-deadline state. The user can correct the proposal or cancel.
 3. On confirmation, save the deadline change and record the actor, timestamp, and previous/new values in job activity.
 4. Immediately notify the assigned team in-app and by email. Recalculate pending reminders against the new deadline or cancel them if the deadline is removed.
@@ -370,9 +376,9 @@ This section details the actions a user can take after opening a job, including 
 ### In-job journey 9 — Use a job checklist (Phase 2)
 
 1. For a manually created job, the agent drafts the job's one optional checklist of simple named steps from the job details.
-2. Before saving the checklist, the primary job owner, an owner/admin, or an office manager reviews the draft and can add, remove, or edit steps. They may also skip the checklist or approve it empty; job creation does not depend on checklist approval.
+2. Before saving the checklist, the primary job owner or an organization Owner/Admin reviews the draft and can add, remove, or edit steps. They may also skip the checklist or approve it empty; job creation does not depend on checklist approval.
 3. The job detail page shows approved checklist steps with a done/not-done state. Checklist steps do not have their own assignee or due date.
-4. The primary job owner, owners/admins, and office managers can add, edit, reorder, or remove checklist steps after approval, including removing all steps.
+4. The primary job owner and organization Owners/Admins can add, edit, reorder, or remove checklist steps after approval, including removing all steps.
 5. Assigned team members can mark checklist steps complete or uncheck a mistaken completion through the checkbox or by asking the agent. When acting through chat, the agent confirms the specific step before changing it. Record each change with the requesting user and timestamp in checklist/activity history; do not send a team notification for each change.
 6. Completing all checklist steps does not change the overall job status. The job owner completes the job through the separate explicit **Completed** status flow.
 7. Reopening a completed or canceled job preserves the checklist's existing steps and checkmarks. The job owner can make changes for the resumed work.
@@ -413,7 +419,7 @@ This section details the actions a user can take after opening a job, including 
 1. If the user named a primary owner, use that selection.
 2. Otherwise, apply the business-wide manual-job assignment rule.
 3. If there is no applicable assignment rule, ask the user to choose a primary owner; do not silently assign the creator.
-4. Allow optional team members in addition to the single primary owner. The owner/admin can change assignments later.
+4. Allow optional team members in addition to the single primary owner. An organization Owner/Admin can change assignments later.
 
 ### Step 6 — Review and save
 
@@ -448,7 +454,7 @@ This section details the actions a user can take after opening a job, including 
 3. Show upload progress and a clear success or failure result. A successful upload appears in the Files section with filename, type, size, uploader, and upload time; record the event in job activity. Do not notify the assigned team by default. Authorized team members can open/download the file, and downloads are recorded.
 4. If the upload would exceed quota, keep existing files accessible and explain that the user must delete a file or upgrade the plan before uploading.
 5. To remove a file, the user confirms the named document in the irreversible-deletion dialog. After confirmation, the file becomes unavailable and its encryption key is destroyed; keep only non-content audit metadata.
-6. Only the uploader, owners/admins, and office managers can remove an attachment. Other authorized job team members can still view and download it.
+6. Only the uploader (while still authorized) and organization Owners/Admins can remove an attachment. Other authorized job team members can still view and download it.
 
 ### Step 11 — Update job progress
 
@@ -476,7 +482,7 @@ This section details the actions a user can take after opening a job, including 
 
 1. Status changes, assignment changes, scheduled-date changes, completion-deadline changes, approaching deadlines, and overdue deadlines trigger the configured job notifications.
 2. Notify the assigned job team by default. An admin may add additional recipients, including themselves.
-3. Deliver notifications in-app and by email; email uses SalesMora's shared SMTP provider and no-reply identity. SMS remains a later feature.
+3. Deliver notifications in-app and by email; email uses SalesMora's Resend account and no-reply identity. SMS remains a later feature.
 4. In-app notifications and status/assignment/schedule/deadline-change emails send immediately. Deadline reminder emails follow configured offsets before, on, or after the deadline and send at the admin-selected time in the business timezone. Premium supports configurable multi-offset rules.
 5. Each notification links to the job and only includes information the recipient is authorized to see.
 

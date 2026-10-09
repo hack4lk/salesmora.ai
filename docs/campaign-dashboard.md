@@ -1,10 +1,22 @@
 # SalesMora Campaign Dashboard
 
-**Status:** Working design outline for review. Confirmed requirements are separated from proposed dashboard elements and open decisions.
+**Status:** Phase 1 basic campaign dashboard, role access, and base plan gates approved; advanced analytics are deferred to a later phase.
 
 ## Purpose
 
 Give each campaign a dedicated place to see whether it is active, how leads are moving through its workflow, and where a person needs to take action. The dashboard should make campaign health understandable at a glance while keeping the detailed configuration available when needed.
+
+## Phase boundary
+
+**Phase 1 basic view:** Show campaign/source status, campaign-to-date totals for Captured and Approved, the current Awaiting Review count, and direct links to the Intake Review queue. Include basic campaign controls needed to manage a source. Keep the view focused on intake health; do not add a date-range filter in Phase 1.
+
+**Later phase:** Add job conversion metrics, a simple lead-flow funnel, follow-up queues and performance, a separate integration delivery-health card, richer activity history, and advanced date/filter analytics as workflow automation is introduced. Defer additional charts until customer feedback identifies a clear need.
+
+### Access
+
+Owners and Admins can view and manage campaign dashboards and campaign settings. Members cannot access the campaign list, dashboard, or settings. A Member may open an individual Intake Review item only when it is assigned to them, through the assigned task or notification; apply record-level authorization to that item.
+
+The Phase 1 basic dashboard and website/shareable-link campaigns are included on every plan, subject to each plan's published-campaign limit. Gmail intake is available on Standard and Premium. Premium-only integrations remain gated to Premium.
 
 ## Confirmed requirements
 
@@ -12,11 +24,13 @@ Give each campaign a dedicated place to see whether it is active, how leads are 
 - Show the number of leads captured.
 - Show the number of leads awaiting Intake Review.
 - Show the number of approved leads.
-- Show the number of jobs created from the campaign.
-- Show upcoming and failed follow-ups.
+- Link directly to Intake Review for pending leads.
 - Campaigns can be draft, scheduled, active, paused, or archived.
-- Admins can launch, schedule, pause, resume, archive, restore, and duplicate campaigns subject to the review/approval rules in the user journey.
-- Dashboard activity must reflect the campaign's selected destination: SalesMora, connected external systems, or both.
+- Keep paused campaigns in the normal campaign list with a clear Paused status. Put archived campaigns in a separate Archived view; preserve their records and audit history.
+- Owners and Admins can launch, schedule, pause, resume, archive, restore, and duplicate campaigns subject to the review/approval rules in the user journey.
+- Dashboard status must reflect the campaign's selected destination: SalesMora, connected external systems, or both.
+
+Job counts, follow-up status, integration delivery health, and expanded activity history are later-phase additions, not part of the Phase 1 basic dashboard.
 
 ## Proposed dashboard layout
 
@@ -30,16 +44,17 @@ Restoring an archived campaign requires an explicit review before intake and aut
 
 Use compact metric cards for the confirmed measures:
 
-| Metric | Meaning to refine |
+| Metric | Definition |
 |---|---|
-| Leads captured | Leads/messages/forms received from the campaign source |
-| Awaiting review | Proposed Gmail leads in Intake Review, or other campaign items requiring human approval |
-| Approved leads | Leads approved into the selected destination(s) |
-| Jobs created | Leads converted to jobs at the campaign's chosen pipeline stage |
-| Upcoming follow-ups | Scheduled follow-ups or human-review emails that are due soon |
-| Failed follow-ups | Follow-up actions that need attention, such as an SMTP delivery failure |
+| Captured to date | Unique inbound form submissions or Gmail messages received by this campaign since launch, including items later flagged as duplicates; exclude retry deliveries |
+| Awaiting review now | Unique intake items currently awaiting a decision in Intake Review, including items flagged as possible duplicates; exclude items already approved or dismissed |
+| Approved to date | Unique intake items approved since launch, counting each item once regardless of the number of selected destinations |
+| Jobs created | Distinct SalesMora job records actually created from campaign leads; date-filter this metric by the job creation event date (later phase) |
+| Upcoming follow-ups | Count of scheduled follow-up actions due from now through the next seven days, including today; show overdue actions separately and use the business timezone (later phase) |
+| Failed follow-ups | Distinct follow-up actions in a failed state that need attention; exclude attempts that are still retrying (later phase) |
 
-The number definitions should be consistent across campaigns and clear about whether counts are lifetime totals or scoped to a selected date range.
+Use the same count definitions across campaigns. Count one capture per unique source item; processing or webhook retries must not increase the total. Advanced date-range metrics may be added later with explicitly labeled event-date semantics.
+Count each scheduled follow-up action once. Show overdue follow-ups separately from Upcoming. Interpret the seven-day window in the business timezone.
 
 ### 3. Lead-flow funnel
 
@@ -50,13 +65,13 @@ Captured → Awaiting review → Approved → Converted to job
                     ↘ Dismissed
 ```
 
-For campaigns that route leads to external systems, show delivery/sync status alongside the relevant stage. Do not imply that a lead was successfully delivered when an integration action failed.
+For campaigns that route leads to external systems, show delivery/sync health in a separate delivery metric card, outside the lead-flow funnel. Do not imply that a lead was successfully delivered when an integration action failed. Link the card to failed or retrying deliveries that need attention.
 
 ### 4. Follow-up activity
 
 Show upcoming and recently completed follow-ups, with clear distinctions among:
 
-- Scheduled SMTP emails.
+- Scheduled Resend emails.
 - Emails waiting for human review, including the reviewer and how long they have been waiting.
 - Human tasks assigned to a team member.
 - Completed, skipped, rescheduled, paused, and failed actions.
@@ -100,13 +115,3 @@ Show the time and responsible actor when available. Keep audit history available
 - Respect tenant boundaries and subscription entitlements in both dashboard data APIs and interface controls.
 - Avoid exposing email body/sample content in dashboard summaries; link to the authorized review detail when needed.
 - Dashboard updates can be near-real-time where practical, with a visible last-updated time if any data is delayed.
-
-## Open decisions
-
-- Which roles can view the campaign dashboard, and which can operate its controls?
-- Should metrics default to lifetime totals or a recent date range, with a date filter available?
-- Should external delivery status be a separate metric card, part of the funnel, or both?
-- What is the threshold for “upcoming” follow-ups?
-- Should paused and archived campaigns remain in the normal campaign list, and how should they be visually separated?
-- Which charts are necessary for the first release beyond the simple lead-flow funnel?
-- Which dashboard features belong in Free, Standard, and Premium?

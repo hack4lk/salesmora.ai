@@ -24,7 +24,7 @@ Keep the default experience simple: useful summaries first, clear paths into the
 | Lead/customer/job detail | Individual record history and relevant activity, with no separate analytics layer required | 1 |
 | Campaign dashboard | Source-specific lead flow, review queue, job conversion, and follow-up health | 2+, as capture campaigns are introduced |
 | Integration/workflow health | Sync failures and workflow execution reporting | 2–3, as workflows and connectors are introduced |
-| Subscription/usage area | Plan limits and usage indicators; billing details remain in billing settings | 1 foundation; expand as metering is built |
+| Subscription/usage area | Plan limits and usage indicators; at a hard cap block only the metered action and show the reset date and upgrade option; billing details remain in billing settings | 1 foundation; expand as metering is built |
 
 The home page remains role-aware and concise. It should not duplicate the full Reports area. Campaign reporting belongs on the campaign dashboard described in [Campaign Dashboard](campaign-dashboard.md), with links into shared reports where appropriate.
 
@@ -76,9 +76,16 @@ Phase 1 reports should support, where relevant:
 - Assigned team member.
 - Search and drill-through to source records.
 
-Report labels should state whether a date filter uses record creation, stage conversion, job creation, or another event date. Use the business timezone for dates shown in the UI and store/compare timestamps consistently in the backend.
+The standard report date range defaults to **Last 30 days**. Use these date bases and name them in the report UI:
 
-## 4. Phase 1 data export
+- Lead lists and lead counts use the lead's creation date; stage-movement reports use the date the lead entered the relevant stage. A current-pipeline snapshot filters by lead creation date and groups the matching leads by their current stage.
+- Job reports use job creation date; completion metrics use the date the job was completed.
+- Campaign reports use the date the lead was captured.
+- Activity reports use the activity event date.
+
+Date ranges include both selected calendar dates and use the business timezone. Convert the local start date to an inclusive timestamp and the day after the local end date to an exclusive timestamp so daylight-saving transitions are handled correctly.
+
+## 4. Confirmed Phase 1 data export
 
 ### 4.1 Supported export format
 
@@ -86,12 +93,14 @@ Report labels should state whether a date filter uses record creation, stage con
 
 Phase 1 does not include XLSX, PDF report generation, scheduled exports, a public reporting API, or automated data delivery to third-party systems. Those can be evaluated later based on customer use.
 
+Use stable, documented default columns for each dataset in Phase 1. Do not offer a column picker in the first release; preserve predictable exports for spreadsheet use and downstream imports.
+
 ### 4.2 Supported Phase 1 datasets
 
 Allow authorized users to export these records as separate CSV files:
 
 1. **Leads** — core lead fields, status/stage, source if present, assignee, created/updated timestamps, and customer/contact linkage.
-2. **Customers/contacts** — business contact fields and record timestamps.
+2. **Customers** — customer fields (including primary contact details) and record timestamps.
 3. **Jobs** — core job details, status, assigned team members, customer/lead reference, and timestamps.
 4. **CRM activity history** — event time, event type, actor, related lead/customer/job IDs, and visible activity details.
 
@@ -104,9 +113,12 @@ The activity export covers CRM record history, not internal security logs, OAuth
 - Offer a separate **Export report data** action for tabular report results.
 - Provide activity-history export from the activity report or authorized record views.
 - Apply the same tenant, role, and row-level access rules used to display records. An export must never reveal records hidden from the requesting user.
+- Allow Owners/Admins to export on every subscription plan; do not impose plan-specific row quotas. Export the full filtered result set within the authorized scope.
 - Include only fields the user is authorized to see. Do not include OAuth tokens, payment credentials, internal prompts, or other system secrets.
 
 Phase 1 should export one selected dataset per file. A bundled full-account export can be added after the individual CSV flows and data-portability requirements are validated.
+
+Do not offer a bundled full-workspace download in Phase 1. After cancellation, keep the workspace's records available to its Owner to view and export for a 30-day grace period; do not delete business records immediately. A failed renewal starts a seven-day active payment-recovery period with Owner notification. If payment remains unsuccessful, apply plan limits while preserving business records and Owner view/export access.
 
 ### 4.4 Export usability and data handling
 
@@ -119,7 +131,7 @@ Phase 1 should export one selected dataset per file. A bundled full-account expo
 - Show the user the dataset, filters, and expected row count before download. Show a clear error if the export cannot be completed.
 - Record an audit event for exports (actor, organization, dataset, filter/scope, time, and outcome), without copying exported cell contents into the audit log.
 
-For initial business-sized datasets, stream CSV output from a tenant-scoped server-side query rather than loading every row into web-server memory. Set a configurable threshold and a clear response for large requests; move large or bundled exports to a background job with private, expiring downloads in a later phase if needed.
+For initial business-sized datasets, stream CSV output from a tenant-scoped server-side query rather than loading every row into web-server memory. Set a configurable technical request limit based on performance testing, and explain when a request exceeds it so the user can narrow filters. Never silently truncate an export. Move large or bundled exports to a background job with private, expiring downloads in a later phase if needed.
 
 ## 5. Subscription and permissions
 
@@ -127,13 +139,13 @@ The current three-tier proposal includes basic reporting on every plan and reser
 
 | Tier | Phase 1 reporting proposal |
 |---|---|
-| Free | Owner overview, basic lead/pipeline and job summaries, standard filters, and CSV export for accessible records within configured usage limits |
-| Standard | Same standard reports with higher record/export limits as defined by plan configuration |
+| Free | Owner overview, basic lead/pipeline and job summaries, standard filters, and CSV export for accessible records with no plan-specific row quota |
+| Standard | Same standard reports; CSV export has no plan-specific row quota |
 | Premium | Standard reports plus advanced reporting when those metrics are available |
 
-Do not make a user’s own CRM records inaccessible solely because an advanced reporting feature is plan-gated. Keep feature/usage entitlements in server-side policy so plans can change without duplicating report code. Exact export caps and plan limits remain commercial decisions.
+Do not make a user’s own CRM records inaccessible solely because an advanced reporting feature is plan-gated. Keep feature/usage entitlements in server-side policy so plans can change without duplicating report code. Use the provisional plan prices and core quotas in the product roadmap. There are no plan-specific export row quotas; set the configurable technical request limit through performance testing.
 
-Use roles to control who can view team-wide reports and export business data. Apply authorization in the server-side report/export service, not just by hiding buttons in the interface.
+Owners and Admins can view team-wide reports and initiate workspace data exports. Members may view only reports within their authorized record access and cannot initiate workspace exports. Apply these role and row-level rules in the server-side report/export service, not just by hiding buttons in the interface.
 
 ## 6. Architecture and data quality
 
@@ -151,8 +163,8 @@ Use roles to control who can view team-wide reports and export business data. Ap
 | Phase | Reporting and export scope |
 |---|---|
 | **0 — Discovery** | Confirm report definitions, roles, date semantics, baseline export columns, plan limits, and data-portability expectations. Prototype the main report screens. |
-| **1 — CRM and paid foundation** | Owner overview; lead/pipeline, job, and team workload reports; filters and drill-through; per-dataset CSV exports for leads, customers, jobs, and activity history; tenant/role checks and export audit events. |
-| **2 — Capture, workflow, and Google** | Campaign dashboards and campaign-level outcome reporting; form/Gmail source dimensions; workflow execution and review-queue reporting; export campaign lead/source fields that exist in the CRM. |
+| **1 — CRM, paid foundation, and core intake** | Owner overview; lead/pipeline, job, and team workload reports; filters and drill-through; per-dataset CSV exports for leads (including available campaign/source fields), customers, jobs, and activity history; tenant/role checks and export audit events. |
+| **2 — Workflow automation and Google Calendar** | Advanced campaign dashboards and campaign-level outcome reporting; workflow execution and review-queue reporting; export any additional campaign fields introduced after Phase 1. |
 | **3 — Operations and connectors** | Job deadline/overdue reporting; connector delivery health; workflow failure and retry reporting; expanded team/operations reports. |
 | **4 — Scale and ecosystem** | Evaluate XLSX/PDF, scheduled reports, saved report definitions, large bundled exports, API access, and richer attribution based on usage and customer requests. |
 
@@ -165,15 +177,7 @@ Use roles to control who can view team-wide reports and export business data. Ap
 - Export files open correctly in standard spreadsheet tools, including values with commas, quotes, Unicode, and formula-like prefixes.
 - Export authorization is enforced server-side and each export outcome is auditable.
 - Export requests that exceed the configured limit fail clearly or route to the explicitly implemented large-export path; they do not exhaust application memory.
+- Tune the configurable export request-size threshold through performance testing with representative data before launch.
 - Basic reporting is available on the Free tier as proposed, with any usage limits communicated clearly.
 
 ## 9. Decisions for review
-
-- Which exact roles may view team-wide reports and initiate exports?
-- Should the standard date filter default to the last 30 days, current month, or all time?
-- Should activity history be a Phase 1 CSV dataset, or limited to per-record timeline viewing initially?
-- Should users be able to choose CSV columns in Phase 1, or should exports use a stable default column set?
-- What record/export limits should apply per plan, and should large exports be queued in Phase 1?
-- Which report totals belong on each role's home page?
-- Should campaign dashboards and workflow health reports be available in Phase 2 as planned, or wait until later phases?
-- What is the customer-facing data-export experience when a subscription is canceled or a user requests a full account export?

@@ -63,12 +63,12 @@ flowchart TD
     Workflow --> Followup[Run configured follow-up steps]
 
     Followup --> Task[Create assigned human task]
-    Followup --> Email[Send or queue branded email through shared SMTP]
+    Followup --> Email[Send or queue branded email through Resend]
     Email --> EmailMode{Email mode}
-    EmailMode -->|Automatic, authorized| SMTP[Send from SalesMora no-reply identity]
+    EmailMode -->|Automatic, authorized| Resend[Send from SalesMora no-reply identity via Resend]
     EmailMode -->|Human review| ReviewEmail[Lead owner or selected reviewer edits/sends, reschedules, or skips]
-    ReviewEmail --> SMTP
-    SMTP --> Inbound{Matching email arrives in connected Gmail?}
+    ReviewEmail --> Resend
+    Resend --> Inbound{Matching email arrives in connected Gmail?}
     Inbound -->|Exact sender email matches lead| StopSeq[Pause remaining email steps and notify owner]
     Inbound -->|No match| NextStep[Wait until next step timing/send window]
     NextStep --> Followup
@@ -110,6 +110,6 @@ Archiving stops campaign intake and future automation while preserving leads, jo
 ## Rules intentionally deferred to focused diagrams
 
 - Exact Gmail matching, sample preview, field-mapping, missing-field, and duplicate-review logic.
-- Workflow timers, email review queue behavior, pause/resume, reminders, and SMTP failure/retry handling.
+- Workflow timers, email review queue behavior, pause/resume, reminders, and Resend failure/retry handling.
 - Connector authorization, entitlement checks, idempotency, and delivery errors.
 - Role permissions, subscription limits, and campaign dashboard metric definitions.

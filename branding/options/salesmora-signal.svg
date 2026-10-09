@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 160" role="img" aria-labelledby="title desc">
+  <title id="title">SalesMora Signal logo concept</title>
+  <desc id="desc">Three connected signal nodes forming a rising path beside the SalesMora wordmark.</desc>
+  <path d="M40 112 76 78l27 18 38-54" fill="none" stroke="#315BCE" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40" cy="112" r="12" fill="#315BCE"/>
+  <circle cx="76" cy="78" r="12" fill="#47BFA4"/>
+  <circle cx="103" cy="96" r="12" fill="#315BCE"/>
+  <circle cx="141" cy="42" r="12" fill="#47BFA4"/>
+  <text x="173" y="94" fill="#182230" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="48" font-weight="700" letter-spacing="-2.2">SalesMora<tspan fill="#315BCE" font-size="32" font-weight="650" letter-spacing="-1">.ai</tspan></text>
+</svg>
