@@ -1,0 +1,17 @@
+export const connectedAssistantData = {
+  historyChanged: 'These history results are unavailable or out of date. Ask the assistant to retrieve them again.',
+  detailsChanged: 'These lead details have changed or are no longer available. Ask the assistant to retrieve them again.',
+  searchChanged: 'These search results have changed or are no longer available. Ask the assistant to search again.',
+  leadDeleted: 'The lead was permanently deleted.',
+  previousContext: 'previous message context',
+  leadLimit: 'Your workspace has reached its monthly new-lead limit. Ask the Owner to change plans or wait for the next monthly reset. Your proposal has not been saved as a lead.',
+  budgetExceeded: 'Your workspace does not have enough monthly AI allowance for this response. The allowance resets on the first of next month (UTC). You can continue working manually.',
+  draftChanged: 'This draft changed or expired. Ask for a new draft.',
+  decisionInterrupted: 'The decision could not be verified. Retry to check the saved result.',
+  loading: 'Loading conversation…',
+  unavailable: 'Chat is temporarily unavailable. Try again shortly.',
+  interrupted: 'The response was interrupted. Your saved conversation is retained. Retry only when you are ready.',
+  denied: 'Your access changed. Reload this page before continuing.',
+  limited: 'Please wait before sending another message.',
+  newConversation: 'Start a new conversation',
+} as const;

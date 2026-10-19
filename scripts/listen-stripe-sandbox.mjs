@@ -1,0 +1,12 @@
+import {spawn} from 'node:child_process';
+import {readFileSync,writeFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+const envFile=fileURLToPath(new URL('../.env.local',import.meta.url));
+process.loadEnvFile(envFile);
+const key=process.env.STRIPE_SECRET_KEY;if(!/^(sk|rk)_test_/.test(key??''))throw Error('Sandbox key required');
+const child=spawn(process.env.STRIPE_CLI_PATH ?? 'stripe',['listen','--forward-to','http://127.0.0.1:3000/api/stripe/webhook','--events','checkout.session.completed,checkout.session.expired,checkout.session.async_payment_succeeded,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.paid,invoice.payment_failed,invoice.payment_action_required'],{env:{...process.env,STRIPE_API_KEY:key},stdio:['ignore','pipe','pipe']});
+let saved=false;
+child.on('error',()=>{console.error('Stripe CLI unavailable. Install it or set STRIPE_CLI_PATH.');process.exitCode=1;});
+for(const stream of [child.stdout,child.stderr])stream.on('data',chunk=>{const text=chunk.toString();const secret=text.match(/whsec_[a-zA-Z0-9]+/)?.[0];if(secret&&!saved){const path=envFile;let env=readFileSync(path,'utf8');env=/^STRIPE_WEBHOOK_SECRET=.*$/m.test(env)?env.replace(/^STRIPE_WEBHOOK_SECRET=.*$/m,`STRIPE_WEBHOOK_SECRET=${secret}`):`${env.trimEnd()}\nSTRIPE_WEBHOOK_SECRET=${secret}\n`;writeFileSync(path,env,{mode:0o600});saved=true;console.log('Sandbox webhook listener ready; signing secret saved locally.');}else if(/<--.*\[(200|400|503)\]/.test(text))console.log('Sandbox webhook delivery received (status only): '+(text.match(/\[(200|400|503)\]/)?.[1]??''));});
+for(const sig of ['SIGINT','SIGTERM'])process.on(sig,()=>child.kill(sig));
+child.on('exit',code=>{console.log('Sandbox listener stopped.');process.exitCode=code??0;});

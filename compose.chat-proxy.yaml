@@ -1,0 +1,23 @@
+# Opt-in rehearsal only: forwards to the isolated Next.js test server, never port 3000.
+name: salesmora-chat-proxy
+services:
+  chat-proxy:
+    image: nginx:stable-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94
+    ports:
+      - '127.0.0.1:3003:8080'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - ./infra/chat-proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/__proxy-health']
+      interval: 2s
+      timeout: 3s
+      retries: 15

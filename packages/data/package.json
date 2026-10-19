@@ -1,0 +1,41 @@
+{
+  "name": "@salesmora/data",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./knowledge-ingestion": "./src/knowledge/ingestion.ts",
+    "./email/lead-assigned": "./src/email/lead-assigned.ts",
+    "./email/lead-assigned-data": "./src/email/lead-assigned.data.ts",
+    "./email/brand": "./src/email/email-brand.data.ts",
+    "./email/transport": "./src/email/transport.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "migrate": "tsx src/migrate.ts",
+    "test:authorization": "node --import tsx src/authorization/rehearsal.ts",
+    "test:leads:read": "node --import tsx src/leads/read.rehearsal.ts",
+    "test:jobs": "node --import tsx src/jobs/store.rehearsal.ts",
+    "test:work-orders": "node --import tsx src/work-orders/store.rehearsal.ts",
+    "test:knowledge": "node --import tsx src/knowledge/rehearsal.ts",
+    "usage:report": "node --import tsx src/ai-usage-report.ts",
+    "test:usage": "node --import tsx src/ai-usage-rehearsal.ts",
+    "budget:configure": "node --import tsx src/ai-budget-configure.ts",
+    "test:retention": "node --import tsx src/chat-retention-rehearsal.ts"
+  },
+  "dependencies": {
+    "@langchain/langgraph-checkpoint-postgres": "1.0.6",
+    "@salesmora/contracts": "workspace:*",
+    "@salesmora/domain": "workspace:*",
+    "knex": "3.3.0",
+    "nodemailer": "10.0.16",
+    "pg": "8.23.1",
+    "stripe": "23.0.0"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "8.0.2",
+    "@types/pg": "8.23.1",
+    "tsx": "4.23.15"
+  }
+}

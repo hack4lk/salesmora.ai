@@ -1,0 +1,1022 @@
+[
+  {
+    "role": "owner",
+    "permission": "home.access",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "leads.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "leads.create",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "leads.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "leads.stage.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "leads.assign",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "leads.archive",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "leads.delete",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "customers.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "customers.related.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "customers.create",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "customers.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "customers.archive",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "customers.delete",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "jobs.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "jobs.create",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "jobs.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "jobs.schedule.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "jobs.assign",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "jobs.status.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "jobs.progress.create",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "jobs.complete",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "jobs.cancel",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "jobs.reopen",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "jobs.archive",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "jobs.delete",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "calendar.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "estimates.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "estimates.create",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "estimates.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "estimates.send",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "intake.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "intake.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "intake.approve",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "intake.dismiss",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "campaigns.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "campaigns.create",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "campaigns.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "campaigns.activate",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "campaigns.pause",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "campaigns.archive",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "reports.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "leads.export",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "customers.export",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "jobs.export",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "activity.export",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "settings.business.read",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "settings.business.update",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "integrations.read",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "integrations.manage",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "team.read",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "team.invite",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "team.role.assign",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "team.remove",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "permissions.read",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "permissions.manage",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "billing.manage",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "ownership.transfer",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "workspace.delete",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "assistant.use",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "home.access",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "leads.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "leads.create",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "leads.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "leads.stage.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "leads.assign",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "leads.archive",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "leads.delete",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "customers.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "customers.related.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "customers.create",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "customers.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "customers.archive",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "customers.delete",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "jobs.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "jobs.create",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "jobs.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "jobs.schedule.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "jobs.assign",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "jobs.status.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "jobs.progress.create",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "jobs.complete",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "jobs.cancel",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "jobs.reopen",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "jobs.archive",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "jobs.delete",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "calendar.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "estimates.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "estimates.create",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "estimates.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "estimates.send",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "intake.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "intake.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "intake.approve",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "intake.dismiss",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "campaigns.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "campaigns.create",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "campaigns.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "campaigns.activate",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "campaigns.pause",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "campaigns.archive",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "reports.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "leads.export",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "customers.export",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "jobs.export",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "activity.export",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "settings.business.read",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "settings.business.update",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "integrations.read",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "integrations.manage",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "team.read",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "team.invite",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "team.role.assign",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "team.remove",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "assistant.use",
+    "scope": "enabled"
+  },
+  {
+    "role": "office",
+    "permission": "home.access",
+    "scope": "enabled"
+  },
+  {
+    "role": "office",
+    "permission": "leads.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "leads.create",
+    "scope": "enabled"
+  },
+  {
+    "role": "office",
+    "permission": "leads.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "leads.stage.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "leads.assign",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "customers.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "customers.related.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "customers.create",
+    "scope": "enabled"
+  },
+  {
+    "role": "office",
+    "permission": "customers.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "jobs.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "jobs.create",
+    "scope": "enabled"
+  },
+  {
+    "role": "office",
+    "permission": "jobs.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "jobs.schedule.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "jobs.assign",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "jobs.status.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "jobs.progress.create",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "jobs.complete",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "jobs.cancel",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "calendar.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "estimates.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "estimates.create",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "estimates.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "estimates.send",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "intake.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "intake.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "intake.approve",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "intake.dismiss",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "campaigns.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "campaigns.create",
+    "scope": "enabled"
+  },
+  {
+    "role": "office",
+    "permission": "campaigns.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "campaigns.activate",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "campaigns.pause",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "reports.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "assistant.use",
+    "scope": "enabled"
+  },
+  {
+    "role": "field",
+    "permission": "home.access",
+    "scope": "enabled"
+  },
+  {
+    "role": "field",
+    "permission": "leads.read",
+    "scope": "assigned"
+  },
+  {
+    "role": "field",
+    "permission": "leads.update",
+    "scope": "assigned"
+  },
+  {
+    "role": "field",
+    "permission": "leads.stage.update",
+    "scope": "assigned"
+  },
+  {
+    "role": "field",
+    "permission": "customers.related.read",
+    "scope": "related_assigned"
+  },
+  {
+    "role": "field",
+    "permission": "jobs.read",
+    "scope": "assigned"
+  },
+  {
+    "role": "field",
+    "permission": "jobs.status.update",
+    "scope": "assigned"
+  },
+  {
+    "role": "field",
+    "permission": "jobs.progress.create",
+    "scope": "assigned"
+  },
+  {
+    "role": "field",
+    "permission": "jobs.complete",
+    "scope": "assigned"
+  },
+  {
+    "role": "field",
+    "permission": "calendar.read",
+    "scope": "own_assigned"
+  },
+  {
+    "role": "field",
+    "permission": "estimates.read",
+    "scope": "assigned_job"
+  },
+  {
+    "role": "field",
+    "permission": "estimates.create",
+    "scope": "assigned_job"
+  },
+  {
+    "role": "field",
+    "permission": "estimates.update",
+    "scope": "assigned_job"
+  },
+  {
+    "role": "field",
+    "permission": "estimates.send",
+    "scope": "assigned_job"
+  },
+  {
+    "role": "field",
+    "permission": "reports.read",
+    "scope": "assigned"
+  },
+  {
+    "role": "field",
+    "permission": "assistant.use",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "workorders.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "workorders.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "workorders.read",
+    "scope": "workspace"
+  },
+  {
+    "role": "field",
+    "permission": "workorders.read",
+    "scope": "assigned_job"
+  },
+  {
+    "role": "owner",
+    "permission": "workorders.create",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "workorders.create",
+    "scope": "enabled"
+  },
+  {
+    "role": "office",
+    "permission": "workorders.create",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "workorders.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "workorders.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "workorders.update",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "workorders.issue",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "workorders.issue",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "workorders.issue",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "workorders.progress",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "workorders.progress",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "workorders.progress",
+    "scope": "workspace"
+  },
+  {
+    "role": "field",
+    "permission": "workorders.progress",
+    "scope": "assigned_job"
+  },
+  {
+    "role": "owner",
+    "permission": "workorders.complete",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "workorders.complete",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "workorders.complete",
+    "scope": "workspace"
+  },
+  {
+    "role": "field",
+    "permission": "workorders.complete",
+    "scope": "assigned_job"
+  },
+  {
+    "role": "owner",
+    "permission": "workorders.cancel",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "workorders.cancel",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "workorders.cancel",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "workorders.reopen",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "workorders.reopen",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "workorders.reopen",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "workorders.archive",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "workorders.archive",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "workorders.delete",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "workorders.delete",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "workorders.export",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "workorders.export",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "workorders.view_prices",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "workorders.view_prices",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "workorders.view_prices",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "workorders.view_costs",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "workorders.view_costs",
+    "scope": "workspace"
+  }
+]

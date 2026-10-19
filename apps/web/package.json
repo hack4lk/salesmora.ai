@@ -1,0 +1,47 @@
+{
+  "name": "@salesmora/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "storybook": "storybook dev -p 6006 --host 127.0.0.1 --no-open",
+    "storybook:build": "storybook build",
+    "test:e2e": "playwright test",
+    "test:proxy": "playwright test --config playwright.proxy.config.ts"
+  },
+  "dependencies": {
+    "@emotion/cache": "11.14.0",
+    "@emotion/react": "11.14.0",
+    "@mui/material": "9.5.0",
+    "@mui/material-nextjs": "9.5.0",
+    "@salesmora/agent": "workspace:*",
+    "@salesmora/contracts": "workspace:*",
+    "@salesmora/data": "workspace:*",
+    "@salesmora/domain": "workspace:*",
+    "@salesmora/ui": "workspace:*",
+    "@stripe/react-stripe-js": "7.0.0",
+    "@stripe/stripe-js": "10.1.0",
+    "better-auth": "1.7.7",
+    "next": "16.2.6",
+    "nodemailer": "10.0.16",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "server-only": "0.0.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "@storybook/addon-a11y": "10.6.1",
+    "@storybook/addon-docs": "10.6.1",
+    "@storybook/nextjs-vite": "10.6.1",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/nodemailer": "8.0.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "postcss": "8.5.29",
+    "storybook": "10.6.1",
+    "vite": "8.3.4"
+  }
+}

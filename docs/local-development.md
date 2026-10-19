@@ -1,4 +1,11 @@
+> Implemented update: Mailpit now runs locally via `pnpm db:setup` (SMTP 11025, inbox 18025). [Password recovery](password-recovery.md) documents the real reset flow; production email delivery remains planned.
+
 # Local Development Environment
+
+Railway staging packaging and deployment order are documented separately in [Railway staging preparation](railway-staging.md). Local Compose and its guarded development/test commands remain unchanged.
+
+> Implemented now: PostgreSQL/Knex and real local registration. See [Registration backend](registration-backend.md) for working commands and ports (PostgreSQL 55432, app 3000, test app 3002). The broader service examples below remain planning guidance; Redis, Mailpit, and storage are not installed yet.
+
 
 This guide describes the planned local development setup for SalesMora. The workspace currently contains planning documents; commands and configuration below are implementation guidance, not a claim that the application or Compose stack already exists.
 
@@ -212,3 +219,49 @@ The Next.js server should handle the UI and request-response endpoints. The work
 ## Local services vs. Railway
 
 Local development should resemble production in service boundaries and runtime configuration, while keeping local data and credentials isolated. Railway should run the Next.js web service, a separate Node.js worker, PostgreSQL, and Redis; the worker need not have a public domain. The BullMQ Redis service needs AOF persistence, `maxmemory-policy=noeviction`, and a persistent volume. Railway's standard Redis docs do not confirm these settings, so use a custom-configured deployment and verify it in staging; this makes Redis configuration, upgrades, backups, and recovery our responsibility. Configure Railway's deploy pipeline to run the Knex migration command once, with a backup and recovery plan for risky schema changes. Railway documents this multi-service pattern for Next.js applications with PostgreSQL and Redis-backed background workers. [Railway full-stack Next.js guide](https://docs.railway.com/guides/fullstack-nextjs)
+
+## Development help ingestion and real vectors
+
+The local PostgreSQL 17 image extends the exact previous Alpine base with pinned pgvector 0.8.7. Keep `postgres_data`; never delete it to upgrade. Before switching an existing volume, create a private backup with `node scripts/backup-local-db.mjs`, build `docker compose --env-file .env.local build postgres`, then validate that backup with `node scripts/rehearse-vector-image.mjs /absolute/path/to/.local/backups/backup.dump`. This rehearsal uses a disposable container on loopback port 55439 and verifies account/CRM fingerprints, extension installation and migrations. `pnpm db:setup` starts PostgreSQL, Mailpit and local Redis, then migrates both databases. Production upgrades need a separate staging/restore review.
+
+Put a development `OPENAI_API_KEY` in ignored `.env.local`; never paste it into chat or add a `NEXT_PUBLIC_` key. The server adapter pins `text-embedding-3-small` with 1536 dimensions. Changing the embedding space requires a reviewed code change and explicit reindex. Corpus ingestion sends only the fictional product help articles, not CRM records. The live conversation provider requires the explicit configuration below; a development key alone does not enable it.
+
+Run these in separate terminals:
+
+```bash
+pnpm worker:dev
+pnpm knowledge:seed
+pnpm knowledge:evaluate
+```
+
+The seed waits for BullMQ jobs and is repeat-safe: unchanged published articles incur no embedding calls. Content/metadata/model changes invalidate the old version immediately; a new version publishes atomically after every vector is ready. Failed jobs leave the new article unpublished and can be retried by running the seed again. Removing an article from the manifest retires its old versions and deletes their vectors. If editing during a running seed, run the seed again to reconcile the final manifest. Redis uses AOF, `appendfsync everysec`, `noeviction` and a persistent volume; its port is bound to loopback only. It is a local development service, not a deployment configuration.
+
+`--test` selects the isolated test database and a separate Redis queue. These commands refuse production and nonstandard remote databases/Redis. Ordinary unit and browser tests use deterministic fictional vectors and need no provider key. Run `pnpm --filter @salesmora/data test:knowledge` for rollback-only SQL security/lifecycle fixtures. The real evaluator makes bounded provider calls for 20 paraphrases plus an unrelated question. Only source identifiers and scores/results are logged; provider errors are redacted.
+
+Global product-help retrieval and `/help/[slug]?workspace=...&version=...#section` both enforce current workspace membership, `assistant.use`, role, capability, publication and implemented-product metadata. The only current entitlement is the server-owned free baseline; unknown/enterprise plans fail closed until an authoritative entitlement system exists. The filesystem corpus loader has a worker-only package entry point and is not loaded into web route bundles. Help text renders as escaped plain text, never executable HTML.
+
+
+### Local live read-only assistant
+
+Set `CHAT_ENABLED=true` and `CHAT_MODEL=gpt-6-luna` in ignored `.env.local`, alongside the server-only development key. Keep `LANGSMITH_TRACING=false` and `LANGCHAIN_TRACING_V2=false`; tracing-enabled configurations fail closed. Restart `pnpm dev` after changing runtime environment values. `.env.example` leaves chat disabled. `store: false` disables provider response storage, not all provider retention; review account data controls before production customer-data use.
+
+The signed-in floating callout supports streamed product-help answers, permission-scoped lead pipeline totals and reviewed lead drafting on Home/Create lead. Sources open the authenticated current-version help viewer. Stop cancels generation, Close preserves a running conversation, refresh reads saved history, and New conversation starts another private thread. The model cannot commit. A saved lead draft requires the separate Confirm and create lead button; it expires after 15 minutes, and confirmation rechecks permissions and owner state. History masks older assistant answers after a policy/source access change. Checkpoint tables store execution metadata only.
+
+Ordinary `pnpm test` and browser tests use no live provider. The opt-in command `SALESMORA_LIVE_EVAL=1 pnpm test:e2e e2e/chat-live.spec.ts` sends fictional questions/help fixtures to the configured provider and requires the isolated `_test` database. It verifies live citations, assigned Field totals and user/retrieved instruction attacks. It consumes development provider usage and must not target the development account database. Retention scheduling, usage budgets and production deployment checks remain release work.
+
+
+Lead approval security tests: `pnpm test:e2e e2e/chat-actions.spec.ts`. These use the isolated fixture provider and database, exercising the real tool graph and confirmation service without provider calls. The opt-in live suite also prepares a fictional lead using the actual model and creates it only through explicit confirmation. `chatActionDrafts` holds normalized private proposals; `chatActionAudit` is non-content append-only business audit. Scheduled transcript and audit retention remain separate release work.
+
+Provider usage is recorded in `aiUsageCalls`. Run `pnpm ai:usage` for this UTC month's local aggregate counts/tokens, or `pnpm ai:usage -- --test` for isolated test usage. Missing final usage is explicitly unknown, including process interruptions; it is never assumed free. The assistant enforces the approved 5-million-token monthly workspace default; configure it with server-only `CHAT_MONTHLY_WORKSPACE_TOKENS`. Inspect/set a local workspace override with `pnpm ai:budget -- --workspace WORKSPACE_UUID [--tokens 5000000]` (add `--test` for isolated tests). No currency budget or new settings screen is added. `pnpm --filter @salesmora/data test:usage` runs ledger and concurrent allowance checks. See [usage accounting](ai-usage-accounting.md) for reservation, reset and configuration details.
+
+### Assistant retention worker
+
+`pnpm worker:dev` also registers daily chat retention at 03:00 UTC. Restart an existing worker after upgrading. Cleanup expires private assistant threads after 90 days of inactivity, including their checkpoints and draft payloads, while preserving audits and usage accounting. `pnpm test:chat:retention` checks fictional rollback-only fixtures in the isolated test database. See [chat retention](chat-retention.md) for boundaries and production setup requirements.
+
+### Shared worker runtime
+
+The same worker now supports explicit production/staging configuration while preserving local Docker URLs and queue names. Use `pnpm worker:start` for a non-watching process, `pnpm worker:status` for a safe operational snapshot, or `WORKER_TASKS=retention` on both commands for cleanup without embedding credentials. `pnpm --filter @salesmora/worker test:runtime` rehearses isolated test worker jobs and restart behavior without provider calls. See [worker deployment](worker-deployment.md) for configuration, scheduling and monitoring. The earlier retention note that production entry points were absent is superseded; actual deployment/alert delivery still needs staging validation.
+
+### Docker streaming proxy rehearsal
+
+Use `docker compose -f compose.chat-proxy.yaml up -d --wait`, then `pnpm --filter @salesmora/web test:proxy`. This opt-in loopback proxy fronts the isolated test server on port 3002, preserving the normal app at port 3000. It exercises chat streaming, cancellation, recovery, quota and action idempotency with fictional responses; one test waits for the real 90-second application deadline. Stop it with `docker compose -f compose.chat-proxy.yaml down`. Do not run this concurrently with other test-database suites. See [proxy rehearsal](chat-proxy-rehearsal.md) for fault injection and staging limitations.

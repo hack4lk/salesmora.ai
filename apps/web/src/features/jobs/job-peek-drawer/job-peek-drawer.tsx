@@ -1,0 +1,5 @@
+'use client';
+import {SideDrawer} from '@salesmora/ui';import type {JobView,JobAction} from '../job-preview.types';import {JobDetailsCard} from '../job-details-card/job-details-card';import {JobDatesCard} from '../job-dates-card/job-dates-card';import {JobStatusBadge} from '../job-status-badge/job-status-badge';import {jobPrimary} from '../job-ui';import {copy} from './job-peek-drawer.data';
+export function JobPeekDrawer({open,job,today,onClose,onOpen,onAction}:{open:boolean;job:JobView;today:string;onClose:()=>void;onOpen:()=>void;onAction:(action:JobAction)=>void}){
+ return <SideDrawer open={open} title={`${job.number} · ${job.title}`} description={copy.description} onClose={onClose} footer={<button className={`${jobPrimary} w-full`} onClick={onOpen}>{copy.open}</button>}><div className="grid gap-4"><p className="m-0 font-semibold wrap-anywhere">{job.customerName}</p><JobStatusBadge status={job.status}/><JobDetailsCard job={job} onEdit={()=>onAction('edit')}/><JobDatesCard job={job} today={today} onSchedule={()=>onAction('schedule')} onDeadline={()=>onAction('deadline')}/></div></SideDrawer>;
+}

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 144" role="img" aria-labelledby="title desc">
+  <title id="title">SalesMora.ai</title>
+  <desc id="desc">The Mosaic brand mark and SalesMora.ai wordmark in Blue and Seafoam colors.</desc>
+  <rect x="22" y="30" width="38" height="38" rx="11" fill="#3B6FA5"/>
+  <rect x="69" y="30" width="38" height="27" rx="9" fill="#7CCBB7"/>
+  <rect x="69" y="67" width="38" height="47" rx="11" fill="#3B6FA5"/>
+  <rect x="22" y="80" width="38" height="34" rx="11" fill="#7CCBB7"/>
+  <text x="137" y="96" fill="#23384D" font-family="'Source Sans 3', 'Segoe UI', Arial, sans-serif" font-size="48" font-weight="700" letter-spacing="-1.6">SalesMora<tspan fill="#3B6FA5" font-size="32" font-weight="650" letter-spacing="-.5">.ai</tspan></text>
+</svg>

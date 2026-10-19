@@ -1,5 +1,7 @@
 # SalesMora User Journeys
 
+**Current authorization (October 12, 2026):** Owner/Admin/Office/Field are live permission roles. Work profiles are retired; new invitations default to Field. Existing Home/lead/invitation flows enforce saved policies. Older role/profile decisions below are historical; see [live cutover](authorization-live-cutover.md).
+
 **Status:** Working reference; decisions will be refined as product flows are reviewed.
 
 This document records the agreed direction for primary SalesMora user journeys. It is intentionally iterative and separates confirmed decisions from open questions.
@@ -27,7 +29,11 @@ Keep the compact Home overview work-profile-aware and permission-scoped. Office 
 
 Use this persistent primary navigation, in order, on every signed-in screen: **Home, Leads, Customers, Estimates, Jobs, Calendar, Reports, Campaigns**. Keep **Settings** at the bottom of the sidebar; selecting it opens a submenu with **Business profile, Team, Integrations, Workflows & notifications, and Plan & billing**.
 
-### Agreed permission roles and work profiles
+### Permission model update — October 12, 2026
+
+The user selected **Owner, Admin, Office, and Field as permission roles**, replacing Member plus Office/Field work profiles. Defaults, delegation, migration, and menu/API/chat enforcement are proposed for review in the [authorization and permissions plan](authorization-permissions-plan.md). The earlier role/profile definitions below are historical and must not guide new authorization implementation. Existing code still uses them until the reviewed migration.
+
+### Earlier permission roles and work profiles (superseded)
 
 - **Owner:** owns the business workspace and has full workspace access, including billing and account-level administration.
 - **Admin:** manages workspace configuration, team access, integrations, and workflow setup; can access business records needed for operations. Admins can view team-wide reports and export workspace data, but cannot manage billing.

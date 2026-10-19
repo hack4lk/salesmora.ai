@@ -1,0 +1,1 @@
+export const copy = {title:(name:string)=>`Permanently delete “${name}”?`,description:'This document will be lost forever and cannot be recovered. The job and its activity history will remain.',confirm:'Delete permanently'};

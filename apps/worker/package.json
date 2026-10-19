@@ -1,0 +1,23 @@
+{
+  "name": "@salesmora/worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "seed": "tsx src/seed.ts",
+    "publish:staging": "tsx src/publish-staging.ts",
+    "evaluate": "tsx src/evaluate.ts",
+    "start": "tsx src/index.ts",
+    "status": "tsx src/status.ts",
+    "test:runtime": "tsx src/rehearsal.ts --test"
+  },
+  "dependencies": {
+    "@salesmora/contracts": "workspace:*",
+    "@salesmora/data": "workspace:*",
+    "@salesmora/domain": "workspace:*",
+    "bullmq": "5.81.5",
+    "tsx": "4.23.15"
+  }
+}

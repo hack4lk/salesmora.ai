@@ -1,0 +1,132 @@
+[
+  {
+    "slug": "create-lead",
+    "title": "Create a lead",
+    "roles": [
+      "owner",
+      "admin",
+      "office",
+      "field"
+    ],
+    "capabilities": [
+      "leads.create"
+    ],
+    "plans": [
+      "free"
+    ],
+    "productStatus": "implemented"
+  },
+  {
+    "slug": "lead-fields",
+    "title": "Lead fields and owners",
+    "roles": [
+      "owner",
+      "admin",
+      "office",
+      "field"
+    ],
+    "capabilities": [
+      "leads.create"
+    ],
+    "plans": [
+      "free"
+    ],
+    "productStatus": "implemented"
+  },
+  {
+    "slug": "pipeline",
+    "title": "Understand the lead pipeline",
+    "roles": [
+      "owner",
+      "admin",
+      "office",
+      "field"
+    ],
+    "capabilities": [
+      "leads.read"
+    ],
+    "plans": [
+      "free"
+    ],
+    "productStatus": "implemented"
+  },
+  {
+    "slug": "roles",
+    "title": "Workspace roles and access",
+    "roles": [
+      "owner",
+      "admin",
+      "office",
+      "field"
+    ],
+    "capabilities": [],
+    "plans": [
+      "free"
+    ],
+    "productStatus": "implemented"
+  },
+  {
+    "slug": "permissions",
+    "title": "Manage role permissions",
+    "roles": [
+      "owner",
+      "admin",
+      "office",
+      "field"
+    ],
+    "capabilities": [
+      "permissions.manage"
+    ],
+    "plans": [
+      "free"
+    ],
+    "productStatus": "implemented"
+  },
+  {
+    "slug": "navigation",
+    "title": "Navigate your workspace",
+    "roles": [
+      "owner",
+      "admin",
+      "office",
+      "field"
+    ],
+    "capabilities": [],
+    "plans": [
+      "free"
+    ],
+    "productStatus": "implemented"
+  },
+  {
+    "slug": "assistant-review",
+    "title": "Assistant responses and review",
+    "roles": [
+      "owner",
+      "admin",
+      "office",
+      "field"
+    ],
+    "capabilities": [],
+    "plans": [
+      "free"
+    ],
+    "productStatus": "implemented"
+  },
+  {
+    "slug": "campaign-planning",
+    "title": "Campaign permissions planning",
+    "roles": [
+      "owner",
+      "admin",
+      "office",
+      "field"
+    ],
+    "capabilities": [
+      "campaigns.read"
+    ],
+    "plans": [
+      "free"
+    ],
+    "productStatus": "planned"
+  }
+]

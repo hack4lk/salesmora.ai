@@ -1,0 +1,20 @@
+export const loginScreenData = {
+  deletionTitle: 'Deletion requested',
+  deletionMessage: 'Your deletion request was accepted and you have been signed out. Permanent removal is being processed. There is no recovery period.',
+  documentTitle: 'Sign in — SalesMora.ai',
+  title: 'Welcome back',
+  description: 'Sign in to your SalesMora.ai account.',
+  footer: 'Your customer work, in one place.',
+  previewNotice: 'Storybook preview: sign-in is mocked. No sessions are created.',
+  localNotice: 'Local development: sign in with an account you created on this machine.',
+  accountPrompt: 'New to SalesMora.ai?',
+  register: 'Create an account',
+  registerHref: '/register',
+  successMessage: 'You are signed in. Opening account setup…',
+  recoveryHref: '/forgot-password',
+  errors: {
+    unavailable: 'Sign-in is temporarily unavailable. Please try again.',
+    rateLimited: 'Too many sign-in attempts. Wait a moment and try again.',
+  },
+  stories: { success: 'Demo sign-in complete. No session was created.' },
+} as const;

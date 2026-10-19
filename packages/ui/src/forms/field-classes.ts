@@ -1,0 +1,2 @@
+/** Shared Tailwind overrides for MUI's stable input/label slots. */
+export const fieldClasses = '[&_.MuiOutlinedInput-root]:min-h-11 [&_.MuiOutlinedInput-root]:bg-paper [&_.MuiInputLabel-root]:text-muted [&_.MuiInputLabel-root.Mui-focused]:text-primary [&_.MuiInputLabel-root.Mui-error]:text-error [&_.MuiInputLabel-root.Mui-disabled]:text-disabled [&_.MuiFormHelperText-root.Mui-disabled]:text-muted';

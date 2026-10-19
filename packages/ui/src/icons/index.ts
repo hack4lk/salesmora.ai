@@ -1,0 +1,19 @@
+export { default as Visibility } from '@mui/icons-material/Visibility';
+export { default as VisibilityOff } from '@mui/icons-material/VisibilityOff';
+export { default as ErrorOutlined } from '@mui/icons-material/ErrorOutlined';
+export { default as CheckCircleOutlined } from '@mui/icons-material/CheckCircleOutlined';
+export { default as ArrowForwardOutlined } from '@mui/icons-material/ArrowForwardOutlined';
+export { default as ChatBubbleOutlined } from '@mui/icons-material/ChatBubbleOutlined';
+export { default as SearchOutlined } from '@mui/icons-material/SearchOutlined';
+export { default as AddOutlined } from '@mui/icons-material/AddOutlined';
+export { default as FileDownloadOutlined } from '@mui/icons-material/FileDownloadOutlined';
+export { default as ViewListOutlined } from '@mui/icons-material/ViewListOutlined';
+export { default as ViewKanbanOutlined } from '@mui/icons-material/ViewKanbanOutlined';
+export { default as CheckBoxOutlined } from '@mui/icons-material/CheckBoxOutlined';
+export { default as CheckBoxOutlineBlankOutlined } from '@mui/icons-material/CheckBoxOutlineBlankOutlined';
+export { default as MoreHorizOutlined } from '@mui/icons-material/MoreHorizOutlined';
+export { default as DragIndicatorOutlined } from '@mui/icons-material/DragIndicatorOutlined';
+export { default as HomeOutlined } from '@mui/icons-material/HomeOutlined';
+export { default as NotificationsNoneOutlined } from '@mui/icons-material/NotificationsNoneOutlined';
+
+export { default as CloseOutlined } from '@mui/icons-material/CloseOutlined';

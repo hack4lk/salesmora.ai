@@ -1,0 +1,29 @@
+{
+  "name": "@salesmora/ui",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/styles/global.css"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --project tsconfig.check.json --noEmit"
+  },
+  "dependencies": {
+    "@mui/material": "9.5.0",
+    "@mui/icons-material": "9.5.0",
+    "@emotion/react": "11.14.0",
+    "@emotion/styled": "11.14.1"
+  },
+  "peerDependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@storybook/react": "10.6.1",
+    "storybook": "10.6.1"
+  }
+}

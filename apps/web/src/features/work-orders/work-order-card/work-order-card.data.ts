@@ -1,0 +1,1 @@
+export const copy={open:(title:string)=>`Open ${title}`,schedule:'Scheduled',notScheduled:'Not scheduled',overdue:'Overdue',tasks:'Tasks',assignee:'Assignee',unassigned:'Unassigned',changed:'Changed after issue',taskProgress:(done:number,total:number)=>`${done}/${total}`};

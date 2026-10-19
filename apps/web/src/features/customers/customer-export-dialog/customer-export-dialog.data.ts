@@ -1,0 +1,23 @@
+export const customerExportDialogData = {
+  title: "Export customers",
+  description: "Review the scope and columns before downloading a CSV.",
+  download: "Download CSV",
+  choose: "CSV columns",
+  forbidden: "You do not have permission to export customers.",
+  limit: "Narrow your filters to 50,000 customers or fewer.",
+  hint: "The download must be authorized again by the server. Spreadsheet formula values will be escaped. This preview does not download workspace data.",
+  count: (n: number) => `${n.toLocaleString("en-US")} customers in this export`,
+  columns: {
+    number: "Customer number",
+    name: "Name",
+    type: "Type",
+    companyName: "Company",
+    email: "Email",
+    phone: "Phone",
+    location: "Location",
+    owner: "Owner",
+    createdAt: "Customer since",
+  },
+  all: "All active customers",
+  filtered: "Filtered customers · Has open lead · Ava Morgan",
+};

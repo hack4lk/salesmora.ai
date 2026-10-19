@@ -1,0 +1,1 @@
+export const copy = {summary:'Job detail',documentTitle:'Attachment preview',documentDescription:'This is a fictional document placeholder. Live file access will be checked during integration.',documentBody:'Document preview appears here after authorized download.',close:'Close',relatedUnavailable:'Related-record navigation is a preview.'};

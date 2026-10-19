@@ -1,6 +1,38 @@
 # SalesMora Job Module Plan
 
-**Status:** Working product plan for review. Confirmed requirements from the user journeys are separated from proposed design choices and open questions.
+**Status:** Core Jobs UI/API connected locally; advanced services remain pending — October 19, 2026. The current implementation checkpoint below supersedes older role, quota and assistant assumptions. Full Jobs UI and Calendar integration remain separately reviewed slices.
+
+
+> **Work orders (October 19, 2026):** a job now has zero or more work orders ([work-orders-plan.md](work-orders-plan.md), Q1/Q5). Work-order tasks **replace** the Phase 2 per-job checklist described in §6–§13 and in-job journey 9: no `job_checklists`/`job_checklist_items` tables are built, and checklist drafting, approval and reopen behavior move to work orders (Draft → Issued, tasks with done state, preserved on reopen). Work-order progress only *suggests* job status changes; it never changes them (Q6). The job detail page gets a Work orders card.
+
+## Live core integration — October 19, 2026
+
+The reviewed core components now connect locally at `/jobs` and `/jobs/[jobId]`. Workspace navigation uses current `jobs.read`; direct pages and `/api/jobs` / `/api/jobs/[jobId]` independently authenticate and authorize. Lists, counts, facets, metrics, search, service/customer/owner/date filters, sorting and pagination run within the SQL read scope. Board pagination is explicit; lane counts describe the current page. Relative dates use the workspace timezone.
+
+Connected: existing-customer job creation with explicit assignment and final review; board/table/peek/detail; assignments and optional team; status/Waiting/complete/cancel/reopen review; scheduled date/arrival window; completion deadline; immutable text notes; paginated activity; authorized customer/source-lead links. The same shared transaction services enforce current permissions, optimistic versions, lifecycle and actor-bound retries. Stale dialogs require reload; failed saves retain input. Success toasts dismiss after two seconds.
+
+Pending and excluded from the live page: ordinary details editing (`jobs.update` remains unreviewed), inline new-customer/job creation, attachments/storage, job team chat, CSV export, Jobs assistant tools/proposals, notifications/reminders, automatic lead conversion, follow-on work and configurable labels and work-order integration. Work-order tasks replace the superseded per-job checklist; no checklist tables are introduced. The existing global assistant remains available with its already implemented capabilities; no Jobs capability is falsely registered by this integration.
+
+Saved role policies are preserved. Field reads/progress/status/completion follow their current assigned scope. Field scheduling is available only with an explicit current scheduling grant and primary ownership; this release does not silently add a grant to existing policies. The versioned Field default-policy cutover remains pending. No permanent Jobs delete API, new schema migration, environment variable or staging deployment is part of this slice.
+
+## Earlier foundation checkpoint — October 19, 2026
+
+The user requested a plan refresh and Jobs foundations before Calendar. Existing Customers, workspace timezone, current role policies, private shared assistant/query-propose tools, notifications/preferences and worker infrastructure must be reused. Prototypes 09/10/11/12 and 30/31 are visual/behavior references, not permission authorities.
+
+Foundation slice:
+
+- Strict contracts for create, bounded reads, explicit assignment, append-only progress, lifecycle, scheduled date/window and completion deadline. Stable status IDs retain the six agreed defaults; configurable labels remain a later Jobs slice, not a removed requirement.
+- Additive jobs/team/activity/operation-receipt/counter migration, tenant-safe customer/source-lead/member relationships and one job per source lead. No historical conversion/backfill; existing lead transitions remain unchanged until a separately tested conversion integration.
+- Shared server-only services with SQL-scoped reads/counts, current authorization, workspace locks, optimistic versions and actor-bound retry receipts. No ordinary-update/delete shortcut. Saved progress and close/reopen events are retained.
+- Dates are workspace-local calendar strings. Arrival presets match Calendar; scheduling auto-transitions only Needs Scheduling/Scheduled. Reopening requires explicit deadline review. Completion/cancellation require confirmation; Waiting/cancellation require the agreed reasons.
+- Customer deletion must reject active linked jobs. Closed job snapshots/history survive source deletion. Workspace account deletion remains a separate authorized privacy workflow, not a permanent-job-delete capability.
+- JobStatusBadge is approved. The user requested all remaining Jobs components together on October 19; that explicit batch-review instruction supersedes the earlier one-component cadence for this UI batch. Build complete fixture previews and review them before live integration.
+
+The foundation does **not** enable a live Jobs menu/route or model tool yet. Follow-on slices connect reviewed UI and protected APIs, assignment/status notifications, lead conversion, shared assistant query/proposal cards, reminder settings/worker and Calendar. Attachments/private storage, team-visible job chat, status-label configuration, follow-on jobs and job exports remain planned Jobs work; they are not represented as completed foundation functionality. Private global assistant transcripts must never be exposed as team-visible job chat.
+
+Permission cutover: the catalog document agrees Field primary-owner scheduling, but the code/default stored template still initially denies Field scheduling. This slice enforces the primary-owner restriction whenever an explicit grant exists; it does not silently grant permissions to existing workspaces. Review a versioned default-template cutover before enabling Jobs/Calendar. `jobs.update` remains proposed/unreviewed and disabled. `jobs.delete` remains unavailable despite the legacy catalog placeholder: cancel duplicate/created-in-error jobs instead.
+
+Build/test status is recorded at the end of this document after verification. No staging deployment is authorized by this local foundation task.
 
 ## 1. Purpose
 
@@ -23,7 +55,7 @@ The job record should preserve the context that led to the work: customer, sourc
 
 ### Workspace roles and job access
 
-Use **Owner**, **Admin**, and **Member** as permission roles. **Office** and **Field** are work profiles for home-screen presentation only; they do not grant additional access. Organization Owners and Admins can access and manage business-wide job data. Members can access jobs assigned to them and perform permitted day-to-day updates. A work profile must never bypass these role and assignment checks.
+Use **Owner**, **Admin**, **Office**, and **Field** as permission roles, with one role per teammate and one Owner per workspace. Current saved workspace policy and feature availability authorize every operation. Default Owner/Admin/Office access is workspace-wide; Field reads and progress updates are limited to primary-owner or job-team assignments. Scheduling/deadline changes by Field additionally require primary ownership and the current `jobs.schedule.update` grant; team membership alone never permits scheduling. See [permission catalog](permission-catalog.md).
 
 - A campaign admin chooses the pipeline stage that converts a lead into a job. Reaching that stage creates the job; lead approval alone does not.
 - Default the conversion stage to **Won**. The MVP uses the fixed lead stages **New**, **Contacted**, **Estimate sent**, **Won**, and **Lost**; do not allow stage renaming, reordering, or additions in the MVP.
@@ -60,16 +92,16 @@ Use **Owner**, **Admin**, and **Member** as permission roles. **Office** and **F
 - Admins can configure multiple deadline reminder offsets, including chosen days before or after the deadline and reminders on the due date.
 - The Jobs workspace's **Deadlines coming up** group uses those configured offsets rather than a separate fixed time window.
 - A job created from a lead stops that lead's campaign follow-up sequence.
-- Organization Owners/Admins can view and manage all jobs and configure business-wide job rules. Members can view assigned jobs and update permitted progress, Waiting reasons, and notes, but cannot reassign jobs or change business-wide settings. Office/Field work profiles do not change this access.
-- Only the job's primary owner and organization Owners/Admins can set, change, or remove its completion deadline.
-- Only the job's primary owner and organization Owners/Admins can set, change, or remove its scheduled work date or arrival window.
+- Owner/Admin/Office default job access and assignment powers follow the permission catalog. Field teammates read assigned jobs and perform individually authorized progress, Waiting and completion actions. Business-wide settings and reopening remain separately authorized; only the Owner edits workspace role policies.
+- Completion-deadline changes require current `jobs.schedule.update` and job access. Field must also be the primary owner; the Owner/Admin/Office defaults follow the current catalog.
+- Scheduled work date/arrival-window changes use the same scheduling permission and primary-owner rule as completion deadlines.
 - A saved progress note cannot be edited or deleted by its author or an administrator. Keep the original actor and timestamp; corrections are additional notes in the activity history.
 
 ### Subscription availability
 
 - Include core job management on every subscription plan: job records, board/table views, assignments, status and activity history, basic job counts and CSV export, and the Phase 1 attachment and optional-deadline capabilities.
 - Do not cap the number of active jobs by subscription tier.
-- Set attachment storage quotas by subscription tier and show organization storage usage: 1 GB on Free, 10 GB on Standard, and 50 GB on Premium.
+- Set attachment storage quotas by subscription tier and show organization storage usage: 1 GB on Free, 10 GB on Standard, and 25 GB on Premium.
 - At the attachment quota, keep existing files accessible and allow deletion, but pause new uploads until the organization frees space or upgrades its plan.
 - Apply the same behavior after a downgrade that leaves the organization over its new quota: retain existing file access and pause new uploads until usage is under the limit or the organization upgrades again.
 - Warn the organization at 80% and again at 100% of its attachment storage quota.
@@ -186,7 +218,7 @@ Do not apply one fixed calendar deadline across every job in a reusable campaign
 - Stop pending deadline reminders once the job is Completed or Canceled, while retaining reminder history.
 - Allow an authorized user to reopen a Completed or Canceled job and choose its active status; record the reopening in job history.
 - When reopening, show the previous deadline and require the user to confirm or update it before restarting reminders.
-- Reopening a job preserves its existing checklist steps and checkmarks; the job owner can adjust the checklist for resumed work.
+- Reopening a job preserves its work orders' tasks and checkmarks; the job owner can adjust them for resumed work. (Replaces the earlier per-job checklist; see the work orders note.)
 - Use the business timezone for the time of day associated with reminders. Exact send-time settings should align with the notification scheduling controls.
 
 ## 9. Notifications and event rules
@@ -215,7 +247,7 @@ The agent can reduce setup work and help teams keep jobs current, while preservi
 - In Phase 1, respond to user requests in job chat; do not proactively post deadline reminders there. Use the configured notification system for deadline and status reminders. Proactive agent-authored chat reminders are a future-release candidate.
 - Help users add job attachments by opening the same file picker or mobile camera flow available from the Files section, then guide them through review and upload.
 - Suggest a job title, service type, location, and summary from the approved lead and campaign context.
-- Draft a job checklist or next-step recommendations for a user to review (release phase TBD).
+- Draft a work order (tasks and materials) or next-step recommendations for a user to review; see work-orders-plan.md §9.
 - Summarize job history and surface missing assignee/deadline/status information.
 - Recommend a status update based on user-provided notes, but require confirmation before changing the job status or notifying the team.
 - Help an admin define job reminders and assignment rules in plain language, then show a reviewable summary before activation.
@@ -246,8 +278,8 @@ Proposed core records and relationships:
 - `job_activity_attachments`: links an attachment to the immutable progress-note activity event it was added with; the same attachment remains listed in the job's Files section. Removing an attachment preserves the note and records that the linked file was removed.
 - `job_chat_messages`: immutable job-scoped user and agent messages in the shared team chat, visible only to currently authorized job members and roles with organization-wide access. Corrections are new messages, not edits or deletions.
 - `job_chat_read_cursors`: per-user last-read position for each job chat, used for that user's unread indicator. Do not expose read receipts or individual read state to other team members.
-- `job_checklists`: zero or one optional checklist per job (enforce a unique job ID), with draft/active state, agent-generation metadata, and approval actor/time.
-- `job_checklist_items`: checklist ID, simple step label, display order, done/not-done state, completion actor/time, and change timestamps. Log item creation, edit, removal, completion, and reversal in job activity.
+- ~~`job_checklists`~~ *Superseded by work orders ([work-orders-plan.md](work-orders-plan.md) Q5, October 19, 2026): the per-job checklist is replaced by work-order tasks.* Original text: zero or one optional checklist per job (enforce a unique job ID), with draft/active state, agent-generation metadata, and approval actor/time.
+- ~~`job_checklist_items`~~ *Superseded by work orders ([work-orders-plan.md](work-orders-plan.md) Q5, October 19, 2026): the per-job checklist is replaced by work-order tasks.* Original text: checklist ID, simple step label, display order, done/not-done state, completion actor/time, and change timestamps. Log item creation, edit, removal, completion, and reversal in job activity.
 - `job_reminder_rules` and `job_reminder_executions`: configured offsets and idempotent delivery state, if reminder configuration is not represented by the general workflow engine.
 - `workflow_executions`/outbox events: durable triggers, retries, idempotency keys, and notification outcomes using the common workflow infrastructure.
 
@@ -260,11 +292,11 @@ Phase 1 includes job file attachments and an optional completion deadline on eac
 | Phase | Job module scope |
 |---|---|
 | **1 — CRM foundation** | Job record, link from lead/customer, movable status board and sortable table, primary assignment, status and activity history, team-visible job chat with the agent, private job file attachments (including files attached while creating a progress note), optional per-job completion deadline (unset by default) with basic due/overdue indicator and alert, basic in-app notification, job counts and CSV export. |
-| **2 — Workflow automation and extensions** | Campaign-configured lead-to-job stage conversion, workflow-triggered job creation, per-job checklists made of simple named steps with a done/not-done state (no per-item assignee or due date), linking an existing job attachment to a progress note after the note has been saved, and alternate card/list layouts for the job detail page. |
+| **2 — Workflow automation and extensions** | Campaign-configured lead-to-job stage conversion, workflow-triggered job creation, work orders with task checklists (replaces the earlier per-job checklist; see work-orders-plan.md), linking an existing job attachment to a progress note after the note has been saved, and alternate card/list layouts for the job detail page. |
 | **3 — Operations** | Configurable multi-offset deadline reminders, expanded team email notification rules, richer progress controls, calendar/scheduling integration, and operational reports. |
 | **4 — Expansion** | Estimates/accounting integration, advanced job templates, capacity and profitability reports, and validated AI-assisted job operations. |
 
-Phase 2 supports zero or one optional checklist per job. A job can have no checklist, and an empty checklist does not block job creation or checklist approval.
+Superseded: Phase 2 no longer builds a per-job checklist; work-order tasks replace it. Original text: Phase 2 supports zero or one optional checklist per job. A job can have no checklist, and an empty checklist does not block job creation or checklist approval.
 
 ## 14. Success criteria
 
@@ -280,7 +312,7 @@ Phase 2 supports zero or one optional checklist per job. A job can have no check
 
 ## 15. Open decisions
 
-- Subscription prices and core quotas are provisionally defined in the product roadmap; validate them before billing launch. Active jobs and existing CRM history are not capped by plan. Attachment storage limits and behavior are specified in Section 4; do not add other job-specific entitlement limits without a product decision.
+- Reuse the existing billing catalog and entitlements: current draft USD prices are Free $0, Standard $29/month, Premium $49/month; storage is 1/10/25 GB. Active jobs and existing CRM history are not capped by plan. Do not introduce job-specific caps without a product decision. Private file storage, upload validation and quota enforcement remain a separate attachment slice.
 
 ## 16. Detailed user journey walkthrough
 
@@ -290,7 +322,7 @@ This walkthrough turns the confirmed job rules into the user-facing sequence. It
 
 1. The user selects **Jobs** from the main navigation.
 2. The workspace opens to the active status board by default. The user can switch to the sortable table view.
-3. Organization Owners/Admins see all business jobs. Members see jobs assigned to them. Office/Field work profiles may change the view's priorities but do not widen record access.
+3. Owner/Admin/Office default to permitted workspace-wide jobs; Field sees primary-owner/team-assigned jobs. All list counts, filters and record reads obey the current saved policy before pagination.
 4. The workspace shows the attention groups for overdue/upcoming deadlines, unassigned jobs, and jobs in **Waiting**, with links to the affected records.
 5. **Completed** and **Canceled** jobs stay out of the default active board and are available through the closed-jobs view or filter.
 6. An authorized user can open a job card/row or start a conversational manual job creation flow. The user can also start job creation from a customer profile, with that customer preselected.
@@ -303,8 +335,8 @@ This section details the actions a user can take after opening a job, including 
 
 ### In-job journey 1 — Edit core job details
 
-1. The job's primary owner or an organization Owner/Admin can open **Edit details** on the job page, or ask the agent to change details in natural language.
-2. They can update the job title, description, service, and location. Other Members do not edit these core fields by default; assigned Members can update permitted progress and notes.
+1. Core-field editing requires a separately reviewed `jobs.update` field contract and current grant. This capability remains disabled in the foundation; the historical primary-owner proposal must be reconciled with the permission catalog before UI/tool activation.
+2. They can update the job title, description, service, and location. Field teammates can update permitted progress and notes; ordinary field edits must not be inferred from those permissions.
 3. The direct editor presents current values with clear **Save** and **Cancel** actions. The agent summarizes the proposed field changes and asks for confirmation before saving. Invalid values are identified; canceling discards the unsaved changes.
 4. On save, the updated values appear on the job detail page and job cards/table rows that show those fields. Add an activity event with the editor, timestamp, and changed fields, regardless of whether the direct editor or agent was used.
 
@@ -335,21 +367,21 @@ This section details the actions a user can take after opening a job, including 
 
 ### In-job journey 4 — Change the primary owner
 
-1. An organization Owner/Admin opens the Team section and selects **Change owner**.
+1. A user with current `jobs.assign` and job access opens the Team section and selects **Change owner**.
 2. They select a new primary owner from active organization members and review the change before saving.
 3. On save, the new person becomes the primary owner and the previous owner is removed from the job team. This ends the previous owner's job-based access and future notifications; organization Owners/Admins retain organization-wide access through their role.
 4. Keep existing optional team members assigned. Record the previous and new owner, the actor, and the timestamp in assignment history. Send the assignment-change notification to the previous and new owner and any configured recipients; do not send future job notifications to the previous owner unless they are separately added back to the job.
 
 ### In-job journey 5 — Manage optional team members
 
-1. An organization Owner/Admin opens the Team section and selects **Manage team**.
+1. A user with current `jobs.assign` and job access opens the Team section and selects **Manage team**.
 2. They can add active organization members as optional participants or remove current participants. Review the changes before saving.
 3. Adding a member gives them job-based access and future job notifications, with an in-app and email notice that they were added. When removing a member, send one final in-app and email notice that they were removed, then end their job-based access and future notifications; organization Owners/Admins retain organization-wide access through their role.
 4. Record each addition and removal with the actor and timestamp in assignment history. Removed members remain visible in historical assignment records but cannot open the job through job-based access.
 
 ### In-job journey 6 — Schedule or reschedule work
 
-1. The job's primary owner or an organization Owner/Admin starts a scheduling conversation from the job detail page and tells the agent the new work date and, optionally, an arrival-time window.
+1. A user with current scheduling permission and job access (Field additionally requires primary ownership) starts a scheduling conversation from the job detail page and tells the agent the new work date and, optionally, an arrival-time window.
 2. The agent shows the current schedule and proposed change, then asks the user to confirm before saving. The user can correct the proposal or cancel.
 3. On confirmation, save the scheduled date and optional arrival window, recording the actor, timestamp, and prior/new values in job activity.
 4. Setting a date on a job in **Needs Scheduling** moves it to **Scheduled**. Removing the scheduled date from a job in **Scheduled** returns it to **Needs Scheduling**.
@@ -357,7 +389,7 @@ This section details the actions a user can take after opening a job, including 
 
 ### In-job journey 7 — Change the completion deadline
 
-1. The job's primary owner or an organization Owner/Admin starts a deadline conversation from the job detail page and asks to set, change, or remove the completion deadline.
+1. A user with current scheduling permission and job access (Field additionally requires primary ownership) starts a deadline conversation from the job detail page and asks to set, change, or remove the completion deadline.
 2. The agent shows the current deadline and proposes the requested new date or no-deadline state. The user can correct the proposal or cancel.
 3. On confirmation, save the deadline change and record the actor, timestamp, and previous/new values in job activity.
 4. Immediately notify the assigned team in-app and by email. Recalculate pending reminders against the new deadline or cancel them if the deadline is removed.
@@ -373,7 +405,9 @@ This section details the actions a user can take after opening a job, including 
 6. Make chat read-only when the job is **Completed** or **Canceled**. Reopening the job allows messages again; preserve chat history.
 7. Removing a person from the job team ends their job-based access to the chat, as well as future job notifications. Keep the conversation available to the remaining authorized team members.
 
-### In-job journey 9 — Use a job checklist (Phase 2)
+### In-job journey 9 — Use a job checklist (Phase 2) — superseded by work orders
+
+> Replaced by work-order tasks (work-orders-plan.md Q5). The steps below are kept as the source for the work-order task rules: draft by the agent, review before issue, done/not-done tasks, preserved on reopen, completing all tasks never changes job status.
 
 1. For a manually created job, the agent drafts the job's one optional checklist of simple named steps from the job details.
 2. Before saving the checklist, the primary job owner or an organization Owner/Admin reviews the draft and can add, remove, or edit steps. They may also skip the checklist or approve it empty; job creation does not depend on checklist approval.
@@ -388,9 +422,9 @@ This section details the actions a user can take after opening a job, including 
 
 1. The campaign admin chooses the lead stage that should create a job and configures the assignment rule, optional additional team members, and relative completion deadline or no deadline.
 2. When the lead reaches that stage, the system creates exactly one job linked to the source lead, customer, and campaign, applies the configured assignment/deadline rules, and starts it in **Needs Scheduling** unless a scheduled date is supplied.
-3. The agent drafts a checklist from available lead, campaign, and job details. Keep it pending until the job owner reviews and approves it; checklist review does not delay job creation.
+3. Work-order auto-creation is off by default. When explicitly enabled, create one draft work order from the available context for review before Issue; do not create a separate per-job checklist or delay job creation.
 4. The conversion is idempotent. Replayed events or moving the lead back and forth across stages do not create duplicate jobs.
-5. Notify the assigned job team immediately in-app and by email that the new job is ready, including that a checklist draft is awaiting the job owner's review.
+5. Notify the assigned job team immediately in-app and by email that the new job is ready. Work-order Issue notifications remain a separate work-order lifecycle event.
 6. Creating the job stops that lead's campaign follow-up sequence. The job joins the same Jobs workspace and progress journey as a manually created job.
 
 ### Step 2 — Start manual job creation
@@ -501,3 +535,24 @@ This section details the actions a user can take after opening a job, including 
 1. If work needs a materially different scope, an authorized user creates a separate follow-on job linked to the original.
 2. The new job gets its own title, owner/team, dates, status, attachments, and activity history; the original job remains unchanged.
 3. The user continues through the normal review/save and job-management journey for the follow-on job.
+
+
+## Verified foundation checkpoint — October 19, 2026
+
+Implemented strict contracts, lifecycle rules, additive jobs/team/activity/receipt/counter schema, SQL-scoped reads and shared transactional create/assignment/status/note/schedule/deadline services. Development and isolated test migrations passed after a private backup/restore/migration rehearsal. No existing records were converted and no saved policy grants changed. Active linked jobs now block customer deletion; retained closed-job history remains readable under current permissions.
+
+Checks passed: 487 unit tests, 10 isolated database journeys (including actual concurrent writes, tenant foreign keys, source-lead uniqueness, reassignment/revocation, closure/reopening and retry safety), five customer manual/assistant browser/API regressions, workspace typecheck, affected lint, workspace production builds and Storybook build. The first JobStatusBadge reuses the existing shared primitive and passes 24 desktop/tablet/mobile interaction/accessibility/layout checks. Review [all job statuses](http://127.0.0.1:6006/?path=/story/jobs-jobstatusbadge--all-statuses).
+
+Following the established component approval process, the next UI item is the job card after this badge is approved. Job board/table, conversational creation/review, detail sections, protected routes, notifications and global assistant capability registration remain unconnected. Calendar still follows these Jobs foundations. No staging deployment was performed.
+
+
+## Jobs UI batch review — October 19, 2026
+
+The user approved JobStatusBadge and requested all remaining components together. See [the review gallery](http://127.0.0.1:6006/?path=/story/jobs-reviewgallery--default) and [component review index](jobs-components-review.md). Board/table and responsive job detail previews now compose the real presentational components with fictional local state. Creation is shown through the existing global assistant and an optional direct-entry review form; no second assistant is embedded in a modal.
+
+The batch covers cards/actions, metrics/filters, board/table, peek/detail sections, create/duplicate review, status/Waiting/close/reopen dialogs, scheduling/clear, deadline, owner/team, proposed details editor, immutable notes and selected attachments, activity, related records, files/upload/description/removal/quota states, team-visible text chat, export review and assistant proposals/results/choices. Shared primitives are reused. Desktop/tablet drag and the explicit mobile/keyboard Move control use the same review flow. UI capability flags demonstrate roles only; current server policies remain authoritative when integration is built.
+
+These are design previews, not a completed app integration. No public Jobs routes/tools were enabled, no new migrations or provider variables were added, and nothing was deployed. Attachments, team chat, notifications, export authority, ordinary editing and Field default-policy activation still require their reviewed backend integration. Earlier one-component/first-badge statuses above are historical and superseded by this batch request.
+
+
+UI batch verification: 34 Storybook entries/196 states are ready for review, with passing checks for all 588 state/viewport combinations, workspace typecheck/lint, 487 unit tests and workspace/Storybook production builds. The [review index](jobs-components-review.md) records preview boundaries and remaining integration gates. No live Jobs route/tool or staging deployment was enabled.

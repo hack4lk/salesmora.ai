@@ -1,0 +1,1 @@
+export const copy = {label:(title:string)=>`Actions for ${title}`,open:'Open job',status:'Change status',schedule:'Schedule work',deadline:'Change deadline',team:'Manage team',note:'Add note',edit:'Edit details'};

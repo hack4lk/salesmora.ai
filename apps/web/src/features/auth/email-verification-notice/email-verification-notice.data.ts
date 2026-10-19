@@ -1,0 +1,25 @@
+export const emailVerificationNoticeData = {
+  title: 'Verify your email',
+  description: 'Confirm your email before sending teammate invitations. You can keep using your workspace while verification is pending.',
+  email: 'Account email',
+  instructions: 'Use the verification link in your inbox to confirm this address.',
+  resend: 'Resend email', sending: 'Sending email…',
+  sentTitle: 'Check your inbox', sent: 'A verification link was sent to your email. Check your inbox and spam folder.',
+  errorTitle: 'Email could not be sent', error: 'We could not send your verification email. Please try again.',
+  limitedTitle: 'Please wait before trying again', limited: 'Too many verification requests. Wait a moment, then try again.',
+  verifiedTitle: 'Email verified', verified: 'This email address is verified.',
+  resendDelaySeconds: 60,
+  cooldown: (seconds: number) => `You can resend in ${seconds} ${seconds === 1 ? 'second' : 'seconds'}.`,
+  page: {
+    documentTitle: 'Email verification — SalesMora.ai', title: 'Email verification',
+    description: 'Confirm the email address for your SalesMora.ai account.',
+    errorTitle: 'Verification link unavailable', error: 'This link is invalid or has expired. Sign in and request a new verification email.',
+    signedOut: 'Sign in to check your email verification status or request a new link.',
+    continue: 'Continue to workspace', signIn: 'Sign in',
+  },
+  stories: {
+    title: 'Email verification preview', notice: 'Component preview. No verification emails are sent.',
+    email: 'alex@example.com', longEmail: 'alexander.rivera@northstar-property-maintenance.example.com',
+    transportError: 'Mock transport failure',
+  },
+} as const;
