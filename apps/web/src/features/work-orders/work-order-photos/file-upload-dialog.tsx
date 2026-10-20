@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import type { WorkOrderPhotoCategory } from '../work-order-preview.types';
 import { useFileUpload } from '../../../hooks/use-file-upload';
+import { WorkOrderCameraCapture } from '../work-order-camera-capture/work-order-camera-capture';
 
 export interface FileUploadDialogProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ const categoryLabels: Record<WorkOrderPhotoCategory, string> = {
 /**
  * Dialog for uploading files to work orders
  * Handles file selection, caption input, and upload submission
+ * Now includes camera capture option
  */
 export function FileUploadDialog({
   isOpen,
@@ -35,6 +37,8 @@ export function FileUploadDialog({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [caption, setCaption] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<'upload' | 'camera'>('upload');
+  const [cameraSupported, setCameraSupported] = useState(true);
 
   const { uploadFile, isLoading } = useFileUpload({
     workspaceId,
@@ -42,6 +46,11 @@ export function FileUploadDialog({
   });
 
   if (!isOpen) return null;
+
+  // Check camera support on mount
+  if (cameraSupported && typeof window !== 'undefined' && !navigator.mediaDevices?.getUserMedia) {
+    setCameraSupported(false);
+  }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -51,9 +60,16 @@ export function FileUploadDialog({
     }
   };
 
+  const handleCapturePhoto = (blob: Blob) => {
+    const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
+    setSelectedFile(file);
+    setTab('upload');
+    setError(null);
+  };
+
   const handleUpload = async () => {
     if (!selectedFile) {
-      setError('Please select a file');
+      setError('Please select a file or take a photo');
       return;
     }
 
@@ -62,6 +78,7 @@ export function FileUploadDialog({
     if (result) {
       setSelectedFile(null);
       setCaption('');
+      setTab('upload');
       onUploadComplete();
       onClose();
     } else {
@@ -74,6 +91,7 @@ export function FileUploadDialog({
       setSelectedFile(null);
       setCaption('');
       setError(null);
+      setTab('upload');
       onClose();
     }
   };
@@ -85,47 +103,104 @@ export function FileUploadDialog({
           <h2 className="m-0 text-lg font-semibold">
             Add {categoryLabels[category].toLowerCase()}
           </h2>
-        </div>
-
-        <div className="space-y-4 px-6 py-4">
-          {/* File Input */}
-          <div>
-            <label className="block text-sm font-medium text-ink">
-              Select file
-            </label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              onChange={handleFileSelect}
-              disabled={isLoading}
-              className="mt-1 block w-full text-sm"
-              accept="image/jpeg,image/png,image/webp,image/heic,application/pdf,.docx,.xlsx,.txt"
-            />
-            {selectedFile && (
-              <p className="mt-1 text-xs text-muted">
-                {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
-              </p>
+          
+          {/* Tabs */}
+          <div className="mt-4 flex gap-2 border-b border-line">
+            <button
+              onClick={() => { setTab('upload'); setError(null); }}
+              className={`px-3 py-2 text-sm font-medium border-b-2 ${
+                tab === 'upload'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted hover:text-ink'
+              }`}
+            >
+              Upload File
+            </button>
+            {cameraSupported && (
+              <button
+                onClick={() => { setTab('camera'); setError(null); }}
+                className={`px-3 py-2 text-sm font-medium border-b-2 ${
+                  tab === 'camera'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted hover:text-ink'
+                }`}
+              >
+                Take Photo
+              </button>
             )}
           </div>
+        </div>
 
-          {/* Caption Input */}
-          <div>
-            <label className="block text-sm font-medium text-ink">
-              Caption (optional)
-            </label>
-            <textarea
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              disabled={isLoading}
-              placeholder="Add a caption or notes..."
-              className="mt-1 block w-full rounded border border-line bg-canvas px-3 py-2 text-sm disabled:opacity-50"
-              rows={3}
-            />
-          </div>
+        <div className="px-6 py-4">
+          {/* Upload Tab */}
+          {tab === 'upload' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-ink">
+                  Select file
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFileSelect}
+                  disabled={isLoading}
+                  className="mt-1 block w-full text-sm"
+                  accept="image/jpeg,image/png,image/webp,image/heic,application/pdf,.docx,.xlsx,.txt"
+                />
+                {selectedFile && (
+                  <p className="mt-1 text-xs text-muted">
+                    {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+                  </p>
+                )}
+              </div>
+
+              {/* Caption Input */}
+              <div>
+                <label className="block text-sm font-medium text-ink">
+                  Caption (optional)
+                </label>
+                <textarea
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                  disabled={isLoading}
+                  placeholder="Add a caption or notes..."
+                  className="mt-1 block w-full rounded border border-line bg-canvas px-3 py-2 text-sm disabled:opacity-50"
+                  rows={3}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Camera Tab */}
+          {tab === 'camera' && (
+            <div className="space-y-4">
+              <WorkOrderCameraCapture
+                onCapture={handleCapturePhoto}
+                onCancel={() => setTab('upload')}
+              />
+              
+              {/* Caption Input (when photo selected) */}
+              {selectedFile && (
+                <div>
+                  <label className="block text-sm font-medium text-ink">
+                    Caption (optional)
+                  </label>
+                  <textarea
+                    value={caption}
+                    onChange={(e) => setCaption(e.target.value)}
+                    disabled={isLoading}
+                    placeholder="Add a caption or notes..."
+                    className="mt-1 block w-full rounded border border-line bg-canvas px-3 py-2 text-sm disabled:opacity-50"
+                    rows={3}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Error Message */}
           {error && (
-            <div className="rounded bg-error/10 px-3 py-2 text-sm text-error">
+            <div className="rounded bg-error/10 px-3 py-2 text-sm text-error mt-4">
               {error}
             </div>
           )}
