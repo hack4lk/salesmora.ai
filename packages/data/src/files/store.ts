@@ -338,7 +338,6 @@ export class FileStore {
   async markFileReady(trx: Knex.Transaction, fileId: string): Promise<void> {
     await trx('files').where({ id: fileId }).update({
       status: 'ready',
-      scanStatus: 'clean',
       updatedAt: new Date(),
     });
   }
@@ -346,7 +345,6 @@ export class FileStore {
   async markFileFailed(trx: Knex.Transaction, fileId: string, reason: string): Promise<void> {
     await trx('files').where({ id: fileId }).update({
       status: 'failed',
-      scanStatus: 'failed',
       failureReason: reason,
       updatedAt: new Date(),
     });
