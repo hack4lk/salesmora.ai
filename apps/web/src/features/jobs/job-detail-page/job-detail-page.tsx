@@ -22,6 +22,7 @@ import { JobFiles } from '../job-files/job-files';
 import { JobTeamChat } from '../job-team-chat/job-team-chat';
 import { JobFileUploadDialog } from '../job-files/job-file-upload-dialog';
 import { JobFilesList } from '../job-files/job-files-list';
+import { jobPrimary } from '../job-ui';
 
 export interface JobDetailPageProps {
   workOrdersSlot?: React.ReactNode;
@@ -127,7 +128,7 @@ export function JobDetailPage({
               <button
                 onClick={() => setIsUploadDialogOpen(true)}
                 disabled={!job.capabilities.files || closed}
-                className="rounded bg-primary px-4 py-2 text-white hover:bg-primary-dark disabled:opacity-50"
+                className={jobPrimary}
               >
                 Upload File
               </button>
