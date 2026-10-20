@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
+import { http, HttpResponse } from 'msw';
 import { JobFilesList } from './job-files-list';
 
 const mockFiles = [
@@ -45,6 +46,15 @@ const meta = {
   component: JobFilesList,
   parameters: {
     layout: 'centered',
+    msw: {
+      handlers: [
+        http.get('/api/jobs/:jobId/files', () => {
+          return HttpResponse.json({
+            files: mockFiles,
+          });
+        }),
+      ],
+    },
   },
   args: {
     jobId: 'job-123',
@@ -54,8 +64,6 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
-
-export const Default: Story = {};
 
 export const WithFiles: Story = {
   decorators: [
@@ -68,16 +76,17 @@ export const WithFiles: Story = {
 };
 
 export const Empty: Story = {
-  decorators: [
-    (Story) => (
-      <div className="w-96">
-        <Story />
-      </div>
-    ),
-  ],
-};
-
-export const Loading: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get('/api/jobs/:jobId/files', () => {
+          return HttpResponse.json({
+            files: [],
+          });
+        }),
+      ],
+    },
+  },
   decorators: [
     (Story) => (
       <div className="w-96">
@@ -88,6 +97,18 @@ export const Loading: Story = {
 };
 
 export const Error: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get('/api/jobs/:jobId/files', () => {
+          return HttpResponse.json(
+            { error: 'Failed to fetch files' },
+            { status: 500 }
+          );
+        }),
+      ],
+    },
+  },
   decorators: [
     (Story) => (
       <div className="w-96">
