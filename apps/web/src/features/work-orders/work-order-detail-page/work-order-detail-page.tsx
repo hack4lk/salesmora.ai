@@ -1,6 +1,7 @@
 'use client';
+import { useEffect, useState } from 'react';
 import type { WorkOrderDetailResult } from '@salesmora/contracts';
-import type { WorkOrderAssignment, WorkOrderCompletionInput, WorkOrderInstructions } from '../work-order-preview.types';
+import type { WorkOrderAssignment, WorkOrderCompletionInput, WorkOrderInstructions, WorkOrderPhoto } from '../work-order-preview.types';
 import { WorkOrderHeader, type WorkOrderHeaderAction } from '../work-order-header/work-order-header';
 import { WorkOrderInstructionsCard } from '../work-order-instructions-card/work-order-instructions-card';
 import { WorkOrderTaskList } from '../work-order-task-list/work-order-task-list';
@@ -8,6 +9,7 @@ import { WorkOrderMaterials, type WorkOrderMaterialInput, type WorkOrderMaterial
 import { WorkOrderCrewCard } from '../work-order-crew-card/work-order-crew-card';
 import { WorkOrderSignoff } from '../work-order-signoff/work-order-signoff';
 import { WorkOrderCrewNotes } from '../work-order-crew-notes/work-order-crew-notes';
+import { WorkOrderPhotos } from '../work-order-photos/work-order-photos';
 import { woPanel, woStamp } from '../work-order-ui';
 import type { MaterialPickerOption } from '../../materials/material-picker/material-picker';
 import { toView } from '../work-order-view';
@@ -23,8 +25,44 @@ export type WorkOrderDetailHandlers = {
   onSaveAssignment: (value: WorkOrderAssignment) => void; onOpenSchedule: () => void; onComplete: (input: WorkOrderCompletionInput) => void; onReopen: () => void; onAddNote: (body: string) => void | Promise<void>;
 };
 
-export function WorkOrderDetailPage({ detail, ...h }: { detail: WorkOrderDetailResult } & WorkOrderDetailHandlers) {
+export function WorkOrderDetailPage({ workspaceId, detail, ...h }: { workspaceId: string; detail: WorkOrderDetailResult } & WorkOrderDetailHandlers) {
   const { workOrder: w, tasks, materials, activity, notes, completion, members, access, contact } = detail;
+  const [photos, setPhotos] = useState<WorkOrderPhoto[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPhotos = async () => {
+      try {
+        const response = await fetch(`/api/work-orders/${w.id}/files?workspace=${encodeURIComponent(workspaceId)}`);
+        if (response.ok) {
+          const data = await response.json();
+          setPhotos(data.files ?? []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch photos:', error);
+      } finally {
+        setPhotosLoading(false);
+      }
+    };
+
+    fetchPhotos();
+  }, [w.id, workspaceId]);
+
+  const handlePhotosChange = async () => {
+    setPhotosLoading(true);
+    try {
+      const response = await fetch(`/api/work-orders/${w.id}/files?workspace=${encodeURIComponent(workspaceId)}`);
+      if (response.ok) {
+        const data = await response.json();
+        setPhotos(data.files ?? []);
+      }
+    } catch (error) {
+      console.error('Failed to refetch photos:', error);
+    } finally {
+      setPhotosLoading(false);
+    }
+  };
+
   const view = toView(w), c = view.capabilities;
   return <div className="grid min-w-0 gap-6">
     <WorkOrderHeader workOrder={view} onBack={h.onBack} onOpenJob={h.onOpenJob} onAction={h.onHeaderAction} />
@@ -33,6 +71,7 @@ export function WorkOrderDetailPage({ detail, ...h }: { detail: WorkOrderDetailR
         <WorkOrderInstructionsCard status={w.status} value={{ instructions: w.instructions, accessNotes: w.accessNotes, safetyNotes: w.safetyNotes }} changedAfterIssue={w.changedAfterIssue} capabilities={c} onSave={h.onSaveInstructions} />
         <WorkOrderTaskList status={w.status} tasks={tasks} capabilities={c} onToggle={h.onToggleTask} onAdd={h.onAddTask} onRemove={h.onRemoveTask} onToggleRequired={h.onToggleRequired} />
         <WorkOrderMaterials status={w.status} materials={materials} searchCatalog={h.searchCatalog} newMaterial={h.newMaterial} access={access} capabilities={c} onAdd={h.onAddMaterial} onRemove={h.onRemoveMaterial} onChangeStatus={h.onChangeMaterialStatus} onChangePrice={h.onChangeMaterialPrice} />
+        {!photosLoading && <WorkOrderPhotos status={w.status} photos={photos} workspaceId={workspaceId} workOrderId={w.id} capabilities={c} onPhotosChange={handlePhotosChange} />}
         <WorkOrderCrewNotes status={w.status} archived={w.archived} notes={notes} canAdd={access.canNote} onAdd={h.onAddNote} />
         <WorkOrderSignoff status={w.status} completion={completion && { ...completion, signatureUrl: completion.signatureImage }} openRequiredTasks={tasks.filter(t => t.required && !t.done).length} signoffRequired={access.signoffRequired} canOverride={access.canOverride} capabilities={c} onComplete={h.onComplete} onReopen={h.onReopen} />
       </div>

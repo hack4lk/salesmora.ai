@@ -85,7 +85,7 @@ export function WorkOrderDetailRoute({ workspaceId, initial }: { workspaceId: st
   }
   return <div className="grid min-w-0 gap-4">
     {(loadError || (writes.error && !overlay)) && <FormFeedback kind="error" message={loadError || writes.error} />}
-    <WorkOrderDetailPage detail={detail} onBack={board} onOpenJob={jobId => router.push(`/jobs/${jobId}${query}`)}
+    <WorkOrderDetailPage workspaceId={workspaceId} detail={detail} onBack={board} onOpenJob={jobId => router.push(`/jobs/${jobId}${query}`)}
       onHeaderAction={action => {
         writes.clearError();
         if (action === 'issue' || action === 'cancel') setOverlay({ kind: 'move', to: action === 'issue' ? 'issued' : 'canceled' });
