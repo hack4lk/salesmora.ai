@@ -186,6 +186,26 @@ export async function POST(
 
     console.log('[FileAPI] Upload successful:', { fileId: fileRecord.id, status: fileRecord.status });
 
+    // Log file upload activity
+    try {
+      await db('workOrderActivity').insert({
+        id: crypto.getRandomValues(new Uint8Array(16)).toString(),
+        workOrderId: workOrderId,
+        workspaceId: workspaceId,
+        actorId: session.user.id,
+        eventType: 'file_upload',
+        metadata: {
+          fileName: file.name,
+          fileId: fileRecord.id,
+          category: category,
+        },
+        createdAt: new Date(),
+      });
+    } catch (activityErr) {
+      console.error('[FileAPI] Failed to log activity:', activityErr);
+      // Don't fail the upload if activity logging fails
+    }
+
     return NextResponse.json(
       {
         success: true,
