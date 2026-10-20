@@ -1,6 +1,7 @@
 import { startAssignmentEmails } from './assignment-emails.js';
 import { startAccountDeletion } from './account-deletion.js';
 import { startBillingReconciliation } from './billing.js';
+import { startFileProcessing } from './file-processing-queue.js';
 import { loadCorpus } from '@salesmora/data/knowledge-ingestion';
 import { Worker } from 'bullmq';
 import { createDatabase, createOpenAIEmbedder, embeddingSpace, ingestArticle, createAIUsageRecorder } from '@salesmora/data';
@@ -15,15 +16,16 @@ async function main() {
   let stopDeletion: (() => Promise<void>) | undefined;
   let stopBilling: (() => Promise<void>) | undefined;
   let stopRetention: (() => Promise<void>) | undefined;
+  let stopFileProcessing: (() => Promise<void>) | undefined;
   async function close() {
     // All resources are attempted even when one close fails.
-    const results = await Promise.allSettled([stopAssignment?.(), stopDeletion?.(), stopRetention?.(), stopBilling?.(), knowledge?.close()]);
+    const results = await Promise.allSettled([stopAssignment?.(), stopDeletion?.(), stopRetention?.(), stopBilling?.(), stopFileProcessing?.(), knowledge?.close()]);
     await db.destroy();
     if (results.some(result => result.status === 'rejected')) throw Error('Worker shutdown incomplete');
   }
   try {
     await db.raw('SELECT 1');
-    for (const table of ['chatThreads', 'chatTurns', 'checkpoints', 'aiUsageCalls']) {
+    for (const table of ['chatThreads', 'chatTurns', 'checkpoints', 'aiUsageCalls', 'files']) {
       if (!await db.schema.hasTable(table)) throw Error('Apply database migrations before starting the worker');
     }
     if (config.tasks !== 'retention') {
@@ -45,6 +47,7 @@ async function main() {
     stopAssignment = await startAssignmentEmails(db);
     stopDeletion = await startAccountDeletion(db);
     stopBilling = await startBillingReconciliation(db);
+    stopFileProcessing = await startFileProcessing(db);
     console.log(JSON.stringify({ event: 'worker.ready', tasks: config.tasks, queue: config.queueName }));
   } catch {
     await close(); throw Error('Worker startup failed');

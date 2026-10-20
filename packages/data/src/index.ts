@@ -60,3 +60,4 @@ export * from "./materials/export";
 export { StorageAdapter, createStorageAdapter, type StorageObject, type StorageObjectMetadata } from './files/storage-adapter';
 export { FileStore, FileStorageError, FileNotFoundError, QuotaExceededError, UnauthorizedFileAccessError, createFileStore, type FileRecord, type UploadFileInput, type StorageUsage } from './files/store';
 export { encryptFile, decryptFile, generateDataEncryptionKey, generateFileId, serializeDekEnvelope, deserializeDekEnvelope, serializeFileCiphertext, deserializeFileCiphertext, type EncryptedEnvelope, type DecryptionResult } from './files/encryption';
+export { generateThumbnail, convertHeicToJpeg, isHeic, isProcessableImage, type ThumbnailOptions } from './files/thumbnail-processor';

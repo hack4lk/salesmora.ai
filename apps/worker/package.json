@@ -11,7 +11,8 @@
     "evaluate": "tsx src/evaluate.ts",
     "start": "tsx src/index.ts",
     "status": "tsx src/status.ts",
-    "test:runtime": "tsx src/rehearsal.ts --test"
+    "test:runtime": "tsx src/rehearsal.ts --test",
+    "test:file-processing": "tsx src/file-processing-simple.test.ts"
   },
   "dependencies": {
     "@salesmora/contracts": "workspace:*",

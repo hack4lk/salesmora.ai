@@ -355,6 +355,100 @@ export class FileStore {
       updatedAt: new Date(),
     });
   }
+
+  /**
+   * Store a thumbnail for a file (called by worker).
+   * Encrypts the thumbnail the same way as the main file.
+   */
+  async storeThumbnail(
+    trx: Knex.Transaction,
+    fileId: string,
+    thumbnailBytes: Buffer,
+  ): Promise<void> {
+    const file = (await trx('files')
+      .where({ id: fileId })
+      .first()) as FileRow | undefined;
+
+    if (!file) {
+      throw new FileNotFoundError(`File ${fileId} not found`);
+    }
+
+    // Generate storage key and encryption key for thumbnail
+    const thumbnailKey = `${file.storageKey}-thumbnail`;
+    const envelope = encryptFile(thumbnailBytes);
+    const { dekIv, dekAuthTag, encryptedDek } = envelope;
+
+    // Store encrypted thumbnail in S3
+    const serialized = serializeFileCiphertext(envelope);
+    await this.storage.put(thumbnailKey, { data: serialized });
+
+    // Update file record with thumbnail metadata
+    const dekEnvelopeBuffer = serializeDekEnvelope(envelope);
+    await trx('files').where({ id: fileId }).update({
+      thumbnailStorageKey: thumbnailKey,
+      thumbnailEncryptedDekB64: dekEnvelopeBuffer.toString('base64'),
+      thumbnailSizeBytes: BigInt(thumbnailBytes.length),
+      updatedAt: new Date(),
+    });
+  }
+
+  /**
+   * Store the original HEIC when it has been converted to JPEG.
+   * The main file record is now JPEG; this stores the original HEIC for reference.
+   */
+  async storeHeicOriginal(
+    trx: Knex.Transaction,
+    fileId: string,
+    heicBytes: Buffer,
+  ): Promise<void> {
+    const file = (await trx('files')
+      .where({ id: fileId })
+      .first()) as FileRow | undefined;
+
+    if (!file) {
+      throw new FileNotFoundError(`File ${fileId} not found`);
+    }
+
+    // Generate storage key and encryption key for HEIC original
+    const heicKey = `${file.storageKey}-heic-original`;
+    const envelope = encryptFile(heicBytes);
+
+    // Store encrypted HEIC in S3
+    const serialized = serializeFileCiphertext(envelope);
+    await this.storage.put(heicKey, { data: serialized });
+
+    // Update file record with HEIC original metadata
+    const dekEnvelopeBuffer = serializeDekEnvelope(envelope);
+    await trx('files').where({ id: fileId }).update({
+      heicOriginalStorageKey: heicKey,
+      heicOriginalEncryptedDekB64: dekEnvelopeBuffer.toString('base64'),
+      updatedAt: new Date(),
+    });
+  }
+
+  /**
+   * Get a file record for processing (used by worker).
+   */
+  async getFileForProcessing(fileId: string): Promise<FileRow | null> {
+    const row = (await this.db('files')
+      .where({ id: fileId })
+      .first()) as FileRow | undefined;
+
+    return row || null;
+  }
+
+  /**
+   * Get files in uploading/scanning status for processing (used by orphan sweeper).
+   */
+  async getFilesForProcessing(
+    statuses: ('uploading' | 'scanning')[],
+    limit: number = 100,
+  ): Promise<FileRow[]> {
+    return (await this.db('files')
+      .whereIn('status', statuses)
+      .orderBy('createdAt', 'asc')
+      .limit(limit)) as FileRow[];
+  }
 }
 
 export async function createFileStore(
