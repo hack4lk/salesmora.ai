@@ -107,7 +107,7 @@ function view(row: JobRow, context: AuthorizationContext, members: JobMember[]):
     teamNames: row.teamUserIds.map(id => members.find(m => m.id === id)?.name ?? "Former teammate"), nextStep: "",
     capabilities: { status: allowed("jobs.status.update"), complete: allowed("jobs.complete"), cancel: allowed("jobs.cancel"),
       reopen: allowed("jobs.reopen"), schedule: allowed("jobs.schedule.update"), assign: allowed("jobs.assign"), note: allowed("jobs.progress.create"),
-      edit: false, files: false, removeFiles: false } };
+      edit: false, files: allowed("jobs.progress.create"), removeFiles: allowed("jobs.progress.create") } };
 }
 export async function readJobs(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], raw: JobQuery): Promise<JobListResult> {
   const input = jobQuerySchema.parse(raw);
