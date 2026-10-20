@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { WorkOrderDetailResult } from '@salesmora/contracts';
 import type { WorkOrderAssignment, WorkOrderCompletionInput, WorkOrderInstructions, WorkOrderPhoto } from '../work-order-preview.types';
 import { WorkOrderHeader, type WorkOrderHeaderAction } from '../work-order-header/work-order-header';
@@ -29,37 +29,104 @@ export function WorkOrderDetailPage({ workspaceId, detail, ...h }: { workspaceId
   const { workOrder: w, tasks, materials, activity, notes, completion, members, access, contact } = detail;
   const [photos, setPhotos] = useState<WorkOrderPhoto[]>([]);
   const [photosLoading, setPhotosLoading] = useState(true);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollCountRef = useRef(0);
+  const MAX_POLL_ATTEMPTS = 120; // 2 minutes with 1-second interval
+  const POLL_INTERVAL = 1000; // 1 second
 
-  useEffect(() => {
-    const fetchPhotos = async () => {
-      try {
-        const response = await fetch(`/api/work-orders/${w.id}/files?workspace=${encodeURIComponent(workspaceId)}`);
-        if (response.ok) {
-          const data = await response.json();
-          setPhotos(data.files ?? []);
-        }
-      } catch (error) {
-        console.error('Failed to fetch photos:', error);
-      } finally {
-        setPhotosLoading(false);
-      }
-    };
-
-    fetchPhotos();
-  }, [w.id, workspaceId]);
-
-  const handlePhotosChange = async () => {
-    setPhotosLoading(true);
+  const fetchPhotos = async () => {
     try {
       const response = await fetch(`/api/work-orders/${w.id}/files?workspace=${encodeURIComponent(workspaceId)}`);
       if (response.ok) {
         const data = await response.json();
-        setPhotos(data.files ?? []);
+        return data.files ?? [];
       }
     } catch (error) {
-      console.error('Failed to refetch photos:', error);
-    } finally {
+      console.error('Failed to fetch photos:', error);
+    }
+    return null;
+  };
+
+  // Initial fetch on mount
+  useEffect(() => {
+    const initialFetch = async () => {
+      const files = await fetchPhotos();
+      if (files) {
+        setPhotos(files);
+      }
       setPhotosLoading(false);
+    };
+
+    initialFetch();
+  }, [w.id, workspaceId]);
+
+  // Polling logic: check if any files are still uploading/scanning
+  useEffect(() => {
+    const startPolling = async () => {
+      const hasProcessingFiles = photos.some(
+        (p) => p.state === 'uploading' || p.state === 'scanning'
+      );
+
+      if (!hasProcessingFiles) {
+        // No processing files, stop polling
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        pollCountRef.current = 0;
+        return;
+      }
+
+      // Start polling if not already started
+      if (!pollingIntervalRef.current) {
+        pollCountRef.current = 0;
+        pollingIntervalRef.current = setInterval(async () => {
+          pollCountRef.current++;
+
+          // Safety: stop polling after max attempts
+          if (pollCountRef.current > MAX_POLL_ATTEMPTS) {
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+            }
+            return;
+          }
+
+          const files = await fetchPhotos();
+          if (files) {
+            setPhotos(files);
+
+            // Check if polling can stop
+            const stillProcessing = files.some(
+              (p: WorkOrderPhoto) => p.state === 'uploading' || p.state === 'scanning'
+            );
+            if (!stillProcessing) {
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+              }
+              pollCountRef.current = 0;
+            }
+          }
+        }, POLL_INTERVAL);
+      }
+    };
+
+    startPolling();
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [photos]);
+
+  const handlePhotosChange = async () => {
+    // When user manually triggers upload/delete, immediately refetch
+    const files = await fetchPhotos();
+    if (files) {
+      setPhotos(files);
     }
   };
 
