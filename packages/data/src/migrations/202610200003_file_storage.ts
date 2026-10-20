@@ -11,8 +11,7 @@ export async function up(db: Knex) {
     table.string('name').notNullable();
     table.string('mimeType').notNullable();
     table.bigint('sizeBytes').notNullable();
-    table.enum('status', ['uploading', 'scanning', 'ready', 'failed']).notNullable().defaultTo('uploading');
-    table.string('scanStatus').nullable(); // 'pending', 'scanning', 'clean', 'infected'
+    table.enum('status', ['uploading', 'ready', 'failed']).notNullable().defaultTo('uploading');
     table.text('failureReason').nullable();
     table.string('storageKey').notNullable(); // S3 object key
     table.string('encryptedDekB64').notNullable(); // Base64-encoded encrypted DEK

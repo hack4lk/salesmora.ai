@@ -42,8 +42,7 @@ interface FileRow {
   name: string;
   mimeType: string;
   sizeBytes: bigint;
-  status: 'uploading' | 'scanning' | 'ready' | 'failed';
-  scanStatus: string | null;
+  status: 'uploading' | 'ready' | 'failed';
   failureReason: string | null;
   storageKey: string;
   encryptedDekB64: string;
@@ -63,8 +62,7 @@ export interface FileRecord {
   name: string;
   mimeType: string;
   sizeBytes: number;
-  status: 'uploading' | 'scanning' | 'ready' | 'failed';
-  scanStatus: string | null;
+  status: 'uploading' | 'ready' | 'failed';
   failureReason: string | null;
   categoryTag: string | null;
   caption: string | null;
@@ -99,7 +97,6 @@ function dto(row: FileRow): FileRecord {
     mimeType: row.mimeType,
     sizeBytes: Number(row.sizeBytes),
     status: row.status,
-    scanStatus: row.scanStatus,
     failureReason: row.failureReason,
     categoryTag: row.categoryTag,
     caption: row.caption,
@@ -164,7 +161,6 @@ export class FileStore {
         mimeType: input.mimeType,
         sizeBytes: BigInt(input.data.length),
         status: 'uploading',
-        scanStatus: null,
         failureReason: null,
         storageKey: storageKey,
         encryptedDekB64: encryptedDekB64,
@@ -441,7 +437,7 @@ export class FileStore {
    * Get files in uploading/scanning status for processing (used by orphan sweeper).
    */
   async getFilesForProcessing(
-    statuses: ('uploading' | 'scanning')[],
+    statuses: ('uploading')[],
     limit: number = 100,
   ): Promise<FileRow[]> {
     return (await this.db('files')

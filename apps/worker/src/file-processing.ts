@@ -1,5 +1,5 @@
 import type { Knex } from '@salesmora/data';
-import { createFileStore, createStorageAdapter, generateThumbnail, convertHeicToJpeg, isHeic, isProcessableImage, scanFileBuffer, decryptFile, deserializeFileCiphertext, deserializeDekEnvelope } from '@salesmora/data';
+import { createFileStore, createStorageAdapter, generateThumbnail, convertHeicToJpeg, isHeic, isProcessableImage, decryptFile, deserializeFileCiphertext, deserializeDekEnvelope } from '@salesmora/data';
 import type { StorageAdapter } from '@salesmora/data';
 
 export interface FileProcessingJob {
@@ -16,7 +16,7 @@ export interface FileProcessingResult {
 }
 
 /**
- * Process a file: generate thumbnail, convert HEIC to JPEG, mock scan.
+ * Process a file: decrypt, generate thumbnail, convert HEIC to JPEG.
  * Called by the worker when a file is in 'uploading' status.
  */
 export async function processFileForStorage(
@@ -43,7 +43,7 @@ export async function processFileForStorage(
     // Retrieve encrypted file from storage
     const encryptedData = await storage.get(fileRow.storageKey);
 
-    // Decrypt the file before scanning
+    // Decrypt the file
     console.log(`[FileWorker] Decrypting file ${fileId}...`);
     const encryptedEnvelope = deserializeFileCiphertext(encryptedData);
     const dekEnvelopeData = Buffer.from(fileRow.encryptedDekB64, 'base64');
@@ -55,26 +55,7 @@ export async function processFileForStorage(
     });
     
     const decryptedFileBuffer = decryptedResult.plaintext;
-
-    // Scan for malware with ClamAV
-    console.log(`[FileWorker] Scanning file ${fileId} with ClamAV...`);
-    const scanResult = await scanFileBuffer(decryptedFileBuffer, fileRow.name);
-
-    if (scanResult.isInfected) {
-      const threat = scanResult.threat || 'Unknown threat';
-      const error = `Malware detected: ${threat}`;
-      console.error(`[FileWorker] ⚠️  File ${fileId} infected: ${threat}`);
-
-      await db.transaction(async (trx: Knex.Transaction) => {
-        await store.markFileFailed(trx, fileId, error);
-      });
-
-      result.error = error;
-      result.success = false;
-      return result;
-    }
-
-    console.log(`[FileWorker] ✓ File ${fileId} passed malware scan`);
+    console.log(`[FileWorker] ✓ File ${fileId} decrypted successfully`);
 
     // Check if the file is an image for processing
     const isImage = await isProcessableImage(decryptedFileBuffer);
@@ -135,8 +116,6 @@ export async function processFileForStorage(
 /**
  * Clean up orphaned files:
  * - Files in 'uploading' state for >24 hours (incomplete uploads)
- * - Files in 'scanning' state for >2 hours (stuck processing)
- * - Files without corresponding file links (orphaned)
  */
 export async function sweepOrphanedFiles(
   db: Knex,
@@ -149,15 +128,11 @@ export async function sweepOrphanedFiles(
   try {
     const now = new Date();
     const uploading24hAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const scanning2hAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
 
-    // Find orphaned files
+    // Find orphaned files in uploading state
     const orphans = await db('files')
-      .where((builder: any) => {
-        builder
-          .where('status', 'uploading').andWhere('createdAt', '<', uploading24hAgo)
-          .orWhere('status', 'scanning').andWhere('createdAt', '<', scanning2hAgo);
-      })
+      .where('status', 'uploading')
+      .andWhere('createdAt', '<', uploading24hAgo)
       .limit(100);
 
     for (const orphan of orphans) {

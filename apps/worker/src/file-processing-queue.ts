@@ -20,8 +20,8 @@ export async function startFileProcessing(db: any) {
   async function processFileBatch() {
     const store = await import('@salesmora/data').then(m => m.createFileStore(db, storage));
 
-    // Process files in uploading/scanning status
-    const files = await store.getFilesForProcessing(['uploading', 'scanning'], 10);
+    // Process files in uploading status
+    const files = await store.getFilesForProcessing(['uploading'], 10);
     
     if (files.length > 0) {
       console.log(JSON.stringify({ event: 'worker.file_processing_batch', count: files.length, files: files.map(f => ({ id: f.id, name: f.name, status: f.status })) }));

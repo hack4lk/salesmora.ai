@@ -42,7 +42,6 @@
     "vitest": "5.0.3"
   },
   "dependencies": {
-    "clamscan": "^2.4.0",
     "sharp": "^0.35.5"
   }
 }
