@@ -49,7 +49,7 @@ async function main() {
     stopBilling = await startBillingReconciliation(db);
     stopFileProcessing = await startFileProcessing(db);
     console.log(JSON.stringify({ event: 'worker.ready', tasks: config.tasks, queue: config.queueName }));
-  } catch (err) {
+  } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     await close(); throw Error(`Worker startup failed: ${message}`);
   }
@@ -67,4 +67,4 @@ async function main() {
   process.on('SIGTERM', () => void stop());
 }
 const startupDeadline = setTimeout(() => { console.error(JSON.stringify({ event: 'worker.startup_timeout' })); process.exit(1); }, 30_000);
-void main().catch((err) => { const message = err instanceof Error ? err.message : String(err); console.error(JSON.stringify({ event: 'worker.startup_failed', error: message })); process.exitCode = 1; }).finally(() => clearTimeout(startupDeadline));
+void main().catch((err: unknown) => { const message = err instanceof Error ? err.message : String(err); console.error(JSON.stringify({ event: 'worker.startup_failed', error: message })); process.exitCode = 1; }).finally(() => clearTimeout(startupDeadline));
