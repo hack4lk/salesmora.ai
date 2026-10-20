@@ -8,26 +8,20 @@ const {mixed,empty}=workOrderPhotoFixtures;
 const Stateful=(args:ComponentProps<typeof WorkOrderPhotos>)=>{
  const [photos,setPhotos]=useState(args.photos);
  return <WorkOrderPhotos {...args} photos={photos}
-  onAdd={cat=>{args.onAdd(cat);setPhotos(p=>[...p,{id:`new-${p.length+1}`,name:`${cat}-${p.length+1}.jpg`,kind:cat==='other'?'document':'image',category:cat,caption:'',uploader:'Sam Rivera',uploadedAt:'2026-10-19T13:00:00',state:'ready',thumbnailUrl:null,canRemove:true}])}}
-  onRemove={id=>{args.onRemove(id);setPhotos(p=>p.filter(x=>x.id!==id))}}/>;
+  onPhotosChange={()=>{setPhotos(p=>[...p,{id:`new-${p.length+1}`,name:`photo-${p.length+1}.jpg`,kind:'image',category:'before',caption:'',uploader:'Sam Rivera',uploadedAt:'2026-10-19T13:00:00',state:'ready',thumbnailUrl:null,canRemove:true}])}}/>;
 };
 const meta={title:'Work Orders/WorkOrderPhotos',component:WorkOrderPhotos,render:args=><Stateful {...args}/>,
- args:{status:'in-progress',photos:mixed,capabilities:officeCapabilities,onAdd:fn(),onOpen:fn(),onRemove:fn()},
+ args:{status:'in-progress',photos:mixed,workspaceId:'demo-workspace',workOrderId:'demo-order',capabilities:officeCapabilities},
  decorators:[Story=><main className="min-h-screen bg-canvas p-4 sm:p-8"><div className="mx-auto max-w-3xl"><Story/></div></main>],
  parameters:{layout:'fullscreen'}} satisfies Meta<typeof WorkOrderPhotos>;
 export default meta;type Story=StoryObj<typeof meta>;
-export const InProgress:Story={play:async({canvas,args})=>{
- await userEvent.click(canvas.getByRole('button',{name:'Open utility-room-before.jpg'}));
- await expect(args.onOpen).toHaveBeenCalled();
- await userEvent.click(canvas.getByRole('button',{name:'Add after photo'}));
- await expect(args.onAdd).toHaveBeenCalledWith('after');
- await expect(canvas.getByText('after-6.jpg')).toBeVisible();
- await userEvent.click(canvas.getByRole('button',{name:'Remove gas-valve-before.jpg'}));
- await expect(args.onRemove).toHaveBeenCalledWith('p2');}};
-export const CrewView:Story={args:{capabilities:crewCapabilities}};
-export const Issued:Story={args:{status:'issued',photos:empty}};
-export const DraftEmpty:Story={args:{status:'draft',photos:empty}};
-export const EmptyReadOnly:Story={args:{photos:empty,capabilities:readOnlyCapabilities}};
-export const Completed:Story={args:{status:'completed'}};
-export const Canceled:Story={args:{status:'canceled'}};
-export const ReadOnly:Story={args:{capabilities:readOnlyCapabilities}};
+export const InProgress:Story={args:{status:'in-progress',photos:mixed,onPhotosChange:fn()},play:async({canvas})=>{
+ await userEvent.click(canvas.getByRole('button',{name:/Add before photo/i}));
+ await expect(canvas.queryByRole('dialog')).toBeVisible();}};
+export const CrewView:Story={args:{capabilities:crewCapabilities,onPhotosChange:fn()}};
+export const Issued:Story={args:{status:'issued',photos:empty,onPhotosChange:fn()}};
+export const DraftEmpty:Story={args:{status:'draft',photos:empty,onPhotosChange:fn()}};
+export const EmptyReadOnly:Story={args:{photos:empty,capabilities:readOnlyCapabilities,onPhotosChange:fn()}};
+export const Completed:Story={args:{status:'completed',onPhotosChange:fn()}};
+export const Canceled:Story={args:{status:'canceled',onPhotosChange:fn()}};
+export const ReadOnly:Story={args:{capabilities:readOnlyCapabilities,onPhotosChange:fn()}};
