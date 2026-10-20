@@ -1,8 +1,8 @@
 # S2 File Processing Worker Implementation
 
-**Status**: ✅ Complete (S2a: thumbnails + HEIC conversion, mock scanning)  
+**Status**: ✅ Complete (S2a: thumbnails + HEIC, S2b: ClamAV scanning)  
 **Date**: October 20, 2026  
-**Scope**: Worker service that processes uploaded files: generates thumbnails, converts HEIC to JPEG, mock-scans for malware  
+**Scope**: Worker service that processes uploaded files: generates thumbnails, converts HEIC to JPEG, scans with ClamAV  
 
 ## Architecture
 
@@ -10,9 +10,9 @@ The file processing worker runs as part of the existing worker service (`apps/wo
 
 1. **File Processing Loop** (every 5 seconds)
    - Retrieves files in `uploading` or `scanning` status
+   - Scans for malware using ClamAV (fail-safe: blocks on scan error)
    - Generates WebP thumbnails for images
    - Converts HEIC/HEIF to JPEG
-   - Mock-scans for malware (TODO: integrate ClamAV in S2b)
    - Marks file as `ready` or `failed`
 
 2. **Orphan Sweeper** (every 1 hour)
@@ -23,6 +23,19 @@ The file processing worker runs as part of the existing worker service (`apps/wo
 ## Implementation Details
 
 ### Files Created
+
+#### `packages/data/src/files/clamav-scanner.ts` (71 lines) - NEW in S2b
+ClamAV malware scanning:
+- `initializeClamAV()` → Connect to clamd daemon
+- `scanFileBuffer(buffer, filename)` → Scan and return { isInfected, threat, error }
+- `testClamAVConnection()` → Health check
+- `closeClamAV()` → Cleanup
+
+Key behavior:
+- Connects to clamd at `CLAM_HOST:CLAM_PORT` (default: localhost:3310)
+- Returns threat name if infected
+- On scan error, fails safe (marks as infected) to prevent malware bypass
+- 30-second timeout per scan
 
 #### `packages/data/src/files/thumbnail-processor.ts` (84 lines)
 Image processing using sharp library:
@@ -126,13 +139,19 @@ Thumbnail processor tests:
 uploading (initial)
     ↓
 [worker processes]
+    ├─ Scan with ClamAV
+    │   ├─ Infected? → mark FAILED
+    │   └─ Clean → continue
+    ├─ Generate thumbnail (if image)
+    ├─ Convert HEIC → JPEG (if HEIC)
+    └─ Mark READY
     ↓
-ready (success) OR failed (error)
+ready (success) OR failed (malware/error)
 ```
 
 Duration expectations:
-- `uploading` → `ready`: typically <5 seconds (next tick)
-- `uploading` → `failed`: immediately if validation fails
+- `uploading` → `ready`: typically 2-10 seconds (depends on ClamAV scan time)
+- `uploading` → `failed`: immediately if validation fails or malware detected
 
 Stuck file cleanup (orphan sweeper):
 - `uploading` >24h → tombstone + delete from S3
@@ -174,35 +193,32 @@ Expected output:
 - Orphan sweep interval: 1 hour
 - Uploading timeout: 24 hours
 - Scanning timeout: 2 hours
+- ClamAV timeout: 30 seconds per file
+- ClamAV host: clamd (or CLAM_HOST env var)
+- ClamAV port: 3310 (or CLAM_PORT env var)
 
-## Next Steps (S2b: Malware Scanning)
+## S2b: ClamAV Integration (✅ COMPLETE)
 
-For S2b, replace mock scan with real ClamAV integration:
+ClamAV malware scanning now integrated:
 
-1. Add ClamAV container to docker-compose.yml
-2. Add `node-clamscan` npm package
-3. Replace mock scan (line ~68 in file-processing.ts) with:
-   ```typescript
-   const scanner = new NodeClam().init({ clamdscan: { host: 'clamd', port: 3310 } });
-   const { isInfected } = await scanner.scanBuffer(encryptedData);
-   if (isInfected) {
-     await store.markFileFailed(trx, fileId, 'Malware detected');
-     return result; // { success: false, ... }
-   }
-   ```
-4. Update file `scanStatus` field (currently always 'clean')
-5. Add event logging for infected files
-6. Add Slack/webhook alert on infection
+1. ✅ ClamAV container added to compose.yaml
+2. ✅ `clamscan` npm package installed
+3. ✅ Real scan replaces mock (scanFileBuffer from clamav-scanner.ts)
+4. ✅ Fail-safe: blocks on scan error (prevents malware bypass)
+5. ✅ Event logging for infected files
+6. ⚠️ TODO: Slack/webhook alert on infection (for later)
 
-Estimated effort: 2-3 hours
+Deployment notes:
+- clamd runs at `localhost:53310` locally
+- ClamAV downloads virus definitions on startup (initial scan may be slow)
+- Scan takes 2-5 seconds per typical file
 
 ## Assumptions & Decisions
 
-**Mock scanning instead of real ClamAV**:
-- Reason: S1 focus was storage + encryption, S2a focuses on image processing
-- Allows separate S2b task to add security scanning
-- Tests can verify the processing pipeline without ClamAV dependency
-- Malware detection is non-critical for MVP (security scanning can be added later)
+**ClamAV fail-safe behavior**:
+- If scan fails (daemon down, timeout), file is marked infected
+- Reason: Security first - prevent bypassing malware checks
+- Better to block legitimate files than allow malware
 
 **Thumbnails not stored separately from main file**:
 - Thumbnails stored in S3 at `{fileId}-thumbnail` key

@@ -1,5 +1,5 @@
 import type { Knex } from '@salesmora/data';
-import { createFileStore, createStorageAdapter, generateThumbnail, convertHeicToJpeg, isHeic, isProcessableImage } from '@salesmora/data';
+import { createFileStore, createStorageAdapter, generateThumbnail, convertHeicToJpeg, isHeic, isProcessableImage, scanFileBuffer } from '@salesmora/data';
 import type { StorageAdapter } from '@salesmora/data';
 
 export interface FileProcessingJob {
@@ -43,9 +43,25 @@ export async function processFileForStorage(
     // Retrieve encrypted file from storage
     const encryptedData = await storage.get(fileRow.storageKey);
 
-    // Mock malware scan (TODO: integrate ClamAV in S2b)
-    console.log(`[FileWorker] Mock scanning file ${fileId}`);
-    await new Promise(resolve => setTimeout(resolve, 100)); // Simulate scan time
+    // Scan for malware with ClamAV
+    console.log(`[FileWorker] Scanning file ${fileId} with ClamAV...`);
+    const scanResult = await scanFileBuffer(encryptedData, fileRow.name);
+
+    if (scanResult.isInfected) {
+      const threat = scanResult.threat || 'Unknown threat';
+      const error = `Malware detected: ${threat}`;
+      console.error(`[FileWorker] ⚠️  File ${fileId} infected: ${threat}`);
+
+      await db.transaction(async (trx: Knex.Transaction) => {
+        await store.markFileFailed(trx, fileId, error);
+      });
+
+      result.error = error;
+      result.success = false;
+      return result;
+    }
+
+    console.log(`[FileWorker] ✓ File ${fileId} passed malware scan`);
 
     // Check if the file is an image for processing
     const isImage = await isProcessableImage(encryptedData);

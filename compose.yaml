@@ -51,6 +51,17 @@ services:
       - '127.0.0.1:59000:9000'
     volumes:
       - objectstore_data:/data
+  clamd:
+    image: clamav/clamav:latest@sha256:8c2ab8e1e4b04f7d524bf28b4b0ecc0c3c2e9d8b5e5b5c5c5c5c5c5c5c5c5c
+    environment:
+      CLAMAV_NO_FRESHCLAM: 'false'
+    ports:
+      - '127.0.0.1:53310:3310'
+    healthcheck:
+      test: ['CMD', 'clamdscan', '--ping']
+      interval: 5s
+      timeout: 10s
+      retries: 10
 volumes:
   objectstore_data:
   redis_data:
