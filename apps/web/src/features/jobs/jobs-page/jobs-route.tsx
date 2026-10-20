@@ -123,7 +123,7 @@ export function JobsRoute({ workspaceId, initial, initialQuery, initialDetail, f
     {error && !overlay && <button className={`${jobButton} justify-self-start`} onClick={reload}>{copy.reload}</button>}
     {initialDetail && detail ? <>
       <JobDetailPage job={detail.job} today={list.today} activity={detail.activity.map(jobActivityView)} files={[]} messages={[]} related={related}
-        extendedFeatures={false} assistantAvailable={false}
+        extendedFeatures={false} assistantAvailable={false} workspaceId={workspaceId}
         workOrdersSlot={workOrders && <JobWorkOrdersCard workOrders={workOrders.rows} canCreate={workOrders.canCreate} jobClosed={['completed', 'canceled'].includes(detail.job.status)}
           onOpen={id => router.push(`/work-orders/${id}?workspace=${encodeURIComponent(workspaceId)}`)}
           onAdd={() => router.push(`/work-orders?workspace=${encodeURIComponent(workspaceId)}&newForJob=${detail.job.id}`)} />} onBack={() => router.push(`/jobs?workspace=${encodeURIComponent(workspaceId)}`)}
