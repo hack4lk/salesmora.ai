@@ -43,11 +43,25 @@ const diff = (row: MaterialRow, patch: Patch) => {
 };
 const values = (item: Patch) => Object.fromEntries(editable.filter(key => item[key] !== undefined).map(key => [key, item[key]]));
 
-/** Tells the proposer how their item was decided. Approvers who decide their own proposal are not notified. */
-async function notifyProposer(trx: Knex.Transaction, context: AuthorizationContext, row: MaterialRow, name: string, event: "approved" | "rejected", reason: string) {
-  if (!row.proposedBy || row.proposedBy === context.userId) return;
+type MaterialEvent = "proposed" | "approved" | "edited" | "rejected";
+
+async function notifyUsers(trx: Knex.Transaction, context: AuthorizationContext, materialId: string, users: string[], event: MaterialEvent, name: string, reason = "") {
+  if (!users.length) return;
   const actor = await trx("users").where({ id: context.userId }).first("name");
-  await trx("materialNotifications").insert({ id: randomUUID(), workspaceId: context.workspaceId, materialId: row.id, userId: row.proposedBy, event, materialName: name, reason, actorName: actor?.name ?? "" });
+  await trx("materialNotifications").insert(users.map(userId => ({ id: randomUUID(), workspaceId: context.workspaceId, materialId, userId, event, materialName: name, reason, actorName: actor?.name ?? "" })));
+}
+
+/** Tells the proposer how their item was decided. Approvers who decide their own proposal are not notified. */
+async function notifyProposer(trx: Knex.Transaction, context: AuthorizationContext, row: MaterialRow, name: string, events: MaterialEvent[], reason = "") {
+  if (!row.proposedBy || row.proposedBy === context.userId) return;
+  for (const event of events) await notifyUsers(trx, context, row.id, [row.proposedBy], event, name, event === "rejected" ? reason : "");
+}
+
+/** Owners and admins hear about new proposals; delivery is re-authorized against materials.manage when read. */
+async function notifyApprovers(trx: Knex.Transaction, context: AuthorizationContext, materialId: string, name: string) {
+  const members = await trx("workspaceMemberships as m").join("users as u", "u.id", "m.userId").where("m.workspaceId", context.workspaceId)
+    .whereIn("m.role", ["owner", "admin"]).whereNull("u.deletionRequestedAt").whereNot("m.userId", context.userId).select("m.userId");
+  await notifyUsers(trx, context, materialId, members.map(member => member.userId as string), "proposed", name);
 }
 
 export async function mutateMaterial(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], raw: unknown, options: MaterialWriteOptions = {}) {
@@ -69,6 +83,7 @@ export async function mutateMaterial(db: Knex, identity: WorkspaceIdentity, enab
       const id = randomUUID();
       await trx("materialCatalog").insert({ id, workspaceId: context.workspaceId, ...values(input.item), status: live ? "active" : "proposed", createdBy: context.userId,
         proposedBy: live ? null : context.userId, createdAt: now, updatedAt: now });
+      if (!live) await notifyApprovers(trx, context, id, input.item.name);
       return finish(trx, context, input.submissionId, hash, id, 1, input.item.name, input.action, { to: values(input.item) }, source);
     }
 
@@ -99,14 +114,14 @@ export async function mutateMaterial(db: Knex, identity: WorkspaceIdentity, enab
         const change = diff(row, input.item), sku = String(change.to.sku ?? row.sku);
         await assertUniqueSku(trx, context.workspaceId, sku, row.id);
         const version = await bump({ ...change.to, status: "active", decidedBy: context.userId, decidedAt: now });
-        await notifyProposer(trx, context, row, String(change.to.name ?? row.name), "approved", "");
+        await notifyProposer(trx, context, row, String(change.to.name ?? row.name), [change.changed ? "edited" : "approved"]);
         return finish(trx, context, input.submissionId, hash, row.id, version, String(change.to.name ?? row.name), "approve", { from: change.from, to: change.to }, source);
       }
       case "reject": {
         if (!access.manage) throw new AuthorizationAccessError();
         if (row.status !== "proposed") throw new MaterialValidationError("Only pending proposals can be rejected.");
         const version = await bump({ status: "rejected", decidedBy: context.userId, decidedAt: now, rejectionReason: input.reason });
-        await notifyProposer(trx, context, row, row.name, "rejected", input.reason);
+        await notifyProposer(trx, context, row, row.name, ["rejected"], input.reason);
         return finish(trx, context, input.submissionId, hash, row.id, version, row.name, "reject", { reason: input.reason }, source);
       }
       case "withdraw": {

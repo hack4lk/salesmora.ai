@@ -51,6 +51,22 @@ export const MaterialRejected: Story = {
     await expect(dialog.getByText(/Already listed under a different SKU/)).toBeVisible();
   },
 };
+export const MaterialProposed: Story = {
+  args: { items: [{ id: 'preview-mat-proposed', title: copy.materialTitles.proposed, description: copy.materialDescription('proposed', 'Sam Lee', '3/4 PVC elbow', ''), createdAt: copy.stories.date, read: false, href: copy.stories.materialHref, actionLabel: copy.viewMaterials }], unreadCount: 1 },
+  play: async ({ canvasElement }) => {
+    const dialog = within(await open(canvasElement));
+    await expect(dialog.getByText(copy.materialTitles.proposed)).toBeVisible();
+    await expect(dialog.getByText(/Sam Lee proposed 3\/4 PVC elbow/)).toBeVisible();
+  },
+};
+export const MaterialApprovedWithChanges: Story = {
+  args: { items: [{ id: 'preview-mat-edited', title: copy.materialTitles.edited, description: copy.materialDescription('edited', 'Alex Rivera', '12/2 Romex wire', ''), createdAt: copy.stories.date, read: false, href: copy.stories.materialHref, actionLabel: copy.viewMaterials }], unreadCount: 1 },
+  play: async ({ canvasElement }) => {
+    const dialog = within(await open(canvasElement));
+    await expect(dialog.getByText(copy.materialTitles.edited)).toBeVisible();
+    await expect(dialog.getByText(/approved, with edits, 12\/2 Romex wire/)).toBeVisible();
+  },
+};
 export const Closed: Story = {};
 export const Empty: Story = { args: { items: [], unreadCount: 0 }, play: async ({ canvasElement }) => {
   const dialog = within(await open(canvasElement));

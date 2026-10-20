@@ -36,8 +36,10 @@ function canReadWorkOrderNotifications(context: AuthorizationContext) {
 }
 /** A proposer sees decisions on their own items while they can still read the catalog. */
 function materialNotificationQuery(trx: Knex.Transaction, context: AuthorizationContext) {
-  return trx('materialNotifications as n').where({ 'n.workspaceId': context.workspaceId, 'n.userId': context.userId });
+  return trx('materialNotifications as n').where({ 'n.workspaceId': context.workspaceId, 'n.userId': context.userId }).whereNotIn('n.event', hiddenMaterialEvents(context));
 }
+// Proposal alerts are for approvers only; a proposer's decision notices need just read access.
+const hiddenMaterialEvents = (context: AuthorizationContext) => materialAccess(context).manage ? [] : ['proposed'];
 const canReadMaterialNotifications = (context: AuthorizationContext) => materialAccess(context).read;
 export async function readNotifications(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], page = 1): Promise<NotificationResult> {
   notificationQuerySchema.parse({ workspaceId: identity.workspaceId, page });

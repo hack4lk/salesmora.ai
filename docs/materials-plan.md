@@ -31,7 +31,7 @@ Status: draft for Q&A walk-through. Follows the pattern of `work-orders-plan.md`
 | MAT-4 | Archive and restore with confirm; archived items cannot be newly linked but stay on existing work orders | Proposed |
 | MAT-5 | Export current filters as CSV (owner/admin, audited, formula-injection safe, same pattern as work-order export) | Proposed |
 | MAT-6 | Empty, loading, error and read-only states; mobile layout as cards | Proposed |
-| MAT-8 | Proposals: office submits a proposed item (same fields minus nothing hidden by permission); admins see a "Proposed items" queue with approve (optionally edit first) and reject with reason; proposer is notified in-app | Built (proposer notification: approved or rejected) |
+| MAT-8 | Proposals: office submits a proposed item (same fields minus nothing hidden by permission); admins see a "Proposed items" queue with approve (optionally edit first) and reject with reason; proposer is notified in-app | Built (proposer told of decisions, approvers told of new proposals) |
 | MAT-9 | Proposed items are not linkable until approved; proposer can withdraw a pending proposal; duplicate name/SKU is flagged to the approver | Proposed |
 | MAT-7 | Duplicate-name warning on create (not blocking) | Proposed |
 
@@ -48,7 +48,6 @@ The work-order side is already shaped for this: `workOrderMaterials.catalogId` e
 | WOM-3 | Redaction is unchanged: users without `view_prices` or `view_costs` never receive price or cost in the picker or detail read, and cannot set them. Snapshotting still happens server-side so their picks are priced correctly for office | Proposed |
 | WOM-4 | Office with price access can override the customer price per row without touching the catalog (CNT-3b); line totals and a materials total shown for those users | Built (override), totals proposed |
 | WOM-5 | Re-linking or changing the item on a row re-snapshots; editing only quantity, status or note does not. Catalog edits never alter existing rows | Proposed |
-| WOM-6 | Office-only "catalog changed" hint on a row whose catalog item was edited or archived since the snapshot (compare `updatedAt` or `archivedAt`) | Proposed |
 | WOM-7 | "Add to catalog" on a free-text row: owner/admin creates the item directly and links the row; office submits a proposal (D11) and the row stays free text until approved, then offers to link | Proposed |
 | WOM-8 | Foreign key `(workspaceId, catalogId)` to the catalog with `ON DELETE SET NULL`; existing rows with a null or stale `catalogId` keep working | Proposed |
 | WOM-9 | Duplicate work order copies rows with their `catalogId` and a fresh snapshot only if the item is still active; otherwise it keeps the old snapshot as free text | Proposed |
@@ -97,7 +96,7 @@ Add `materials.propose` (office; creates pending proposals) and `materials.read`
 3. **Work-order connection:** foreign key, server-side snapshot (WOM-2), picker replacing the `catalog` prop, totals, re-link rules, duplicate behavior and rehearsal checks for cross-workspace, archived and redacted cases. This is a core slice, not an afterthought; the catalog is not useful until it ships.
 4. CSV export.
 5. Assistant: `materials_query`, catalog-aware `add_materials` (AST-2) and work-order page awareness (AST-6).
-6. "Add to catalog" from a work order (WOM-7) and the catalog-changed hint (WOM-6).
+6. "Add to catalog" from a work order (WOM-7). The catalog-changed hint (WOM-6) was dropped from scope.
 
 ## 7. Resolved questions
 
@@ -130,8 +129,10 @@ No open questions remain. Slice 2 (catalog page) should include the proposals qu
 - Deferred: proposal approve/reject notifications to the proposer (needs a new notification kind, table and menu rendering). Proposers see decisions in the Proposals and Rejected tabs meanwhile.
 
 ### Notifications (built)
-- The proposer gets an in-app notification when their proposal is approved (with the final name) or rejected (with the reason). Table `materialNotifications`; shown in the bell menu and linking to `/materials`. Visible only to the proposer with `materials.read`; no notification when you decide your own proposal.
-- Not built: approvers are not told about new proposals, no email, and no notice when an approver edits before approving. WOM-6 (catalog-changed hint) remains deferred.
+- Table `materialNotifications`, shown in the bell menu and linking to `/materials`. No email.
+- The proposer is told when their item is approved, approved with changes (the approver edited it first) or rejected (with the reason). Nothing is sent when you decide your own proposal.
+- Owners and admins are told when someone else proposes an item. That alert is re-checked against `materials.manage` when read, so it never reaches someone who has lost the permission.
+- WOM-6 (catalog-changed hint) was dropped from scope.
 
 ### Slice 5 (built: AST-1 to AST-6)
 - `materials_query` (search, details) is a read tool gated by `materials.read`; cost and price appear only with the work-order price permissions. Handler: `server/chat/tools/materials.ts`.
