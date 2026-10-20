@@ -1,0 +1,1 @@
+export const copy = {title:'Activity',description:'Newest first. Saved progress and history are retained.',empty:'No activity yet.',more:'Load older activity',loading:'Loading activity…',error:'Activity could not be loaded.',retry:'Try again'};

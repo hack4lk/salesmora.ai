@@ -1,5 +1,7 @@
 # First-Login Onboarding
 
+**Current authorization (October 12, 2026):** Owner/Admin/Office/Field are live permission roles. Work profiles are retired; new invitations default to Field. Existing Home/lead/invitation flows enforce saved policies. Older role/profile decisions below are historical; see [live cutover](authorization-live-cutover.md).
+
 **Status:** Working draft; design this flow one step at a time.
 
 ## Purpose
@@ -59,6 +61,8 @@ Record decisions here as we review the flow, including the date and any remainin
 
 | Date | Decision | Notes |
 |---|---|---|
+| 2026-10-11 | Use searchable multi-select for services. | Replaces pill selection with a fixed catalog of 159 services in 21 categories; service-name/category search, multiple selections, and removal. At least one service remains required. |
+| 2026-10-11 | Expand business types to cover more service businesses. | BusinessProfileStep now offers 34 fixed choices, including more trades, automotive, pet care, personal care, events, IT, and professional services. Services remain a separate step. |
 | 2026-10-07 | Created the onboarding outline for collaborative, step-by-step design. | Existing Screen 02 is the accepted onboarding baseline; future enhancements remain open. |
 | 2026-10-07 | Keep Screen 02 as the onboarding screen after registration. | It is a solid existing flow. Do not add a separate welcome page or change Screen 02 for now. |
 | 2026-10-09 | Use Owner, Admin, and Member as workspace permission roles; treat Office and Field as separate work profiles. | The account creator starts as Owner. Work profiles may tailor home content but do not grant permissions. |

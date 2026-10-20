@@ -1,0 +1,16 @@
+export const leadNextStepCardData = {
+  title: 'Suggested next step', prepare: 'Prepare follow-up', empty: 'No suggested next step yet.',
+  emptyHelp: 'Ask the assistant to help prepare a follow-up for this lead.',
+  unavailable: 'The assistant is unavailable right now. Try again later.', busy: 'The assistant is working. Wait for the current response before preparing another follow-up.',
+  draftHint: 'Opens the assistant with a draft prompt for your review.',
+  prompt: (number: string) => `Prepare follow-up wording for ${number}. Use only lead details I am allowed to read. Keep it as a draft for me to review; do not send any message.`,
+  stories: { title: 'Lead next-step card', description: 'Suggested action preview. Prepare follow-up opens the existing assistant with an unsent prompt. Replies are mocked.',
+    lead: { id: 'jordan', version: 3, leadNumber: 'LD-1042', name: 'Jordan Lee' },
+    suggestion: { title: 'Confirm the project scope', body: 'Ask Jordan which areas are included and when they’d like the work to begin.' },
+    longTitle: 'Confirm the scope, access requirements and preferred project schedule',
+    longBody: 'Ask which rooms need work and whether the supply lines should be inspected throughout the residence.\n\nConfirm access requirements, availability and the preferred start date before proposing a visit.',
+    response: 'Draft for your review: Hi Jordan, could you confirm which areas you’d like included and your preferred timing? This is suggested wording only.',
+    assistantDescription: 'Review the prompt, then ask for follow-up wording. This preview uses mocked replies.',
+    plainText: '<strong>Customer request</strong>\nhttps://example.com/request\n<script>alert("preview")</script>',
+  },
+} as const;

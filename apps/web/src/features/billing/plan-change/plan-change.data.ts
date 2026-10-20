@@ -1,0 +1,17 @@
+export const planChangeData={
+ cancelTitle:'Cancel subscription',cancelDescription:'Cancel your monthly renewal at the end of the current paid period. Review the effective date before confirming.',cancelConfirm:'Confirm cancellation',cancelClose:'Close cancellation',cancelBack:'Keep subscription',cancelLoading:'Preparing cancellation details…',cancelScheduled:'Cancellation scheduled',cancelNote:'Paid access continues until this date. Your workspace moves to Free afterward, and existing data stays preserved.',undoComplete:'Your scheduled change has been removed.',
+ title:'Change workspace plan',description:'Choose the plan that fits your workspace. Review the amount and effective date before confirming.',
+ names:{free:'Free',standard:'Standard',premium:'Premium'},current:'Current plan',select:'Review plan',close:'Close plan selection',
+ seats:'Teammates',leads:'New leads / month',tokens:'AI tokens / month',storage:'Storage allowance',campaigns:'Published campaigns',unlimited:'Unlimited',
+ monthly:'/ month · USD',review:'Review your change',due:'Due today',effective:'Effective date',renewal:'Your renewal date stays the same.',
+ noRollover:'Usage already consumed this calendar month stays counted. Unused tokens do not carry over or stack when changing plans.',
+ downgrade:'Your current paid access continues until this date. Existing records, files and teammates stay preserved. Actions that increase usage beyond the new limits will be blocked.',
+ upgrade:'The higher plan starts only after payment is verified. The payment method used for this subscription is saved for renewals.',checkout:'Your monthly subscription starts after successful payment.',
+ confirm:'Confirm plan change',schedule:'Schedule downgrade',subscribe:'Continue to payment',back:'Choose another plan',busy:'Working…',
+ expired:'This quote has expired. Review the plan again for a fresh amount.',error:'We could not complete the plan change. Refresh its status before trying again.',
+ complete:'Your plan has been updated.',scheduled:'Your downgrade is scheduled.',payment:'Complete payment to activate your new plan.',
+ check:'Check plan change status',pay:'Pay and change plan',secure:'Secure payment handled by Stripe.',missingKey:'Payment is currently unavailable. Your current plan remains in place.',
+ undo:'Keep current plan',
+ scheduledLabel:'Scheduled plan',resume:'Continue plan change',pending:'A plan change is waiting to finish.',
+ sampleDate:'2026-11-13T00:00:00.000Z',
+} as const;

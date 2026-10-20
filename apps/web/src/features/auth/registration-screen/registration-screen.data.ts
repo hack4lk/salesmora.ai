@@ -1,0 +1,26 @@
+export const registrationScreenData = {
+  documentTitle: 'Create your account — SalesMora.ai',
+  title: 'Create your account',
+  description: 'Start a workspace for your business. You’ll add your business details next.',
+  previewNotice: 'Storybook preview: submissions are mocked. No accounts are created.',
+  sandboxNotice: 'Sandbox registration · Draft monthly prices in USD · Test payments only',
+  localNotice: 'Local development: this creates an account in your local database. Use fictional details. Legal documents are drafts.',
+  successTitle: 'Account created',
+  successMessage: 'Your account is ready. Opening account setup…',
+  errors: {
+    unavailable: 'We could not create your account. Check your details or try signing in if you already registered.',
+    rateLimited: 'Too many registration attempts. Wait a minute and try again.',
+  },
+  accountPrompt: 'Already have an account?',
+  signIn: 'Sign in',
+  loginHref: '/login',
+  footer: 'No payment details required to create your account.',
+  termsHref: '#terms-preview',
+  privacyHref: '#privacy-preview',
+  legal: {
+    termsTitle: 'Terms of Service (preview)',
+    privacyTitle: 'Privacy Policy (preview)',
+    unavailable: 'Development draft only. Use fictional details for local testing. Final legal documents must be approved before public registration opens.',
+  },
+  stories: { serverError: 'Registration is temporarily unavailable. Please try again.' },
+} as const;

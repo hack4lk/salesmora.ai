@@ -1,0 +1,1 @@
+export const copy = {close:'Close',reload:'Reload latest values',conflict:'This job changed. Reload the latest values before saving; your draft has been preserved.',cancel:'Cancel',saving:'Saving…',error:'The change could not be saved. Your entries are preserved. Please try again.'};

@@ -1,0 +1,42 @@
+{
+  "name": "salesmora",
+  "private": true,
+  "packageManager": "pnpm@10.34.6",
+  "engines": {
+    "node": ">=22.12.0 <23"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @salesmora/web dev",
+    "worker:dev": "pnpm --filter @salesmora/worker dev",
+    "storybook": "pnpm --filter @salesmora/web storybook",
+    "storybook:build": "pnpm --filter @salesmora/web storybook:build",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm -r build",
+    "test": "vitest run --passWithNoTests",
+    "test:e2e": "pnpm --filter @salesmora/web test:e2e",
+    "db:setup": "node scripts/setup-local.mjs",
+    "db:migrate": "pnpm --filter @salesmora/data migrate",
+    "db:migrate:test": "pnpm --filter @salesmora/data migrate --test",
+    "db:rollback:test": "pnpm --filter @salesmora/data migrate --test --rollback",
+    "test:authorization:db": "pnpm --filter @salesmora/data test:authorization",
+    "test:leads:db": "pnpm --filter @salesmora/data test:leads:read",
+    "knowledge:seed": "pnpm --filter @salesmora/worker seed",
+    "knowledge:evaluate": "pnpm --filter @salesmora/worker evaluate",
+    "ai:usage": "pnpm --filter @salesmora/data usage:report",
+    "ai:budget": "pnpm --filter @salesmora/data budget:configure",
+    "test:chat:retention": "pnpm --filter @salesmora/data test:retention",
+    "worker:start": "pnpm --filter @salesmora/worker start",
+    "worker:status": "pnpm --filter @salesmora/worker status",
+    "stripe:listen": "node scripts/listen-stripe-sandbox.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "eslint": "9.39.1",
+    "eslint-config-next": "16.2.6",
+    "railway": "3.15.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
+  }
+}

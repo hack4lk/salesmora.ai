@@ -1,5 +1,7 @@
 # Application Folder and Component Structure Plan
 
+**Current authorization (October 12, 2026):** Owner/Admin/Office/Field are live permission roles. Work profiles are retired; new invitations default to Field. Existing Home/lead/invitation flows enforce saved policies. Older role/profile decisions below are historical; see [live cutover](authorization-live-cutover.md).
+
 **Status:** Approved architecture and UI foundation decisions; no application folders or packages are being created yet.
 
 ## Purpose and constraints
@@ -181,13 +183,15 @@ The app shell owns product navigation and persistent chrome. Page modules compos
 
 ### UI framework, branding, and iconography
 
+- **Component convention (October 9, 2026):** Use Tailwind CSS classes for application/component styling and colocated `*.data.ts` files for display and accessibility copy. MUI continues to supply control behavior and its central theme configuration; use Tailwind for component presentation instead of `sx` or inline styles. See [component conventions](component-conventions.md).
+
 - Use **Material UI (MUI)** as the default React component framework wherever its components fit the interaction and accessibility needs. Build product-specific components when a workflow needs behavior or layout that MUI does not provide cleanly; do not force every screen into a stock MUI look.
 - Keep the SalesMora.ai workspace identity consistent with the [brand guide](branding.md): use the Mosaic logo, Blue & Seafoam palette (`#3B6FA5` primary, `#7CCBB7` seafoam, `#23384D` navy ink, `#F4F8FC` cool white), and Source Sans 3 (`'Source Sans 3', 'Segoe UI', Arial, sans-serif`). Centralize these colors, typography, spacing, shape, elevation, and component overrides in the shared `packages/ui` theme/tokens. App-wide MUI theme setup belongs in the web app provider; Storybook should use the same theme and global styles.
 - Use **`@mui/icons-material`** as the standard library for in-product UI icons. Import icons through `packages/ui/src/icons` (or a small approved icon map) so icon choices and variants stay consistent. Do not mix in emoji, Unicode glyphs, icon fonts, or another icon package as UI iconography. Product and third-party service logos remain brand assets, not substitutes for UI icons.
 - **Do not use favicons anywhere in the application.** Do not add favicon files or browser icon metadata/routes, and never use a website's favicon as an in-product icon. This rule is separate from the SalesMora wordmark/logo and approved service logo assets.
 - Prefer MUI's accessible components and keyboard behavior, and check responsive layout, focus visibility, contrast, and reduced-motion behavior when applying the brand theme.
 
-The assistant needs one shared **interaction component** with configurable placement (hero, inline, drawer) because the prototypes intentionally make it prominent on different pages. A page supplies a stable `surfaceKey`, selected record references, and visible UI state. The server-side registry in `packages/agent` resolves actual context and tools. Suggested UI building blocks include `AssistantPanel`, `Conversation`, `MessageList`, `MessageComposer`, `ContextBadge`, `SuggestedPrompt`, `ActionReviewCard`, and `ApprovalControls`; avoid a separate agent implementation per page.
+The assistant uses one shared **interaction component**. Current placement decision (approved October 12, 2026): a floating bottom-right callout opens the main assistant in the dark-blue modal on workspace pages, replacing the earlier top-of-page form. Embedded assistants in modals are a later, separate surface. Preserve the prototype’s visual language while developing the modal’s functionality with the user. A page supplies a stable `surfaceKey`, selected record references, and visible UI state. The server-side registry in `packages/agent` resolves actual context and tools. Suggested UI building blocks include `AssistantPanel`, `Conversation`, `MessageList`, `MessageComposer`, `ContextBadge`, `SuggestedPrompt`, `ActionReviewCard`, and `ApprovalControls`; avoid a separate agent implementation per page.
 
 Stories should live next to shared UI components as `*.stories.tsx` where that supports ownership, while `.storybook/preview.tsx` applies global styles, branding, and lightweight providers. Use mock typed data and callbacks. Page/domain widgets can have stories when they benefit from isolated review, but Storybook is not a replacement for composing and navigating real routes.
 
@@ -248,7 +252,7 @@ Enforce these directions with workspace exports and lint/import boundaries as th
 ## Naming and placement rules
 
 - **Route files:** `page.tsx`, `layout.tsx`, `loading.tsx`, `error.tsx`, `route.ts`; keep them focused on routing and composition.
-- **React components:** PascalCase exports; kebab-case filenames (`lead-detail-header.tsx`).
+- **React components:** PascalCase exports; kebab-case component folders containing source, data, and stories (for example `text-field/text-field.tsx`). See [component conventions](component-conventions.md).
 - **Server-only modules:** use explicit server-only boundaries where available and never re-export secrets/DB code from a browser-importable barrel.
 - **Schemas:** keep shared boundary schemas in `packages/contracts`; local UI-only form state can live with the feature.
 - **Tests:** colocate unit tests with domain/data/agent modules or mirror package `test/` folders; keep end-to-end journeys under an app-level browser-test directory once the test stack is selected.
@@ -288,3 +292,15 @@ Review this plan in sequence. Mark each section approved or revise it before mov
 - [Interactive prototype plan](interactive-prototype-plan.md)
 - [Context-aware agent architecture](context-aware-agent-architecture.md)
 - [Local development setup](local-development.md)
+
+
+### Implemented local Customers routes — October 18, 2026
+
+`/customers` and `/customers/[customerId]` now use the approved components with workspace-scoped PostgreSQL services. The authorized sidebar enables Customers only for full `customers.read`; related-only access never creates a Customers menu. Manual API routes are documented in [Customers](customers.md). Shared assistant presentation is retained; customer AI tools and form-drafting runtime remain a separate integration. No new `/customers/new` page or staging release.
+
+October 18 customer assistant checkpoint: Customer intents and safe result/review contracts live in `packages/contracts/src/customer-chat.ts`; shared model/capability definitions live under `packages/agent/src/customers/`; `apps/web/src/server/chat/customers.ts` adapts confirmed proposals to the existing data services. Customer cards are host-rendered by `features/assistant/customer-result/` through the existing optional AssistantPanel supplement slot. The shared assistant is registered once; Home and other pages use the same customer facades. `202610180002_customer_chat` stores private reviews and provenance with chat/account/workspace retention cascades. No generic database tool or duplicated per-page agent is added.
+
+
+### Jobs foundation checkpoint — October 19, 2026
+
+The Jobs module now has local contracts (`packages/contracts/src/job.ts`), domain lifecycle rules (`packages/domain/src/jobs/`), additive schema and scoped transaction services (`packages/data/src/jobs/`). The first feature UI is `features/jobs/job-status-badge`, composed from the shared StatusBadge. Jobs/Calendar route/navigation and agent feature gates remain unavailable until the reviewed UI/API integration; existing global assistant behavior is unchanged. See [Jobs foundation](jobs.md) and the refreshed [Calendar plan](calendar-page-plan.md).

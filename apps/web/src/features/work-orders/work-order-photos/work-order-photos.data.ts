@@ -1,0 +1,20 @@
+export const copy={
+ title:'Photos and files',
+ categories:{before:'Before',after:'After',other:'Other files'},
+ add:(category:string)=>`Add ${category.toLowerCase()} photo`,
+ addFile:'Add file',
+ emptyCategory:'Nothing here yet.',
+ empty:'No photos or files yet.',
+ scanning:'Security scan pending',
+ failed:'Upload failed',
+ open:(name:string)=>`Open ${name}`,
+ remove:(name:string)=>`Remove ${name}`,
+ uploadedBy:(name:string,when:string)=>`${name} · ${when}`,
+ types:'JPEG, PNG, HEIC, WebP, PDF, DOCX, XLSX or TXT. Maximum 10 MB per file.',
+ locked:'Photos and files are locked while this work order is closed.',
+ draftHint:'Crew can add photos once the work order is issued.',
+ noUpload:'You can view photos and files but not add them.',
+ privacy:'Private files. Access is checked before every preview or download.',
+ imageLabel:'Photo',
+ documentLabel:'File'
+};

@@ -1,0 +1,1 @@
+export const copy = {owner:'Primary owner',schedule:'Scheduled work',deadline:'Completion deadline',noDate:'Needs a work date',noDeadline:'No deadline',waiting:'Waiting on',open:(number:string)=>`Open ${number}`,move:(number:string)=>`Move ${number}`,overdue:'Overdue',window:'Arrival window'};

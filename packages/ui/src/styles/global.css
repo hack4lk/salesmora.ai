@@ -1,0 +1,73 @@
+@layer theme, base, mui, components, utilities;
+@import 'tailwindcss';
+
+/* Scan shared components/stories and the consuming web app. */
+@source '../';
+@source '../../../../apps/web/src';
+
+@theme {
+  --font-sans: 'Source Sans 3', 'Segoe UI', Arial, sans-serif;
+  --breakpoint-sm: 37.5rem;
+  --breakpoint-md: 56.25rem;
+  --breakpoint-lg: 75rem;
+  --breakpoint-xl: 96rem;
+  --color-primary: #3b6fa5;
+  --color-primary-dark: #315c8a;
+  --color-seafoam: #7ccbb7;
+  --color-ink: #23384d;
+  --color-muted: #52677b;
+  --color-canvas: #f4f8fc;
+  --color-paper: #ffffff;
+  --color-line: #e2eaf1;
+  --color-decoration: #d9e8eb;
+  /* Dark blue assistant surface, independent of the surrounding page palette. */
+  --color-assistant-header: #274c75;
+  --color-assistant-surface: #213146;
+  --color-assistant-message: #263d56;
+  --color-assistant-foreground: #e4eef7;
+  --color-assistant-muted: #b6c8d9;
+  --color-assistant-border: #4c6b89;
+  --color-assistant-accent: #8dbbe8;
+  --color-error: #d32f2f;
+  --color-success: #236144;
+  --color-disabled: rgb(0 0 0 / 38%);
+
+  /* Brand typography uses Tailwind's 3xl/4xl and 5xl/6xl size steps. */
+  --text-heading: 1.875rem;
+  --text-heading--line-height: 1.25;
+  --text-heading--letter-spacing: -0.025em;
+  --text-heading-lg: 2.25rem;
+  --text-heading-lg--line-height: 1.25;
+  --text-heading-lg--letter-spacing: -0.025em;
+  --text-display: 3rem;
+  --text-display--line-height: 1.25;
+  --text-display--letter-spacing: -0.025em;
+  --text-display-lg: 3.75rem;
+  --text-display-lg--line-height: 1.25;
+  --text-display-lg--letter-spacing: -0.025em;
+
+  /* Shared widths for account forms, brand panels, and readable summaries. */
+  --container-form: 28rem;
+  --container-brand: 28rem;
+  --container-reading: 24rem;
+  --spacing-brand-logo: 14rem;
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('/fonts/source-sans-3/source-sans-3-variable.woff2') format('woff2');
+}
+
+@utility focus-ring {
+  @apply outline-3 outline-solid outline-primary outline-offset-4;
+}
+
+@layer base {
+  body { @apply m-0 bg-canvas font-sans text-ink; }
+  a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
+    @apply focus-ring;
+  }
+}

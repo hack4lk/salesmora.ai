@@ -1,12 +1,16 @@
 # Context-Aware Agent Architecture
 
-**Status:** Architecture decisions reviewed and agreed; implementation has not started.
+**Status:** Architecture decisions reviewed and agreed; floating assistant callout and dark-blue modal approved. Runtime, tools, and persistence are pending. See the [chat implementation plan](chat-implementation-plan.md) for the proposed streaming, authorization, RAG, and delivery contracts.
 
 ## Purpose
 
 SalesMora has agent interactions across Home, Leads, Customers, Jobs, Estimates, Campaigns, Reports, Settings, and setup flows. The agent should understand the user's current task and relevant record without receiving unrestricted access to every page, database table, or integration.
 
 This plan describes how the application can resolve page context, provide an appropriately scoped toolset, retrieve business data, preserve conversation state, and gate changes. It extends the existing architecture in the [Product and Delivery Roadmap](salesmora-product-roadmap.md), which identifies Next.js App Router, PostgreSQL, Redis, a separate worker, and LangChain for bounded agent tasks.
+
+## Authorization update — October 12, 2026
+
+Chat implementation resumed after the [authorization and permissions plan](authorization-permissions-plan.md) cutover. Transport contracts and a shared surface/tool authorization boundary are implemented; streaming, persistence, retrieval and provider integration remain pending. The user selected Owner/Admin/Office/Field permission roles; this supersedes the Owner/Admin/Member plus Office/Field-profile descriptions below. Final role grants, record scopes, retrieval/history access, and delegation rules must come from the shared app policy, not a separate agent policy.
 
 ## Recommendation
 
@@ -35,6 +39,10 @@ flowchart LR
     Worker --> Domain
 ```
 
+## Main assistant placement
+
+Current user decision — approved October 12, 2026: the main assistant opens from a floating bottom-right chatbot-like callout on workspace pages into the dark-blue modal. This supersedes the earlier top-of-page form. Embedded assistants for other workflows remain deferred. Page context and tool permissions still come from the registry and server authorization; placement does not grant capabilities.
+
 ## How the agent knows which screen it is on
 
 The shared assistant UI should receive a stable, typed **surface key** from the app route/layout (for example, `leads.list`, `lead.detail`, `job.detail`, `campaign.setup.email-mapping`). It should not infer the page by reading the DOM, guessing from the user's wording, or using an arbitrary URL string as authorization.
@@ -53,9 +61,9 @@ For each turn, the UI sends a small context envelope:
 The example is illustrative. In production:
 
 - The server validates `surfaceKey` against a code-owned registry. Unknown keys receive a safe generic assistant experience or a validation error.
-- `recordRefs` are untrusted identifiers. The server reloads each record through the tenant-scoped data access layer and checks access for the current user.
+- `recordRefs[].type` is one of `lead | customer | job | estimate | work_order` (the set grows with each domain; the code contract in `packages/contracts/src/chat.ts` currently allows `lead | customer` and is extended when each domain's assistant ships). `recordRefs` are untrusted identifiers. The server reloads each record through the tenant-scoped data access layer and checks access for the current user.
 - The server derives user ID, organization ID, role, and plan from the authenticated session and database. It never trusts client-supplied identity or authorization claims.
-- Workspace permission roles are Owner, Admin, and Member. Office/Field work profiles may inform page presentation, but they never expand tool access or record permissions.
+- Workspace permission roles are Owner, Admin, Office, and Field. Current server-resolved grants and record scopes determine access; presentation and model instructions cannot expand it.
 - `uiState` is optional and limited to useful, validated UI details (selected filters, view mode, or section). Do not send the full page DOM or hidden form contents by default.
 - The server controls the final prompt context and tool list. The browser communicates intent; it does not grant capabilities.
 

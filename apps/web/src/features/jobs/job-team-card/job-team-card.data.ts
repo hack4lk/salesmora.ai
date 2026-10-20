@@ -1,0 +1,1 @@
+export const copy = {title:'Job team',primary:'Primary owner',additional:'Additional teammates',none:'No additional teammates',manage:'Manage team',readOnly:'Team assignments determine who can access this job.'};

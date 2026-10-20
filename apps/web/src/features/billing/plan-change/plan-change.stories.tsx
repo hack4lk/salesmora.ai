@@ -1,0 +1,13 @@
+import type { Meta, StoryObj } from '@storybook/nextjs-vite';
+import { expect, fn, userEvent, within } from 'storybook/test';
+import { PlanChange } from './plan-change';
+const meta={title:'Billing/PlanChange',component:PlanChange,parameters:{layout:'fullscreen'},args:{currentPlan:'standard',onPreview:fn(),onConfirm:fn(),onRefresh:fn(),onClose:fn(),onBack:fn()},decorators:[Story=><main className="mx-auto max-w-6xl p-4 sm:p-8"><Story/></main>]} satisfies Meta<typeof PlanChange>;
+export default meta;type Story=StoryObj<typeof meta>;
+const quote={id:'a0000000-0000-4000-8000-000000000001',plan:'premium',kind:'upgrade',amountDue:1375,currency:'usd',effectiveAt:'2026-10-13T00:00:00.000Z',expiresAt:'2099-01-01T00:00:00.000Z'} as const;
+export const Default:Story={play:async({canvasElement,args})=>{const c=within(canvasElement);await expect(c.getByRole('button',{name:'Current plan'})).toBeDisabled();await userEvent.click(c.getAllByRole('button',{name:'Review plan'})[1]);await expect(args.onPreview).toHaveBeenCalledWith('premium');}};
+export const UpgradeReview:Story={args:{quote},play:async({canvasElement,args})=>{const c=within(canvasElement);await expect(c.getByText('$13.75')).toBeVisible();await userEvent.click(c.getByRole('button',{name:'Confirm plan change'}));await expect(args.onConfirm).toHaveBeenCalled();}};
+export const DowngradeReview:Story={args:{currentPlan:'premium',quote:{...quote,plan:'standard',kind:'downgrade',amountDue:0,effectiveAt:'2026-11-13T00:00:00.000Z'}}};
+export const FreeAtPeriodEnd:Story={args:{quote:{...quote,plan:'free',kind:'free',amountDue:0,effectiveAt:'2026-11-13T00:00:00.000Z'}}};
+export const PaymentPending:Story={args:{quote,result:{status:'payment'}}};
+export const Scheduled:Story={args:{quote,result:{status:'scheduled'}}};
+export const Failed:Story={args:{quote,error:'We could not complete the plan change. Refresh its status before trying again.'}};

@@ -1,0 +1,20 @@
+export const copy={
+ title:'Tasks',
+ progress:(done:number,total:number)=>`${done} of ${total} done`,
+ progressLabel:'Task progress',
+ required:'Required',
+ doneBy:(name:string,when:string)=>`Done by ${name} · ${when}`,
+ empty:'No tasks yet.',
+ emptyEdit:'No tasks yet. Add the first task below.',
+ requiredOpen:(n:number)=>`${n} required ${n===1?'task is':'tasks are'} still open.`,
+ allRequiredDone:'All required tasks are done.',
+ add:'Add task',
+ addLabel:'New task',
+ addPlaceholder:'Describe the task',
+ remove:(label:string)=>`Remove task: ${label}`,
+ toggle:(label:string)=>label,
+ markRequired:(label:string)=>`Required: ${label}`,
+ locked:'Tasks are locked while this work order is closed.',
+ draftHint:'Crew can check tasks once the work order is issued.',
+ noProgress:'You can view tasks but not update them.'
+};

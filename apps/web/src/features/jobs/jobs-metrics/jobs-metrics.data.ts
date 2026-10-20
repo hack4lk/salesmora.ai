@@ -1,0 +1,1 @@
+export const copy = {active:'Active jobs',overdue:'Overdue deadlines',waiting:'Waiting',unassigned:'Unassigned',descriptions:['Jobs still in progress','Active work past its deadline','Jobs needing a blocker resolved','Choose a primary owner']};

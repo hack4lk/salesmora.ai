@@ -1,0 +1,44 @@
+name: salesmora
+services:
+  mailpit:
+    image: axllent/mailpit:v1.27.4@sha256:df6c2541907e1be6fac21f509927cf6ed771617a1f4b361ef66d97bd05593d2d
+    ports:
+      - '127.0.0.1:11025:1025'
+      - '127.0.0.1:18025:8025'
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+  postgres:
+    image: salesmora-postgres:17-pgvector-0.8.7
+    build: ./infra/postgres
+    environment:
+      POSTGRES_USER: salesmora
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run pnpm db:setup first}
+      POSTGRES_DB: salesmora
+    ports:
+      - '127.0.0.1:55432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-test-database.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U salesmora -d salesmora']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+  redis:
+    image: redis:7.4-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    command: ['redis-server', '--appendonly', 'yes', '--appendfsync', 'everysec', '--maxmemory-policy', 'noeviction']
+    ports:
+      - '127.0.0.1:56379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+volumes:
+  redis_data:
+  postgres_data:

@@ -1,0 +1,20 @@
+export const customerProfileData = {
+  back: "Back to customers",
+  edit: "Edit contact",
+  export: "Export CSV",
+  link: "Link lead",
+  archived: "Archived",
+  navigation: "Customer sections",
+  tabs: {
+    overview: "Overview",
+    leads: "Leads",
+    activity: "Activity",
+    notes: "Notes",
+  },
+  types: { person: "Person", business: "Business" },
+  loading: "Loading customer…",
+  forbidden: "You do not have access to this customer.",
+  missing: "Customer not found.",
+  error: "Customer could not be loaded.",
+  retry: "Try again",
+};

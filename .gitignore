@@ -1,0 +1,15 @@
+node_modules/
+.next/
+.next-e2e/
+dist/
+storybook-static/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+.env*
+!.env.example
+.DS_Store
+debug-storybook.log
+
+.local/backups/

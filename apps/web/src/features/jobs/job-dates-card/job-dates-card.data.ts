@@ -1,0 +1,1 @@
+export const copy = {title:'Schedule and deadline',scheduled:'Scheduled work date',window:'Arrival window',deadline:'Completion deadline',created:'Created',none:'Not set',schedule:'Update schedule',change:'Change deadline',help:'The work date is when the visit happens. The deadline is when work must be finished.',overdue:'Overdue',noWindow:'Arrival window not set'};

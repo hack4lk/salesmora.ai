@@ -1,0 +1,1 @@
+export const copy = {title:'Related records',customer:'Customer',lead:'Source lead',origin:'Original job',followOn:'Follow-on jobs',none:'No source lead',open:'Open record',unavailable:'This record is unavailable with your current access.'};

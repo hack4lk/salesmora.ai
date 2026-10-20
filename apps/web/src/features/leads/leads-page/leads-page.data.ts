@@ -1,0 +1,25 @@
+import { leadsToolbarData } from '../leads-toolbar/leads-toolbar.data';
+export const leadsPageData = {
+  title: 'Leads', description: 'Keep new opportunities moving and make sure every enquiry has an owner.',
+  results: (count: number) => `${count.toLocaleString('en-US')} matching ${count === 1 ? 'lead' : 'leads'}`,
+  loading: 'Loading leads…', loadError: 'Leads could not be loaded. Your filters have been preserved.', retry: 'Retry',
+  management: 'Lead management', move: 'Move to another stage', assign: 'Change owner', assignDescription: 'Review who will own this lead. They will be responsible for its next steps.',
+  assignConfirm: 'Assign owner', restore: 'Restore lead?', restoreDescription: 'This lead will return to the default leads list and pipeline when it matches the current filters.', restoreConfirm: 'Restore lead',
+  saved: 'Changes saved.', moved: 'Lead stage updated.', assigned: 'Lead owner updated.', archived: 'Lead archived.', restored: 'Lead restored.', deleted: 'Lead permanently deleted.',
+  created: 'Lead created.', hiddenCreated: 'Lead created. It is hidden by your current filters.', clearFilters: 'Clear filters',
+  exported: 'Export requested.', failure: 'The action could not be completed. Your current view has been preserved.',
+  edit: 'Edit lead', stale: 'This lead changed. Refresh and review its latest details.',
+  discardTitle: 'Discard unsaved changes?', discardDescription: 'Your edits will be lost. You can cancel and copy them before continuing.', discard: 'Discard changes',
+  stages: leadsToolbarData.stages,
+  stories: {
+    workspace: 'Harbor Home Services', viewer: 'Sam Rivera', email: 'sam@example.com', now: '2026-10-15T16:00:00.000Z', timezone: 'America/New_York',
+    preview: 'Interactive local preview · Changes are temporary; no live records, files or messages are sent.',
+    reply: 'I can help draft the next step. This preview does not send messages or change records through the assistant.',
+    memberNames: ['Sam Rivera', 'Ava Morgan', 'Taylor Morgan'], memberIds: ['sam', 'ava', 'taylor'],
+    nextTitle: 'Confirm the service and preferred timing', nextBody: 'Prepare a follow-up to clarify the scope and arrange the next conversation.',
+    details: 'Discuss the service requirements and preferred appointment time with the customer.', address: '18 Willow Street, Brooklyn, NY 11201', notes: 'Call before visiting.',
+    leadNumber: (index: number) => `LD-${1042 + index}`, name: (name: string, index: number) => `${name} ${index + 1}`,
+    missingSearch: 'no-matching-customer', newName: 'Morgan Test', newService: 'Heating inspection',
+    contactEmail: 'jordan@example.com', contactPhone: '+1 (212) 555-0142', updatedService: 'Heating inspection and thermostat repair', teamNote: 'Customer prefers a morning appointment.',
+  },
+};

@@ -1,0 +1,6 @@
+'use client';
+import {useState} from 'react';import {JobDialog} from '../job-dialog/job-dialog';import {copy} from './job-export-dialog.data';
+export function JobExportDialog({open,count,pending,error,onClose,onConfirm}:{open:boolean;count:number;pending?:boolean;error?:string;onClose:()=>void;onConfirm:(columns:string[])=>void|Promise<void>}){
+ const [columns,setColumns]=useState(['number','title','customer','status']);
+ return <JobDialog open={open} title={copy.title} description={copy.description} confirmLabel={copy.confirm} confirmDisabled={!columns.length||count<1} pending={pending} error={error} onClose={onClose} onSubmit={()=>onConfirm(columns)}><p className="m-0 text-sm">{copy.count(count)}</p><fieldset className="m-0 grid gap-2 rounded-xl border border-line p-4"><legend className="px-2 text-sm font-semibold">{copy.columns}</legend>{Object.entries(copy.labels).map(([key,label])=><label key={key} className="flex min-h-11 cursor-pointer items-center gap-3 text-sm"><input type="checkbox" className="size-5 accent-primary focus-visible:focus-ring" checked={columns.includes(key)} onChange={e=>setColumns(e.target.checked?[...columns,key]:columns.filter(c=>c!==key))}/>{label}</label>)}</fieldset><p className="text-xs text-muted">{copy.help}</p></JobDialog>;
+}

@@ -6,15 +6,16 @@ The initial audience includes construction, plumbing, HVAC, electrical, and simi
 
 ## Project status
 
-This workspace currently contains planning documentation. Application implementation has not started.
+The pnpm workspace, Next.js app, separate worker scaffold, and Storybook are bootstrapped. `/register` creates real local accounts using PostgreSQL, Knex migrations, and Better Auth. Registration starts a database-backed session and opens a protected `/setup` handoff. Storybook remains mocked. `/login` now signs in existing local accounts and resumes setup. Password recovery now works locally through Mailpit. Business onboarding, email verification, and CRM behavior follow through individual approval checkpoints.
 
 ## Planned technology
 
 - **Web application:** Next.js App Router with TypeScript
-- **UI framework and icons:** Material UI where appropriate, with `@mui/icons-material` as the standard UI icon library; no favicons are used in the application
+- **UI framework and icons:** Tailwind CSS for styling, Material UI for controls and behavior, with `@mui/icons-material` as the standard UI icon library; no favicons are used in the application
 - **Brand typeface:** Source Sans 3; see the [brand guide](docs/branding.md) for selected colors, logo assets, and font implementation details
 - **Runtime:** Node.js
 - **Database and migrations:** PostgreSQL with Knex
+- **Authentication:** Better Auth, with server-side validation and database-backed sessions
 - **Background work:** Separate Node.js worker using BullMQ on durable Redis
 - **Hosting:** Railway
 - **AI workflows:** LangChain for bounded tasks such as lead extraction, classification, drafting, and workflow recommendations
@@ -32,6 +33,10 @@ This workspace currently contains planning documentation. Application implementa
 
 ## Documentation
 
+- [Component conventions](docs/component-conventions.md) — per-component copy data, Tailwind styling, and review rules
+
+- [Auth and onboarding build tracker](docs/auth-onboarding-build-tracker.md) — current implementation step, package checklist, registration/login/onboarding screens, and verification results
+- [Implementation start plan](docs/implementation-start-plan.md) — verified repository baseline, staged implementation sequence, first vertical slice, validation gates, and recommended first task
 - [Product and delivery roadmap](docs/salesmora-product-roadmap.md) — requirements, architecture, integrations, phases, subscription tiers, and acceptance criteria
 - [Interactive prototype plan](docs/interactive-prototype-plan.md) — screen-by-screen prototype order, interactions, review gates, and open decisions
 - [User journeys](docs/user-journeys.md) — current decisions and open questions for login, lead-source setup, website capture, and Gmail intake
@@ -53,4 +58,18 @@ The intended product domain is [salesmora.ai](https://salesmora.ai). Domain owne
 
 ## Development
 
-Application scripts and working Docker Compose configuration will be added when the application codebase is established. The local environment design and Knex migration policy are documented in [Local Development Setup](docs/local-development.md).
+Use Node 22.23.3 (`nvm use`) and the pinned pnpm through Corepack.
+
+```bash
+corepack pnpm install --frozen-lockfile
+corepack pnpm db:setup
+corepack pnpm dev
+```
+
+In a second terminal, run `corepack pnpm storybook`. The app runs at http://127.0.0.1:3000 and Storybook at http://127.0.0.1:6006. See [Local testing and approval](docs/local-testing.md) for the review checklist and restart/check commands. Docker must be running for registration. `db:setup` creates an ignored `.env.local` with random credentials and an isolated PostgreSQL service on port 55432 plus Mailpit on SMTP 11025/inbox 18025. It does not change other projects’ databases. No email/provider credentials are required yet.
+
+Quality checks: `corepack pnpm lint`, `corepack pnpm typecheck`, `corepack pnpm build`, and `corepack pnpm storybook:build`. `corepack pnpm worker:dev` runs the worker scaffold; queues are not configured yet.
+
+See [Registration backend](docs/registration-backend.md) for the implemented schema, commands, test isolation, and remaining launch requirements. This local milestone is not ready for public launch; legal documents and email verification are still pending.
+
+Password recovery is available locally: [test the complete reset flow](docs/password-recovery.md), including the Mailpit inbox at http://127.0.0.1:18025.

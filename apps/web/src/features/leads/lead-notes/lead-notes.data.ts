@@ -1,0 +1,22 @@
+export const leadNotesData = {
+  title: 'Notes for the team', label: 'Add a team note', placeholder: 'Add context for your team…', submit: 'Add note', pending: 'Adding note…',
+  helper: 'Visible to everyone who can read this lead. Notes cannot be edited or deleted.',
+  limit: 2000, count: (length: number) => `${length.toLocaleString('en-US')} / 2,000 characters`,
+  empty: 'No team notes yet.', required: 'Enter a note.', tooLong: 'Keep the note within 2,000 characters.',
+  failed: 'Could not add your note. Your text is preserved. Try again.', success: 'Note added.',
+  history: 'Team notes', newest: 'Newest first', loading: 'Loading notes…', older: 'Show older notes', retry: 'Retry loading notes',
+  loaded: (loaded: number, total: number) => `Showing ${loaded} of ${total} ${total === 1 ? 'note' : 'notes'}`, dateUnavailable: 'Date unavailable',
+  assistant: (name: string) => `Via assistant, confirmed by ${name}`,
+  stories: { title: 'Lead team notes', description: 'Append-only notes preview. Adds and pagination are mocked; no records are changed.',
+    leadId: 'jordan', now: '2026-10-15T16:00:00.000Z', timezone: 'America/New_York', author: 'Sam Rivera',
+    draft: 'Customer is available on Friday.\nCall before visiting.', loadError: 'Could not load notes. Try again.',
+    plainText: '<strong>Customer instructions</strong>\nhttps://example.com/request\n<script>alert("preview")</script>',
+    oversized: 'A'.repeat(2001),
+    longAuthor: 'Alexandra Morgan-Williams from the residential installation and maintenance team',
+    notes: [
+      { id: 'n2', body: 'Customer prefers an afternoon visit.\nPlease call before arriving.', authorName: 'Sam Rivera', createdAt: '2026-10-15T14:00:00.000Z', viaAssistant: false },
+      { id: 'n1', body: 'Referred by a returning customer.', authorName: 'Taylor Morgan', createdAt: '2026-10-14T10:00:00.000Z', viaAssistant: true },
+    ],
+    olderBody: (index: number) => `Follow-up note ${index + 1}: customer requested a progress update.`,
+  },
+} as const;

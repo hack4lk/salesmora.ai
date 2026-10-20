@@ -1,0 +1,1 @@
+export const copy = {caption:'Jobs',number:'Job',customer:'Customer',service:'Service',status:'Status',owner:'Primary owner',schedule:'Scheduled work',deadline:'Deadline',actions:'Actions',empty:'No jobs match this view.'};

@@ -1,0 +1,23 @@
+import { businessTypes, serviceCatalog } from '@salesmora/contracts';
+export const settingsOverviewData = {
+  accountTitle: 'Account', accountDescription: 'View your personal account details and workspace role.', viewAccount: 'View account',
+  documentTitle: 'Settings | SalesMora.ai',
+  billingTitle: 'Billing', billingDescription: 'View your workspace plan, payment summary, usage and invoice history.', viewBilling: 'View billing',
+  title: 'Settings',
+  eyebrow: 'Workspace administration',
+  description: 'Manage your business profile and workspace access.',
+  businessTitle: 'Business profile',
+  businessDescription: 'Your saved workspace details.',
+  readOnly: 'Business profile editing is coming soon.',
+  fields: { businessName: 'Business name', businessType: 'Business type', postalCode: 'Primary ZIP / postal code', serviceRange: 'Service range', services: 'Services' },
+  notSet: 'Not set',
+  ranges: { '10-miles': 'Within 10 miles', '25-miles': 'Within 25 miles', '50-miles': 'Within 50 miles', 'multiple-regions': 'Multiple regions' } as Record<string, string>,
+  businessTypes, serviceCatalog,
+  aiUsageTitle: 'AI usage', aiUsageDescription: 'View your shared monthly assistant allowance, usage and reset date.', viewAIUsage: 'View AI usage',
+  workOrdersTitle: 'Work orders', workOrdersDescription: 'Require customer sign-off and set the business phone shown on printed crew sheets.', viewWorkOrders: 'Work order settings',
+  permissionsTitle: 'Permissions',
+  permissionsDescription: 'Choose what Owner, Admin, Office, and Field roles can see and do.',
+  ownerOnly: 'Owner only',
+  managePermissions: 'Manage permissions',
+  stories: { workspace: 'Northstar Plumbing', postalCode: '10013', longWorkspace: 'Northstar Property Maintenance, Construction and Professional Services', permissionsHref: '/settings/permissions?workspace=fictional-workspace', workOrdersHref: '/settings/work-orders?workspace=fictional-workspace' },
+} as const;

@@ -1,0 +1,16 @@
+export const copy={
+ caption:'Work orders',title:'Find work orders',search:'Search work orders',placeholder:'Number, title, customer, job or address',
+ status:'Status',assignee:'Assignee',job:'Job',from:'Scheduled from',to:'Scheduled to',all:'All',allJobs:'All jobs',unassigned:'Unassigned',
+ mine:'My work orders',archived:'Show archived',export:'Export CSV',exporting:'Exporting…',
+ count:(n:number)=>`${n} work ${n===1?'order':'orders'} in this view`,
+ number:'Work order',customer:'Customer / job',scheduled:'Scheduled',progress:'Tasks',updated:'Updated',actions:'Actions',notScheduled:'Not scheduled',overdue:'Overdue',
+ taskProgress:(done:number,total:number)=>`${done}/${total}`,
+ open:(title:string)=>`Open ${title}`,
+ empty:'No work orders yet. Add one from a job to give the crew tasks, materials and a sign-off.',noMatch:'No work orders match these filters.',
+ error:'Work orders could not be loaded.',
+ metrics:{issuedToday:'Issued today',inProgress:'In progress',overdue:'Overdue',awaitingSignoff:'Awaiting sign-off'},
+ descriptions:['Sent to the crew today','Crew is on site','Scheduled date has passed','All tasks done, not yet signed off'],
+ views:'Work order view',table:'Table',board:'Board',loading:'Loading work orders…',retry:'Try again',
+ menu:{label:(title:string)=>`Actions for ${title}`,open:'Open',print:'Print',duplicate:'Duplicate',cancel:'Cancel work order',archive:'Archive'},
+ chip:{search:'Search',status:'Status',assignee:'Assignee',jobNumber:'Job',scheduledFrom:'From',scheduledTo:'To'},
+};

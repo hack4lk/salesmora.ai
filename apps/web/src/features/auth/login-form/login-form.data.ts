@@ -1,0 +1,25 @@
+export const loginFormData = {
+  formLabel: 'Sign in',
+  labels: { email: 'Work email', password: 'Password' },
+  submit: 'Sign in',
+  pending: 'Signing in…',
+  forgotPassword: 'Forgot password?',
+  successTitle: 'Signed in',
+  success: 'You are signed in. Opening your workspace…',
+  errors: {
+    email: 'Enter a valid email address.',
+    password: 'Enter your password.',
+    submission: 'We could not sign you in. Check your email and password and try again.',
+  },
+  stories: {
+    preview: 'UI preview only. Sign-in and recovery links are mocked; no sessions are created.',
+    email: 'alex@example.com',
+    password: 'Fictional-demo-42!',
+    invalidEmail: 'alex@',
+    spacedEmail: '  Alex@Example.com  ',
+    spacedPassword: ' Fictional-demo-42! ',
+    existingPassword: 'old',
+    success: 'Demo sign-in complete. No session was created.',
+    forgotPasswordHref: '#password-recovery-preview',
+  },
+} as const;

@@ -1,0 +1,1 @@
+export const copy = {title:'Edit attachment description',description:'Only the uploader and authorized workspace managers may edit this description. The change is retained in job activity.',label:'Description · optional',save:'Save description'};

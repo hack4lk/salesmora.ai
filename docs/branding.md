@@ -68,3 +68,47 @@ The [font specimen](../branding/typography-exploration.html) retains Inter, Manr
 - [Mark exploration](../branding/mark-exploration.html)
 - [Color exploration](../branding/color-exploration.html)
 - [Typography exploration](../branding/typography-exploration.html)
+
+## UI sizing and typography standard
+
+The executable Tailwind tokens live in `packages/ui/src/styles/global.css`. This guide describes their intended use; components consume the named utilities instead of repeating numeric values.
+
+| Role | Tailwind utility | Standard |
+|---|---|---|
+| Page heading | `text-heading sm:text-heading-lg font-semibold` | 30px / 36px, line height 1.25, tracking -0.025em |
+| Brand/display heading | `text-display lg:text-display-lg font-semibold` | 48px / 60px, line height 1.25, tracking -0.025em |
+| Body copy | `text-base leading-relaxed` | 16px, line height 1.625 |
+| Prominent body copy | `text-lg leading-relaxed` | 18px, line height 1.625 |
+| Caption/footer | `text-sm` | Tailwind's 14px size and 20px line height |
+| Eyebrow | `text-xs font-bold tracking-widest uppercase` | Tailwind's 12px size and 0.1em tracking |
+| Form content | `max-w-form` | 28rem (448px), always with `w-full` |
+| Brand headline block | `max-w-brand` | 28rem (448px) |
+| Summary text | `max-w-reading` | 24rem (384px) |
+| Full logo | `w-brand-logo h-auto` | 14rem (224px); original asset proportions |
+
+Use Tailwind's default 4px spacing scale. Prefer `2`, `3`, `4`, `6`, `8`, `10`, `12`, and `16` for gaps/padding. Account page gutters use `px-6 sm:px-10 md:px-12 lg:px-16`; preserve the logo file's own clear space and align its image box to that gutter. Do not compensate for artwork bounds with negative pixel margins. Desktop account panels use equal columns at `md`; mobile stacks the header and content. Breakpoints remain shared: sm 600px, md 900px, lg 1200px, xl 1536px.
+
+Use the standard scale first. Add a named, shared token only for a clear recurring role, and document it here. Do not merely hide a one-off adjustment behind a new token. Avoid arbitrary numeric sizing/leading/tracking classes in product components. Structural MUI slot selectors may use Tailwind's bracket syntax; that syntax selects a slot rather than inventing a numeric design value. Use accessible utilities such as `sr-only focus:not-sr-only` for skip links.
+
+### Primary submit action
+
+Use `SubmitButton` for primary form submission. Standard classes use `min-h-11 px-6 py-3 text-base leading-normal font-semibold rounded-xl`: a 48px single-line height with room to grow when labels wrap, no fixed-height clipping. Use primary blue/white, primary-dark hover, and line/muted disabled colors. Default to full form width. Pending state disables the button and shows a 16px spinner with reduced-motion support. Use the shared `focus-visible:focus-ring` utility so MUI resets cannot override the keyboard outline.
+
+### Form-level feedback
+
+Use `FormFeedback` for form-level errors and success. Panels use a white surface, ink text, the shared rounded-xl corners, and p-4 spacing. Error borders/icons use the shared error red `#D32F2F`; success borders/icons use semantic green `#236144` (`--color-success`). These semantic colors identify outcomes; primary actions retain brand blue. Always include a text title and message alongside the status icon. Titles use `text-base leading-6 font-semibold`; messages use `text-sm leading-6`.
+
+
+### Main assistant palette
+
+The main assistant uses the approved dark blue treatment in both collapsed and expanded states. These semantic tokens apply only to the assistant; the surrounding workspace retains the Blue & Seafoam palette.
+
+| Token | Hex | Use |
+|---|---|---|
+| `assistant-header` | `#274C75` | Header and user messages |
+| `assistant-surface` | `#213146` | Body and composer |
+| `assistant-message` | `#263D56` | Assistant messages and selected context |
+| `assistant-foreground` | `#E4EEF7` | Main text |
+| `assistant-muted` | `#B6C8D9` | Supporting copy and placeholder |
+| `assistant-border` | `#4C6B89` | Outlines and disabled controls |
+| `assistant-accent` | `#8DBBE8` | Primary action, icon tile, and keyboard focus |
