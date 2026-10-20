@@ -16,7 +16,7 @@ Use Docker Compose to run local infrastructure that should behave consistently a
 - **PostgreSQL** for application records and durable workflow state.
 - **Redis** for the background job queue.
 - **Mailpit** as a local SMTP sink and inbox for inspecting test email without delivering it to real recipients. Production outbound email uses Resend; Mailpit is local development only.
-- **MinIO (optional)** as a local S3-compatible object store for exercising job-attachment upload and download flows without touching a production bucket.
+- **RustFS** as a local S3-compatible object store for exercising job-attachment upload and download flows without touching a production bucket.
 
 Run the Next.js web application and Node.js worker as separate processes. Initially, running them on the host gives developers fast hot reload and straightforward debugging while they connect to PostgreSQL and Redis in Docker. Compose can later run all five services (`web`, `worker`, `postgres`, `redis`, and `mailpit`) when a fully containerized workflow is useful. This mirrors the planned Railway topology of a web service, worker, PostgreSQL, and Redis.
 
@@ -29,7 +29,7 @@ flowchart LR
     Worker --> PG
     Worker --> Mailpit[Mailpit SMTP inbox]
     Web --> Mailpit
-    Web --> Storage[(Local MinIO object storage)]
+    Web --> Storage[(Local RustFS object storage)]
 ```
 
 ## Prerequisites
@@ -54,7 +54,7 @@ References: [Storybook for Next.js with Vite](https://storybook.js.org/docs/get-
 
 ## Compose infrastructure
 
-Once the application code is created, add a root `compose.yaml` with `postgres`, `redis`, and `mailpit` services. Add an optional MinIO service when implementing attachments and other object uploads. A starting outline is:
+Once the application code is created, add a root `compose.yaml` with `postgres`, `redis`, and `mailpit` services. Add a RustFS (`objectstore`) service when implementing attachments and other object uploads. A starting outline is:
 
 ```yaml
 services:
@@ -135,18 +135,18 @@ SMTP_PORT=1025
 SMTP_SECURE=false
 ```
 
-Keep provider credentials in untracked local environment files. Use Google OAuth credentials configured for localhost callbacks, Stripe test-mode keys, and a local/test Mailchimp account or mocked connector. Never place production credentials in local Compose files or seed data. If the application runs in Compose, use its internal service DNS names (`postgres`, `redis`, `mailpit`, and `minio`) rather than `127.0.0.1` for service-to-service connections.
+Keep provider credentials in untracked local environment files. Use Google OAuth credentials configured for localhost callbacks, Stripe test-mode keys, and a local/test Mailchimp account or mocked connector. Never place production credentials in local Compose files or seed data. If the application runs in Compose, use its internal service DNS names (`postgres`, `redis`, `mailpit`, and `objectstore`) rather than `127.0.0.1` for service-to-service connections.
 
 ## Object storage and job attachments
 
-Use local MinIO or a dedicated non-production Railway bucket to test S3-compatible uploads. Never point local development or preview deployments at the production bucket. Use placeholder/local-only credentials and keep them in untracked environment files. Configure the application through S3-compatible settings (endpoint, bucket, region, access key, secret key, and URL style) so the same storage adapter can target MinIO locally and a Railway Storage Bucket in deployed environments.
+Use the local RustFS container (`objectstore` in Compose) or a dedicated non-production Railway bucket to test S3-compatible uploads. Never point local development or preview deployments at the production bucket. Use placeholder/local-only credentials and keep them in untracked environment files. Configure the application through S3-compatible settings (endpoint, bucket, region, access key, secret key, and URL style) so the same storage adapter can target RustFS locally and a Railway Storage Bucket in deployed environments.
 
 Keep Railway object storage private. The backend must authenticate the user, verify organization/job access, and create an opaque object key before issuing a short-lived upload/download URL. Validate allowed file types and size on the server, verify object metadata after upload, and do not permit downloads until any configured malware scan marks the file clean. Removing an attachment must display a confirmation naming the file and warning that it will be permanently lost; after confirmation, destroy its per-file encryption key so any copies are unrecoverable, then delete its object while retaining non-content audit metadata. Maintain daily encrypted disaster-recovery copies of active attachments in a separate private Railway bucket with 30-day retention. Apply durable deletion tombstones before restoring data so user-confirmed deletions never reappear; purge ciphertext for deleted attachments under the deletion process. Target a 24-hour RPO and one-business-day RTO, then validate both through restore drills. Do not expose access keys in frontend configuration or logs. Railway Storage Buckets use HTTPS endpoints and provide separate instances per environment, but current Railway documentation lists server-side encryption, object versioning, object locks, and bucket lifecycle configuration as unsupported. The production design uses application-level envelope encryption with keys kept outside the bucket for sensitive customer documents. Follow the [Railway Storage Buckets](https://docs.railway.com/storage-buckets) and [file upload and serving guide](https://docs.railway.com/guides/storage-buckets-guide) for current platform details.
 
 Example local-only placeholders (use the same names as the eventual storage adapter):
 
 ```dotenv
-OBJECT_STORAGE_ENDPOINT=http://127.0.0.1:9000
+OBJECT_STORAGE_ENDPOINT=http://127.0.0.1:59000
 OBJECT_STORAGE_BUCKET=salesmora-dev
 OBJECT_STORAGE_REGION=us-east-1
 OBJECT_STORAGE_ACCESS_KEY_ID=local_only
@@ -154,7 +154,7 @@ OBJECT_STORAGE_SECRET_ACCESS_KEY=replace_with_local_secret
 OBJECT_STORAGE_URL_STYLE=path
 ```
 
-Choose and pin a MinIO image version in Compose when implementation begins. For local tests, use disposable/sample files only; do not use actual customer documents.
+RustFS (pinned by digest in `compose.yaml`) replaces MinIO, whose image is no longer published. `pnpm db:setup` generates the keys and `FILE_MASTER_KEY` in `.env.local`. For local tests, use disposable/sample files only; do not use actual customer documents.
 Exercise both accepted and rejected file-size cases, including the Phase 1 maximum of 10 MB per attachment.
 
 ## Knex schema changes and migrations

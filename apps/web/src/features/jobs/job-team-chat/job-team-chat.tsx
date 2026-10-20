@@ -1,6 +1,127 @@
-'use client';
-import {useState,useId,useRef} from 'react';import type {JobChatMessage} from '../job-preview.types';import {jobPanel,jobInput,jobPrimary,jobTimestamp} from '../job-ui';import {copy} from './job-team-chat.data';
-export function JobTeamChat({messages,closed=false,canSend=true,thinking=false,pending=false,onSend}:{messages:JobChatMessage[];closed?:boolean;canSend?:boolean;thinking?:boolean;pending?:boolean;onSend:(body:string)=>void|Promise<void>}){
- const id=useId(),[body,setBody]=useState(''),[working,setWorking]=useState(false),[error,setError]=useState(''),flight=useRef(false),busy=working||pending;
- return <section className={jobPanel}><h2 className="mt-0 text-lg font-semibold">{copy.title}</h2><p className="text-sm leading-6 text-muted">{copy.description}</p><p className="text-xs text-muted">{copy.preview}</p><div role="log" aria-label={copy.title} aria-live="polite" tabIndex={0} className="grid max-h-96 gap-3 overflow-y-auto rounded-xl bg-canvas p-3 focus-visible:focus-ring">{messages.map((m,i)=><div key={m.id}>{m.unread&&!messages.slice(0,i).some(x=>x.unread)&&<p className="text-center text-xs font-semibold text-primary">{copy.unread}</p>}<article className={`min-w-0 rounded-xl border p-4 ${m.assistant?'border-primary/20 bg-primary/10':'border-line bg-paper'}`}><p className="m-0 text-sm font-semibold wrap-anywhere">{m.author}</p><p className="my-2 whitespace-pre-wrap text-sm leading-6 wrap-anywhere">{m.text}</p><time className="text-xs text-muted" dateTime={m.at}>{jobTimestamp(m.at)}</time></article></div>)}{!messages.length&&<p className="text-sm text-muted">{copy.empty}</p>}{thinking&&<p role="status" className="text-sm font-semibold text-primary">{copy.thinking}</p>}</div><p className="text-xs leading-5 text-muted">{copy.immutable}</p>{closed||!canSend?<p role="status" className="rounded-xl bg-canvas p-3 text-sm text-muted">{closed?copy.closed:copy.readOnly}</p>:<form onSubmit={async e=>{e.preventDefault();if(!body.trim()||busy||flight.current)return;flight.current=true;setWorking(true);setError('');try{await onSend(body.trim());setBody('');}catch{setError(copy.error);}finally{flight.current=false;setWorking(false);}}}><label htmlFor={id} className="grid gap-2 text-sm font-semibold">{copy.label}<textarea id={id} className={jobInput} rows={3} maxLength={4000} required disabled={busy} value={body} placeholder={copy.placeholder} onChange={e=>setBody(e.target.value)}/></label><button className={`${jobPrimary} mt-3`} disabled={busy||!body.trim()} aria-busy={busy}>{busy?copy.sending:copy.send}</button>{error&&<p role="alert" className="text-sm text-error">{error}</p>}</form>}</section>;
+"use client";
+import { useState, useId, useRef } from "react";
+import type { JobChatMessage } from "../job-preview.types";
+import { jobPanel, jobInput, jobPrimary, jobTimestamp } from "../job-ui";
+import { copy } from "./job-team-chat.data";
+export function JobTeamChat({
+  messages,
+  currentUserId,
+  closed = false,
+  canSend = true,
+  thinking = false,
+  pending = false,
+  onSend,
+}: {
+  messages: JobChatMessage[];
+  currentUserId: string;
+  closed?: boolean;
+  canSend?: boolean;
+  thinking?: boolean;
+  pending?: boolean;
+  onSend: (body: string) => void | Promise<void>;
+}) {
+  const id = useId(),
+    [body, setBody] = useState(""),
+    [working, setWorking] = useState(false),
+    [error, setError] = useState(""),
+    flight = useRef(false),
+    busy = working || pending;
+  return (
+    <section className={jobPanel}>
+      <h2 className="mt-0 text-lg font-semibold">{copy.title}</h2>
+      <p className="text-sm leading-6 text-muted">{copy.description}</p>
+      <div
+        role="log"
+        aria-label={copy.title}
+        aria-live="polite"
+        tabIndex={0}
+        className="grid mt-4 max-h-96 gap-2 overflow-y-auto rounded-xl bg-canvas p-3 focus-visible:focus-ring"
+      >
+        {messages.map((m, i) => (
+          <div key={m.id}>
+            {m.unread && !messages.slice(0, i).some((x) => x.unread) && (
+              <p className="text-center text-xs font-semibold text-primary">
+                {copy.unread}
+              </p>
+            )}
+            <article
+              className={`min-w-0 rounded-xl border p-3 ${m.assistant ? "border-primary/20 bg-primary/10" : "border-line bg-paper"}`}
+            >
+              <div className="flex flex-wrap items-baseline gap-2">
+                <p className="m-0 text-sm font-semibold wrap-anywhere">
+                  {m.authorId === currentUserId ? 'You' : m.author}
+                </p>
+                <time className="text-xs text-muted" dateTime={m.at}>
+                  {jobTimestamp(m.at)}
+                </time>
+              </div>
+              <p className="m-0 mt-1 whitespace-pre-wrap text-sm leading-6 wrap-anywhere">
+                {m.text}
+              </p>
+            </article>
+          </div>
+        ))}
+        {!messages.length && <p className="text-sm text-muted">{copy.empty}</p>}
+        {thinking && (
+          <p role="status" className="text-sm font-semibold text-primary">
+            {copy.thinking}
+          </p>
+        )}
+      </div>
+      {closed || !canSend ? (
+        <p
+          role="status"
+          className="rounded-xl bg-canvas p-3 text-sm text-muted"
+        >
+          {closed ? copy.closed : copy.readOnly}
+        </p>
+      ) : (
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!body.trim() || busy || flight.current) return;
+            flight.current = true;
+            setWorking(true);
+            setError("");
+            try {
+              await onSend(body.trim());
+              setBody("");
+            } catch {
+              setError(copy.error);
+            } finally {
+              flight.current = false;
+              setWorking(false);
+            }
+          }}
+        >
+          <label htmlFor={id} className="grid mt-4 gap-2 text-sm font-semibold">
+            {copy.label}
+            <textarea
+              id={id}
+              className={jobInput}
+              rows={3}
+              maxLength={4000}
+              required
+              disabled={busy}
+              value={body}
+              placeholder={copy.placeholder}
+              onChange={(e) => setBody(e.target.value)}
+            />
+          </label>
+          <button
+            className={`${jobPrimary} mt-3`}
+            disabled={busy || !body.trim()}
+            aria-busy={busy}
+          >
+            {busy ? copy.sending : copy.send}
+          </button>
+          {error && (
+            <p role="alert" className="text-sm text-error">
+              {error}
+            </p>
+          )}
+        </form>
+      )}
+    </section>
+  );
 }

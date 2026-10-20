@@ -188,3 +188,13 @@ The user approved and requested this staging batch: Customers list/profile and m
 - Remote fictional-workspace smoke passed: health/login, signed-out denial, create and replay, duplicate review, team note, lead link, real list/profile/browser launcher, archive/restore, CSV, foreign workspace/forged Origin denial and stale versioned-action denial. Three actual staging-model turns passed: customer details, phone+location review and explicit/idempotent confirmation, and customer search from Home. Private SSE headers and Thinking before answer deltas were verified. The full role/revocation matrix was exercised locally, not repeated against live model accounts.
 - The first remote harness mistakenly expected an append-only note to reject an old record version. Notes intentionally append independently; the corrected stale archive assertion passed. The API/browser harness was rerun without repeating already-passed paid model calls. Both isolated fictional workspaces were queued through account deletion, with sessions revoked; existing users/data were untouched.
 - No runtime variables changed or new provider keys were required. PostgreSQL and Redis deployment IDs are unchanged, and production remains empty. Existing managed-backup/restore, external alerting and wider production-readiness follow-ups remain open; no new staging backup or draining rehearsal was performed.
+
+## File storage buckets (manual setup, planned — see `file-storage-plan.md`)
+
+Railway buckets are created by hand; `.railway/railway.ts` does not manage them.
+
+1. In the staging environment, create two Storage Buckets in the same region as the web service: one for files and one for disaster-recovery copies. The region cannot be changed later.
+2. Add variable references on `web` and `worker` for the files bucket, mapped to the app names: `OBJECT_STORAGE_ENDPOINT` ← `ENDPOINT`, `OBJECT_STORAGE_BUCKET` ← `BUCKET`, `OBJECT_STORAGE_REGION` ← `REGION`, `OBJECT_STORAGE_ACCESS_KEY_ID` ← `ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY` ← `SECRET_ACCESS_KEY`. Use `BUCKET`, not `RAILWAY_BUCKET_NAME`. Try `OBJECT_STORAGE_URL_STYLE=virtual`; use `path` if the bucket is older.
+3. Reference the DR bucket on `worker` only, under `DR_OBJECT_STORAGE_*` names.
+4. Generate `FILE_MASTER_KEY` (`openssl rand -base64 32`) and set it as a sealed secret on `web` and `worker`. Store a recovery copy outside Railway. Never commit it.
+5. Production needs a paid plan; an exhausted Free-plan credit suspends bucket access.

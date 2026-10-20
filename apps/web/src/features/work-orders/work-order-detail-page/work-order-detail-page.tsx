@@ -1,6 +1,7 @@
 'use client';
+import { useEffect, useRef, useState } from 'react';
 import type { WorkOrderDetailResult } from '@salesmora/contracts';
-import type { WorkOrderAssignment, WorkOrderCompletionInput, WorkOrderInstructions } from '../work-order-preview.types';
+import type { WorkOrderAssignment, WorkOrderCompletionInput, WorkOrderInstructions, WorkOrderPhoto } from '../work-order-preview.types';
 import { WorkOrderHeader, type WorkOrderHeaderAction } from '../work-order-header/work-order-header';
 import { WorkOrderInstructionsCard } from '../work-order-instructions-card/work-order-instructions-card';
 import { WorkOrderTaskList } from '../work-order-task-list/work-order-task-list';
@@ -8,6 +9,7 @@ import { WorkOrderMaterials, type WorkOrderMaterialInput, type WorkOrderMaterial
 import { WorkOrderCrewCard } from '../work-order-crew-card/work-order-crew-card';
 import { WorkOrderSignoff } from '../work-order-signoff/work-order-signoff';
 import { WorkOrderCrewNotes } from '../work-order-crew-notes/work-order-crew-notes';
+import { WorkOrderPhotos } from '../work-order-photos/work-order-photos';
 import { woPanel, woStamp } from '../work-order-ui';
 import type { MaterialPickerOption } from '../../materials/material-picker/material-picker';
 import { toView } from '../work-order-view';
@@ -23,8 +25,111 @@ export type WorkOrderDetailHandlers = {
   onSaveAssignment: (value: WorkOrderAssignment) => void; onOpenSchedule: () => void; onComplete: (input: WorkOrderCompletionInput) => void; onReopen: () => void; onAddNote: (body: string) => void | Promise<void>;
 };
 
-export function WorkOrderDetailPage({ detail, ...h }: { detail: WorkOrderDetailResult } & WorkOrderDetailHandlers) {
+export function WorkOrderDetailPage({ workspaceId, detail, ...h }: { workspaceId: string; detail: WorkOrderDetailResult } & WorkOrderDetailHandlers) {
   const { workOrder: w, tasks, materials, activity, notes, completion, members, access, contact } = detail;
+  const [photos, setPhotos] = useState<WorkOrderPhoto[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(true);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollCountRef = useRef(0);
+  const MAX_POLL_ATTEMPTS = 120; // 2 minutes with 1-second interval
+  const POLL_INTERVAL = 1000; // 1 second
+
+  const fetchPhotos = async () => {
+    try {
+      const response = await fetch(`/api/work-orders/${w.id}/files?workspace=${encodeURIComponent(workspaceId)}`);
+      if (response.ok) {
+        const data = await response.json();
+        return data.files ?? [];
+      }
+    } catch (error) {
+      console.error('Failed to fetch photos:', error);
+    }
+    return null;
+  };
+
+  // Initial fetch on mount
+  useEffect(() => {
+    const initialFetch = async () => {
+      const files = await fetchPhotos();
+      if (files) {
+        setPhotos(files);
+      }
+      setPhotosLoading(false);
+    };
+
+    initialFetch();
+  }, [w.id, workspaceId]);
+
+  // Polling logic: check if any files are still uploading/scanning
+  useEffect(() => {
+    const startPolling = async () => {
+      const hasProcessingFiles = photos.some(
+        (p) => p.state === 'uploading' || p.state === 'scanning'
+      );
+
+      if (!hasProcessingFiles) {
+        // No processing files, stop polling
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        pollCountRef.current = 0;
+        return;
+      }
+
+      // Start polling if not already started
+      if (!pollingIntervalRef.current) {
+        pollCountRef.current = 0;
+        pollingIntervalRef.current = setInterval(async () => {
+          pollCountRef.current++;
+
+          // Safety: stop polling after max attempts
+          if (pollCountRef.current > MAX_POLL_ATTEMPTS) {
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+            }
+            return;
+          }
+
+          const files = await fetchPhotos();
+          if (files) {
+            setPhotos(files);
+
+            // Check if polling can stop
+            const stillProcessing = files.some(
+              (p: WorkOrderPhoto) => p.state === 'uploading' || p.state === 'scanning'
+            );
+            if (!stillProcessing) {
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+              }
+              pollCountRef.current = 0;
+            }
+          }
+        }, POLL_INTERVAL);
+      }
+    };
+
+    startPolling();
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [photos]);
+
+  const handlePhotosChange = async () => {
+    // When user manually triggers upload/delete, immediately refetch
+    const files = await fetchPhotos();
+    if (files) {
+      setPhotos(files);
+    }
+  };
+
   const view = toView(w), c = view.capabilities;
   return <div className="grid min-w-0 gap-6">
     <WorkOrderHeader workOrder={view} onBack={h.onBack} onOpenJob={h.onOpenJob} onAction={h.onHeaderAction} />
@@ -33,13 +138,19 @@ export function WorkOrderDetailPage({ detail, ...h }: { detail: WorkOrderDetailR
         <WorkOrderInstructionsCard status={w.status} value={{ instructions: w.instructions, accessNotes: w.accessNotes, safetyNotes: w.safetyNotes }} changedAfterIssue={w.changedAfterIssue} capabilities={c} onSave={h.onSaveInstructions} />
         <WorkOrderTaskList status={w.status} tasks={tasks} capabilities={c} onToggle={h.onToggleTask} onAdd={h.onAddTask} onRemove={h.onRemoveTask} onToggleRequired={h.onToggleRequired} />
         <WorkOrderMaterials status={w.status} materials={materials} searchCatalog={h.searchCatalog} newMaterial={h.newMaterial} access={access} capabilities={c} onAdd={h.onAddMaterial} onRemove={h.onRemoveMaterial} onChangeStatus={h.onChangeMaterialStatus} onChangePrice={h.onChangeMaterialPrice} />
+        {!photosLoading && <WorkOrderPhotos status={w.status} photos={photos} workspaceId={workspaceId} workOrderId={w.id} capabilities={c} onPhotosChange={handlePhotosChange} />}
         <WorkOrderCrewNotes status={w.status} archived={w.archived} notes={notes} canAdd={access.canNote} onAdd={h.onAddNote} />
         <WorkOrderSignoff status={w.status} completion={completion && { ...completion, signatureUrl: completion.signatureImage }} openRequiredTasks={tasks.filter(t => t.required && !t.done).length} signoffRequired={access.signoffRequired} canOverride={access.canOverride} capabilities={c} onComplete={h.onComplete} onReopen={h.onReopen} />
       </div>
       <div className="grid min-w-0 content-start gap-6">
         <WorkOrderCrewCard status={w.status} assignment={{ assigneeId: w.primaryAssigneeId, crewIds: w.crewIds }} members={members} schedule={{ date: w.scheduledDate, window: w.arrivalWindow }} contact={contact} capabilities={c} canSchedule={access.canSchedule} onSave={h.onSaveAssignment} onOpenSchedule={h.onOpenSchedule} />
         <section className={`${woPanel} grid gap-3`} aria-labelledby="wo-activity"><h2 id="wo-activity" className="m-0 text-lg font-semibold">{copy.activity}</h2>
-          {activity.length === 0 ? <p className="m-0 text-sm text-muted">{copy.noActivity}</p> : <ul className="m-0 grid list-none gap-2 p-0">{activity.map(a => <li key={a.id} className="text-sm"><span className="font-semibold">{a.type.replace(/[-_.]/g, ' ')}</span> {copy.by} {a.actorName} · <time dateTime={a.createdAt}>{woStamp(a.createdAt)}</time></li>)}</ul>}
+          {activity.length === 0 ? <p className="m-0 text-sm text-muted">{copy.noActivity}</p> : <ul className="m-0 grid list-none gap-2 p-0">{activity.map(a => {
+            const changes = typeof a.changes === 'string' ? JSON.parse(a.changes) : a.changes;
+            const fileName = changes?.fileName;
+            const label = a.type.replace(/[-_.]/g, ' ') + (fileName ? ` "${fileName}"` : '');
+            return <li key={a.id} className="text-sm"><span className="font-semibold">{label}</span> {copy.by} {a.actorName} · <time dateTime={a.createdAt}>{woStamp(a.createdAt)}</time></li>;
+          })}</ul>}
         </section>
       </div>
     </div>

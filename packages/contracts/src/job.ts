@@ -30,6 +30,7 @@ export const jobMutationSchema = z.discriminatedUnion("action", [
   z.object({ ...expected, action: z.literal("deadline"), completionDeadline: jobDateSchema.nullable() }).strict(),
   z.object({ ...expected, action: z.literal("assign"), primaryOwnerId: userId.nullable(), teamUserIds: z.array(userId).max(100).refine(ids => new Set(ids).size === ids.length) }).strict(),
   z.object({ ...expected, action: z.literal("note"), body: text.min(1) }).strict(),
+  z.object({ ...expected, action: z.literal("edit"), title: z.string().trim().min(1).max(200), service: z.string().trim().max(200), location: z.string().trim().max(500), description: text }).strict(),
   z.object({ ...expected, action: z.literal("status"), to: jobStatusSchema,
     waitingReason: z.enum(jobWaitingReasons).optional(), cancellationReason: z.enum(jobCancellationReasons).optional(),
     note: text.default(""), confirmed: z.boolean().default(false),

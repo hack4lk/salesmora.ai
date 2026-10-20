@@ -7,4 +7,4 @@ export function jobDate(value:string|null){if(!value)return '—';const day=valu
 export function jobInitials(name:string){return name.split(/\s+/u).slice(0,2).map(p=>p[0]).join('').toUpperCase();}
 export function fileSize(bytes:number){return new Intl.NumberFormat('en-US',{maximumFractionDigits:1}).format(bytes/1000000)+' MB';}
 
-export function jobTimestamp(value:string,timezone='UTC'){return new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',timeZone:timezone,timeZoneName:'short'}).format(new Date(value));}
+export function jobTimestamp(value:string,timezone?:string){return new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',...(timezone?{timeZone:timezone}:{}),timeZoneName:'short'}).format(new Date(value));}

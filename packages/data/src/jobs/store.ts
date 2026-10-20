@@ -107,7 +107,7 @@ function view(row: JobRow, context: AuthorizationContext, members: JobMember[]):
     teamNames: row.teamUserIds.map(id => members.find(m => m.id === id)?.name ?? "Former teammate"), nextStep: "",
     capabilities: { status: allowed("jobs.status.update"), complete: allowed("jobs.complete"), cancel: allowed("jobs.cancel"),
       reopen: allowed("jobs.reopen"), schedule: allowed("jobs.schedule.update"), assign: allowed("jobs.assign"), note: allowed("jobs.progress.create"),
-      edit: false, files: false, removeFiles: false } };
+      edit: allowed("jobs.update"), files: allowed("jobs.progress.create"), removeFiles: allowed("jobs.progress.create") } };
 }
 export async function readJobs(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], raw: JobQuery): Promise<JobListResult> {
   const input = jobQuerySchema.parse(raw);
@@ -185,7 +185,7 @@ export async function mutateJobInTransaction(trx:Knex.Transaction,context:Author
   const input=jobMutationSchema.parse(raw);
   if(input.workspaceId!==context.workspaceId)throw new AuthorizationAccessError();
   const row=await record(trx,context,input.jobId,true);
-  const actionPermission:PermissionId=input.action==="note"?"jobs.progress.create":input.action==="assign"?"jobs.assign":input.action!=="status"?"jobs.schedule.update":input.reopenDeadline!==undefined?"jobs.reopen":input.to==="completed"?"jobs.complete":input.to==="canceled"?"jobs.cancel":"jobs.status.update";
+  const actionPermission:PermissionId=input.action==="note"?"jobs.progress.create":input.action==="assign"?"jobs.assign":input.action==="edit"?"jobs.update":input.action!=="status"?"jobs.schedule.update":input.reopenDeadline!==undefined?"jobs.reopen":input.to==="completed"?"jobs.complete":input.to==="canceled"?"jobs.cancel":"jobs.status.update";
   permit(context,actionPermission,row);
   const hash=hashInput(input),previous=await receipt(trx,context,input.submissionId,hash);
   if(previous){if(previous.jobId!==row.id)throw new JobConflictError();return previous;}
@@ -203,6 +203,9 @@ export async function mutateJobInTransaction(trx:Knex.Transaction,context:Author
     changes={from:{scheduledDate:row.scheduledDate,arrivalWindow:row.arrivalWindow,status:row.status},to:{scheduledDate:input.scheduledDate,arrivalWindow:input.arrivalWindow,status:patch.status}};
   }else if(input.action==="deadline"){
     patch.completionDeadline=input.completionDeadline;changes={from:row.completionDeadline,to:input.completionDeadline};
+  }else if(input.action==="edit"){
+    Object.assign(patch,{title:input.title,service:input.service,location:input.location,description:input.description});
+    changes={from:{title:row.title,service:row.service,location:row.location,description:row.description},to:{title:input.title,service:input.service,location:input.location,description:input.description}};
   }else if(input.action==="assign"){
     if(row.primaryOwnerId!==input.primaryOwnerId && row.primaryOwnerId && input.teamUserIds.includes(row.primaryOwnerId))throw new JobValidationError("Remove the previous primary owner from the team; add them back explicitly in a later change if needed.");
     await validTeam(trx,context,input.primaryOwnerId,input.teamUserIds);
@@ -214,4 +217,69 @@ export async function mutateJobInTransaction(trx:Knex.Transaction,context:Author
   await trx("jobs").where({workspaceId:context.workspaceId,id:row.id}).update(patch);
   await activity(trx,context,row.id,input.submissionId,row.version+1,hash,input.action,changes,source);
   return {jobId:row.id,version:row.version+1};
+}
+
+/**
+ * Get messages for a job, ordered by newest first
+/**
+ * Get messages for a job, ordered by newest first
+ */
+export async function getJobMessages(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], jobId: string, limit: number = 100): Promise<Array<{id: string; authorId: string; author: string; at: string; text: string; assistant?: boolean; unread?: boolean}>> {
+  jobId = jobIdSchema.parse(jobId);
+  if (identity.workspaceId !== identity.workspaceId) throw new AuthorizationAccessError();
+  return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
+    // Verify user can access this job
+    const job = await record(trx, context, jobId, false);
+    
+    const messages = await trx('jobMessages')
+      .where({workspaceId: context.workspaceId, jobId})
+      .orderBy('createdAt', 'desc')
+      .limit(Math.min(limit, 500))
+      .select('id', 'authorId', 'authorName as author', 'createdAt as at', 'text');
+    
+    return messages.map(m => ({
+      ...m,
+      at: (m.at as Date).toISOString()
+    }));
+  });
+}
+
+/**
+ * Create a new message for a job
+ */
+export async function createJobMessage(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], jobId: string, text: string): Promise<{id: string; authorId: string; authorName: string; createdAt: string}> {
+  jobId = jobIdSchema.parse(jobId);
+  if (!text || typeof text !== 'string' || text.trim().length === 0 || text.length > 4000) {
+    throw new JobValidationError('Message must be between 1 and 4000 characters');
+  }
+  if (identity.workspaceId !== identity.workspaceId) throw new AuthorizationAccessError();
+  
+  return withWorkspaceAuthorization(db, identity, enabled, true, async (trx, context) => {
+    // Verify user can access this job
+    const job = await record(trx, context, jobId, false);
+    
+    // Get author name
+    const actor = await trx('users').where({ id: context.userId }).first('name');
+    
+    const id = randomUUID();
+    const now = new Date();
+    
+    // Create message
+    await trx('jobMessages').insert({
+      id,
+      workspaceId: context.workspaceId,
+      jobId,
+      authorId: context.userId,
+      authorName: actor?.name || context.userId,
+      text: text.trim(),
+      createdAt: now
+    });
+    
+    return {
+      id,
+      authorId: context.userId,
+      authorName: actor?.name || context.userId,
+      createdAt: now.toISOString()
+    };
+  });
 }

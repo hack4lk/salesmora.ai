@@ -1,6 +1,170 @@
 'use client';
-import type {JobView,JobActivityEntry,JobFile,JobChatMessage,JobAction} from '../job-preview.types';import {JobDetailHeader} from '../job-detail-header/job-detail-header';import {JobDetailsCard} from '../job-details-card/job-details-card';import {JobTeamCard} from '../job-team-card/job-team-card';import {JobDatesCard} from '../job-dates-card/job-dates-card';import {JobNoteComposer} from '../job-note-composer/job-note-composer';import {JobActivityTimeline} from '../job-activity-timeline/job-activity-timeline';import {JobRelatedRecords,type JobRelatedRecord} from '../job-related-records/job-related-records';import {JobFiles} from '../job-files/job-files';import {JobTeamChat} from '../job-team-chat/job-team-chat';
-export function JobDetailPage({job,today,activity,files,messages,related,onBack,onAction,onAssistant,onNote,noteAttachments,onNoteAttach,onRemoveNoteAttachment,onMessage,onAddFile,onOpenFile,onDownloadFile,onRemoveFile,onEditFile,onRelated,extendedFeatures=true,assistantAvailable=true,workOrdersSlot}:{workOrdersSlot?:React.ReactNode;job:JobView;today:string;activity:JobActivityEntry[];files:JobFile[];messages:JobChatMessage[];related:JobRelatedRecord[];onBack:()=>void;onAction:(action:JobAction)=>void;onAssistant:()=>void;onNote:(body:string,attachmentIds?:string[])=>void|Promise<void>;noteAttachments?:{id:string;name:string;pending?:boolean}[];onNoteAttach?:()=>void;onRemoveNoteAttachment?:(id:string)=>void;onMessage:(body:string)=>void|Promise<void>;onAddFile:()=>void;onOpenFile:(file:JobFile)=>void;onDownloadFile:(file:JobFile)=>void;onRemoveFile:(file:JobFile)=>void;onEditFile?:(file:JobFile)=>void;onRelated:(id:string,kind:JobRelatedRecord['kind'])=>void;extendedFeatures?:boolean;assistantAvailable?:boolean}){
- const closed=['completed','canceled'].includes(job.status);
- return <div className="grid min-w-0 gap-6"><JobDetailHeader job={job} onBack={onBack} onStatus={()=>onAction('status')} onSchedule={()=>onAction('schedule')} onAssistant={onAssistant} assistantAvailable={assistantAvailable}/><div className="grid min-w-0 items-start gap-6 lg:grid-cols-3"><div className="grid min-w-0 gap-6 lg:col-span-2"><JobDetailsCard job={job} onEdit={()=>onAction('edit')}/><JobNoteComposer canAdd={job.capabilities.note} closed={closed} onSave={onNote} attachments={noteAttachments} onAttach={job.capabilities.files&&!closed?onNoteAttach:undefined} onRemoveAttachment={onRemoveNoteAttachment}/><JobActivityTimeline entries={activity}/>{extendedFeatures&&<JobFiles files={files} canUpload={job.capabilities.files&&!closed} onAdd={onAddFile} onOpen={onOpenFile} onDownload={onDownloadFile} onRemove={onRemoveFile} onEdit={onEditFile}/>} {extendedFeatures&&<JobTeamChat messages={messages} closed={closed} canSend={job.capabilities.note} onSend={onMessage}/>}</div><aside className="grid min-w-0 gap-6"><JobDatesCard job={job} today={today} onSchedule={()=>onAction('schedule')} onDeadline={()=>onAction('deadline')}/><JobTeamCard job={job} onManage={()=>onAction('team')}/>{workOrdersSlot}<JobRelatedRecords records={related} onOpen={onRelated}/></aside></div></div>;
+
+import { useState } from 'react';
+import type {
+  JobView,
+  JobActivityEntry,
+  JobFile,
+  JobChatMessage,
+  JobAction,
+} from '../job-preview.types';
+import { JobDetailHeader } from '../job-detail-header/job-detail-header';
+import { JobDetailsCard } from '../job-details-card/job-details-card';
+import { JobTeamCard } from '../job-team-card/job-team-card';
+import { JobDatesCard } from '../job-dates-card/job-dates-card';
+import { JobNoteComposer } from '../job-note-composer/job-note-composer';
+import { JobActivityTimeline } from '../job-activity-timeline/job-activity-timeline';
+import {
+  JobRelatedRecords,
+  type JobRelatedRecord,
+} from '../job-related-records/job-related-records';
+import { JobFiles } from '../job-files/job-files';
+import { JobTeamChat } from '../job-team-chat/job-team-chat';
+import { JobFileUploadDialog } from '../job-files/job-file-upload-dialog';
+import { JobFilesList } from '../job-files/job-files-list';
+import { jobPrimary } from '../job-ui';
+
+export interface JobDetailPageProps {
+  workOrdersSlot?: React.ReactNode;
+  job: JobView;
+  today: string;
+  activity: JobActivityEntry[];
+  files: JobFile[];
+  messages: JobChatMessage[];
+  currentUserId?: string;
+  related: JobRelatedRecord[];
+  onBack: () => void;
+  onAction: (action: JobAction) => void;
+  onAssistant: () => void;
+  onNote: (body: string, attachmentIds?: string[]) => void | Promise<void>;
+  noteAttachments?: { id: string; name: string; pending?: boolean }[];
+  onNoteAttach?: () => void;
+  onRemoveNoteAttachment?: (id: string) => void;
+  onMessage: (body: string) => void | Promise<void>;
+  onAddFile: () => void;
+  onOpenFile: (file: JobFile) => void;
+  onDownloadFile: (file: JobFile) => void;
+  onRemoveFile: (file: JobFile) => void;
+  onEditFile?: (file: JobFile) => void;
+  onRelated: (id: string, kind: JobRelatedRecord['kind']) => void;
+  extendedFeatures?: boolean;
+  assistantAvailable?: boolean;
+  workspaceId?: string;
+}
+
+export function JobDetailPage({
+  job,
+  today,
+  activity,
+  files,
+  messages,
+  currentUserId,
+  related,
+  onBack,
+  onAction,
+  onAssistant,
+  onNote,
+  noteAttachments,
+  onNoteAttach,
+  onRemoveNoteAttachment,
+  onMessage,
+  onAddFile,
+  onOpenFile,
+  onDownloadFile,
+  onRemoveFile,
+  onEditFile,
+  onRelated,
+  extendedFeatures = true,
+  assistantAvailable = true,
+  workOrdersSlot,
+  workspaceId,
+}: JobDetailPageProps) {
+  const closed = ['completed', 'canceled'].includes(job.status);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [filesRefreshTrigger, setFilesRefreshTrigger] = useState(0);
+
+  const handleUploadComplete = () => {
+    setIsUploadDialogOpen(false);
+    setFilesRefreshTrigger((t) => t + 1);
+  };
+
+  return (
+    <div className="grid min-w-0 gap-6">
+      <JobDetailHeader
+        job={job}
+        onBack={onBack}
+        onStatus={() => onAction('status')}
+        onSchedule={() => onAction('schedule')}
+        onAssistant={onAssistant}
+        assistantAvailable={assistantAvailable}
+      />
+      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-3">
+        <div className="grid min-w-0 gap-6 lg:col-span-2">
+          <JobDetailsCard job={job} onEdit={() => onAction('edit')} />
+          <JobNoteComposer
+            canAdd={job.capabilities.note}
+            closed={closed}
+            onSave={onNote}
+            attachments={noteAttachments}
+            onAttach={
+              job.capabilities.files && !closed ? onNoteAttach : undefined
+            }
+            onRemoveAttachment={onRemoveNoteAttachment}
+          />
+          <JobActivityTimeline entries={activity} />
+          {extendedFeatures && workspaceId ? (
+            <>
+              <JobFilesList
+                jobId={job.id}
+                workspaceId={workspaceId}
+                refreshTrigger={filesRefreshTrigger}
+                canUpload={job.capabilities.files && !closed}
+                onUploadClick={() => setIsUploadDialogOpen(true)}
+              />
+              <JobFileUploadDialog
+                isOpen={isUploadDialogOpen}
+                workspaceId={workspaceId}
+                jobId={job.id}
+                category="other"
+                onClose={() => setIsUploadDialogOpen(false)}
+                onUploadComplete={handleUploadComplete}
+              />
+            </>
+          ) : (
+            extendedFeatures && (
+              <JobFiles
+                files={files}
+                canUpload={job.capabilities.files && !closed}
+                onAdd={onAddFile}
+                onOpen={onOpenFile}
+                onDownload={onDownloadFile}
+                onRemove={onRemoveFile}
+                onEdit={onEditFile}
+              />
+            )
+          )}
+          {extendedFeatures && (
+            <JobTeamChat
+              messages={messages}
+              currentUserId={currentUserId || ''}
+              closed={closed}
+              canSend={job.capabilities.note}
+              onSend={onMessage}
+            />
+          )}
+        </div>
+        <aside className="grid min-w-0 gap-6">
+          <JobDatesCard
+            job={job}
+            today={today}
+            onSchedule={() => onAction('schedule')}
+            onDeadline={() => onAction('deadline')}
+          />
+          <JobTeamCard job={job} onManage={() => onAction('team')} />
+          {workOrdersSlot}
+          <JobRelatedRecords records={related} onOpen={onRelated} />
+        </aside>
+      </div>
+    </div>
+  );
 }

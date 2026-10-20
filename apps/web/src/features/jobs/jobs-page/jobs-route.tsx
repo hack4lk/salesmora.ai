@@ -14,6 +14,7 @@ import type { JobWorkOrderRow } from '../../work-orders/work-order-preview.types
 import { JobDetailPage } from '../job-detail-page/job-detail-page';
 import { JobPeekDrawer } from '../job-peek-drawer/job-peek-drawer';
 import { JobCreateDialog, type JobCreateValues } from '../job-create-dialog/job-create-dialog';
+import { JobEditDialog } from '../job-edit-dialog/job-edit-dialog';
 import { JobStatusDialog } from '../job-status-dialog/job-status-dialog';
 import { JobScheduleDialog } from '../job-schedule-dialog/job-schedule-dialog';
 import { JobDeadlineDialog } from '../job-deadline-dialog/job-deadline-dialog';
@@ -36,9 +37,10 @@ function filtersFromQuery(query: JobQuery, field: boolean): JobFilters {
     customer: query.customerName ?? 'all', service: query.service ?? 'all', deadline: query.deadline ?? 'all', createdAfter: query.createdAfter ?? '', closed: query.closed ?? false, mine: field || (query.mine ?? false) };
 }
 const noop = () => {};
-export function JobsRoute({ workspaceId, initial, initialQuery, initialDetail, field, workOrders }: {
-  workspaceId: string; initial: JobListResult; initialQuery: JobQuery; initialDetail?: JobDetailResult; field: boolean;
+export function JobsRoute({ workspaceId, userId, initial, initialQuery, initialDetail, field, workOrders, initialMessages }: {
+  workspaceId: string; userId: string; initial: JobListResult; initialQuery: JobQuery; initialDetail?: JobDetailResult; field: boolean;
   workOrders?: { rows: JobWorkOrderRow[]; canCreate: boolean };
+  initialMessages?: Array<{id: string; authorId: string; author: string; at: string; text: string; assistant?: boolean; unread?: boolean}>;
 }) {
   const router = useRouter();
   const [list, setList] = useState(initial), [filters, setFilters] = useState(() => filtersFromQuery(initialQuery, field));
@@ -48,6 +50,7 @@ export function JobsRoute({ workspaceId, initial, initialQuery, initialDetail, f
   const [detail, setDetail] = useState(initialDetail), [selected, setSelected] = useState<JobView | undefined>(initialDetail?.job);
   const [overlay, setOverlay] = useState<JobAction | 'create' | 'peek'>(), [target, setTarget] = useState<JobStatus>();
   const [error, setError] = useState(''), [conflict, setConflict] = useState(false), [pending, setPending] = useState(false), [loading, setLoading] = useState(false), [notice, setNotice] = useState('');
+  const [messages, setMessages] = useState(initialMessages || []);
   const flight = useRef(false), writeReceipt = useRef<{ payload: string; id: string } | undefined>(undefined), querySequence = useRef(0);
   const listURL = '/api/jobs?' + new URLSearchParams({ workspace: workspaceId, q: filters.search,
     ...(filters.status !== 'all' ? { status: filters.status } : {}), ...(filters.owner === 'unassigned' ? { unassigned: 'true' } : filters.owner !== 'all' ? { ownerId: filters.owner } : {}),
@@ -107,6 +110,26 @@ export function JobsRoute({ workspaceId, initial, initialQuery, initialDetail, f
       throw e;
     } finally { flight.current = false; setPending(false); }
   }
+  async function postMessage(jobId: string, text: string) {
+    try {
+      setError('');
+      const result = await request<{id: string; authorId: string; authorName: string; createdAt: string}>(
+        `/api/jobs/${jobId}/messages?workspace=${encodeURIComponent(workspaceId)}`,
+        { method: 'POST', body: JSON.stringify({ text }) }
+      );
+      // Optimistic update - add message immediately
+      const newMessage = {
+        id: result.id,
+        authorId: result.authorId,
+        author: result.authorId === userId ? 'You' : result.authorName,
+        at: result.createdAt,
+        text: text
+      };
+      setMessages(prev => [newMessage, ...prev]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : copy.error);
+    }
+  }
   async function create(values: JobCreateValues) {
     await write({ customerId: values.customerId, title: values.title, primaryOwnerId: values.primaryOwnerId, teamUserIds: values.teamUserIds,
       service: values.service, location: values.location, description: values.description, scheduledDate: values.scheduledDate,
@@ -122,13 +145,13 @@ export function JobsRoute({ workspaceId, initial, initialQuery, initialDetail, f
     {error && !overlay && <FormFeedback kind="error" message={error}/>}
     {error && !overlay && <button className={`${jobButton} justify-self-start`} onClick={reload}>{copy.reload}</button>}
     {initialDetail && detail ? <>
-      <JobDetailPage job={detail.job} today={list.today} activity={detail.activity.map(jobActivityView)} files={[]} messages={[]} related={related}
-        extendedFeatures={false} assistantAvailable={false}
+      <JobDetailPage job={detail.job} today={list.today} activity={detail.activity.map(jobActivityView)} files={[]} messages={messages} currentUserId={userId} related={related}
+        extendedFeatures={true} assistantAvailable={false} workspaceId={workspaceId}
         workOrdersSlot={workOrders && <JobWorkOrdersCard workOrders={workOrders.rows} canCreate={workOrders.canCreate} jobClosed={['completed', 'canceled'].includes(detail.job.status)}
           onOpen={id => router.push(`/work-orders/${id}?workspace=${encodeURIComponent(workspaceId)}`)}
           onAdd={() => router.push(`/work-orders?workspace=${encodeURIComponent(workspaceId)}&newForJob=${detail.job.id}`)} />} onBack={() => router.push(`/jobs?workspace=${encodeURIComponent(workspaceId)}`)}
         onAction={a => openAction(detail.job, a)} onNote={body => write({ action: 'note', body })}
-        onAssistant={noop} onMessage={noop} onAddFile={noop} onOpenFile={noop} onDownloadFile={noop} onRemoveFile={noop}
+        onAssistant={noop} onMessage={msg => postMessage(detail.job.id, msg)} onAddFile={noop} onOpenFile={noop} onDownloadFile={noop} onRemoveFile={noop}
         onRelated={(id, kind) => router.push(`/${kind === 'customer' ? 'customers' : 'leads'}/${id}?workspace=${encodeURIComponent(workspaceId)}`)}/>
       {detail.activityTotal > 20 && <section aria-label={copy.history}><Pagination total={detail.activityTotal} page={detail.activityPage} pageSize={20} pageSizeOptions={[20]} onPageSizeChange={noop}
         onPageChange={p => { loadDetail(detail.job.id, p).catch(e => setError(e.message)); }}/></section>}
@@ -152,6 +175,8 @@ export function JobsRoute({ workspaceId, initial, initialQuery, initialDetail, f
     {overlay === 'peek' && job && <JobPeekDrawer open job={job} today={list.today} onClose={close} onOpen={() => openAction(job, 'open')} onAction={a => openAction(job, a)}/>}
     {overlay === 'create' && <JobCreateDialog {...common} members={list.options.members} customers={list.options.customers} allowNewCustomer={false}
       canSchedule={list.canScheduleCreation} onConfirm={create}/>}
+    {overlay === 'edit' && job && <JobEditDialog key={job.version} {...common} job={job}
+      onConfirm={v => write({ action: 'edit', ...v })}/>}
     {overlay === 'status' && job && <JobStatusDialog key={`${job.id}:${job.version}:${target}`} {...common} job={job}
       initialTo={target ?? (['completed', 'canceled', 'needs-scheduling'].includes(job.status) ? 'in-progress' : job.status === 'in-progress' ? 'waiting' : 'in-progress')}
       onConfirm={v => write({ action: 'status', ...v })} onSchedule={job.capabilities.schedule ? () => setOverlay('schedule') : undefined}/>}

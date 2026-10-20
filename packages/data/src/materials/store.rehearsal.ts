@@ -123,14 +123,18 @@ try {
     assert.equal(await db("materialCatalog").where({ id: third }).first(), undefined);
     await invalid(act("owner", { action: "archive", materialId: second, expectedVersion: 2, archived: true }));
   });
-  await check("notifications: the proposer hears about approval and rejection, nobody else does, and read is per person", async () => {
+  await check("notifications: the proposer hears about decisions, approvers hear about proposals, and nobody else does, and read is per person", async () => {
     const mine = async (role: string) => (await readNotifications(db, identity(role), enabled)).items.filter(n => n.kind === "material");
     const items = await mine("office");
     assert.equal(items.length, 2);
-    const approved = items.find(n => n.kind === "material" && n.event === "approved"), rejected = items.find(n => n.kind === "material" && n.event === "rejected");
+    const approved = items.find(n => n.kind === "material" && n.event === "edited"), rejected = items.find(n => n.kind === "material" && n.event === "rejected");
     assert.ok(approved && approved.kind === "material" && approved.materialName === "Elbow 90 deg" && approved.reason === "");
     assert.ok(rejected && rejected.kind === "material" && rejected.reason === "Not stocked" && rejected.actorName === "Material fixture admin" && !rejected.read);
-    for (const role of ["owner", "admin", "field"]) assert.equal((await mine(role)).length, 0);
+    assert.equal((await mine("field")).length, 0);
+    for (const role of ["owner", "admin"]) {
+      const heard = await mine(role);
+      assert.ok(heard.length >= 2 && heard.every(n => n.kind === "material" && n.event === "proposed" && n.actorName !== ""));
+    }
     assert.equal((await readNotifications(db, identity("office"), enabled)).unreadCount, 2);
     await denied(markNotificationRead(db, identity("owner"), enabled, rejected!.id));
     await markNotificationRead(db, identity("office"), enabled, rejected!.id);

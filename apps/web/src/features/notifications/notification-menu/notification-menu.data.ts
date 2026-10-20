@@ -12,8 +12,10 @@ export const notificationMenuData = {
   },
   workOrderDescription: (actor: string, number: string, title: string) => `${actor || 'A teammate'} updated ${number} · ${title}.`,
   viewWorkOrder: 'View work order',
-  materialTitles: { approved: 'Your catalog item was approved', rejected: 'Your catalog item was rejected' },
-  materialDescription: (event: 'approved' | 'rejected', actor: string, name: string, reason: string) => `${actor || 'An approver'} ${event} ${name}.${event === 'rejected' && reason ? ` Reason: ${reason}` : ''}`,
+  materialTitles: { proposed: 'New catalog item to review', approved: 'Your catalog item was approved', edited: 'Your catalog item was approved with changes', rejected: 'Your catalog item was rejected' },
+  materialDescription: (event: 'proposed' | 'approved' | 'edited' | 'rejected', actor: string, name: string, reason: string) => event === 'proposed'
+    ? `${actor || 'A teammate'} proposed ${name}.`
+    : `${actor || 'An approver'} ${event === 'edited' ? 'approved, with edits,' : event} ${name}.${event === 'rejected' && reason ? ` Reason: ${reason}` : ''}`,
   viewMaterials: 'View materials',
   open: (count: number | null) => count === null ? 'Open notifications' : `Open notifications, ${count} unread`,
   close: 'Close',

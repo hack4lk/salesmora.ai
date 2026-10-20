@@ -185,7 +185,7 @@ export const permissionCatalog = {
     scopes: ["workspace"],
     eligibleRoles: ["owner", "admin", "office", "field"],
     locked: false,
-    reviewed: false,
+    reviewed: true,
     dependencies: ["jobs.read"],
     defaults: {"owner": "workspace", "admin": "workspace", "office": "workspace", "field": null},
   },
