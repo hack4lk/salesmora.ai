@@ -11,7 +11,10 @@ export async function startFileProcessing(db: any) {
 
   function tick() {
     if (stopped || running) return;
-    running = processFileBatch().catch(() => console.error(JSON.stringify({ event: 'worker.file_processing_failed' }))).finally(() => { running = undefined; });
+    console.log(JSON.stringify({ event: 'worker.file_processing_tick', timestamp: new Date().toISOString() }));
+    running = processFileBatch().catch((err) => {
+      console.error(JSON.stringify({ event: 'worker.file_processing_failed', error: err?.message || String(err) }));
+    }).finally(() => { running = undefined; });
   }
 
   async function processFileBatch() {
@@ -19,6 +22,10 @@ export async function startFileProcessing(db: any) {
 
     // Process files in uploading/scanning status
     const files = await store.getFilesForProcessing(['uploading', 'scanning'], 10);
+    
+    if (files.length > 0) {
+      console.log(JSON.stringify({ event: 'worker.file_processing_batch', count: files.length, files: files.map(f => ({ id: f.id, name: f.name, status: f.status })) }));
+    }
 
     for (const file of files) {
       const result = await processFileForStorage(db, storage, file.id);

@@ -54,9 +54,19 @@ export async function scanFileBuffer(
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`[ClamAV] Scan error for ${filename}: ${errorMessage}`);
+    console.error(`[ClamAV] Scan error: ${errorMessage}`);
 
-    // On error, fail safe: mark as potentially infected
+    // In development, allow the upload if ClamAV is unavailable
+    // In production, this should fail safe (mark as infected)
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    if (isDevelopment && errorMessage.includes('ECONNREFUSED')) {
+      console.warn(`[ClamAV] Service unavailable - allowing upload in development mode`);
+      return {
+        isInfected: false,
+      };
+    }
+
+    // On error in production, fail safe: mark as potentially infected
     // Better to block than accidentally allow malware
     return {
       isInfected: true,
