@@ -185,7 +185,7 @@ export async function mutateJobInTransaction(trx:Knex.Transaction,context:Author
   const input=jobMutationSchema.parse(raw);
   if(input.workspaceId!==context.workspaceId)throw new AuthorizationAccessError();
   const row=await record(trx,context,input.jobId,true);
-  const actionPermission:PermissionId=input.action==="note"?"jobs.progress.create":input.action==="assign"?"jobs.assign":input.action!=="status"?"jobs.schedule.update":input.reopenDeadline!==undefined?"jobs.reopen":input.to==="completed"?"jobs.complete":input.to==="canceled"?"jobs.cancel":"jobs.status.update";
+  const actionPermission:PermissionId=input.action==="note"?"jobs.progress.create":input.action==="assign"?"jobs.assign":input.action==="edit"?"jobs.update":input.action!=="status"?"jobs.schedule.update":input.reopenDeadline!==undefined?"jobs.reopen":input.to==="completed"?"jobs.complete":input.to==="canceled"?"jobs.cancel":"jobs.status.update";
   permit(context,actionPermission,row);
   const hash=hashInput(input),previous=await receipt(trx,context,input.submissionId,hash);
   if(previous){if(previous.jobId!==row.id)throw new JobConflictError();return previous;}
@@ -203,6 +203,9 @@ export async function mutateJobInTransaction(trx:Knex.Transaction,context:Author
     changes={from:{scheduledDate:row.scheduledDate,arrivalWindow:row.arrivalWindow,status:row.status},to:{scheduledDate:input.scheduledDate,arrivalWindow:input.arrivalWindow,status:patch.status}};
   }else if(input.action==="deadline"){
     patch.completionDeadline=input.completionDeadline;changes={from:row.completionDeadline,to:input.completionDeadline};
+  }else if(input.action==="edit"){
+    Object.assign(patch,{title:input.title,service:input.service,location:input.location,description:input.description});
+    changes={from:{title:row.title,service:row.service,location:row.location,description:row.description},to:{title:input.title,service:input.service,location:input.location,description:input.description}};
   }else if(input.action==="assign"){
     if(row.primaryOwnerId!==input.primaryOwnerId && row.primaryOwnerId && input.teamUserIds.includes(row.primaryOwnerId))throw new JobValidationError("Remove the previous primary owner from the team; add them back explicitly in a later change if needed.");
     await validTeam(trx,context,input.primaryOwnerId,input.teamUserIds);
