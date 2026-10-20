@@ -1,41 +1,41 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { http, HttpResponse } from 'msw';
 import { JobFilesList } from './job-files-list';
+import type { WorkOrderPhoto } from '../../work-orders/work-order-preview.types';
 
-const mockFiles = [
+const mockFiles: WorkOrderPhoto[] = [
   {
     id: 'file-1',
     name: 'foundation-inspection.jpg',
-    kind: 'image' as const,
-    category: 'before' as const,
+    kind: 'image',
+    category: 'before',
     caption: 'Foundation before repairs',
     uploader: 'John Doe',
     uploadedAt: new Date('2026-10-20T10:00:00Z').toISOString(),
-    state: 'ready' as const,
+    state: 'ready',
     thumbnailUrl: 'data:image/webp;base64,UklGRiYAAABXRUJQVlA4IBIAAAAwAQCdASoCAAEADgCgyAEAfQ==',
     canRemove: true,
   },
   {
     id: 'file-2',
     name: 'progress-notes.pdf',
-    kind: 'document' as const,
-    category: 'other' as const,
+    kind: 'document',
+    category: 'other',
     caption: 'Work progress notes',
     uploader: 'Jane Smith',
     uploadedAt: new Date('2026-10-19T14:30:00Z').toISOString(),
-    state: 'ready' as const,
+    state: 'ready',
     thumbnailUrl: null,
     canRemove: true,
   },
   {
     id: 'file-3',
     name: 'final-inspection.jpg',
-    kind: 'image' as const,
-    category: 'after' as const,
+    kind: 'image',
+    category: 'after',
     caption: 'Completed work',
     uploader: 'John Doe',
     uploadedAt: new Date('2026-10-20T15:45:00Z').toISOString(),
-    state: 'ready' as const,
+    state: 'ready',
     thumbnailUrl: 'data:image/webp;base64,UklGRiYAAABXRUJQVlA4IBIAAAAwAQCdASoCAAEADgCgyAEAfQ==',
     canRemove: true,
   },
@@ -46,15 +46,6 @@ const meta = {
   component: JobFilesList,
   parameters: {
     layout: 'centered',
-    msw: {
-      handlers: [
-        http.get('/api/jobs/:jobId/files', () => {
-          return HttpResponse.json({
-            files: mockFiles,
-          });
-        }),
-      ],
-    },
   },
   args: {
     jobId: 'job-123',
@@ -66,26 +57,8 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const WithFiles: Story = {
-  decorators: [
-    (Story) => (
-      <div className="w-96">
-        <Story />
-      </div>
-    ),
-  ],
-};
-
-export const Empty: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get('/api/jobs/:jobId/files', () => {
-          return HttpResponse.json({
-            files: [],
-          });
-        }),
-      ],
-    },
+  args: {
+    initialFiles: mockFiles,
   },
   decorators: [
     (Story) => (
@@ -96,18 +69,35 @@ export const Empty: Story = {
   ],
 };
 
-export const Error: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get('/api/jobs/:jobId/files', () => {
-          return HttpResponse.json(
-            { error: 'Failed to fetch files' },
-            { status: 500 }
-          );
-        }),
-      ],
-    },
+export const Empty: Story = {
+  args: {
+    initialFiles: [],
+  },
+  decorators: [
+    (Story) => (
+      <div className="w-96">
+        <Story />
+      </div>
+    ),
+  ],
+};
+
+export const Failed: Story = {
+  args: {
+    initialFiles: [
+      {
+        id: 'file-4',
+        name: 'corrupted-file.jpg',
+        kind: 'image',
+        category: 'before',
+        caption: 'Failed upload',
+        uploader: 'Jane Smith',
+        uploadedAt: new Date('2026-10-20T12:00:00Z').toISOString(),
+        state: 'failed',
+        thumbnailUrl: null,
+        canRemove: true,
+      },
+    ],
   },
   decorators: [
     (Story) => (

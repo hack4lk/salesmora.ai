@@ -7,19 +7,22 @@ export interface JobFilesListProps {
   jobId: string;
   workspaceId: string;
   refreshTrigger?: number;
+  initialFiles?: WorkOrderPhoto[];
 }
 
 /**
  * Component to display files for a job
  */
-export function JobFilesList({ jobId, workspaceId, refreshTrigger }: JobFilesListProps) {
-  const [files, setFiles] = useState<WorkOrderPhoto[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+export function JobFilesList({ jobId, workspaceId, refreshTrigger, initialFiles }: JobFilesListProps) {
+  const [files, setFiles] = useState<WorkOrderPhoto[]>(initialFiles || []);
+  const [isLoading, setIsLoading] = useState(!initialFiles);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchFiles();
-  }, [jobId, workspaceId, refreshTrigger]);
+    if (!initialFiles) {
+      fetchFiles();
+    }
+  }, [jobId, workspaceId, refreshTrigger, initialFiles]);
 
   const fetchFiles = async () => {
     try {
