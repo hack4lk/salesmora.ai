@@ -31,6 +31,7 @@ export interface JobDetailPageProps {
   activity: JobActivityEntry[];
   files: JobFile[];
   messages: JobChatMessage[];
+  currentUserId?: string;
   related: JobRelatedRecord[];
   onBack: () => void;
   onAction: (action: JobAction) => void;
@@ -57,6 +58,7 @@ export function JobDetailPage({
   activity,
   files,
   messages,
+  currentUserId,
   related,
   onBack,
   onAction,
@@ -116,6 +118,8 @@ export function JobDetailPage({
                 jobId={job.id}
                 workspaceId={workspaceId}
                 refreshTrigger={filesRefreshTrigger}
+                canUpload={job.capabilities.files && !closed}
+                onUploadClick={() => setIsUploadDialogOpen(true)}
               />
               <JobFileUploadDialog
                 isOpen={isUploadDialogOpen}
@@ -125,13 +129,6 @@ export function JobDetailPage({
                 onClose={() => setIsUploadDialogOpen(false)}
                 onUploadComplete={handleUploadComplete}
               />
-              <button
-                onClick={() => setIsUploadDialogOpen(true)}
-                disabled={!job.capabilities.files || closed}
-                className={jobPrimary}
-              >
-                Upload File
-              </button>
             </>
           ) : (
             extendedFeatures && (
@@ -149,6 +146,7 @@ export function JobDetailPage({
           {extendedFeatures && (
             <JobTeamChat
               messages={messages}
+              currentUserId={currentUserId || ''}
               closed={closed}
               canSend={job.capabilities.note}
               onSend={onMessage}

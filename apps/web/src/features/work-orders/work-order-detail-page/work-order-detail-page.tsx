@@ -145,7 +145,12 @@ export function WorkOrderDetailPage({ workspaceId, detail, ...h }: { workspaceId
       <div className="grid min-w-0 content-start gap-6">
         <WorkOrderCrewCard status={w.status} assignment={{ assigneeId: w.primaryAssigneeId, crewIds: w.crewIds }} members={members} schedule={{ date: w.scheduledDate, window: w.arrivalWindow }} contact={contact} capabilities={c} canSchedule={access.canSchedule} onSave={h.onSaveAssignment} onOpenSchedule={h.onOpenSchedule} />
         <section className={`${woPanel} grid gap-3`} aria-labelledby="wo-activity"><h2 id="wo-activity" className="m-0 text-lg font-semibold">{copy.activity}</h2>
-          {activity.length === 0 ? <p className="m-0 text-sm text-muted">{copy.noActivity}</p> : <ul className="m-0 grid list-none gap-2 p-0">{activity.map(a => <li key={a.id} className="text-sm"><span className="font-semibold">{a.type.replace(/[-_.]/g, ' ')}</span> {copy.by} {a.actorName} · <time dateTime={a.createdAt}>{woStamp(a.createdAt)}</time></li>)}</ul>}
+          {activity.length === 0 ? <p className="m-0 text-sm text-muted">{copy.noActivity}</p> : <ul className="m-0 grid list-none gap-2 p-0">{activity.map(a => {
+            const changes = typeof a.changes === 'string' ? JSON.parse(a.changes) : a.changes;
+            const fileName = changes?.fileName;
+            const label = a.type.replace(/[-_.]/g, ' ') + (fileName ? ` "${fileName}"` : '');
+            return <li key={a.id} className="text-sm"><span className="font-semibold">{label}</span> {copy.by} {a.actorName} · <time dateTime={a.createdAt}>{woStamp(a.createdAt)}</time></li>;
+          })}</ul>}
         </section>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
-import { createFileStore, createStorageAdapter, FileNotFoundError, FileStorageError } from '@salesmora/data';
+import { createFileStore, createStorageAdapter, FileNotFoundError, FileStorageError, logWorkOrderFileActivity } from '@salesmora/data';
 import { getSession } from '../../../../../../server/auth/session';
 import { database } from '../../../../../../server/workspaces/store';
 import { AuthorizationAccessError } from '@salesmora/data';
@@ -145,6 +145,11 @@ export async function DELETE(
     const storage = createStorageAdapter();
     const fileStore = await createFileStore(db, storage);
 
+    // Get file name before removing for activity logging
+    const fileRow = await db('files')
+      .where({ id: fileId, workspaceId, deletedAt: null })
+      .first('name');
+
     // Remove file
     await fileStore.removeFile(
       {
@@ -154,6 +159,22 @@ export async function DELETE(
       },
       fileId
     );
+
+    // Log file removal activity
+    if (fileRow?.name) {
+      try {
+        await logWorkOrderFileActivity(
+          db,
+          { userId: session.user.id, workspaceId },
+          workOrderId,
+          'file_removed',
+          fileRow.name
+        );
+      } catch (activityErr) {
+        console.error('[FileAPI] Failed to log removal activity:', activityErr);
+        // Don't fail the removal if activity logging fails
+      }
+    }
 
     return NextResponse.json(
       { success: true, message: 'File removed successfully.' },

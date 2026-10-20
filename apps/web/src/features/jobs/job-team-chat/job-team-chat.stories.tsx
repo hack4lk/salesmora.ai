@@ -3,7 +3,7 @@ import type {Meta,StoryObj} from '@storybook/nextjs-vite';
 import {JobTeamChat} from './job-team-chat';
 import * as f from '../job-preview.data';
 
-const meta={title:'Jobs/JobTeamChat',component:JobTeamChat,args:{messages:f.jobMessages,onSend:fn()},parameters:{layout:'fullscreen'},
+const meta={title:'Jobs/JobTeamChat',component:JobTeamChat,args:{messages:f.jobMessages,currentUserId:'ava',onSend:fn()},parameters:{layout:'fullscreen'},
 decorators:[Story=><main className="min-h-screen bg-canvas p-4 sm:p-8"><h1 className="mb-6 mt-0 text-xl font-semibold text-ink">{f.jobPreviewData.workspace}</h1><Story/></main>],
 } satisfies Meta<typeof JobTeamChat>;
 export default meta;type Story=StoryObj<typeof meta>;

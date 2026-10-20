@@ -26,6 +26,7 @@ export { DragIndicatorOutlined } from './icons';
 
 export { HomeOutlined } from './icons';
 export { NotificationsNoneOutlined } from './icons';
+export { CloseOutlined } from './icons';
 
 export { ContextChip, type ContextChipProps } from './assistant/context-chip/context-chip';
 export { LeadStageDraftCard, type LeadStageProposal, type LeadStageDraftCardProps } from './assistant/lead-stage-draft-card/lead-stage-draft-card';

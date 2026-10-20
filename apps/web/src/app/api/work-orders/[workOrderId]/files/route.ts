@@ -1,9 +1,10 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
-import { createFileStore, createStorageAdapter, FileStorageError } from '@salesmora/data';
+import { createFileStore, createStorageAdapter, FileStorageError, logWorkOrderFileActivity } from '@salesmora/data';
 import { getSession } from '../../../../../server/auth/session';
-import { database } from '../../../../../server/workspaces/store';
+import { database, findWorkspace } from '../../../../../server/workspaces/store';
 import { AuthorizationAccessError } from '@salesmora/data';
+import { enabledPermissions } from '../../../../../server/authorization/permissions';
 import type { WorkOrderPhoto } from '../../../../../features/work-orders/work-order-preview.types';
 
 const headers = { 'Cache-Control': 'private, no-store', Vary: 'Cookie' };
@@ -188,19 +189,13 @@ export async function POST(
 
     // Log file upload activity
     try {
-      await db('workOrderActivity').insert({
-        id: crypto.getRandomValues(new Uint8Array(16)).toString(),
-        workOrderId: workOrderId,
-        workspaceId: workspaceId,
-        actorId: session.user.id,
-        eventType: 'file_upload',
-        metadata: {
-          fileName: file.name,
-          fileId: fileRecord.id,
-          category: category,
-        },
-        createdAt: new Date(),
-      });
+      await logWorkOrderFileActivity(
+        db,
+        { userId: session.user.id, workspaceId },
+        workOrderId,
+        'file_uploaded',
+        file.name
+      );
     } catch (activityErr) {
       console.error('[FileAPI] Failed to log activity:', activityErr);
       // Don't fail the upload if activity logging fails

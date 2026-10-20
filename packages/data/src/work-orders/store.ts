@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Knex } from "knex";
 import {
   workOrderQuerySchema, workOrderIdSchema,
@@ -168,5 +169,27 @@ export async function readWorkOrderDetail(db: Knex, identity: WorkspaceIdentity,
       businessPhone: settings?.businessPhone ?? "",
       contact: { name: row.customerName, phone: customer?.phone || null, address: row.location },
     };
+  });
+}
+
+export async function logWorkOrderFileActivity(
+  db: Knex,
+  identity: WorkspaceIdentity,
+  workOrderId: string,
+  action: 'file_uploaded' | 'file_removed',
+  fileName: string
+): Promise<void> {
+  const actor = await db('users').where({ id: identity.userId }).first('name');
+  const actorName = actor?.name || identity.userId;
+  
+  await db('workOrderActivity').insert({
+    id: crypto.randomUUID(),
+    workspaceId: identity.workspaceId,
+    workOrderId,
+    actorId: identity.userId,
+    actorName,
+    source: 'ui',
+    type: action,
+    changes: JSON.stringify({ fileName }),
   });
 }

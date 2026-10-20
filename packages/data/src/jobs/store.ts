@@ -215,3 +215,68 @@ export async function mutateJobInTransaction(trx:Knex.Transaction,context:Author
   await activity(trx,context,row.id,input.submissionId,row.version+1,hash,input.action,changes,source);
   return {jobId:row.id,version:row.version+1};
 }
+
+/**
+ * Get messages for a job, ordered by newest first
+/**
+ * Get messages for a job, ordered by newest first
+ */
+export async function getJobMessages(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], jobId: string, limit: number = 100): Promise<Array<{id: string; authorId: string; author: string; at: string; text: string; assistant?: boolean; unread?: boolean}>> {
+  jobId = jobIdSchema.parse(jobId);
+  if (identity.workspaceId !== identity.workspaceId) throw new AuthorizationAccessError();
+  return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
+    // Verify user can access this job
+    const job = await record(trx, context, jobId, false);
+    
+    const messages = await trx('jobMessages')
+      .where({workspaceId: context.workspaceId, jobId})
+      .orderBy('createdAt', 'desc')
+      .limit(Math.min(limit, 500))
+      .select('id', 'authorId', 'authorName as author', 'createdAt as at', 'text');
+    
+    return messages.map(m => ({
+      ...m,
+      at: (m.at as Date).toISOString()
+    }));
+  });
+}
+
+/**
+ * Create a new message for a job
+ */
+export async function createJobMessage(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], jobId: string, text: string): Promise<{id: string; authorId: string; authorName: string; createdAt: string}> {
+  jobId = jobIdSchema.parse(jobId);
+  if (!text || typeof text !== 'string' || text.trim().length === 0 || text.length > 4000) {
+    throw new JobValidationError('Message must be between 1 and 4000 characters');
+  }
+  if (identity.workspaceId !== identity.workspaceId) throw new AuthorizationAccessError();
+  
+  return withWorkspaceAuthorization(db, identity, enabled, true, async (trx, context) => {
+    // Verify user can access this job
+    const job = await record(trx, context, jobId, false);
+    
+    // Get author name
+    const actor = await trx('users').where({ id: context.userId }).first('name');
+    
+    const id = randomUUID();
+    const now = new Date();
+    
+    // Create message
+    await trx('jobMessages').insert({
+      id,
+      workspaceId: context.workspaceId,
+      jobId,
+      authorId: context.userId,
+      authorName: actor?.name || context.userId,
+      text: text.trim(),
+      createdAt: now
+    });
+    
+    return {
+      id,
+      authorId: context.userId,
+      authorName: actor?.name || context.userId,
+      createdAt: now.toISOString()
+    };
+  });
+}
