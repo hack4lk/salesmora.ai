@@ -1,5 +1,5 @@
 import type { Knex } from '@salesmora/data';
-import { createFileStore, createStorageAdapter, generateThumbnail, convertHeicToJpeg, isHeic, isProcessableImage, scanFileBuffer } from '@salesmora/data';
+import { createFileStore, createStorageAdapter, generateThumbnail, convertHeicToJpeg, isHeic, isProcessableImage, scanFileBuffer, decryptFile, deserializeFileCiphertext, deserializeDekEnvelope } from '@salesmora/data';
 import type { StorageAdapter } from '@salesmora/data';
 
 export interface FileProcessingJob {
@@ -43,9 +43,22 @@ export async function processFileForStorage(
     // Retrieve encrypted file from storage
     const encryptedData = await storage.get(fileRow.storageKey);
 
+    // Decrypt the file before scanning
+    console.log(`[FileWorker] Decrypting file ${fileId}...`);
+    const encryptedEnvelope = deserializeFileCiphertext(encryptedData);
+    const dekEnvelopeData = Buffer.from(fileRow.encryptedDekB64, 'base64');
+    const dekEnvelopeMetadata = deserializeDekEnvelope(dekEnvelopeData);
+    
+    const decryptedResult = decryptFile({
+      ...encryptedEnvelope,
+      ...dekEnvelopeMetadata,
+    });
+    
+    const decryptedFileBuffer = decryptedResult.plaintext;
+
     // Scan for malware with ClamAV
     console.log(`[FileWorker] Scanning file ${fileId} with ClamAV...`);
-    const scanResult = await scanFileBuffer(encryptedData, fileRow.name);
+    const scanResult = await scanFileBuffer(decryptedFileBuffer, fileRow.name);
 
     if (scanResult.isInfected) {
       const threat = scanResult.threat || 'Unknown threat';
@@ -64,11 +77,11 @@ export async function processFileForStorage(
     console.log(`[FileWorker] ✓ File ${fileId} passed malware scan`);
 
     // Check if the file is an image for processing
-    const isImage = await isProcessableImage(encryptedData);
+    const isImage = await isProcessableImage(decryptedFileBuffer);
 
     if (isImage) {
       // Generate thumbnail
-      const thumbnailBytes = await generateThumbnail(encryptedData);
+      const thumbnailBytes = await generateThumbnail(decryptedFileBuffer);
       if (thumbnailBytes) {
         await db.transaction(async (trx: Knex.Transaction) => {
           await store.storeThumbnail(trx, fileId, thumbnailBytes);
@@ -78,12 +91,12 @@ export async function processFileForStorage(
       }
 
       // Check if HEIC and convert to JPEG
-      if (await isHeic(encryptedData)) {
-        const jpegBytes = await convertHeicToJpeg(encryptedData);
+      if (await isHeic(decryptedFileBuffer)) {
+        const jpegBytes = await convertHeicToJpeg(decryptedFileBuffer);
         if (jpegBytes) {
           await db.transaction(async (trx: Knex.Transaction) => {
             // Store the original HEIC
-            await store.storeHeicOriginal(trx, fileId, encryptedData);
+            await store.storeHeicOriginal(trx, fileId, decryptedFileBuffer);
             // TODO: Update the main file record to point to JPEG instead
             // For now, we keep the original, but in production we'd swap the main file to JPEG
             result.heicConverted = true;
