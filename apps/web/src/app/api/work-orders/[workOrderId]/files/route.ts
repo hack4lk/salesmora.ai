@@ -137,8 +137,11 @@ export async function POST(
     const category = formData.get('category') as string | null;
     const caption = (formData.get('caption') as string | null) ?? '';
 
+    console.log('[FileAPI] POST request:', { fileName: file?.name, fileSize: file?.size, workspaceId, category });
+
     // Validate inputs
     if (!file || !workspaceId || !category) {
+      console.error('[FileAPI] Validation failed: missing fields');
       return NextResponse.json(
         { error: 'Missing required fields: file, workspaceId, category' },
         { status: 400, headers }
@@ -146,6 +149,7 @@ export async function POST(
     }
 
     if (!['before', 'after', 'other'].includes(category)) {
+      console.error('[FileAPI] Invalid category:', category);
       return NextResponse.json(
         { error: 'Invalid category. Must be: before, after, or other' },
         { status: 400, headers }
@@ -154,10 +158,13 @@ export async function POST(
 
     // Convert File to Buffer
     const fileBuffer = Buffer.from(await file.arrayBuffer());
+    console.log('[FileAPI] File converted to buffer:', fileBuffer.length, 'bytes');
 
     const db = database();
     const storage = createStorageAdapter();
     const fileStore = await createFileStore(db, storage);
+
+    console.log('[FileAPI] Calling fileStore.uploadFile()...');
 
     // Upload file - FileStore will validate workspace access
     const fileRecord = await fileStore.uploadFile(
@@ -177,6 +184,8 @@ export async function POST(
       }
     );
 
+    console.log('[FileAPI] Upload successful:', { fileId: fileRecord.id, status: fileRecord.status });
+
     return NextResponse.json(
       {
         success: true,
@@ -188,6 +197,7 @@ export async function POST(
     );
   } catch (error) {
     if (error instanceof AuthorizationAccessError) {
+      console.error('[FileAPI] Authorization error:', error.message);
       return NextResponse.json(
         { error: 'You do not have permission to upload files to this work order.' },
         { status: 403, headers }
@@ -195,6 +205,7 @@ export async function POST(
     }
 
     if (error instanceof FileStorageError) {
+      console.error('[FileAPI] FileStorageError:', error.message);
       const status = error.message.includes('quota') ? 413 : error.message.includes('type') ? 415 : 400;
       return NextResponse.json(
         { error: error.message },
@@ -203,7 +214,7 @@ export async function POST(
     }
 
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[FileAPI] POST /files error:', message);
+    console.error('[FileAPI] POST /files error:', message, error);
     return NextResponse.json(
       { error: 'Could not upload file. Please try again.' },
       { status: 500, headers }
