@@ -23,9 +23,11 @@
     "usage:report": "node --import tsx src/ai-usage-report.ts",
     "test:usage": "node --import tsx src/ai-usage-rehearsal.ts",
     "budget:configure": "node --import tsx src/ai-budget-configure.ts",
-    "test:retention": "node --import tsx src/chat-retention-rehearsal.ts"
+    "test:retention": "node --import tsx src/chat-retention-rehearsal.ts",
+    "test:files": "node --import tsx src/files/store.rehearsal.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.600.0",
     "@langchain/langgraph-checkpoint-postgres": "1.0.6",
     "@salesmora/contracts": "workspace:*",
     "@salesmora/domain": "workspace:*",
