@@ -18,6 +18,7 @@
     "test:leads:read": "node --import tsx src/leads/read.rehearsal.ts",
     "test:jobs": "node --import tsx src/jobs/store.rehearsal.ts",
     "test:work-orders": "node --import tsx src/work-orders/store.rehearsal.ts",
+    "test:materials": "node --import tsx src/materials/store.rehearsal.ts",
     "test:knowledge": "node --import tsx src/knowledge/rehearsal.ts",
     "usage:report": "node --import tsx src/ai-usage-report.ts",
     "test:usage": "node --import tsx src/ai-usage-rehearsal.ts",

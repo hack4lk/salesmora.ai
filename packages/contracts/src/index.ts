@@ -35,4 +35,5 @@ export * from './customer';
 export * from './customer-chat';
 export * from './job';
 export * from './work-order';
+export * from './material';
 export * from './work-order-chat';

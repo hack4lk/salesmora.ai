@@ -42,7 +42,7 @@ function Review({ draft, disabled, onDecide, onOpen }: WorkOrderDraftCardProps) 
     return () => clearTimeout(timer);
   }, [deadline]);
   const state = draft.state === "pending" && expired ? "expired" : draft.state;
-  const isExport = draft.action === "export";
+  const isExport = draft.action === "export" || draft.action === "material-export";
   const unchanged = !isExport && draft.action === "edit" && !draft.changes.some((x) => x.before !== x.after);
   async function decide(decision: "confirm" | "cancel") {
     if (lock.current || disabled || working || state !== "pending" || !onDecide) return;

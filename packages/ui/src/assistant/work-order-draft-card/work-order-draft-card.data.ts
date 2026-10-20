@@ -14,6 +14,12 @@ export const workOrderDraftCardData = {
     reopen: "Reopen work order",
     note: "Add work order note",
     export: "Export work orders",
+    "material-create": "Add catalog item",
+    "material-propose": "Propose catalog item",
+    "material-edit": "Edit catalog item",
+    "material-archive": "Archive catalog item",
+    "material-restore": "Restore catalog item",
+    "material-export": "Export catalog",
   },
   states: {
     pending: "Ready for your review",

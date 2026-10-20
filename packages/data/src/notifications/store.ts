@@ -2,6 +2,7 @@ import type { Knex } from 'knex';
 import { notificationPreferencesSchema, notificationQuerySchema, markNotificationReadSchema, type NotificationPreferences, type NotificationRecord, type NotificationResult, type AuthorizationContext, type PermissionId } from '@salesmora/contracts';
 import { resolveAuthorizedCollectionScope } from '@salesmora/domain';
 import { scoped, formatWorkOrderNumber } from '../work-orders/store';
+import { materialAccess } from '../materials/store';
 import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIdentity } from '../authorization/store';
 export async function readNotificationPreferences(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[]) {
   return withWorkspaceAuthorization(db, identity, enabled, false, async trx => {
@@ -33,6 +34,11 @@ function canReadWorkOrderNotifications(context: AuthorizationContext) {
   const scope = resolveAuthorizedCollectionScope(context,'workorders.read');
   return scope.allowed && ['workspace','assigned_job'].includes(scope.scope);
 }
+/** A proposer sees decisions on their own items while they can still read the catalog. */
+function materialNotificationQuery(trx: Knex.Transaction, context: AuthorizationContext) {
+  return trx('materialNotifications as n').where({ 'n.workspaceId': context.workspaceId, 'n.userId': context.userId });
+}
+const canReadMaterialNotifications = (context: AuthorizationContext) => materialAccess(context).read;
 export async function readNotifications(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], page = 1): Promise<NotificationResult> {
   notificationQuerySchema.parse({ workspaceId: identity.workspaceId, page });
   return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
@@ -53,6 +59,13 @@ export async function readNotifications(db: Knex, identity: WorkspaceIdentity, e
       const rows = await query.select('n.id','n.event','n.actorName','n.createdAt','n.readAt','w.id as workOrderId','w.workOrderNumber','w.title').orderBy('n.createdAt','desc').orderBy('n.id','desc').limit(take);
       items.push(...rows.map(row => ({ kind: 'work_order' as const, id: row.id, event: row.event, workOrderId: row.workOrderId, workOrderNumber: formatWorkOrderNumber(row.workOrderNumber), workOrderTitle: row.title, actorName: row.actorName, createdAt: row.createdAt.toISOString(), read: !!row.readAt })));
     }
+    if (canReadMaterialNotifications(context)) {
+      const query = materialNotificationQuery(trx, context);
+      const count = await query.clone().whereNull('n.readAt').count<{ count: string }[]>({count:'n.id'}).first();
+      unread += Number(count?.count ?? 0);
+      const rows = await query.select('n.id','n.event','n.materialId','n.materialName','n.reason','n.actorName','n.createdAt','n.readAt').orderBy('n.createdAt','desc').orderBy('n.id','desc').limit(take);
+      items.push(...rows.map(row => ({ kind: 'material' as const, id: row.id, event: row.event, materialId: row.materialId, materialName: row.materialName, reason: row.reason, actorName: row.actorName, createdAt: new Date(row.createdAt).toISOString(), read: !!row.readAt })));
+    }
     items.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
     const slice = items.slice((page-1)*20, page*20 + 1);
     return { items: slice.slice(0,20), unreadCount: unread, page, hasMore: slice.length > 20 };
@@ -62,6 +75,10 @@ export async function markNotificationRead(db: Knex, identity: WorkspaceIdentity
   markNotificationReadSchema.parse({ workspaceId: identity.workspaceId, id });
   return withWorkspaceAuthorization(db, identity, enabled, true, async (trx, context) => {
     const scope = resolveAuthorizedCollectionScope(context,'leads.read');
+    if (canReadMaterialNotifications(context) && await materialNotificationQuery(trx, context).where('n.id',id).first('n.id')) {
+      await trx('materialNotifications').where({id,workspaceId:identity.workspaceId,userId:identity.userId}).whereNull('readAt').update({readAt:trx.fn.now()});
+      return;
+    }
     if (canReadWorkOrderNotifications(context) && await workOrderNotificationQuery(trx, context).where('n.id',id).first('n.id')) {
       await trx('workOrderNotifications').where({id,workspaceId:identity.workspaceId,userId:identity.userId}).whereNull('readAt').update({readAt:trx.fn.now()});
       return;

@@ -3,7 +3,9 @@ import "server-only";
 import { isImplementedTool, type ImplementedToolId } from "@salesmora/agent";
 import { leadsQuery, leadsProposeAction } from "../leads";
 import { searchHelp } from "./search-help";
+import { materialsQuery } from "./materials";
 import { workOrdersQuery } from "./work-orders";
+import { materialsPropose } from "../materials-actions";
 import { workOrdersPropose } from "../work-orders-actions";
 import type { ChatToolContext, ChatToolHandler } from "./types";
 
@@ -15,6 +17,8 @@ const handlers = {
   search_help: searchHelp,
   leads_query: leadsQuery,
   work_orders_query: workOrdersQuery,
+  materials_query: materialsQuery,
+  materials_propose_action: materialsPropose,
   work_orders_propose_action: workOrdersPropose,
 } satisfies Record<ImplementedToolId, ChatToolHandler>;
 export function createChatToolExecutor(context: ChatToolContext) {

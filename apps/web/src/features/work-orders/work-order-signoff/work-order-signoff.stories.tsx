@@ -1,5 +1,5 @@
 import {useState,type ComponentProps} from 'react';
-import {fn,expect,userEvent} from 'storybook/test';
+import {fn,expect} from 'storybook/test';
 import type {Meta,StoryObj} from '@storybook/nextjs-vite';
 import {WorkOrderSignoff} from './work-order-signoff';
 import {crewCapabilities,officeCapabilities,readOnlyCapabilities,workOrderCompletionFixture} from '../work-order-preview.data';

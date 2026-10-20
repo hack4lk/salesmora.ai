@@ -6,6 +6,7 @@ import type {
 } from "@salesmora/contracts";
 import { leadsQueryTool, leadsProposeActionTool } from "../leads/tools";
 import { workOrdersQueryTool, workOrdersProposeTool } from "../work-orders/tools";
+import { materialsQueryTool, materialsProposeTool } from "../materials/tools";
 import { searchHelpTool } from "./search-help";
 
 /** Explicit read-only implementations. Planned tool IDs never become executable automatically. */
@@ -14,6 +15,7 @@ export const readToolRegistry = {
   search_help: searchHelpTool,
   leads_query: leadsQueryTool,
   work_orders_query: workOrdersQueryTool,
+  materials_query: materialsQueryTool,
 } as const satisfies Partial<Record<ChatToolId, { kind: "read" }>>;
 export type ImplementedReadToolId = keyof typeof readToolRegistry;
 export const implementedReadTools: readonly ChatToolId[] = Object.keys(
@@ -34,6 +36,7 @@ export const toolRegistry = {
   ...readToolRegistry,
   customers_propose_action: customersProposeTool,
   work_orders_propose_action: workOrdersProposeTool,
+  materials_propose_action: materialsProposeTool,
   leads_propose_action: leadsProposeActionTool,
 } as const satisfies Partial<Record<ChatToolId, { kind: "read" | "draft" }>>;
 export type ImplementedToolId = keyof typeof toolRegistry;

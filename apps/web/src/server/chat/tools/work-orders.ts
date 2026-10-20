@@ -32,7 +32,7 @@ export const workOrdersQuery: ChatToolHandler = async (context, args) => {
     return { evidence: { type: "work-orders-result", untrusted: true, operation: "details", found: true,
       workOrder: { ...summary(w), instructions: clip(w.instructions, 600), safetyNotes: clip(w.safetyNotes, 400), cancellationReason: w.cancellationReason, changedAfterIssue: w.changedAfterIssue },
       tasks: detail.tasks.slice(0, 40).map(t => ({ label: clip(t.label, 120), required: t.required, done: t.done })),
-      materials: detail.materials.slice(0, 40).map(m => ({ name: clip(m.name, 120), quantity: m.quantity, unit: m.unit, status: m.status })),
+      materials: detail.materials.slice(0, 40).map(m => ({ name: clip(m.name, 120), quantity: m.quantity, unit: m.unit, status: m.status, fromCatalog: !!m.catalogId })),
       recentNotes: detail.notes.slice(0, 5).map(n => ({ author: n.authorName, at: n.createdAt, body: clip(n.body, 300) })),
       completion: detail.completion && { summary: clip(detail.completion.summary, 400), completedBy: detail.completion.completedByName, completedAt: detail.completion.completedAt, signedBy: detail.completion.signerName },
       link: `/work-orders/${w.id}` } };

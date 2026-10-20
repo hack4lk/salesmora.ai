@@ -7,3 +7,4 @@ export { authorizeLeadOperation, availableLeadOperations } from './leads/authori
 
 export { availableCustomerOperations } from './customers/tools';
 export { availableWorkOrderOperations } from './work-orders/tools';
+export { availableMaterialOperations } from './materials/tools';

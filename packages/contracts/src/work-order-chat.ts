@@ -79,7 +79,7 @@ export const workOrderChatDraftSchema = z.object({
   inputHash: z.string().regex(/^[a-f0-9]{64}$/),
   expiresAt: z.string().datetime(),
   state: z.enum(["pending", "confirmed", "canceled", "expired", "superseded", "stale"]),
-  action: z.enum(["create", "edit", "schedule", "assign", "tasks", "task-toggle", "materials", "issue", "start", "cancel", "complete", "reopen", "note", "export"]),
+  action: z.enum(["create", "edit", "schedule", "assign", "tasks", "task-toggle", "materials", "issue", "start", "cancel", "complete", "reopen", "note", "export", "material-create", "material-propose", "material-edit", "material-archive", "material-restore", "material-export"]),
   workOrder: z.object({ id: z.uuid().optional(), number: z.string().max(40), title: z.string().max(200) }).strict(),
   changes: z.array(z.object({ label: z.string().max(200), before: z.string().max(2200), after: z.string().max(2200) }).strict()).max(40),
   warnings: z.array(z.string().max(300)).max(6).optional(),

@@ -23,17 +23,11 @@ export const workOrderTaskFixtures:{id:string;title:string;tasks:import('./work-
   {id:'a1',label:'Demo old cabinets',required:true,done:true,doneByName:'Jamie Cole',doneAt:'2026-10-14T10:00:00'},
   {id:'a2',label:'Install new cabinets',required:true,done:true,doneByName:'Jamie Cole',doneAt:'2026-10-14T14:30:00'}]},
  {id:'empty',title:'Empty',tasks:[]}];
-export const materialCatalogFixtures:import('./work-order-preview.types').MaterialCatalogEntry[]=[
- {id:'c1',name:'50-gallon water heater',unit:'each',sku:'WH-50G',costCents:48000,priceCents:69900},
- {id:'c2',name:'3/4 in copper pipe',unit:'ft',sku:'CU-34',costCents:310,priceCents:520},
- {id:'c3',name:'Dielectric union',unit:'each',sku:'DU-34',costCents:650,priceCents:1400},
- {id:'c4',name:'Expansion tank',unit:'each',sku:'ET-2G',costCents:3900,priceCents:6800},
- {id:'c5',name:'Pipe strap',unit:'each',sku:'PS-34',costCents:90,priceCents:250}];
 export const workOrderMaterialFixtures:import('./work-order-preview.types').WorkOrderMaterial[]=[
- {id:'m1',catalogId:'c1',name:'50-gallon water heater',quantity:1,unit:'each',status:'used',note:'',customerPriceCents:69900,costCents:48000},
- {id:'m2',catalogId:'c2',name:'3/4 in copper pipe',quantity:10,unit:'ft',status:'on-hand',note:'Truck stock',customerPriceCents:600,costCents:310},
- {id:'m3',catalogId:'c3',name:'Dielectric unions',quantity:2,unit:'each',status:'ordered',note:'Pickup at supply house by 8am',customerPriceCents:1400,costCents:650},
- {id:'m4',catalogId:null,name:'Custom wall bracket',quantity:1,unit:'each',status:'needed',note:'',customerPriceCents:null,costCents:null}];
+ {id:'m1',imageUrl:'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="%23c97b3c"/></svg>',catalogId:'c1',name:'50-gallon water heater',quantity:1,unit:'each',status:'used',note:'',customerPriceCents:69900,costCents:48000},
+ {id:'m2',imageUrl:'',catalogId:'c2',name:'3/4 in copper pipe',quantity:10,unit:'ft',status:'on-hand',note:'Truck stock',customerPriceCents:600,costCents:310},
+ {id:'m3',imageUrl:'',catalogId:'c3',name:'Dielectric unions',quantity:2,unit:'each',status:'ordered',note:'Pickup at supply house by 8am',customerPriceCents:1400,costCents:650},
+ {id:'m4',imageUrl:'',catalogId:null,name:'Custom wall bracket',quantity:1,unit:'each',status:'needed',note:'',customerPriceCents:null,costCents:null}];
 export const materialAccess={crew:{prices:false,costs:false},office:{prices:true,costs:false},owner:{prices:true,costs:true}};
 export const workOrderInstructionFixtures:Record<'full'|'empty'|'safetyOnly',WorkOrderInstructions>={
  full:{instructions:'Replace the 40-gallon water heater in the basement utility room.\n\nKeep the existing gas line and update the shut-off valve. Test for leaks before leaving.',accessNotes:'Side gate code is 4821. Park in the driveway. The customer has a dog that stays upstairs.',safetyNotes:'Shut off gas and water before disconnecting. Wear gloves and eye protection. Ventilate the room when soldering.'},

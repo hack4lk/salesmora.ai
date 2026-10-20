@@ -48,7 +48,7 @@ export const workOrdersProposeTool = {
     type: "function",
     function: {
       name: "work_orders_propose_action",
-      description: "Prepare ONE work order change for the user to review and confirm with a button; this never saves anything. Name records by WO or J number (empty workOrderNumber means the work order open on screen) and people by name or email. Use for create, edit, schedule, assign, add_tasks, toggle_task, add_materials, set_status, complete, reopen, add_note and export_csv. A customer signature can never be given from chat.",
+      description: "Prepare ONE work order change for the user to review and confirm with a button; this never saves anything. Name records by WO or J number (empty workOrderNumber means the work order open on screen) and people by name or email. Use for create, edit, schedule, assign, add_tasks, toggle_task, add_materials (names are matched to the materials catalog by the server; unmatched names become free text), set_status, complete, reopen, add_note and export_csv. A customer signature can never be given from chat.",
       parameters: {
         type: "object",
         properties: {

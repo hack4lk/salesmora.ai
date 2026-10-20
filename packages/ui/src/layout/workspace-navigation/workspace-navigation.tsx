@@ -7,6 +7,7 @@ import PeopleOutlined from '@mui/icons-material/PeopleOutlined';
 import ContactsOutlined from '@mui/icons-material/ContactsOutlined';
 import WorkOutlined from '@mui/icons-material/WorkOutlined';
 import AssignmentOutlined from '@mui/icons-material/AssignmentOutlined';
+import CategoryOutlined from '@mui/icons-material/CategoryOutlined';
 import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined';
 import RequestQuoteOutlined from '@mui/icons-material/RequestQuoteOutlined';
 import BarChartOutlined from '@mui/icons-material/BarChartOutlined';
@@ -30,6 +31,7 @@ export interface WorkspaceNavigationProps {
   customersHref?: string;
   jobsHref?: string;
   workOrdersHref?: string;
+  materialsHref?: string;
   settingsHref?: string;
   /** Supply only when the server authorizes permissions.read. Omitted means deny. */
   permissionsHref?: string;
@@ -48,11 +50,11 @@ export interface WorkspaceNavigationProps {
   onAccountSettings: () => void;
   onSignOut: () => void;
 }
-const icons = { home: HomeOutlined, intake: InboxOutlined, leads: PeopleOutlined, customers: ContactsOutlined, jobs: WorkOutlined, 'work-orders': AssignmentOutlined, calendar: CalendarMonthOutlined, estimates: RequestQuoteOutlined, reports: BarChartOutlined, campaigns: CampaignOutlined, settings: SettingsOutlined };
+const icons = { home: HomeOutlined, intake: InboxOutlined, leads: PeopleOutlined, customers: ContactsOutlined, jobs: WorkOutlined, 'work-orders': AssignmentOutlined, materials: CategoryOutlined, calendar: CalendarMonthOutlined, estimates: RequestQuoteOutlined, reports: BarChartOutlined, campaigns: CampaignOutlined, settings: SettingsOutlined };
 const controlClass = 'inline-flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold focus-visible:focus-ring';
 
 /** Visibility reflects current server-supplied capabilities; routes must enforce authorization. */
-export function WorkspaceNavigation({ workspaceName, user, currentPage, contentId, homeHref = '/home', leadsHref = '/leads', customersHref = '/customers', jobsHref = '/jobs', workOrdersHref = '/work-orders', settingsHref = '/settings', permissionsHref, aiUsageHref, billingHref, accountHref, notificationsHref, currentSettingsPage, availablePages, authorizedPages = [], accountSettingsAvailable = true, signingOut = false, onNavigate, onAccountSettings, onSignOut }: WorkspaceNavigationProps) {
+export function WorkspaceNavigation({ workspaceName, user, currentPage, contentId, homeHref = '/home', leadsHref = '/leads', customersHref = '/customers', jobsHref = '/jobs', workOrdersHref = '/work-orders', materialsHref = '/materials', settingsHref = '/settings', permissionsHref, aiUsageHref, billingHref, accountHref, notificationsHref, currentSettingsPage, availablePages, authorizedPages = [], accountSettingsAvailable = true, signingOut = false, onNavigate, onAccountSettings, onSignOut }: WorkspaceNavigationProps) {
   const id = useId();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -68,7 +70,7 @@ export function WorkspaceNavigation({ workspaceName, user, currentPage, contentI
       if (availablePages && !availablePages.includes(item.id)) return <button key={item.id} type="button" disabled className={`${controlClass} w-full cursor-not-allowed text-left text-muted`}>
         <Icon className="size-5 shrink-0" aria-hidden="true" /><span className="min-w-0 flex-1">{item.label}</span><span className="text-xs font-normal">{copy.unavailable}</span>
       </button>;
-      return <div key={item.id}><a href={item.id === 'home' ? homeHref : item.id === 'leads' ? leadsHref : item.id === 'customers' ? customersHref : item.id === 'jobs' ? jobsHref : item.id === 'work-orders' ? workOrdersHref : item.id === 'settings' ? settingsHref : item.href} aria-current={currentPage === item.id && !(item.id === 'settings' && currentSettingsPage) ? 'page' : undefined}
+      return <div key={item.id}><a href={item.id === 'home' ? homeHref : item.id === 'leads' ? leadsHref : item.id === 'customers' ? customersHref : item.id === 'jobs' ? jobsHref : item.id === 'work-orders' ? workOrdersHref : item.id === 'materials' ? materialsHref : item.id === 'settings' ? settingsHref : item.href} aria-current={currentPage === item.id && !(item.id === 'settings' && currentSettingsPage) ? 'page' : undefined}
         onClick={event => { if (onNavigate) event.preventDefault(); navigate(item.id); }}
         className={`${controlClass} w-full ${currentPage === item.id ? 'bg-primary text-paper hover:bg-primary-dark' : 'text-muted hover:bg-canvas hover:text-ink'}`}>
         <Icon className="size-5 shrink-0" aria-hidden="true" /><span>{item.label}</span>

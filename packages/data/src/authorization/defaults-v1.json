@@ -1018,5 +1018,40 @@
     "role": "admin",
     "permission": "workorders.view_costs",
     "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "materials.read",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "materials.read",
+    "scope": "enabled"
+  },
+  {
+    "role": "office",
+    "permission": "materials.read",
+    "scope": "enabled"
+  },
+  {
+    "role": "field",
+    "permission": "materials.read",
+    "scope": "enabled"
+  },
+  {
+    "role": "office",
+    "permission": "materials.propose",
+    "scope": "enabled"
+  },
+  {
+    "role": "owner",
+    "permission": "materials.manage",
+    "scope": "enabled"
+  },
+  {
+    "role": "admin",
+    "permission": "materials.manage",
+    "scope": "enabled"
   }
 ]

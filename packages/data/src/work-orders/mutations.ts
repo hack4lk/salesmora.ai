@@ -8,6 +8,7 @@ import {
   authorize, WorkOrderLifecycleError, assertEditable, editsChangeIssuedContent, validateArchive, validateCompletion, validateDelete, validateReopen, validateStatusChange,
 } from "@salesmora/domain";
 import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIdentity } from "../authorization/store";
+import { loadLinkableMaterials } from "../materials/snapshot";
 import { notifyWorkOrderChange } from "./notify";
 import { WorkOrderConflictError, WorkOrderValidationError, resource, scoped, selects, type Row } from "./store";
 
@@ -65,9 +66,14 @@ export async function createWorkOrder(db: Knex, identity: WorkspaceIdentity, ena
       copied = { instructions: from.instructions, accessNotes: from.accessNotes, safetyNotes: from.safetyNotes };
       tasks = await trx("workOrderTasks").where({ workspaceId: context.workspaceId, workOrderId: from.id }).orderBy("position").select("label", "required");
       const canPrices = authorize(context, { permission: "workorders.view_prices", resource: resource(from) }).allowed, canCosts = authorize(context, { permission: "workorders.view_costs", resource: resource(from) }).allowed;
-      materials = (await trx("workOrderMaterials").where({ workspaceId: context.workspaceId, workOrderId: from.id }).orderBy("position")).map(m => ({
-        id: randomUUID(), workspaceId: context.workspaceId, workOrderId: id, position: m.position, catalogId: m.catalogId, name: m.name, quantity: m.quantity, unit: m.unit,
-        status: "needed", note: m.note, customerPriceCents: canPrices ? m.customerPriceCents : null, costCents: canCosts ? m.costCents : null }));
+      const source = await trx("workOrderMaterials").where({ workspaceId: context.workspaceId, workOrderId: from.id }).orderBy("position");
+      // Linked rows get a fresh snapshot while the item is still active; otherwise they keep their old details as free text.
+      const linkable = await loadLinkableMaterials(trx, context.workspaceId, source.map(m => m.catalogId).filter(Boolean));
+      materials = source.map(m => {
+        const item = m.catalogId ? linkable.get(m.catalogId) : undefined;
+        return { id: randomUUID(), workspaceId: context.workspaceId, workOrderId: id, position: m.position, catalogId: item ? item.id : null, name: item?.name ?? m.name, quantity: m.quantity, unit: item?.unit ?? m.unit, imageUrl: item ? item.imageUrl : m.imageUrl,
+          status: "needed", note: m.note, customerPriceCents: item ? item.priceCents : canPrices ? m.customerPriceCents : null, costCents: item ? item.costCents : canCosts ? m.costCents : null };
+      });
     }
     await trx("workOrders").insert({ id, workspaceId: context.workspaceId, jobId: input.jobId, title: input.title, status: "draft", ...copied,
       primaryAssigneeId: input.assigneeId, sourceWorkOrderId: input.source.kind === "duplicate" ? input.source.workOrderId : null, createdBy: context.userId });
@@ -111,6 +117,7 @@ export async function mutateWorkOrderInTransaction(trx: Knex.Transaction, contex
   switch (input.action) {
     case "edit": {
       assertEditable(state); flagChange();
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- stripped so only editable fields remain
       const { workspaceId, workOrderId, submissionId, expectedVersion, action, ...values } = input;
       Object.assign(patch, values);
       changes = { from: Object.fromEntries(Object.keys(values).map(k => [k, (row as Record<string, unknown>)[k]])), to: values };
@@ -161,14 +168,22 @@ export async function mutateWorkOrderInTransaction(trx: Knex.Transaction, contex
       const existing = await trx("workOrderMaterials").where({ workspaceId: context.workspaceId, workOrderId: row.id });
       const byId = new Map(existing.map(m => [m.id as string, m]));
       if (input.materials.some(m => m.id && !byId.has(m.id))) throw new WorkOrderValidationError("A material no longer exists. Reload and try again.");
+      // Rows keep their saved snapshot unless they are newly linked or re-linked to a catalog item; then the server copies name, unit and cost itself.
+      const isNewLink = (m: typeof input.materials[number]) => !!m.catalogId && (!m.id || byId.get(m.id)?.catalogId !== m.catalogId);
+      const linkable = await loadLinkableMaterials(trx, context.workspaceId, input.materials.filter(isNewLink).map(m => m.catalogId!));
+      if (input.materials.some(m => isNewLink(m) && !linkable.has(m.catalogId!))) throw new WorkOrderValidationError("That catalog item is no longer available. Pick another or add a custom item.");
       // Prices and costs the editor cannot see are never wiped or set by them.
       await trx("workOrderMaterials").where({ workspaceId: context.workspaceId, workOrderId: row.id }).delete();
       if (input.materials.length) await trx("workOrderMaterials").insert(input.materials.map((m, i) => {
-        const old = m.id ? byId.get(m.id) : undefined;
-        return { id: old?.id ?? randomUUID(), workspaceId: context.workspaceId, workOrderId: row.id, position: i, catalogId: m.catalogId, name: m.name, quantity: m.quantity, unit: m.unit, status: m.status, note: m.note,
-          customerPriceCents: prices ? m.customerPriceCents : old?.customerPriceCents ?? null, costCents: costs ? m.costCents : old?.costCents ?? null };
+        const old = m.id ? byId.get(m.id) : undefined, item = isNewLink(m) ? linkable.get(m.catalogId!) : undefined;
+        const kept = !!m.catalogId && !!old && old.catalogId === m.catalogId;
+        const price = prices ? m.customerPriceCents : old?.customerPriceCents ?? null;
+        return { id: old?.id ?? randomUUID(), workspaceId: context.workspaceId, workOrderId: row.id, position: i, catalogId: m.catalogId,
+          name: item?.name ?? (kept ? old.name : m.name), quantity: m.quantity, unit: item?.unit ?? (kept ? old.unit : m.unit), imageUrl: item ? item.imageUrl : kept ? old.imageUrl : "", status: m.status, note: m.note,
+          customerPriceCents: item ? (prices && m.customerPriceCents !== null ? m.customerPriceCents : item.priceCents) : price,
+          costCents: item ? item.costCents : kept ? old.costCents : costs ? m.costCents : old?.costCents ?? null };
       }));
-      changes = { from: existing.map(m => m.name), to: input.materials.map(m => m.name) };
+      changes = { from: existing.map(m => m.name), to: input.materials.map(m => m.name), linked: input.materials.filter(isNewLink).map(m => linkable.get(m.catalogId!)!.name) };
       break;
     }
     case "status": {

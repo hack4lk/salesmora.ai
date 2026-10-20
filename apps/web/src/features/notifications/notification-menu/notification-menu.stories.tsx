@@ -43,6 +43,14 @@ export const WorkOrderEvent: Story = {
     await expect(dialog.getByRole('link', { name: copy.viewWorkOrder })).toHaveAttribute('href', '/work-orders/preview-wo?workspace=preview-workspace');
   },
 };
+export const MaterialRejected: Story = {
+  args: { items: [{ id: 'preview-mat', title: copy.materialTitles.rejected, description: copy.materialDescription('rejected', 'Alex Rivera', '12/2 Romex wire', 'Already listed under a different SKU.'), createdAt: copy.stories.date, read: false, href: copy.stories.materialHref, actionLabel: copy.viewMaterials }], unreadCount: 1 },
+  play: async ({ canvasElement }) => {
+    const dialog = within(await open(canvasElement));
+    await expect(dialog.getByRole('link', { name: copy.viewMaterials })).toHaveAttribute('href', copy.stories.materialHref);
+    await expect(dialog.getByText(/Already listed under a different SKU/)).toBeVisible();
+  },
+};
 export const Closed: Story = {};
 export const Empty: Story = { args: { items: [], unreadCount: 0 }, play: async ({ canvasElement }) => {
   const dialog = within(await open(canvasElement));

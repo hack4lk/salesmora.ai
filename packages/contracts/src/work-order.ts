@@ -103,7 +103,7 @@ export type WorkOrderListResult = {
 export { ZodError as WorkOrderContractError } from "zod";
 
 export type WorkOrderTaskView = { id: string; label: string; required: boolean; done: boolean; doneByName: string | null; doneAt: string | null };
-export type WorkOrderMaterialView = { id: string; catalogId: string | null; name: string; quantity: number; unit: string; status: typeof workOrderMaterialStatuses[number]; note: string; customerPriceCents: number | null; costCents: number | null };
+export type WorkOrderMaterialView = { id: string; catalogId: string | null; name: string; quantity: number; unit: string; imageUrl: string; status: typeof workOrderMaterialStatuses[number]; note: string; customerPriceCents: number | null; costCents: number | null };
 export type WorkOrderActivityView = { id: string; type: string; actorName: string; source: "ui" | "assistant-confirmed" | "system"; changes: unknown; createdAt: string };
 export type WorkOrderNoteView = { id: string; body: string; authorName: string; createdAt: string };
 export type WorkOrderCompletionView = { summary: string; followUp: typeof workOrderFollowUps[number]; followUpNote: string; completedByName: string; completedAt: string; signerName: string | null; signedAt: string | null; signatureImage: string | null; overrideReason: string };

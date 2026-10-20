@@ -158,7 +158,7 @@ export async function readWorkOrderDetail(db: Knex, identity: WorkspaceIdentity,
     return {
       workOrder,
       tasks: taskRows.map(t => ({ id: t.id, label: t.label, required: t.required, done: t.done, doneByName: t.doneByName ?? null, doneAt: iso(t.doneAt) })),
-      materials: materialRows.map(m => ({ id: m.id, catalogId: m.catalogId, name: m.name, quantity: Number(m.quantity), unit: m.unit, status: m.status, note: m.note,
+      materials: materialRows.map(m => ({ id: m.id, catalogId: m.catalogId, name: m.name, quantity: Number(m.quantity), unit: m.unit, imageUrl: m.imageUrl ?? "", status: m.status, note: m.note,
         customerPriceCents: prices ? m.customerPriceCents : null, costCents: costs ? m.costCents : null })),
       activity: activityRows.map(a => ({ id: a.id, type: a.type, actorName: a.actorName, source: a.source, changes: a.changes, createdAt: a.createdAt.toISOString() })),
       notes: noteRows.map(a => ({ id: a.id, body: (a.changes as { body: string }).body, authorName: a.actorName, createdAt: a.createdAt.toISOString() })),

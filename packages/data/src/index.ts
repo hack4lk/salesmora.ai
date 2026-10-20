@@ -53,3 +53,6 @@ export * from "./work-orders/store";
 export * from "./work-orders/mutations";
 export * from "./work-orders/export";
 export * from "./work-orders/settings";
+export * from "./materials/store";
+export * from "./materials/mutations";
+export * from "./materials/export";

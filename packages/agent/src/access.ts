@@ -1,4 +1,5 @@
 import { availableCustomerOperations } from "./customers/tools";
+import { canQueryMaterials, availableMaterialOperations } from "./materials/tools";
 import { canQueryWorkOrders, availableWorkOrderOperations } from "./work-orders/tools";
 import {
   chatSurfaceKeySchema,
@@ -25,6 +26,8 @@ export const chatSurfaceRegistry = Object.fromEntries(
       "customers_query",
       "customers_propose_action",
       "work_orders_query",
+      "materials_query",
+      "materials_propose_action",
       "work_orders_propose_action",
       ...new Set(
         Object.values(leadCapabilities)
@@ -75,6 +78,10 @@ export function authorizeChatTool(
     // Retrieval must additionally filter every article by its current required app permissions.
     case "search_help":
       return assistant;
+    case "materials_propose_action":
+      return availableMaterialOperations(context).length ? assistant : denied();
+    case "materials_query":
+      return canQueryMaterials(context) ? assistant : denied();
     case "work_orders_query":
       return canQueryWorkOrders(context) ? assistant : denied();
     case "work_orders_propose_action":

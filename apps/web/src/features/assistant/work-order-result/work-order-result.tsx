@@ -32,11 +32,11 @@ export function ConnectedWorkOrderResult({
         await onRefresh();
         throw Error(c.failed);
       }
-      if (draft.action === "export" && decision === "confirm") {
+      if ((draft.action === "export" || draft.action === "material-export") && decision === "confirm") {
         const url = URL.createObjectURL(await response.blob());
         const link = document.createElement("a");
         link.href = url;
-        link.download = c.downloadName;
+        link.download = draft.action === "material-export" ? c.materialsDownloadName : c.downloadName;
         document.body.append(link);
         link.click();
         link.remove();

@@ -1,5 +1,5 @@
 "use client";
-import { useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { workOrderStatuses, type WorkOrderStatus } from "@salesmora/contracts";
 import { DragIndicatorOutlined } from "@salesmora/ui";
 import type {
@@ -26,16 +26,14 @@ export function WorkOrdersBoard({
   onRequestMove,
 }: WorkOrdersBoardProps) {
   const id = useId(),
-    dragged = useRef<WorkOrderView | null>(null),
-    [dragging, setDragging] = useState<string | null>(null),
+    [dragged, setDragged] = useState<WorkOrderView | null>(null),
     [over, setOver] = useState<WorkOrderStatus | null>(null);
   const canMove = (w: WorkOrderView) =>
     !!onRequestMove && !pendingId && allowedTransitions(w).length > 0;
   const accepts = (w: WorkOrderView | null, status: WorkOrderStatus) =>
     !!w && canMove(w) && allowedTransitions(w).includes(status);
   const end = () => {
-    dragged.current = null;
-    setDragging(null);
+    setDragged(null);
     setOver(null);
   };
   return (
@@ -65,11 +63,11 @@ export function WorkOrdersBoard({
         <div className="flex items-start gap-4">
           {workOrderStatuses.map((status) => {
             const items = rows.filter((w) => w.status === status),
-              drop = over === status && accepts(dragged.current, status),
+              drop = over === status && accepts(dragged, status),
               blocked =
-                !!dragging &&
-                !accepts(dragged.current, status) &&
-                dragged.current?.status !== status;
+                !!dragged &&
+                !accepts(dragged, status) &&
+                dragged?.status !== status;
             return (
               <section
                 key={status}
@@ -77,7 +75,7 @@ export function WorkOrdersBoard({
                 aria-labelledby={`${id}-${status}`}
                 className={`w-72 shrink-0 rounded-2xl border bg-canvas p-3 sm:w-80 ${drop ? "border-primary ring-2 ring-primary" : "border-line"} ${blocked ? "opacity-60" : ""}`}
                 onDragOver={(e) => {
-                  if (accepts(dragged.current, status)) {
+                  if (accepts(dragged, status)) {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = "move";
                     setOver(status);
@@ -86,7 +84,7 @@ export function WorkOrdersBoard({
                 onDragLeave={() => setOver((o) => (o === status ? null : o))}
                 onDrop={(e) => {
                   e.preventDefault();
-                  const w = dragged.current;
+                  const w = dragged;
                   end();
                   if (w && accepts(w, status)) onRequestMove?.(w, status);
                 }}
@@ -108,15 +106,14 @@ export function WorkOrdersBoard({
                       key={w.id}
                       workOrder={w}
                       hideStatus
-                      dragging={dragging === w.id}
+                      dragging={dragged?.id === w.id}
                       disabled={!!pendingId}
                       onOpen={() => onOpen(w)}
                       onAction={(a) => onAction(w, a)}
                       onDragStart={
                         canMove(w)
                           ? (e) => {
-                              dragged.current = w;
-                              setDragging(w.id);
+                              setDragged(w);
                               e.dataTransfer.setData("text/plain", w.id);
                               e.dataTransfer.effectAllowed = "move";
                             }

@@ -57,3 +57,32 @@ export const Stale: Story = { args: { draft: { ...draft, state: "stale" } }, ren
 export const Export: Story = {
   args: { draft: { ...draft, action: "export", changes: [], count: 128, columns: fixtures.columns } },
 };
+
+const catalogItem = { number: "WIRE-12", title: "12/2 Romex wire" };
+export const CatalogItemCreate: Story = {
+  args: {
+    draft: { ...draft, action: "material-create", workOrder: catalogItem,
+      changes: [{ label: "Name", before: "", after: "12/2 Romex wire" }, { label: "Unit", before: "", after: "ft" }, { label: "Price per unit", before: "", after: "$1.25" }],
+      impact: "The item is added to the catalog and can be used on work orders right away." } as WorkOrderDraftProposal,
+  },
+  render: undefined,
+};
+export const CatalogItemPropose: Story = {
+  args: { draft: { ...draft, action: "material-propose", workOrder: catalogItem, changes: [{ label: "Name", before: "", after: "12/2 Romex wire" }],
+    impact: "This is submitted as a proposal. An owner or admin must approve it before it can be used on work orders." } },
+  render: undefined,
+};
+export const CatalogItemEdit: Story = {
+  args: { draft: { ...draft, action: "material-edit", workOrder: catalogItem, changes: [{ label: "Price per unit", before: "$1.25", after: "$1.40" }],
+    impact: "Work orders that already use this item keep the price they were added with." } },
+  render: undefined,
+};
+export const CatalogItemArchive: Story = {
+  args: { draft: { ...draft, action: "material-archive", workOrder: catalogItem, changes: [{ label: "Status", before: "Active", after: "Archived" }] } },
+  render: undefined,
+};
+export const CatalogExport: Story = {
+  args: { draft: { ...draft, action: "material-export", workOrder: { number: "CSV export", title: "Active catalog items" }, count: 42,
+    columns: ["Name", "SKU", "Unit", "Category", "Supplier", "Status"], changes: [{ label: "Rows", before: "", after: "42" }], impact: "All active items · Category: Wire" } },
+  render: undefined,
+};

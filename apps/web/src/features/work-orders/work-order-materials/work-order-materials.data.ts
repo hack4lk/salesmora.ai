@@ -8,6 +8,7 @@ export const copy={
  quantity:'Qty',
  unit:'Unit',
  name:'Item',
+ addMaterial:'Add material',
  catalog:'From catalog',
  custom:'Custom item (not in catalog)',
  catalogHint:'Pick a catalog item to fill in the name, unit and price, or add a custom item.',

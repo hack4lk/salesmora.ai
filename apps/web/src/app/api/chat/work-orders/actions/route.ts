@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     const input = workOrderChatDecisionSchema.parse(raw);
     const result = await resolveWorkOrderDraft(identity, input);
     if (result.csv !== undefined)
-      return new Response(result.csv, { headers: { ...workOrderHeaders, "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="work-orders.csv"', "X-Content-Type-Options": "nosniff" } });
+      return new Response(result.csv, { headers: { ...workOrderHeaders, "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${result.csvName}"`, "X-Content-Type-Options": "nosniff" } });
     return NextResponse.json({ draft: result.draft }, { headers: workOrderHeaders });
   }, true);
 }

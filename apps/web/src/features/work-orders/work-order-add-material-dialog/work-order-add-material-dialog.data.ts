@@ -1,0 +1,16 @@
+export const copy = {
+  title: 'Add material',
+  description: 'Pick an item from the catalog, or add a new one that is not listed yet.',
+  confirm: 'Add to work order',
+  catalogPrompt: 'Search the catalog, then set the quantity.',
+  quantity: 'Quantity',
+  unit: 'Unit',
+  price: 'Price per unit ($)',
+  note: 'Note',
+  pickFirst: 'Choose a catalog item to continue.',
+  quantityError: 'Enter a quantity above zero.',
+  notListed: 'Not in the catalog?',
+  addNew: 'Add a new material',
+  addNewPropose: 'Propose a new material',
+  units: ['each', 'ft', 'lb', 'box', 'gal', 'hr', 'other'],
+};

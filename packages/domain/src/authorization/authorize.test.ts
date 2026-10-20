@@ -50,8 +50,8 @@ describe('all default role/action combinations', () => {
 });
 
 describe('code-owned catalog and policy validation', () => {
-  it('has 74 unique actions, legal defaults, known dependencies and a consistent default template', () => {
-    expect(permissionIds).toHaveLength(74);
+  it('has 77 unique actions, legal defaults, known dependencies and a consistent default template', () => {
+    expect(permissionIds).toHaveLength(77);
     expect(new Set(permissionIds).size).toBe(permissionIds.length);
     expect(validateWorkspacePolicy(defaultPolicy()).ok).toBe(true);
     for (const id of permissionIds) {

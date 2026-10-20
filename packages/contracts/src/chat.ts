@@ -18,6 +18,7 @@ export const chatSurfaceKeys = [
   "customer.detail",
   "work_order.list",
   "work_order.detail",
+  "materials.list",
   "home",
   "leads.create",
   "leads.list",
@@ -33,6 +34,8 @@ export const chatToolIds = [
   "customers_propose_action",
   "work_orders_query",
   "work_orders_propose_action",
+  "materials_query",
+  "materials_propose_action",
   ...leadToolNames,
 ] as const;
 export const chatToolIdSchema = z.enum(chatToolIds);
