@@ -189,16 +189,18 @@ export async function POST(
     // Log file upload activity
     try {
       await db('jobActivity').insert({
-        id: crypto.getRandomValues(new Uint8Array(16)).toString(),
+        id: crypto.randomUUID(),
         jobId: jobId,
         workspaceId: workspaceId,
         actorId: session.user.id,
-        eventType: 'file_upload',
-        metadata: {
+        actorName: session.user.name || 'User',
+        source: 'ui',
+        type: 'file_upload',
+        changes: JSON.stringify({
           fileName: file.name,
           fileId: fileRecord.id,
           category: category,
-        },
+        }),
         createdAt: new Date(),
       });
     } catch (activityErr) {
