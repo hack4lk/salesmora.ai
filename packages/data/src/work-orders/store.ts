@@ -23,6 +23,7 @@ export type Row = {
 const iso = (d: Date | null) => d ? d.toISOString() : null;
 export const formatWorkOrderNumber = (n: number) => `WO-${String(n).padStart(4, "0")}`;
 export const resource = (row: Row) => ({ kind: "work_order" as const, id: row.id, workspaceId: row.workspaceId,
+  primaryAssigneeId: row.primaryAssigneeId,
   assigneeIds: [...(row.primaryAssigneeId ? [row.primaryAssigneeId] : []), ...row.crewIds],
   job: { kind: "job" as const, id: row.jobId, workspaceId: row.workspaceId, ownerId: row.jobOwnerId, teamUserIds: row.jobTeamUserIds } });
 
@@ -165,7 +166,7 @@ export async function readWorkOrderDetail(db: Knex, identity: WorkspaceIdentity,
       notes: noteRows.map(a => ({ id: a.id, body: (a.changes as { body: string }).body, authorName: a.actorName, createdAt: a.createdAt.toISOString() })),
       completion: completionRow ? { summary: completionRow.summary, followUp: completionRow.followUp, followUpNote: completionRow.followUpNote, completedByName: completionRow.completedByName,
         completedAt: completionRow.completedAt.toISOString(), signerName: completionRow.signerName, signedAt: iso(completionRow.signedAt), signatureImage: completionRow.signatureImage, overrideReason: completionRow.overrideReason } : null,
-      members, access: { prices, costs, canSchedule: can("workorders.update"), canNote: can("workorders.progress"), canOverride: context.membership.role !== "field" && can("workorders.complete"), signoffRequired: !!settings?.workOrderSignoffRequired },
+      members, access: { prices, costs, canSchedule: !row.archivedAt && !["completed", "canceled"].includes(row.status) && can("workorders.schedule.update"), canNote: can("workorders.progress"), canOverride: context.membership.role !== "field" && can("workorders.complete"), signoffRequired: !!settings?.workOrderSignoffRequired },
       businessPhone: settings?.businessPhone ?? "",
       contact: { name: row.customerName, phone: customer?.phone || null, address: row.location },
     };

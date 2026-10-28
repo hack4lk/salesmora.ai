@@ -21,6 +21,9 @@ import ManageAccountsOutlined from '@mui/icons-material/ManageAccountsOutlined';
 import { workspaceNavigationData as copy } from './workspace-navigation.data';
 
 export type WorkspaceNavigationPage = typeof copy.items[number]['id'];
+export type WorkspaceNavigationAuthorizedPage =
+  | WorkspaceNavigationPage
+  | 'estimate-settings';
 export interface WorkspaceNavigationProps {
   workspaceName: string;
   user: { name: string; email: string; role: keyof typeof copy.roles };
@@ -30,19 +33,26 @@ export interface WorkspaceNavigationProps {
   leadsHref?: string;
   customersHref?: string;
   jobsHref?: string;
+  calendarHref?: string;
+  estimatesHref?: string;
+  /** Supply only when the server authorizes the Gantt chart. Omitted means deny. */
+  ganttHref?: string;
   workOrdersHref?: string;
   materialsHref?: string;
   settingsHref?: string;
+  estimateSettingsHref?: string;
   /** Supply only when the server authorizes permissions.read. Omitted means deny. */
   permissionsHref?: string;
   aiUsageHref?: string;
   billingHref?: string;
   accountHref?: string;
   notificationsHref?: string;
-  currentSettingsPage?: 'permissions' | 'ai-usage' | 'billing' | 'account' | 'notifications';
+  jobNotificationsHref?: string;
+  currentCalendarPage?: 'gantt';
+  currentSettingsPage?: 'permissions' | 'ai-usage' | 'billing' | 'account' | 'notifications' | 'job-notifications' | 'estimates';
   availablePages?: readonly WorkspaceNavigationPage[];
   /** Current server-resolved permissions, independent of implemented routes. Omitted means deny. */
-  authorizedPages?: readonly WorkspaceNavigationPage[];
+  authorizedPages?: readonly WorkspaceNavigationAuthorizedPage[];
   accountSettingsAvailable?: boolean;
   signingOut?: boolean;
   /** Optional routing adapter. Without it, links use their native hrefs. */
@@ -54,7 +64,7 @@ const icons = { home: HomeOutlined, intake: InboxOutlined, leads: PeopleOutlined
 const controlClass = 'inline-flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold focus-visible:focus-ring';
 
 /** Visibility reflects current server-supplied capabilities; routes must enforce authorization. */
-export function WorkspaceNavigation({ workspaceName, user, currentPage, contentId, homeHref = '/home', leadsHref = '/leads', customersHref = '/customers', jobsHref = '/jobs', workOrdersHref = '/work-orders', materialsHref = '/materials', settingsHref = '/settings', permissionsHref, aiUsageHref, billingHref, accountHref, notificationsHref, currentSettingsPage, availablePages, authorizedPages = [], accountSettingsAvailable = true, signingOut = false, onNavigate, onAccountSettings, onSignOut }: WorkspaceNavigationProps) {
+export function WorkspaceNavigation({ workspaceName, user, currentPage, contentId, homeHref = '/home', leadsHref = '/leads', customersHref = '/customers', jobsHref = '/jobs', calendarHref = '/calendar', estimatesHref = '/estimates', ganttHref, workOrdersHref = '/work-orders', materialsHref = '/materials', settingsHref = '/settings', estimateSettingsHref, permissionsHref, aiUsageHref, billingHref, accountHref, notificationsHref, jobNotificationsHref, currentCalendarPage, currentSettingsPage, availablePages, authorizedPages = [], accountSettingsAvailable = true, signingOut = false, onNavigate, onAccountSettings, onSignOut }: WorkspaceNavigationProps) {
   const id = useId();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -70,13 +80,20 @@ export function WorkspaceNavigation({ workspaceName, user, currentPage, contentI
       if (availablePages && !availablePages.includes(item.id)) return <button key={item.id} type="button" disabled className={`${controlClass} w-full cursor-not-allowed text-left text-muted`}>
         <Icon className="size-5 shrink-0" aria-hidden="true" /><span className="min-w-0 flex-1">{item.label}</span><span className="text-xs font-normal">{copy.unavailable}</span>
       </button>;
-      return <div key={item.id}><a href={item.id === 'home' ? homeHref : item.id === 'leads' ? leadsHref : item.id === 'customers' ? customersHref : item.id === 'jobs' ? jobsHref : item.id === 'work-orders' ? workOrdersHref : item.id === 'materials' ? materialsHref : item.id === 'settings' ? settingsHref : item.href} aria-current={currentPage === item.id && !(item.id === 'settings' && currentSettingsPage) ? 'page' : undefined}
+      return <div key={item.id}><a href={item.id === 'home' ? homeHref : item.id === 'leads' ? leadsHref : item.id === 'customers' ? customersHref : item.id === 'jobs' ? jobsHref : item.id === 'calendar' ? calendarHref : item.id === 'estimates' ? estimatesHref : item.id === 'work-orders' ? workOrdersHref : item.id === 'materials' ? materialsHref : item.id === 'settings' ? settingsHref : item.href} aria-current={currentPage === item.id && !(item.id === 'settings' && currentSettingsPage) && !(item.id === 'calendar' && currentCalendarPage) ? 'page' : undefined}
         onClick={event => { if (onNavigate) event.preventDefault(); navigate(item.id); }}
-        className={`${controlClass} w-full ${currentPage === item.id ? 'bg-primary text-paper hover:bg-primary-dark' : 'text-muted hover:bg-canvas hover:text-ink'}`}>
+        className={`${controlClass} w-full ${currentPage === item.id && !(item.id === 'calendar' && currentCalendarPage) ? 'bg-primary text-paper hover:bg-primary-dark' : 'text-muted hover:bg-canvas hover:text-ink'}`}>
         <Icon className="size-5 shrink-0" aria-hidden="true" /><span>{item.label}</span>
       </a>
-        {item.id === 'settings' && (permissionsHref || aiUsageHref || billingHref || accountHref || notificationsHref) && <ul className="mb-1 ml-6 mt-1 list-none border-l border-line py-1 pl-3">
-          {([{ id: 'notifications', href: notificationsHref, label: copy.notifications }, { id: 'account', href: accountHref, label: copy.accountPage }, { id: 'billing', href: billingHref, label: copy.billing }, { id: 'permissions', href: permissionsHref, label: copy.permissions }, { id: 'ai-usage', href: aiUsageHref, label: copy.aiUsage }] as const).filter(item => item.href).map(item => <li key={item.id}><a href={item.href} aria-current={currentPage === 'settings' && currentSettingsPage === item.id ? 'page' : undefined}
+        {item.id === 'calendar' && ganttHref && <ul className="mb-1 ml-6 mt-1 list-none border-l border-line py-1 pl-3">
+          <li><a href={ganttHref} aria-current={currentPage === 'calendar' && currentCalendarPage === 'gantt' ? 'page' : undefined}
+            onClick={() => { setMobileOpen(false); setAccountOpen(false); }}
+            className={`${controlClass} w-full ${currentPage === 'calendar' && currentCalendarPage === 'gantt' ? 'bg-canvas text-primary' : 'text-muted hover:bg-canvas hover:text-ink'}`}>
+            {copy.ganttChart}
+          </a></li>
+        </ul>}
+        {item.id === 'settings' && (permissionsHref || aiUsageHref || billingHref || accountHref || notificationsHref || jobNotificationsHref || estimateSettingsHref) && <ul className="mb-1 ml-6 mt-1 list-none border-l border-line py-1 pl-3">
+          {([{ id: 'job-notifications', href: jobNotificationsHref, label: copy.jobNotifications }, { id: 'notifications', href: notificationsHref, label: copy.notifications }, { id: 'account', href: accountHref, label: copy.accountPage }, { id: 'billing', href: billingHref, label: copy.billing }, { id: 'permissions', href: permissionsHref, label: copy.permissions }, { id: 'ai-usage', href: aiUsageHref, label: copy.aiUsage }, { id: 'estimates', href: estimateSettingsHref, label: copy.estimateSettings }] as const).filter(item => item.href).map(item => <li key={item.id}><a href={item.href} aria-current={currentPage === 'settings' && currentSettingsPage === item.id ? 'page' : undefined}
             onClick={() => { setMobileOpen(false); setAccountOpen(false); }}
             className={`${controlClass} w-full ${currentPage === 'settings' && currentSettingsPage === item.id ? 'bg-canvas text-primary' : 'text-muted hover:bg-canvas hover:text-ink'}`}>
             {item.label}
@@ -115,8 +132,8 @@ export function WorkspaceNavigation({ workspaceName, user, currentPage, contentI
           <ExpandMoreOutlined aria-hidden="true" className={`size-5 shrink-0 ${accountOpen ? 'rotate-180' : ''}`} />
         </button>
         <div id={`${id}-account`} hidden={!accountOpen} className="mt-2 rounded-xl border border-line p-2">
-          <button type="button" disabled={!accountSettingsAvailable} onClick={() => {setAccountOpen(false); accountButton.current?.focus(); onAccountSettings();}} className={`${controlClass} w-full text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:text-muted`}><ManageAccountsOutlined className="size-5 shrink-0" aria-hidden="true" />{copy.accountSettings}{!accountSettingsAvailable && <span className="ml-auto text-xs font-normal">{copy.unavailable}</span>}</button>
-          <button type="button" disabled={signingOut} aria-busy={signingOut} onClick={() => {onSignOut();}} className={`${controlClass} w-full text-ink hover:bg-canvas`}><LogoutOutlined className="size-5 shrink-0" aria-hidden="true" />{signingOut ? copy.signingOut : copy.signOut}</button>
+          <button type="button" data-workspace-action="account-settings" disabled={!accountSettingsAvailable} onClick={() => {setAccountOpen(false); accountButton.current?.focus(); onAccountSettings();}} className={`${controlClass} w-full text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:text-muted`}><ManageAccountsOutlined className="size-5 shrink-0" aria-hidden="true" />{copy.accountSettings}{!accountSettingsAvailable && <span className="ml-auto text-xs font-normal">{copy.unavailable}</span>}</button>
+          <button type="button" data-workspace-action="sign-out" disabled={signingOut} aria-busy={signingOut} onClick={() => {onSignOut();}} className={`${controlClass} w-full text-ink hover:bg-canvas`}><LogoutOutlined className="size-5 shrink-0" aria-hidden="true" />{signingOut ? copy.signingOut : copy.signOut}</button>
         </div>
       </div>
     </div>

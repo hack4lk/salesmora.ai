@@ -1,6 +1,6 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
-import { createFileStore, createStorageAdapter, FileStorageError } from '@salesmora/data';
+import { type FileRecord, createFileStore, createStorageAdapter, FileStorageError } from '@salesmora/data';
 import { getSession } from '../../../../../server/auth/session';
 import { database } from '../../../../../server/workspaces/store';
 import { AuthorizationAccessError } from '@salesmora/data';
@@ -60,7 +60,7 @@ export async function GET(
       .select('f.*', 'u.name as uploaderName');
 
     // Transform to WorkOrderPhoto format (reusing type)
-    const files = fileRecords.map((row: any) => {
+    const files = fileRecords.map((row: FileRecord & {uploaderName:string|null}) => {
       const isImage = row.mimeType?.startsWith('image/');
       return {
         id: row.id,

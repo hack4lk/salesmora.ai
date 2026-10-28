@@ -35,7 +35,7 @@ export async function renderWorkOrdersPage(params: Record<string, string | strin
     const detail = workOrderId ? await readWorkOrderDetail(database(), identity, enabledPermissions, workOrderId) : undefined;
     return <WorkspaceShell currentPage="work-orders" workspaceId={workspace.id} workspaceName={workspace.businessName}
       user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} authorizedPages={workspaceNavigationPages(context)}
-      permissionsAvailable={capabilities.permissions} billingAvailable={capabilities.billing} assistantAvailable={capabilities.assistant}
+      jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} billingAvailable={capabilities.billing} assistantAvailable={capabilities.assistant}
       chatEnabled={chatRuntimeAvailable()} chatSurface={workOrderId ? "work_order.detail" : "work_order.list"} contentWidth="full" onSignOut={signOut}>
       <WorkOrdersRoute key={`${workspace.id}:${workOrderId ?? "list"}`} workspaceId={workspace.id} field={context.membership.role === "field"} initial={initial} initialQuery={query} initialDetail={detail} createForJobId={typeof params.newForJob === "string" && workOrderIdSchema.safeParse(params.newForJob).success ? params.newForJob : undefined} />
     </WorkspaceShell>;

@@ -1,0 +1,26 @@
+export const estimateEmailData = {
+  heading: "Your estimate is ready",
+  greeting: (name: string) => `Hello ${name},`,
+  introduction: (business: string) => `${business} has prepared the estimate below for your review.`,
+  number: "Estimate", name: "Description", total: "Estimate total", validUntil: "Valid through",
+  action: "View estimate", reply: "Reply to this email if you have questions.",
+  privacy: "Anyone holding this link can view the estimate until it expires or is revoked. Keep it private.",
+  boundary: "Viewing this estimate does not accept it.",
+  fallback: "If the button does not work, copy and paste this link into your browser:",
+  attribution: "This estimate was created in SalesMora.ai.",
+  learnMore: "Learn more",
+  learnMoreURL: "https://salesmora.ai",
+  payment: {
+    action: "Pay Now",
+    link: "Payment link",
+  },
+  logoCid: "cid:salesmora-logo",
+  stories: {
+    title: "Estimate email", replyToLabel: "Reply-to", frame: "Estimate email preview",
+    notice: "Fictional preview only. No email is sent.",
+    subject: "Estimate EST-2048 from Harbor Home Services",
+    businessName: "Harbor Home Services", replyTo: "estimates@example.test", recipientName: "Jordan Lee",
+    number: "EST-2048", name: "Kitchen remodel estimate", totalCents: 94793, validUntil: "2026-11-18",
+    baseURL: "http://127.0.0.1:3000", token: "A".repeat(43), logo: "/branding/salesmora-email-logo.png",
+  },
+} as const;

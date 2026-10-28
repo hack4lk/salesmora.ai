@@ -7,7 +7,7 @@ export { salesmoraTheme } from './styles/theme';
 export { SubmitButton, type SubmitButtonProps } from './forms/submit-button/submit-button';
 export { TermsAcceptance, type TermsAcceptanceProps } from './forms/terms-acceptance/terms-acceptance';
 export { FormFeedback, type FormFeedbackProps } from './forms/form-feedback/form-feedback';
-export { WorkspaceNavigation, type WorkspaceNavigationProps, type WorkspaceNavigationPage } from './layout/workspace-navigation/workspace-navigation';
+export { WorkspaceNavigation, type WorkspaceNavigationAuthorizedPage, type WorkspaceNavigationProps, type WorkspaceNavigationPage } from './layout/workspace-navigation/workspace-navigation';
 export { ArrowForwardOutlined } from './icons';
 export { SearchOutlined, AddOutlined, FileDownloadOutlined, ViewListOutlined, ViewKanbanOutlined, CheckBoxOutlined, CheckBoxOutlineBlankOutlined } from './icons';
 export { MoreHorizOutlined } from './icons';
@@ -27,6 +27,8 @@ export { DragIndicatorOutlined } from './icons';
 export { HomeOutlined } from './icons';
 export { NotificationsNoneOutlined } from './icons';
 export { CloseOutlined } from './icons';
+export { CheckCircleOutlined } from './icons';
+export { ErrorOutlined } from './icons';
 
 export { ContextChip, type ContextChipProps } from './assistant/context-chip/context-chip';
 export { LeadStageDraftCard, type LeadStageProposal, type LeadStageDraftCardProps } from './assistant/lead-stage-draft-card/lead-stage-draft-card';
@@ -49,8 +51,13 @@ export { LeadDetailsCard, type LeadDetailsResult, type LeadDetailsCardProps } fr
 export { LeadActivityCard, type LeadActivityEntry, type LeadActivityResult, type LeadActivityCardProps } from './assistant/lead-activity-card/lead-activity-card';
 
 export { MetricCard, type MetricCardProps } from './data-display/metric-card/metric-card';
+export { MoneyText, formatMoney, type MoneyTextProps } from './data-display/money-text/money-text';
 export { CustomerDraftCard, type CustomerDraftCardProps, type CustomerDraftProposal, type CustomerDraftAction, type CustomerDraftState } from './assistant/customer-draft-card/customer-draft-card';
 export { RecordResultsCard, type AssistantRecordResult } from './assistant/record-results-card/record-results-card';
 export { CandidatePicker } from './assistant/candidate-picker/candidate-picker';
 export { CustomerExportDraftCard } from './assistant/customer-export-draft-card/customer-export-draft-card';
 export { WorkOrderDraftCard, type WorkOrderDraftCardProps, type WorkOrderDraftProposal, type WorkOrderDraftAction, type WorkOrderDraftState } from './assistant/work-order-draft-card/work-order-draft-card';
+export { EstimateDraftCard, EstimateDraftContentReview, type EstimateDraftCardProps } from './assistant/estimate-draft-card/estimate-draft-card';
+export { reviewEstimateDraftContent } from './assistant/estimate-draft-card/estimate-draft-card.preview';
+export { reviewAssistantProposalWindow } from './assistant/proposal-review';
+export type { EstimateDraftContent, EstimateDraftContext, EstimateDraftDecisionRequest, EstimateDraftGrants, EstimateDraftLine, EstimateDraftOperationResult, EstimateDraftParent, EstimateDraftPriceSource, EstimateDraftProposal, EstimateDraftRequest, EstimateDraftState } from './assistant/estimate-draft-card/estimate-draft-card.types';

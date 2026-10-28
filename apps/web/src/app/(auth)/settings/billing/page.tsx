@@ -65,7 +65,7 @@ export default async function BillingSettingsPage({
       currentPage="settings"
       currentSettingsPage="billing"
       billingAvailable={capabilities.billing}
-      permissionsAvailable={capabilities.permissions}
+      jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt}
       authorizedPages={workspaceNavigationPages(context)}
       assistantAvailable={capabilities.assistant}
       contentWidth="full"

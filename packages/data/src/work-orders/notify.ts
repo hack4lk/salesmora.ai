@@ -26,7 +26,7 @@ export async function notifyWorkOrderChange(trx: Knex.Transaction, context: Auth
       if (open) wants.push({ event: "assigned", users: next.filter(id => !current.includes(id)) });
       break;
     }
-    case "schedule": if (open) wants.push({ event: "rescheduled", users: current }); break;
+    case "schedule": break; // Combined visit notifications own schedule delivery.
     case "edit": case "tasks": case "materials":
       if (editsChangeIssuedContent(row.status)) wants.push({ event: "changed", users: current });
       break;

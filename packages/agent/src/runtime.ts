@@ -16,6 +16,7 @@ import {
   type HelpSource,
   type ChatActionReview,
   type LeadOperationId,
+  isLeadOperation,
 } from "@salesmora/contracts";
 import {
   isImplementedTool,
@@ -59,6 +60,16 @@ export interface RuntimeDependencies {
       | { type: "text"; text: string },
   ) => Promise<void>;
 }
+function requestOperation(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || !("request" in value)) {
+    return undefined;
+  }
+  const request = value.request;
+  if (!request || typeof request !== "object" || !("operation" in request)) {
+    return undefined;
+  }
+  return typeof request.operation === "string" ? request.operation : undefined;
+}
 /** Bounded read/draft graph. No commit capability. Checkpoints contain execution IDs/phases, never transcripts or tool data. */
 export async function runConversation(
   input: {
@@ -70,7 +81,18 @@ export async function runConversation(
   deps: RuntimeDependencies,
 ) {
   let customerResult: CustomerChatResult | undefined;
+  let calendarProposal: import("@salesmora/contracts").CalendarProposalTicket | undefined;
+  let calendarResult: import("@salesmora/contracts").CalendarChatResult | undefined;
   let workOrderResult: import("@salesmora/contracts").WorkOrderChatResult | undefined;
+  let estimateResult: import("@salesmora/contracts").EstimateChatResult | undefined;
+  let estimateDraft: import("@salesmora/contracts").EstimateDraftChatView | undefined;
+  let estimateSharing: import("@salesmora/contracts").EstimateShareChatTicket | undefined;
+  let estimateDecision: import("@salesmora/contracts").EstimateDecisionChatTicket | undefined;
+  let estimateDraftAction: import("@salesmora/contracts").EstimateDraftActionChatTicket | undefined;
+  let estimateVoid: import("@salesmora/contracts").EstimateVoidChatTicket | undefined;
+  let estimateArchive: import("@salesmora/contracts").EstimateArchiveChatTicket | undefined;
+  let estimateDraftDelete: import("@salesmora/contracts").EstimateDraftDeleteChatTicket | undefined;
+  let estimateConversion: import("@salesmora/contracts").EstimateConversionChatTicket | undefined;
   let calls: RuntimeCall[] = [];
   const evidence: unknown[] = [];
   let sources: HelpSource[] = [];
@@ -137,25 +159,21 @@ export async function runConversation(
             call.name === "leads_query" ||
             call.name === "leads_propose_action"
           ) {
-            const operation = ("request" in args ? args.request : undefined)
-              ?.operation as LeadOperationId | undefined;
+            const operation = requestOperation(args);
+            if (!isLeadOperation(operation)) throw Error("Access denied.");
             await deps.authorize(call.name, operation);
-            if (
-              !operation ||
-              !((await deps.leadOperations?.()) ?? []).includes(operation)
-            )
+            if (!((await deps.leadOperations?.()) ?? []).includes(operation))
               throw Error("Access denied.");
           }
           if (
             call.name === "customers_query" ||
             call.name === "customers_propose_action"
           ) {
-            const op = ("request" in args ? args.request : undefined)
-              ?.operation;
+            const op = requestOperation(args);
             if (
               !op ||
-              !((await deps.customerOperations?.()) ?? []).includes(
-                op as CustomerOperationId,
+              !((await deps.customerOperations?.()) ?? []).some(
+                (available) => available === op,
               )
             )
               throw Error("Access denied.");
@@ -169,6 +187,17 @@ export async function runConversation(
           }
           customerResult = result.customerResult ?? customerResult;
           workOrderResult = result.workOrderResult ?? workOrderResult;
+          calendarProposal = result.calendarProposal ?? calendarProposal;
+          calendarResult = result.calendarResult ?? calendarResult;
+          estimateResult = result.estimateResult ?? estimateResult;
+          estimateDraft = result.estimateDraft ?? estimateDraft;
+          estimateSharing = result.estimateSharing ?? estimateSharing;
+          estimateDecision = result.estimateDecision ?? estimateDecision;
+          estimateDraftAction = result.estimateDraftAction ?? estimateDraftAction;
+          estimateVoid = result.estimateVoid ?? estimateVoid;
+          estimateArchive = result.estimateArchive ?? estimateArchive;
+          estimateDraftDelete = result.estimateDraftDelete ?? estimateDraftDelete;
+          estimateConversion = result.estimateConversion ?? estimateConversion;
           action = result.action ?? action;
           searchResult = result.searchResult ?? searchResult;
           historyResult = result.historyResult ?? historyResult;
@@ -229,5 +258,16 @@ export async function runConversation(
     historyResult,
     customerResult,
     workOrderResult,
+    calendarResult,
+    calendarProposal,
+    estimateResult,
+    estimateDraft,
+    estimateSharing,
+    estimateDecision,
+    estimateDraftAction,
+    estimateVoid,
+    estimateArchive,
+    estimateDraftDelete,
+    estimateConversion,
   };
 }

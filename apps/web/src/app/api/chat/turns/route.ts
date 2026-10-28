@@ -112,6 +112,17 @@ export async function POST(request: Request) {
         };
         let customerResult;
         let workOrderResult;
+        let calendarResult;
+        let calendarProposal;
+        let estimateResult;
+        let estimateDraft;
+        let estimateSharing;
+        let estimateDecision;
+        let estimateDraftAction;
+        let estimateVoid;
+        let estimateArchive;
+        let estimateDraftDelete;
+        let estimateConversion;
         let proposedAction;
         let searchResult;
         let historyResult;
@@ -162,6 +173,17 @@ export async function POST(request: Request) {
             );
             customerResult = result.customerResult;
             workOrderResult = result.workOrderResult;
+            calendarResult = result.calendarResult;
+            calendarProposal = result.calendarProposal;
+            estimateResult = result.estimateResult;
+            estimateDraft = result.estimateDraft;
+            estimateSharing = result.estimateSharing;
+            estimateDecision = result.estimateDecision;
+            estimateDraftAction = result.estimateDraftAction;
+            estimateVoid = result.estimateVoid;
+            estimateArchive = result.estimateArchive;
+            estimateDraftDelete = result.estimateDraftDelete;
+            estimateConversion = result.estimateConversion;
             proposedAction = result.action;
             searchResult = result.searchResult;
             detailsResult = result.detailsResult;
@@ -211,6 +233,8 @@ export async function POST(request: Request) {
               result: customerResult,
             });
           }
+          if (calendarProposal) { await validateTurnEvidence(identity,turn.id);send({ type:"calendar.proposal",messageId:turn.messageId,result:calendarProposal }); }
+          if (calendarResult) { await validateTurnEvidence(identity, turn.id); send({ type: "calendar.result", messageId: turn.messageId, result: calendarResult }); }
           if (workOrderResult) {
             await validateTurnEvidence(identity, turn.id);
             send({
@@ -225,6 +249,46 @@ export async function POST(request: Request) {
               messageId: turn.messageId,
               action: proposedAction,
             });
+          if (estimateResult) {
+            await validateTurnEvidence(identity, turn.id);
+            send({
+              type: "estimates.result",
+              messageId: turn.messageId,
+              result: estimateResult,
+            });
+          }
+          if (estimateDraft) {
+            await validateTurnEvidence(identity, turn.id);
+            send({ type: "estimates.draft", messageId: turn.messageId, result: estimateDraft });
+          }
+          if (estimateSharing) {
+            await validateTurnEvidence(identity, turn.id);
+            send({ type: "estimates.sharing", messageId: turn.messageId, result: estimateSharing });
+          }
+          if (estimateDraftAction) {
+            await validateTurnEvidence(identity, turn.id);
+            send({ type: "estimates.draft_action", messageId: turn.messageId, result: estimateDraftAction });
+          }
+          if (estimateVoid) {
+            await validateTurnEvidence(identity, turn.id);
+            send({ type: "estimates.void", messageId: turn.messageId, result: estimateVoid });
+          }
+          if (estimateArchive) {
+            await validateTurnEvidence(identity, turn.id);
+            send({ type: "estimates.archive", messageId: turn.messageId, result: estimateArchive });
+          }
+          if (estimateDraftDelete) {
+            await validateTurnEvidence(identity, turn.id);
+            send({ type: "estimates.draft_delete", messageId: turn.messageId, result: estimateDraftDelete });
+          }
+          if (estimateConversion) {
+            await validateTurnEvidence(identity, turn.id);
+            send({ type: "estimates.convert", messageId: turn.messageId, result: estimateConversion });
+          }
+          if (estimateDecision) {
+            await validateTurnEvidence(identity, turn.id);
+            send({ type: "estimates.decision", messageId: turn.messageId, result: estimateDecision });
+          }
           send({ type: "turn.completed", messageId: turn.messageId });
         } catch (error) {
           const reason = abort.signal.reason;

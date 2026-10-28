@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { MemorySaver } from '@langchain/langgraph';
 import { runConversation, type ConversationModel, type RuntimeDependencies } from './runtime';
-import { AIBudgetExceededError } from '@salesmora/contracts';
+import { AIBudgetExceededError, type EstimateDraftChatView } from '@salesmora/contracts';
 const turnId = '00000000-0000-4000-8000-000000000001';
 const input = () => ({ turnId, surface: 'home' as const, messages: [{ role: 'user' as const, text: 'Fictional private question' }], signal: new AbortController().signal });
 function fixture() {
@@ -10,6 +10,135 @@ function fixture() {
   return { model, checkpointer, authorize: vi.fn<RuntimeDependencies['authorize']>(async () => ['search_help']), executeTool: vi.fn<RuntimeDependencies['executeTool']>(async () => ({ evidence: { type: 'untrusted-help-reference', matches: [] }, sources: [] })), rememberSources: vi.fn(async () => {}), emit: vi.fn<RuntimeDependencies['emit']>(async () => {}) };
 }
 describe('bounded conversation graph', () => {
+  it('prepares Void without checkpointing the private reason or compact ticket', async () => {
+    const deps = fixture();
+    const ticket = {
+      id: turnId, actionType: 'estimate.void' as const, state: 'pending' as const,
+      inputHash: 'a'.repeat(64), reviewHash: 'b'.repeat(64), authorizationVersion: 'c'.repeat(64), snapshotHash: 'd'.repeat(64),
+      createdAt: '2026-10-27T12:00:00.000Z', expiresAt: '2026-10-27T12:15:00.000Z',
+      estimate: { id: turnId, version: 3, number: 'EST-2048', revision: 1, name: 'PRIVATE_VOID_SOURCE',
+        status: 'published' as const, archived: false as const },
+    };
+    deps.authorize.mockResolvedValue(['estimates_propose_action']);
+    deps.model.plan = async () => [{ name: 'estimates_propose_action', args: {
+      request: { operation: 'void', estimateRef: 'EST-2048', reason: 'PRIVATE_VOID_REASON' },
+    } }];
+    deps.executeTool.mockResolvedValue({ evidence: { withdrawn: false }, estimateVoid: ticket });
+    expect((await runConversation(input(), deps)).estimateVoid).toEqual(ticket);
+    expect(deps.executeTool).toHaveBeenCalledOnce();
+    const checkpoint = JSON.stringify(await deps.checkpointer.getTuple({ configurable: { thread_id: turnId } }));
+    expect(checkpoint).not.toContain('PRIVATE_VOID_SOURCE');
+    expect(checkpoint).not.toContain('PRIVATE_VOID_REASON');
+  });
+  it("prepares Archive/Restore without a commit tool or checkpointing private review data", async () => {
+    const deps = fixture();
+    const ticket = {
+      id: turnId, actionType: "estimate.archive" as const, state: "pending" as const,
+      inputHash: "a".repeat(64), reviewHash: "b".repeat(64), authorizationVersion: "c".repeat(64),
+      createdAt: "2026-10-27T12:00:00.000Z", expiresAt: "2026-10-27T12:15:00.000Z",
+      estimate: { id: turnId, version: 3, number: "EST-2048", revision: 1, name: "PRIVATE_ARCHIVE_SOURCE",
+        status: "declined" as const, archived: false },
+    };
+    deps.authorize.mockResolvedValue(["estimates_propose_action"]);
+    deps.model.plan = async () => [{ name: "estimates_propose_action", args: {
+      request: { operation: "archive", estimateRef: "EST-2048" },
+    } }];
+    deps.executeTool.mockResolvedValue({ evidence: { saved: false }, estimateArchive: ticket });
+    expect((await runConversation(input(), deps)).estimateArchive).toEqual(ticket);
+    expect(deps.executeTool).toHaveBeenCalledOnce();
+    expect(JSON.stringify(await deps.checkpointer.getTuple({ configurable: { thread_id: turnId } })))
+      .not.toContain("PRIVATE_ARCHIVE_SOURCE");
+  });
+  it.each(['revise', 'duplicate'] as const)('prepares %s without a commit tool or checkpointed copied content', async operation => {
+    const deps = fixture();
+    const ticket = {
+      id: turnId, actionType: `estimate.${operation}` as const, state: 'pending' as const,
+      inputHash: 'a'.repeat(64), reviewHash: 'b'.repeat(64), authorizationVersion: 'c'.repeat(64),
+      createdAt: '2026-10-27T12:00:00.000Z', expiresAt: '2026-10-27T12:15:00.000Z',
+      source: { id: turnId, version: 3, number: 'EST-2048', revision: 1, name: 'PRIVATE_SOURCE_NAME',
+        status: 'published' as const, archived: false },
+      plan: { kind: 'create' as const, revision: operation === 'duplicate' ? 1 : 2, existingDraft: null },
+    };
+    deps.authorize.mockResolvedValue(['estimates_propose_action']);
+    deps.model.plan = async () => [{ name: 'estimates_propose_action', args: { request: { operation, estimateRef: 'EST-2048' } } }];
+    deps.executeTool.mockResolvedValue({ evidence: { saved: false }, estimateDraftAction: ticket });
+    expect((await runConversation(input(), deps)).estimateDraftAction).toEqual(ticket);
+    expect(deps.executeTool).toHaveBeenCalledOnce();
+    expect(JSON.stringify(await deps.checkpointer.getTuple({ configurable: { thread_id: turnId } }))).not.toContain('PRIVATE_SOURCE_NAME');
+  });
+  it.each(['decision', 'correct-decision'] as const)('prepares %s without a commit tool or checkpointed decision content', async operation => {
+    const deps = fixture();
+    const ticket = {
+      id: turnId, actionType: 'estimate.decision' as const, mode: operation === 'decision' ? 'record' as const : 'correct' as const,
+      state: 'pending' as const, inputHash: 'a'.repeat(64), authorizationVersion: 'b'.repeat(64), snapshotHash: 'c'.repeat(64),
+      createdAt: '2026-10-26T18:00:00.000Z', expiresAt: '2026-10-26T18:15:00.000Z',
+      estimate: { id: turnId, version: 3, number: 'EST-2048', revision: 1, name: 'PRIVATE_DECISION_SUMMARY',
+        status: operation === 'decision' ? 'sent' as const : 'accepted' as const, archived: false, totalCents: 10000 },
+    };
+    deps.authorize.mockResolvedValue(['estimates_propose_action']);
+    deps.model.plan = async () => [{ name: 'estimates_propose_action', args: { request: {
+      operation, estimateRef: 'EST-2048', outcome: 'declined', decisionDate: '2026-10-26', channel: 'phone',
+      note: 'PRIVATE_DECISION_NOTE', reason: operation === 'correct-decision' ? 'PRIVATE_REASON' : null,
+    } } }];
+    deps.executeTool.mockResolvedValue({ evidence: { recorded: false }, estimateDecision: ticket });
+    expect((await runConversation(input(), deps)).estimateDecision).toEqual(ticket);
+    expect(deps.executeTool).toHaveBeenCalledOnce();
+    const checkpoint = JSON.stringify(await deps.checkpointer.getTuple({ configurable: { thread_id: turnId } }));
+    for (const value of ['PRIVATE_DECISION_SUMMARY', 'PRIVATE_DECISION_NOTE', 'PRIVATE_REASON']) expect(checkpoint).not.toContain(value);
+  });
+  it.each(['send', 'publish', 'resend'] as const)('prepares %s review without committing or checkpointing its private summary', async operation => {
+    const deps = fixture();
+    const ticket = {
+      id: turnId, actionType: `estimate.${operation}` as const, state: 'pending' as const,
+      inputHash: 'a'.repeat(64), authorizationVersion: 'b'.repeat(64), snapshotHash: 'c'.repeat(64),
+      createdAt: '2026-10-26T18:00:00.000Z', expiresAt: '2026-10-26T18:15:00.000Z', requiresDialog: operation !== 'send',
+      estimate: { id: turnId, version: 1, number: 'EST-2048', revision: 1, name: 'PRIVATE_SHARING_SUMMARY',
+        status: operation === 'resend' ? 'sent' as const : 'draft' as const, archived: false, totalCents: 10000, validUntil: '2026-11-21' },
+    };
+    deps.authorize.mockResolvedValue(['estimates_propose_action']);
+    deps.model.plan = async () => [{ name: 'estimates_propose_action', args: { request: { operation, estimateRef: 'EST-2048' } } }];
+    deps.executeTool.mockResolvedValue({ evidence: { shared: false, emailQueued: false }, estimateSharing: ticket });
+    expect((await runConversation(input(), deps)).estimateSharing).toEqual(ticket);
+    expect(deps.executeTool).toHaveBeenCalledOnce();
+    expect(JSON.stringify(await deps.checkpointer.getTuple({ configurable: { thread_id: turnId } }))).not.toContain('PRIVATE_SHARING_SUMMARY');
+  });
+  it('prepares Estimate Draft review without a commit tool or checkpointed proposal contents', async () => {
+    const deps = fixture();
+    const proposed = { name: 'PRIVATE_ESTIMATE_PROPOSAL', scope: '', message: '', termsNote: '', paymentTerms: '',
+      validUntil: '', discount: { type: 'none' as const }, taxRate: '0', deposit: { type: 'none' as const }, items: [] };
+    const view: EstimateDraftChatView = {
+      draft: { id: turnId, actionType: 'estimate.create', state: 'pending', inputHash: 'a'.repeat(64),
+        authorizationVersion: 'b'.repeat(64), createdAt: '2026-10-26T18:00:00Z', expiresAt: '2026-10-26T18:15:00Z',
+        parent: { type: 'job', id: turnId, number: 'J-1024', name: 'Repair', version: 1 }, proposed },
+      context: { proposalId: turnId, inputHash: 'a'.repeat(64), authorizationVersion: 'b'.repeat(64),
+        parent: { type: 'job', id: turnId, version: 1 }, estimate: null },
+      grants: { read: true, parentAccess: true, create: true, update: false }, canConfirm: true, receipt: null,
+    };
+    deps.authorize.mockResolvedValue(['estimates_propose_action']);
+    deps.model.plan = async () => [{ name: 'estimates_propose_action', args: { request: {
+      operation: 'create', parentType: 'job', parentRef: turnId, estimateRef: null,
+      changes: { name: proposed.name, scope: null, message: null, paymentTerms: null, termsNote: null,
+        validUntil: null, discount: null, taxRate: null, deposit: null, items: null },
+    } } }];
+    deps.executeTool.mockResolvedValue({ evidence: { saved: false }, estimateDraft: view });
+    expect((await runConversation(input(), deps)).estimateDraft).toEqual(view);
+    expect(deps.executeTool).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(await deps.checkpointer.getTuple({ configurable: { thread_id: turnId } }))).not.toContain(proposed.name);
+  });
+  it('returns typed Estimate summaries without persisting record payloads in graph checkpoints', async () => {
+    const deps = fixture();
+    const result = { turnId, operation: 'list' as const, summaries: [{
+      id: turnId, queryLabel: 'PRIVATE_ESTIMATE_SUMMARY', scope: 'workspace' as const,
+      filterLabels: [], dateRange: null, retrievedAt: '2026-10-26T18:00:00.000Z',
+      timezone: 'UTC', totalMatches: 0, totalCents: 0, rows: [], canOpenList: true, canReviewExport: false,
+    }] };
+    deps.authorize.mockResolvedValue(['estimates_query']);
+    deps.model.plan = async () => [{ name: 'estimates_query', args: { request: { operation: 'list', input: { useCurrentFilters: false } } } }];
+    deps.executeTool.mockResolvedValue({ evidence: { untrusted: true }, estimateResult: result });
+    const completed = await runConversation(input(), deps);
+    expect(completed.estimateResult).toEqual(result);
+    expect(JSON.stringify(await deps.checkpointer.getTuple({ configurable: { thread_id: turnId } }))).not.toContain('PRIVATE_ESTIMATE_SUMMARY');
+  });
   it.each(['plan', 'tool', 'answer'])('preserves a safe allowance denial in %s without releasing text', async phase => {
     const deps = fixture();
     if (phase === 'plan') deps.model.plan = async () => { throw new AIBudgetExceededError(); };

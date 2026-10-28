@@ -30,6 +30,7 @@ export async function* readChatStream(body: ReadableStream<Uint8Array>): AsyncGe
       runId = event.runId; turnId = event.turnId; messageId = event.messageId;
     } else if (event.type === 'turn.accepted') throw new Error('Duplicate chat acceptance');
     if ('messageId' in event && event.messageId !== messageId) throw new Error('Unexpected chat message');
+    if (event.type === 'estimates.result' && event.result.turnId !== turnId) throw new Error('Unexpected Estimate result turn');
     sequence = event.sequence;
     terminal = event.type === 'turn.completed' || event.type === 'turn.failed' || event.type === 'turn.cancelled';
     return event;

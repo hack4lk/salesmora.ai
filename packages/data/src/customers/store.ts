@@ -303,6 +303,13 @@ async function record(
   if (!row) throw new AuthorizationAccessError();
   return row;
 }
+export async function readCustomerRecordInTransaction(
+  trx: Knex.Transaction,
+  context: AuthorizationContext,
+  id: string,
+) {
+  return dto(await record(trx, context, id));
+}
 function leadDTO(row: {
   id: string;
   leadNumber: number;

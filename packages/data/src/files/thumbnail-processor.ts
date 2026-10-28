@@ -32,7 +32,7 @@ export async function generateThumbnail(
 
     const thumbnail = await sharp(imageBytes)
       .rotate() // auto-rotate based on EXIF
-      .resize(opts.width, opts.height, { fit: opts.fit as any, withoutEnlargement: true })
+      .resize(opts.width, opts.height, { fit: opts.fit, withoutEnlargement: true })
       .webp({ quality: 80 })
       .toBuffer();
 

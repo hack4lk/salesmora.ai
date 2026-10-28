@@ -16,11 +16,12 @@ export type LeadDetailHeaderProps = {
   onRequestRestore?: (lead: LeadHeaderRecord) => void;
   /** Requests typed confirmation; never deletes directly. */
   onRequestDelete?: (lead: LeadHeaderRecord) => void;
+  onCreateEstimate?: () => void;
 };
 const tones: Record<LeadHeaderRecord['stage'], StatusBadgeTone> = { new: 'neutral', contacted: 'info', 'estimate-sent': 'warning', won: 'success', lost: 'error' };
 const button = 'min-h-11 cursor-pointer rounded-xl border px-4 py-3 text-sm font-semibold focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50';
 
-export function LeadDetailHeader({ lead, permissions, backHref, now, timezone, pending = false, onEdit, onRequestArchive, onRequestRestore, onRequestDelete }: LeadDetailHeaderProps) {
+export function LeadDetailHeader({ lead, permissions, backHref, now, timezone, pending = false, onEdit, onRequestArchive, onRequestRestore, onRequestDelete, onCreateEstimate }: LeadDetailHeaderProps) {
   const id = useId();
   const created = createLeadDateFormatter(now, timezone)(lead.createdAt);
   const relative = !created ? copy.dateUnavailable : created.age === 0 ? copy.today : created.age === 1 ? copy.yesterday : created.age > 1 ? copy.daysAgo(created.age) : created.displayDate;
@@ -41,7 +42,9 @@ export function LeadDetailHeader({ lead, permissions, backHref, now, timezone, p
       </div>
       <div role="group" aria-label={copy.record} className="flex min-w-0 flex-wrap items-center gap-3 lg:max-w-lg lg:justify-end">
         {permissions.canEdit && onEdit && <button type="button" disabled={pending} onClick={() => { if (!pending && permissions.canEdit) onEdit(lead); }} className={`${button} border-primary bg-primary text-white hover:bg-primary-dark`}>{copy.edit}</button>}
-        {permissions.canCreateEstimate && unavailable(copy.estimate, copy.comingSoon, true)}
+        {!lead.archived && permissions.canCreateEstimate && (onCreateEstimate
+          ? <button type="button" disabled={pending} onClick={() => { if (!pending) onCreateEstimate(); }} className={`${button} border-line bg-paper text-primary hover:bg-canvas`}>{copy.estimate}</button>
+          : unavailable(copy.estimate, copy.comingSoon, true))}
         {!lead.archived && permissions.canArchive && onRequestArchive && <button type="button" disabled={pending} onClick={() => { if (!pending && permissions.canArchive) onRequestArchive(lead); }} className={`${button} border-line bg-paper text-muted hover:bg-canvas`}>{copy.archive}</button>}
         {lead.archived && permissions.canRestore && onRequestRestore && <button type="button" disabled={pending} onClick={() => { if (!pending && permissions.canRestore) onRequestRestore(lead); }} className={`${button} border-line bg-paper text-primary hover:bg-canvas`}>{copy.restore}</button>}
         {permissions.canDelete && onRequestDelete && (lead.stage === 'won' ? unavailable(copy.remove, copy.wonDelete) : <button type="button" disabled={pending} onClick={() => { if (!pending && permissions.canDelete && lead.stage !== 'won') onRequestDelete(lead); }} className={`${button} border-error/30 bg-paper text-red-800 hover:bg-error/10`}>{copy.remove}</button>)}

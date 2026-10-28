@@ -21,7 +21,7 @@ if (
 
 async function rehearsal() {
   const db = createDatabase(connection);
-  let storage: any;
+  let storage: ReturnType<typeof createStorageAdapter> | undefined;
 
   try {
     // Create test workspace and user
@@ -164,7 +164,7 @@ async function rehearsal() {
     console.error('❌ Rehearsal failed:', error);
     process.exit(1);
   } finally {
-    storage.close();
+    storage?.close();
     await db.destroy();
   }
 }

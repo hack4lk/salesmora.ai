@@ -1,0 +1,23 @@
+export const estimateScopeCardData = {
+  title: "Scope and assumptions",
+  label: "Work scope",
+  optionalLabel: "Work scope (optional)",
+  description: "Shown on the customer estimate. Keep staff-only details in the separate Internal notes card.",
+  readOnly: "Only authorized drafts can be edited. This scope is read-only.",
+  hint: "Describe included work, site conditions, material allowances and exclusions.",
+  limit: 5000,
+  count: (count: number) => `${count.toLocaleString("en-US")} / 5,000 characters`,
+  tooLong: "Keep scope and assumptions to 5,000 characters or fewer.",
+  notProvided: "Not provided",
+  stories: {
+    notice: "Component preview: fictional customer-facing scope only. Nothing is saved, sent or published.",
+    value: "Remove existing cabinets and countertops.\nInstall new cabinets, countertop, sink and faucet.\nIncludes standard haul-away and one final walkthrough.\nAssumes clear site access. Electrical upgrades are excluded.",
+    editedValue: "Install replacement cabinets.\nIncludes standard haul-away.\nConfirm site access before scheduling.",
+    replacement: "Updated sample scope supplied by the owning editor.\nMaterial selections remain subject to review.",
+    literalText: "<script>not executable</script>\nScope is plain text, not HTML.",
+    review: "Check scope",
+    valid: "Scope passed local checks only. Nothing was saved or shared.",
+    replace: "Replace sample scope",
+    fieldError: "The scope changed elsewhere. Review this text before trying again.",
+  },
+} as const;

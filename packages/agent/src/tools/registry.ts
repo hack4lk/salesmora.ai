@@ -1,3 +1,4 @@
+import { calendarQueryTool, calendarProposeTool } from '../calendar/tools';
 import { customersQueryTool, customersProposeTool } from "../customers/tools";
 import type {
   ChatToolId,
@@ -8,14 +9,17 @@ import { leadsQueryTool, leadsProposeActionTool } from "../leads/tools";
 import { workOrdersQueryTool, workOrdersProposeTool } from "../work-orders/tools";
 import { materialsQueryTool, materialsProposeTool } from "../materials/tools";
 import { searchHelpTool } from "./search-help";
+import { estimatesQueryTool, estimatesProposeTool } from "../estimates/tools";
 
 /** Explicit read-only implementations. Planned tool IDs never become executable automatically. */
 export const readToolRegistry = {
+  calendar_query: calendarQueryTool,
   customers_query: customersQueryTool,
   search_help: searchHelpTool,
   leads_query: leadsQueryTool,
   work_orders_query: workOrdersQueryTool,
   materials_query: materialsQueryTool,
+  estimates_query: estimatesQueryTool,
 } as const satisfies Partial<Record<ChatToolId, { kind: "read" }>>;
 export type ImplementedReadToolId = keyof typeof readToolRegistry;
 export const implementedReadTools: readonly ChatToolId[] = Object.keys(
@@ -34,6 +38,8 @@ export interface ReadToolResult {
 /** Draft preparation is separate from reads. There is deliberately no commit tool. */
 export const toolRegistry = {
   ...readToolRegistry,
+  calendar_propose_action: calendarProposeTool,
+  estimates_propose_action: estimatesProposeTool,
   customers_propose_action: customersProposeTool,
   work_orders_propose_action: workOrdersProposeTool,
   materials_propose_action: materialsProposeTool,
@@ -47,6 +53,17 @@ export function isImplementedTool(name: string): name is ImplementedToolId {
   return Object.hasOwn(toolRegistry, name);
 }
 export interface ToolResult extends ReadToolResult {
+  calendarProposal?: import("@salesmora/contracts").CalendarProposalTicket;
+  calendarResult?: import("@salesmora/contracts").CalendarChatResult;
+  estimateDraft?: import("@salesmora/contracts").EstimateDraftChatView;
+  estimateSharing?: import("@salesmora/contracts").EstimateShareChatTicket;
+  estimateDecision?: import("@salesmora/contracts").EstimateDecisionChatTicket;
+  estimateDraftAction?: import("@salesmora/contracts").EstimateDraftActionChatTicket;
+  estimateVoid?: import("@salesmora/contracts").EstimateVoidChatTicket;
+  estimateArchive?: import("@salesmora/contracts").EstimateArchiveChatTicket;
+  estimateDraftDelete?: import("@salesmora/contracts").EstimateDraftDeleteChatTicket;
+  estimateConversion?: import("@salesmora/contracts").EstimateConversionChatTicket;
+  estimateResult?: import("@salesmora/contracts").EstimateChatResult;
   customerResult?: import("@salesmora/contracts").CustomerChatResult;
   workOrderResult?: import("@salesmora/contracts").WorkOrderChatResult;
   action?: ChatActionReview;

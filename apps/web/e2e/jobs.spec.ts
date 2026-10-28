@@ -31,7 +31,8 @@ async function change(action: string, extra: Record<string, unknown> = {}, role 
   return clients[role].patch(`/api/jobs/${jobId}`, { headers, data: { workspaceId, jobId, submissionId: randomUUID(), expectedVersion: version ?? record.job.version, action, ...extra } });
 }
 test('Jobs APIs enforce role, tenant, lifecycle, current grants, retries and scoped aggregates', async () => {
-  const input = { workspaceId, submissionId: randomUUID(), customerId, title: 'Repair leaking valve', primaryOwnerId: users.field, teamUserIds: [], service: 'Plumbing' };
+  const { context: deadline } = await (await clients.owner.get(`/api/jobs/creation-deadline?workspace=${workspaceId}`)).json();
+  const input = { completionDeadline: deadline.projectedDate, deadlineIntent: { mode: 'workspace', revision: deadline.revision }, deadlinePreview: { revision: deadline.revision, createdDate: deadline.createdDate, resolvedDate: deadline.projectedDate, timezone: deadline.timezone }, workspaceId, submissionId: randomUUID(), customerId, title: 'Repair leaking valve', primaryOwnerId: users.field, teamUserIds: [], service: 'Plumbing' };
   const created = await clients.owner.post('/api/jobs', { headers, data: input });
   expect(created.status()).toBe(201); jobId = (await created.json()).jobId;
   expect((await clients.owner.post('/api/jobs', { headers, data: input })).status()).toBe(201);
@@ -42,6 +43,8 @@ test('Jobs APIs enforce role, tenant, lifecycle, current grants, retries and sco
   expect((await change('status', { to: 'scheduled' })).status()).toBe(422);
   expect((await change('schedule', { scheduledDate: '2026-10-23', arrivalWindow: '09:00-11:00' })).status()).toBe(200);
   expect((await change('deadline', { completionDeadline: '2020-01-01' })).status()).toBe(200);
+  // Calendar defaults allow primary Field scheduling; explicitly revoke it to test current denial.
+  await db('workspaceRolePolicies').where({ workspaceId, role: 'field', permission: 'jobs.schedule.update' }).delete();
   expect((await change('schedule', { scheduledDate: null, arrivalWindow: null }, 'field')).status()).toBe(404);
   let row = await (await clients.field.get(detail())).json();
   expect(row.job.capabilities.note).toBe(true); expect(row.job.capabilities.schedule).toBe(false);
@@ -85,10 +88,13 @@ test('reviewed Jobs components create, persist, move, schedule and add notes on 
   await createDialog.getByRole('button', { name: 'Confirm and create' }).click();
   await expect(page).toHaveURL(/\/jobs\/[a-f\d-]+\?workspace=/);
   await expect(page.getByRole('heading', { name: 'UI persisted boiler repair', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Files', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Job team chat', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Files', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Job team chat', exact: true })).toBeVisible();
   await page.getByLabel('Note for the job history').fill('Saved from the integrated component.');
+  const noteSaved = page.waitForResponse(response => response.url().includes('/api/jobs/') && response.request().method() === 'PATCH');
   await page.getByRole('button', { name: 'Add note', exact: true }).click();
+  expect((await noteSaved).status()).toBe(200);
+  await expect(page.getByLabel('Note for the job history')).toHaveValue('');
   await expect(page.getByText('Saved from the integrated component.', { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByText('Saved from the integrated component.', { exact: true })).toBeVisible();
@@ -96,6 +102,7 @@ test('reviewed Jobs components create, persist, move, schedule and add notes on 
   await page.getByRole('dialog').getByLabel('Scheduled work date', { exact: true }).fill('2026-10-26');
   await page.getByRole('dialog').getByRole('button', { name: 'Save schedule', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByText('Scheduled', { exact:true })).toBeVisible();
   await page.getByRole('button', { name: 'Change status', exact: true }).click();
   await page.getByRole('dialog').getByRole('combobox', { name: 'New status' }).selectOption('waiting');
   await page.getByRole('dialog').getByRole('combobox', { name: 'Waiting reason' }).selectOption('customer');
@@ -104,6 +111,8 @@ test('reviewed Jobs components create, persist, move, schedule and add notes on 
   await page.reload();
   const stored = await db('jobs').where({ workspaceId, title: 'UI persisted boiler repair' }).first();
   expect(stored.status).toBe('waiting'); expect(stored.waitingReason).toBe('customer');
+  // Keep this denial check independent of policy changes made by other tests.
+  await db('workspaceRolePolicies').where({ workspaceId, role: 'field', permission: 'jobs.schedule.update' }).delete();
   const fieldContext = await browser.newContext({ storageState: await clients.field.storageState() });
   const fieldPage = await fieldContext.newPage();
   await fieldPage.goto(`${origin}/jobs/${stored.id}?workspace=${workspaceId}`);

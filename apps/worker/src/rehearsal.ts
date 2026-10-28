@@ -20,7 +20,12 @@ function start() {
     let output = '';
     child.stdout!.on('data', chunk => {
       output += String(chunk);
-      if (output.includes('"event":"worker.ready"')) { clearTimeout(timeout); resolve(child); }
+      if (output.includes('"event":"worker.ready"')) {
+        clearTimeout(timeout);
+        if (!output.includes('"event":"worker.estimate_expiry_started","intervalMs":60000')) {
+          reject(Error('Scheduled estimate expiry did not start'));
+        } else resolve(child);
+      }
     });
     // Drain generic diagnostic output without echoing connection/provider details.
     child.stderr!.on('data', () => {});
@@ -55,7 +60,7 @@ try {
   const resumed = await queue.add('expire-chat', {}, { jobId: randomUUID() }); jobs.push(resumed.id!);
   assert(Number.isInteger((await resumed.waitUntilFinished(events, 10_000)).deletedThreads));
   await stop(child); assert.equal(await queue.getWorkersCount(), 0);
-  console.log('PASS local Docker worker startup, retention execution, retries/failure visibility, status, graceful shutdown, restart and stable scheduler; no provider calls.');
+  console.log('PASS local Docker worker startup with scheduled estimate expiry, retention execution, retries/failure visibility, status, graceful shutdown, restart and stable scheduler; no provider calls.');
 } finally {
   for (const child of children) if (child.exitCode === null) child.kill('SIGKILL');
   for (const id of jobs) await (await queue.getJob(id))?.remove();

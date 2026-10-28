@@ -26,6 +26,7 @@ import { jobPrimary } from '../job-ui';
 
 export interface JobDetailPageProps {
   workOrdersSlot?: React.ReactNode;
+  relatedEstimates?: React.ReactNode;
   job: JobView;
   today: string;
   activity: JobActivityEntry[];
@@ -77,6 +78,7 @@ export function JobDetailPage({
   extendedFeatures = true,
   assistantAvailable = true,
   workOrdersSlot,
+  relatedEstimates,
   workspaceId,
 }: JobDetailPageProps) {
   const closed = ['completed', 'canceled'].includes(job.status);
@@ -163,6 +165,7 @@ export function JobDetailPage({
           <JobTeamCard job={job} onManage={() => onAction('team')} />
           {workOrdersSlot}
           <JobRelatedRecords records={related} onOpen={onRelated} />
+          {relatedEstimates}
         </aside>
       </div>
     </div>

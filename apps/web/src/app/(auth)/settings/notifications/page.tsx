@@ -29,7 +29,7 @@ export default async function NotificationSettingsPage({ searchParams }: { searc
   const context = await workspaceAuthorization(session.user.id, workspace.id).catch(error => { if (error instanceof AuthorizationAccessError) notFound(); throw error; });
   const capabilities = workspaceCapabilities(context);
   const user = { name: session.user.name, email: session.user.email, role: context.membership.role };
-  return <WorkspaceShell currentPage="settings" currentSettingsPage="notifications" workspaceId={workspace.id} workspaceName={workspace.businessName} user={user} onSignOut={signOut} authorizedPages={workspaceNavigationPages(context)} billingAvailable={capabilities.billing} permissionsAvailable={capabilities.permissions} assistantAvailable={capabilities.assistant} chatEnabled={chatRuntimeAvailable()} chatSurface="settings.overview" contentWidth="full">
+  return <WorkspaceShell currentPage="settings" currentSettingsPage="notifications" workspaceId={workspace.id} workspaceName={workspace.businessName} user={user} onSignOut={signOut} authorizedPages={workspaceNavigationPages(context)} billingAvailable={capabilities.billing} jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} assistantAvailable={capabilities.assistant} chatEnabled={chatRuntimeAvailable()} chatSurface="settings.overview" contentWidth="full">
     <NotificationPreferencesRoute key={`notification-preferences-${workspace.id}`} workspaceId={workspace.id} initial={await readNotificationPreferences(database(),{userId:session.user.id,workspaceId:workspace.id},enabledPermissions)}/>
   </WorkspaceShell>;
 }

@@ -1,0 +1,23 @@
+export const calendarResultsCardData = {
+  titles: { schedule: 'Calendar visits', unscheduled: 'Unscheduled visits' },
+  scope: { workspace: 'Workspace schedule', own: 'Only my schedule' },
+  types: { job: 'Job', work_order: 'Work Order' }, shared: 'Shared visit · counted once',
+  team: 'Assigned team', unassigned: 'Unassigned', noWindow: 'Arrival window not set', noDate: 'Not scheduled',
+  filters: 'Calendar filters',
+  timezone: 'Workspace timezone', captured: 'Checked at', open: 'View visit', openCalendar: 'Open in Calendar',
+  empty: { schedule: 'No visits match this range and these filters.', unscheduled: 'No active unscheduled visits match these filters.' },
+  count: (shown: number, total: number) => `Showing ${shown} of ${total} ${total === 1 ? 'visit' : 'visits'}.`,
+  historical: 'This is a snapshot. Open Calendar to check the latest schedule. This result does not change any dates or assignments.',
+  viewLabel: (title: string) => `View visit: ${title}`,
+  states: { loading: 'Checking the current schedule…', error: 'Calendar results could not be loaded. Ask the assistant to check again.', unavailable: 'These Calendar results are no longer available with your current access. Ask the assistant to check again.' },
+  date: (date: string) => new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`)),
+  timestamp: (value: string, timezone: string) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: timezone }).format(new Date(value)),
+  stories: {
+    heading: 'Calendar results in the shared assistant', notice: 'Design preview. People and records are fictional; buttons only report callback intent.',
+    openedVisit: 'Visit details requested. Nothing was changed.', openedCalendar: 'Calendar requested. This preview does not navigate.',
+    from: '2026-10-19', to: '2026-10-25', checkedAt: '2026-10-21T14:30:00Z', timezone: 'America/New_York',
+    filters: ['All people', 'Jobs and Work Orders'], ownFilter: 'My assigned visits',
+    longFilter: 'Customer: Northside Community Workshop and Neighborhood Resource Center',
+    jobNumber: 'J-1043', workOrderNumber: 'WO-1008',
+  },
+} as const;

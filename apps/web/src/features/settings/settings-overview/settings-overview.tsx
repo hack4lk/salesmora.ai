@@ -6,11 +6,13 @@ export interface SettingsOverviewProps {
   permissionsHref?: string;
   aiUsageHref?: string;
   workOrdersHref?: string;
+  estimatesHref?: string;
+  jobNotificationsHref?: string;
   billingHref?: string;
   accountHref?: string;
 }
 
-export function SettingsOverview({ workspaceName, profile, workOrdersHref, permissionsHref, aiUsageHref, billingHref, accountHref }: SettingsOverviewProps) {
+export function SettingsOverview({ workspaceName, profile, jobNotificationsHref, workOrdersHref, estimatesHref, permissionsHref, aiUsageHref, billingHref, accountHref }: SettingsOverviewProps) {
   const details = profile ? [
     [copy.fields.businessName, profile.businessName],
     [copy.fields.businessType, copy.businessTypes.find(type => type.value === profile.businessType)?.label ?? profile.businessType],
@@ -18,6 +20,15 @@ export function SettingsOverview({ workspaceName, profile, workOrdersHref, permi
     [copy.fields.serviceRange, copy.ranges[profile.serviceRange] ?? (profile.serviceRange || copy.notSet)],
     [copy.fields.services, profile.services.map(service => copy.serviceCatalog.find(option => option.value === service)?.label ?? service).join(', ') || copy.notSet],
   ] : [];
+  const cards = [
+    { id: 'account', href: accountHref, title: copy.accountTitle, description: copy.accountDescription, link: copy.viewAccount },
+    { id: 'billing', href: billingHref, title: copy.billingTitle, description: copy.billingDescription, link: copy.viewBilling },
+    { id: 'ai-usage', href: aiUsageHref, title: copy.aiUsageTitle, description: copy.aiUsageDescription, link: copy.viewAIUsage, ownerOnly: true },
+    { id: 'job-notifications', href: jobNotificationsHref, title: copy.jobNotificationsTitle, description: copy.jobNotificationsDescription, link: copy.viewJobNotifications },
+    { id: 'estimates', href: estimatesHref, title: copy.estimatesTitle, description: copy.estimatesDescription, link: copy.viewEstimates },
+    { id: 'work-orders', href: workOrdersHref, title: copy.workOrdersTitle, description: copy.workOrdersDescription, link: copy.viewWorkOrders },
+    { id: 'permissions', href: permissionsHref, title: copy.permissionsTitle, description: copy.permissionsDescription, link: copy.managePermissions, ownerOnly: true },
+  ].filter(card => card.href);
   return <div className="grid min-w-0 gap-6">
     <header><p className="m-0 text-xs font-bold tracking-widest text-muted uppercase">{copy.eyebrow}</p><h1 className="mb-0 mt-3 text-heading font-semibold text-ink sm:text-heading-lg">{copy.title}</h1><p className="mb-0 mt-2 text-sm font-semibold text-muted wrap-anywhere">{workspaceName}</p><p className="mb-0 mt-4 text-base leading-relaxed text-muted">{copy.description}</p></header>
     {profile && <section aria-labelledby="business-profile-title" className="min-w-0 rounded-2xl border border-line bg-paper p-6 sm:p-8">
@@ -25,19 +36,15 @@ export function SettingsOverview({ workspaceName, profile, workOrdersHref, permi
       <dl className="m-0 grid gap-6 sm:grid-cols-2">{details.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-sm text-muted">{label}</dt><dd className="mb-0 ml-0 mt-2 font-semibold text-ink wrap-anywhere">{value}</dd></div>)}</dl>
       <p className="mb-0 mt-6 border-t border-line pt-4 text-sm leading-6 text-muted">{copy.readOnly}</p>
     </section>}
-    {accountHref && <section aria-labelledby="account-settings-title" className="rounded-2xl border border-line bg-paper p-6 sm:p-8"><h2 id="account-settings-title" className="m-0 text-xl font-semibold text-ink">{copy.accountTitle}</h2><p className="mb-6 mt-3 text-sm leading-6 text-muted">{copy.accountDescription}</p><a href={accountHref} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-paper hover:bg-primary-dark focus-visible:focus-ring">{copy.viewAccount}</a></section>}
-    {billingHref && <section aria-labelledby="billing-settings-title" className="rounded-2xl border border-line bg-paper p-6 sm:p-8"><h2 id="billing-settings-title" className="m-0 text-xl font-semibold text-ink">{copy.billingTitle}</h2><p className="mb-6 mt-3 text-sm leading-6 text-muted">{copy.billingDescription}</p><a href={billingHref} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-paper hover:bg-primary-dark focus-visible:focus-ring">{copy.viewBilling}</a></section>}
-    {aiUsageHref && <section aria-labelledby="ai-usage-settings-title" className="rounded-2xl border border-line bg-paper p-6 sm:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h2 id="ai-usage-settings-title" className="m-0 text-xl font-semibold text-ink">{copy.aiUsageTitle}</h2><span className="rounded-full bg-canvas px-3 py-2 text-xs font-semibold text-primary">{copy.ownerOnly}</span></div>
-      <p className="mb-6 mt-3 text-sm leading-6 text-muted">{copy.aiUsageDescription}</p><a href={aiUsageHref} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-paper hover:bg-primary-dark focus-visible:focus-ring">{copy.viewAIUsage}</a>
-    </section>}
-    {workOrdersHref && <section aria-labelledby="work-orders-settings-title" className="rounded-2xl border border-line bg-paper p-6 sm:p-8">
-      <h2 id="work-orders-settings-title" className="m-0 text-xl font-semibold text-ink">{copy.workOrdersTitle}</h2>
-      <p className="mb-6 mt-3 text-sm leading-6 text-muted">{copy.workOrdersDescription}</p><a href={workOrdersHref} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-paper hover:bg-primary-dark focus-visible:focus-ring">{copy.viewWorkOrders}</a>
-    </section>}
-    {permissionsHref && <section aria-labelledby="permissions-settings-title" className="rounded-2xl border border-line bg-paper p-6 sm:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h2 id="permissions-settings-title" className="m-0 text-xl font-semibold text-ink">{copy.permissionsTitle}</h2><span className="rounded-full bg-canvas px-3 py-2 text-xs font-semibold text-primary">{copy.ownerOnly}</span></div>
-      <p className="mb-6 mt-3 text-sm leading-6 text-muted">{copy.permissionsDescription}</p><a href={permissionsHref} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-paper hover:bg-primary-dark focus-visible:focus-ring">{copy.managePermissions}</a>
-    </section>}
+    {cards.length > 0 && <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {cards.map(card => <section key={card.id} aria-labelledby={`${card.id}-settings-title`} className="flex min-w-0 flex-col gap-3 rounded-2xl border border-line bg-paper p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id={`${card.id}-settings-title`} className="m-0 text-lg font-semibold text-ink">{card.title}</h2>
+          {card.ownerOnly && <span className="shrink-0 rounded-full bg-canvas px-3 py-2 text-xs font-semibold text-primary">{copy.ownerOnly}</span>}
+        </div>
+        <p className="m-0 mb-2 flex-1 text-sm leading-6 text-muted">{card.description}</p>
+        <a href={card.href} className="inline-flex min-h-11 max-w-full items-center justify-center self-start rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-paper wrap-anywhere hover:bg-primary-dark focus-visible:focus-ring">{card.link}</a>
+      </section>)}
+    </div>}
   </div>;
 }

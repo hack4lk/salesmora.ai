@@ -22,6 +22,7 @@ import {
 import { CustomerTable } from "../customer-table/customer-table";
 import { CustomerDrawer } from "../customer-drawer/customer-drawer";
 import { CustomerProfile } from "../customer-profile/customer-profile";
+import { RelatedEstimates } from "../../estimates/related-estimates-card/related-estimates";
 import { CustomerDialog } from "../customer-dialog/customer-dialog";
 import { CustomerArchiveDialog } from "../customer-archive-dialog/customer-archive-dialog";
 import { CustomerDeleteDialog } from "../customer-delete-dialog/customer-delete-dialog";
@@ -498,6 +499,7 @@ export function CustomersRoute({
             </div>
           )}
           <CustomerProfile
+            relatedEstimates={current && detailState === "ready" && <RelatedEstimates key={`${workspaceId}:${current.id}:${current.version}`} workspaceId={workspaceId} recordType="customer" recordId={current.id} />}
             pending={busy || state === "loading" || detailState === "loading"}
             customer={current}
             members={detail?.members ?? []}

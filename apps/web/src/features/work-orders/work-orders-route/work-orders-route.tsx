@@ -1,4 +1,5 @@
 'use client';
+import { useCalendarScheduleRefresh } from '../../calendar/calendar-events';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FormFeedback } from '@salesmora/ui';
@@ -8,7 +9,7 @@ import { WorkOrdersList } from '../work-orders-list/work-orders-list';
 import { defaultWorkOrderListFilters } from '../work-orders-list/work-orders-list.filter';
 import { toView } from '../work-order-view';
 import { WorkOrderDetailRoute } from './work-order-detail-route';
-import { CreateWorkOrderDialog } from '../create-work-order-dialog/create-work-order-dialog';
+import { CreateWorkOrderDialog, type CreateWorkOrderVisitContext } from '../create-work-order-dialog/create-work-order-dialog';
 import { WorkOrderDeleteDialog } from '../work-order-delete-dialog/work-order-delete-dialog';
 import { WorkOrderMoveDialog } from '../work-order-move-dialog/work-order-move-dialog';
 import { JobDialog } from '../../jobs/job-dialog/job-dialog';
@@ -43,6 +44,19 @@ function WorkOrdersListRoute({ workspaceId, initial, initialQuery, field, create
   const [moving, setMoving] = useState<{ row: WorkOrderView; to: WorkOrderStatus | null }>();
   const [deleting, setDeleting] = useState<WorkOrderView>(), [exporting, setExporting] = useState(false);
   const [picking, setPicking] = useState(false), [jobs, setJobs] = useState<JobView[]>(), [jobsError, setJobsError] = useState(''), [pickedJobId, setPickedJobId] = useState(''), [creatingFor, setCreatingFor] = useState<JobView>();
+  const [loadedVisit, setLoadedVisit] = useState<{ key: string; context: CreateWorkOrderVisitContext }>();
+  const [visitReload, setVisitReload] = useState(0);
+  const reloadVisit = () => setVisitReload(n => n + 1);
+  const visitKey = JSON.stringify([workspaceId, creatingFor?.id, visitReload]);
+  const visitContext: CreateWorkOrderVisitContext = loadedVisit?.key === visitKey ? loadedVisit.context : { state: 'loading', visit: null };
+  useEffect(() => {
+    if (!creatingFor) return;
+    const controller = new AbortController();
+    workOrderRequest<CreateWorkOrderVisitContext['visit']>('/api/work-orders/creation-visit?' + new URLSearchParams({ workspace: workspaceId, jobId: creatingFor.id }), { signal: controller.signal }, copy.jobsError)
+      .then(visit => { if (!controller.signal.aborted) setLoadedVisit({ key: visitKey, context: { state: 'ready', visit } }); })
+      .catch(() => { if (!controller.signal.aborted) setLoadedVisit({ key: visitKey, context: { state: 'error', visit: null } }); });
+    return () => controller.abort();
+  }, [creatingFor, workspaceId, visitKey]);
   useEffect(() => {
     if (!createForJobId) return;
     let live = true;
@@ -73,6 +87,7 @@ function WorkOrdersListRoute({ workspaceId, initial, initialQuery, field, create
   const reset = (patch: () => void) => { patch(); setPage(1); };
   const query = `?workspace=${encodeURIComponent(workspaceId)}`;
   const refetch = () => setRefresh(n => n + 1);
+  useCalendarScheduleRefresh(refetch);
   const open = (w: WorkOrderView) => router.push(`/work-orders/${w.id}${query}`);
   async function move(row: WorkOrderView, payload: object) {
     const live = list.rows.find(r => r.id === row.id);
@@ -130,8 +145,9 @@ function WorkOrdersListRoute({ workspaceId, initial, initialQuery, field, create
     } catch (e) { setJobsError(e instanceof Error ? e.message : copy.jobsError); }
   }
   async function create(value: CreateWorkOrderValues) {
-    const created = await writes.create({ jobId: value.jobId, title: value.title, assigneeId: value.assigneeId, source: value.source });
+    const created = await writes.create({ jobId: value.jobId, title: value.title, assigneeId: value.assigneeId, source: value.source, visit: value.visit });
     if (created) router.push(`/work-orders/${created.workOrderId}${query}`);
+    else { reloadVisit(); throw new Error(copy.saveError); }
   }
   const duplicateSources = creatingFor ? rows.filter(r => r.jobId === creatingFor.id).map(r => ({ value: r.id, label: copy.sourceDuplicate(r.number, r.title), detail: copy.sourceDuplicateDetail })) : [];
   return <div className="grid gap-4">
@@ -151,6 +167,6 @@ function WorkOrdersListRoute({ workspaceId, initial, initialQuery, field, create
         : <label className={woLabel}>{copy.pickJob}<select className={woInput} value={pickedJobId} onChange={e => setPickedJobId(e.target.value)}>{jobs?.map(j => <option key={j.id} value={j.id}>{j.number} · {j.title} · {j.customerName}</option>)}</select></label>}
     </JobDialog>}
     {creatingFor && <CreateWorkOrderDialog key={creatingFor.id} open job={{ id: creatingFor.id, number: creatingFor.number, title: creatingFor.title, customerName: creatingFor.customerName, address: creatingFor.location, ownerId: creatingFor.primaryOwnerId }}
-      members={members} sources={duplicateSources} canCreate={list.canCreate} pending={writes.pending} error={writes.error} onClose={() => setCreatingFor(undefined)} onConfirm={create} />}
+      members={members} sources={duplicateSources} visitContext={{ ...visitContext, onReload: reloadVisit }} jobClosed={['completed', 'canceled'].includes(creatingFor.status)} canCreate={list.canCreate} pending={writes.pending} error={writes.error} onClose={() => setCreatingFor(undefined)} onConfirm={create} />}
   </div>;
 }

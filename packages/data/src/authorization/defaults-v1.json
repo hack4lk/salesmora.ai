@@ -156,6 +156,31 @@
   },
   {
     "role": "owner",
+    "permission": "estimates.decide",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "estimates.void",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "estimates.archive",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "estimates.delete",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
+    "permission": "estimates.export",
+    "scope": "workspace"
+  },
+  {
+    "role": "owner",
     "permission": "intake.read",
     "scope": "workspace"
   },
@@ -456,6 +481,31 @@
   },
   {
     "role": "admin",
+    "permission": "estimates.decide",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "estimates.void",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "estimates.archive",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "estimates.delete",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
+    "permission": "estimates.export",
+    "scope": "workspace"
+  },
+  {
+    "role": "admin",
     "permission": "intake.read",
     "scope": "workspace"
   },
@@ -696,6 +746,26 @@
   },
   {
     "role": "office",
+    "permission": "estimates.decide",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "estimates.void",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "estimates.archive",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
+    "permission": "estimates.delete",
+    "scope": "workspace"
+  },
+  {
+    "role": "office",
     "permission": "intake.read",
     "scope": "workspace"
   },
@@ -817,6 +887,11 @@
   {
     "role": "field",
     "permission": "estimates.send",
+    "scope": "assigned_job"
+  },
+  {
+    "role": "field",
+    "permission": "estimates.decide",
     "scope": "assigned_job"
   },
   {

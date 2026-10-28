@@ -1,8 +1,9 @@
 import { processFileForStorage, sweepOrphanedFiles } from './file-processing.js';
-import { createStorageAdapter } from '@salesmora/data';
+import { cleanupStagedEstimateBusinessLogos, createStorageAdapter } from '@salesmora/data';
+import type { Knex } from '@salesmora/data';
 
 /** Start the file processing worker loop. */
-export async function startFileProcessing(db: any) {
+export async function startFileProcessing(db: Knex) {
   const storage = createStorageAdapter();
 
   let stopped = false;
@@ -42,8 +43,12 @@ export async function startFileProcessing(db: any) {
     sweeping = (async () => {
       try {
         await sweepOrphanedFiles(db, storage);
+        const removed = await cleanupStagedEstimateBusinessLogos(db, storage);
+        if (removed > 0) {
+          console.log(JSON.stringify({ event: 'worker.estimate_logo_cleanup', removed }));
+        }
       } catch {
-        console.error(JSON.stringify({ event: 'worker.orphan_sweep_failed' }));
+        console.error(JSON.stringify({ event: 'worker.orphan_sweep_failed', includeEstimateLogos: true }));
       }
     })().finally(() => { sweeping = undefined; });
   }

@@ -50,3 +50,10 @@ export const DeleteReviewRequest: Story = { play: async ({ canvasElement, args }
 export const ComingSoon: Story = { play: async ({ canvasElement }) => {
   const c = within(canvasElement);await expect(c.getByRole('button', { name: `${copy.estimate} · ${copy.comingSoon}` })).toBeDisabled();await expect(c.getByRole('button', { name: `${copy.job} · ${copy.comingSoon}` })).toBeDisabled();
 } };
+export const ConnectedEstimate: Story = {
+  args: { onCreateEstimate: fn() },
+  play: async ({ canvasElement, args }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: copy.estimate }));
+    await expect(args.onCreateEstimate).toHaveBeenCalledOnce();
+  },
+};

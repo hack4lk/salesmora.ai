@@ -14,6 +14,6 @@ export function NotificationPreferencesRoute({workspaceId,initial}:{workspaceId:
       const result:NotificationPreferences=await response.json();setSaved(result);setValues(result);setSaveState('saved');
     } catch {setSaveState('error');} finally {saving.current=false;}
   }
-  return <NotificationPreferencesPage settingsHref={`/settings?workspace=${encodeURIComponent(workspaceId)}`} state="ready" values={values} savedValues={saved} saveState={saveState}
-    onChange={next=>{setValues(next);setSaveState('idle');}} onSave={next=>{void save(next);}} onDiscard={()=>{setValues(saved);setSaveState('idle');}} onRetry={()=>{}}/>;
+  return <NotificationPreferencesPage showVisitChanges showEstimateNotifications showDeadlineReminders showJobActivity jobActivityScope="all" settingsHref={`/settings?workspace=${encodeURIComponent(workspaceId)}`} state="ready" values={values} savedValues={saved} saveState={saveState}
+    onChange={next=>{setValues({...next,visitChangedEmail:next.visitChangedEmail ?? true,estimateEmail:next.estimateEmail ?? true,deadlineReminderEmail:next.deadlineReminderEmail ?? true,jobActivityEmail:next.jobActivityEmail ?? true});setSaveState('idle');}} onSave={next=>{void save({...next,visitChangedEmail:next.visitChangedEmail ?? true,estimateEmail:next.estimateEmail ?? true,deadlineReminderEmail:next.deadlineReminderEmail ?? true,jobActivityEmail:next.jobActivityEmail ?? true});}} onDiscard={()=>{setValues(saved);setSaveState('idle');}} onRetry={()=>{}}/>;
 }

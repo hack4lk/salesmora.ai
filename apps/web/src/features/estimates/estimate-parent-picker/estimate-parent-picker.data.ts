@@ -1,0 +1,15 @@
+export const estimateParentPickerData = {
+  title: "Create an estimate",
+  description: "Choose the lead or job this estimate belongs to. Its customer and service details will be prefilled.",
+  customerDescription: "Choose a permitted lead or job linked to this customer. Only records you can create estimates for are listed. A Draft is created only when you save.",
+  search: "Search by customer, service or record number",
+  lead: "Leads",
+  job: "Jobs",
+  loading: "Searching your permitted records...",
+  noResults: "No matching records were found.",
+  retry: "Try again",
+  searchError: "Records could not be loaded.",
+  choose: (kind: string) => `Create estimate for ${kind}`,
+  back: "Back to estimates",
+  noSources: "You do not have access to a lead or assigned job that can be used for an estimate.",
+} as const;

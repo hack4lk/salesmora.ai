@@ -2,7 +2,7 @@ import { useState, type ComponentProps } from 'react';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { MaterialPicker, type MaterialPickerOption } from './material-picker';
-import { pickerOptions, searchFixtures } from './material-picker.data';
+import { copy, pickerOptions, searchFixtures } from './material-picker.data';
 
 const Stateful = (args: ComponentProps<typeof MaterialPicker>) => {
   const [selected, setSelected] = useState(args.selected);
@@ -37,6 +37,10 @@ export const WithoutPrices: Story = {
     await userEvent.click(c.getByRole('combobox'));
     await c.findByRole('option', { name: /Pipe strap/ });
     await expect(c.queryByText('$2.50')).toBeNull();
+    await userEvent.keyboard('{Escape}');
+    await expect(c.queryByRole('listbox')).not.toBeInTheDocument();
+    await userEvent.click(c.getByRole('combobox'));
+    await c.findByRole('option', { name: /Pipe strap/ });
   },
 };
 export const NoResults: Story = {
@@ -44,6 +48,7 @@ export const NoResults: Story = {
     const c = within(canvasElement);
     await userEvent.type(c.getByRole('combobox'), 'zzzz');
     await waitFor(() => expect(c.getByText(/No matching catalog items/)).toBeInTheDocument());
+    await expect(c.getByRole('option', { name: copy.empty })).toHaveAttribute('aria-disabled', 'true');
   },
 };
 export const Loading: Story = {
@@ -52,6 +57,7 @@ export const Loading: Story = {
     const c = within(canvasElement);
     await userEvent.click(c.getByRole('combobox'));
     await waitFor(() => expect(c.getByRole('status')).toBeInTheDocument());
+    await expect(c.getByRole('option', { name: copy.searching })).toHaveAttribute('aria-disabled', 'true');
   },
 };
 export const SearchFails: Story = {
@@ -60,6 +66,7 @@ export const SearchFails: Story = {
     const c = within(canvasElement);
     await userEvent.click(c.getByRole('combobox'));
     await waitFor(() => expect(c.getByRole('alert')).toBeInTheDocument());
+    await expect(c.getByRole('option', { name: copy.error })).toHaveAttribute('aria-disabled', 'true');
   },
 };
 export const Linked: Story = { args: { selected: { id: pickerOptions[0].id, name: pickerOptions[0].name } } };

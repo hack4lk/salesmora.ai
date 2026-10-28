@@ -25,7 +25,7 @@ const lead = z.object({ kind: z.literal('lead'), id: identifier, workspaceId: id
 export const authorizationResourceSchema = z.discriminatedUnion('kind', [
   lead, job,
   z.object({ kind: z.literal('estimate'), id: identifier, workspaceId: identifier, job: job.nullable() }).strict(),
-  z.object({ kind: z.literal('work_order'), id: identifier, workspaceId: identifier, job: job.nullable(), assigneeIds: z.array(identifier).max(100).optional() }).strict(),
+  z.object({ kind: z.literal('work_order'), id: identifier, workspaceId: identifier, job: job.nullable(), assigneeIds: z.array(identifier).max(100).optional(), primaryAssigneeId: identifier.nullable().optional() }).strict(),
   z.object({ kind: z.literal('customer'), id: identifier, workspaceId: identifier, related: z.array(z.union([lead, job])).max(1000) }).strict(),
   z.object({ kind: z.literal('calendar'), id: identifier, workspaceId: identifier, userId: identifier.nullable(), job: job.nullable() }).strict(),
   z.object({ kind: z.enum(['intake', 'campaign']), id: identifier, workspaceId: identifier }).strict(),

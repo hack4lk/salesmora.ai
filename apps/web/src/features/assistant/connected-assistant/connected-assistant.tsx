@@ -1,9 +1,31 @@
 "use client";
+import { ConnectedCalendarSchedule } from '../calendar-schedule-draft-card/connected-calendar-schedule';
+import { ConnectedCalendarResult } from "../calendar-results-card/connected-calendar-result";
 import { ConnectedCustomerResult } from "../customer-result/customer-result";
 import { ConnectedWorkOrderResult } from "../work-order-result/work-order-result";
+import { ConnectedEstimateResult } from "../estimate-result/estimate-result";
+import { ConnectedEstimateDraft } from "../estimate-result/estimate-draft-result";
+import { ConnectedEstimateSharing } from "../estimate-result/estimate-sharing-result";
+import { ConnectedEstimateDecision } from "../estimate-result/estimate-decision-result";
+import { ConnectedEstimateDraftAction } from "../estimate-result/estimate-draft-action-result";
+import { ConnectedEstimateVoid } from "../estimate-result/estimate-void-result";
+import { ConnectedEstimateArchive } from "../estimate-result/estimate-archive-result";
+import { ConnectedEstimateDraftDelete } from "../estimate-result/estimate-draft-delete-result";
+import { ConnectedEstimateConversion } from "../estimate-result/estimate-convert-result";
 import type {
   CustomerChatResult,
+  CalendarChatResult,
+  CalendarProposalTicket,
   WorkOrderChatResult,
+  EstimateChatResult,
+  EstimateDraftChatView,
+  EstimateShareChatTicket,
+  EstimateDecisionChatTicket,
+  EstimateDraftActionChatTicket,
+  EstimateVoidChatTicket,
+  EstimateArchiveChatTicket,
+  EstimateDraftDeleteChatTicket,
+  EstimateConversionChatTicket,
 } from "@salesmora/contracts";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -50,7 +72,19 @@ export function ConnectedAssistant({
   const [messages, setMessages] = useState<
     (AssistantMessage & {
       customerResult?: CustomerChatResult;
+      calendarResult?: CalendarChatResult;
+      calendarProposal?: CalendarProposalTicket;
+      calendarTurnId?: string;
       workOrderResult?: WorkOrderChatResult;
+      estimateResult?: EstimateChatResult;
+      estimateDraft?: EstimateDraftChatView;
+      estimateSharing?: EstimateShareChatTicket;
+      estimateDecision?: EstimateDecisionChatTicket;
+      estimateDraftAction?: EstimateDraftActionChatTicket;
+      estimateVoid?: EstimateVoidChatTicket;
+      estimateArchive?: EstimateArchiveChatTicket;
+      estimateDraftDelete?: EstimateDraftDeleteChatTicket;
+      estimateConversion?: EstimateConversionChatTicket;
     })[]
   >([]);
   const [runStatus, setRunStatus] =
@@ -95,10 +129,31 @@ export function ConnectedAssistant({
             id: message.id,
             role: message.role,
             text: message.text,
+            calendarProposal: message.role === "assistant" ? state?.calendarProposal : undefined,
+            calendarResult: message.role === "assistant" ? state?.calendarResult : undefined,
+            calendarTurnId: message.role === "assistant" ? message.turnId : undefined,
             customerResult:
               message.role === "assistant" ? state?.customerResult : undefined,
             workOrderResult:
               message.role === "assistant" ? state?.workOrderResult : undefined,
+            estimateResult:
+              message.role === "assistant" ? state?.estimateResult : undefined,
+            estimateDraft:
+              message.role === "assistant" ? state?.estimateDraft : undefined,
+            estimateSharing:
+              message.role === "assistant" ? state?.estimateSharing : undefined,
+            estimateDecision:
+              message.role === "assistant" ? state?.estimateDecision : undefined,
+            estimateDraftAction:
+              message.role === "assistant" ? state?.estimateDraftAction : undefined,
+            estimateVoid:
+              message.role === "assistant" ? state?.estimateVoid : undefined,
+            estimateArchive:
+              message.role === "assistant" ? state?.estimateArchive : undefined,
+            estimateDraftDelete:
+              message.role === "assistant" ? state?.estimateDraftDelete : undefined,
+            estimateConversion:
+              message.role === "assistant" ? state?.estimateConversion : undefined,
             action: message.role === "assistant" ? state?.action : undefined,
             detailsResult:
               message.role === "assistant" ? state?.detailsResult : undefined,
@@ -235,6 +290,11 @@ export function ConnectedAssistant({
       ...(workspaceAssistant?.pageContext?.customerFilters
         ? { customerFilters: workspaceAssistant.pageContext.customerFilters }
         : {}),
+      ...(workspaceAssistant?.pageContext?.calendarVisit ? { calendarVisit:workspaceAssistant.pageContext.calendarVisit } : {}),
+      ...(workspaceAssistant?.pageContext?.calendarFilters ? { calendarFilters: workspaceAssistant.pageContext.calendarFilters } : {}),
+      ...(workspaceAssistant?.pageContext?.estimateFilters
+        ? { estimateFilters: workspaceAssistant.pageContext.estimateFilters }
+        : {}),
       message,
     };
     const selected = workspaceAssistant?.pageContext;
@@ -242,15 +302,26 @@ export function ConnectedAssistant({
       JSON.stringify({
         recordRefs: request.recordRefs,
         uiState: request.uiState,
+        customerFilters: request.customerFilters,
+        estimateFilters: request.estimateFilters,
+        calendarFilters: request.calendarFilters,
+        calendarVisit: request.calendarVisit,
       }) ===
       JSON.stringify({
         recordRefs: selected?.recordRefs,
         uiState: selected?.uiState,
+        customerFilters: selected?.customerFilters,
+        estimateFilters: selected?.estimateFilters,
+        calendarFilters: selected?.calendarFilters,
+        calendarVisit: selected?.calendarVisit,
       });
     setPendingContextLabel(
       sameContext
         ? selected?.label
-        : request.recordRefs?.length || request.uiState
+        : request.recordRefs?.length ||
+            request.uiState ||
+            request.customerFilters ||
+            request.estimateFilters || request.calendarFilters || request.calendarVisit
           ? copy.previousContext
           : undefined,
     );
@@ -281,6 +352,7 @@ export function ConnectedAssistant({
       });
       if (!response.ok) {
         terminal = true; // Known rejection: no accepted run to reconcile.
+        if (response.status === 409 && (await response.json().catch(() => null))?.error === 'calendar_context_changed') throw Error(copy.calendarContextChanged);
         if ([401, 403].includes(response.status)) {
           setBlocked(true);
           throw Error(copy.denied);
@@ -347,6 +419,12 @@ export function ConnectedAssistant({
               ),
             );
             break;
+          case "calendar.proposal":
+            setMessages(items => items.map(item => item.id === localAssistant ? { ...item,calendarProposal:event.result } : item));
+            break;
+          case "calendar.result":
+            setMessages(items => items.map(item => item.id === localAssistant ? { ...item, calendarResult: event.result, calendarTurnId: event.turnId } : item));
+            break;
           case "work_orders.result":
             setMessages((items) =>
               items.map((item) =>
@@ -355,6 +433,51 @@ export function ConnectedAssistant({
                   : item,
               ),
             );
+            break;
+          case "estimates.result":
+            setMessages(items => items.map(item =>
+              item.id === localAssistant ? { ...item, estimateResult: event.result } : item,
+            ));
+            break;
+          case "estimates.draft":
+            setMessages(items => items.map(item =>
+              item.id === localAssistant ? { ...item, estimateDraft: event.result } : item,
+            ));
+            break;
+          case "estimates.draft_action":
+            setMessages(items => items.map(item =>
+              item.id === localAssistant ? { ...item, estimateDraftAction: event.result } : item,
+            ));
+            break;
+          case "estimates.void":
+            setMessages(items => items.map(item =>
+              item.id === localAssistant ? { ...item, estimateVoid: event.result } : item,
+            ));
+            break;
+          case "estimates.archive":
+            setMessages(items => items.map(item =>
+              item.id === localAssistant ? { ...item, estimateArchive: event.result } : item,
+            ));
+            break;
+          case "estimates.draft_delete":
+            setMessages(items => items.map(item =>
+              item.id === localAssistant ? { ...item, estimateDraftDelete: event.result } : item,
+            ));
+            break;
+          case "estimates.convert":
+            setMessages(items => items.map(item =>
+              item.id === localAssistant ? { ...item, estimateConversion: event.result } : item,
+            ));
+            break;
+          case "estimates.decision":
+            setMessages((items) => items.map(item =>
+              item.id === localAssistant ? { ...item, estimateDecision: event.result } : item,
+            ));
+            break;
+          case "estimates.sharing":
+            setMessages(items => items.map(item =>
+              item.id === localAssistant ? { ...item, estimateSharing: event.result } : item,
+            ));
             break;
           case "lead.history":
             setMessages((items) =>
@@ -425,7 +548,7 @@ export function ConnectedAssistant({
           ok: false,
           message:
             error instanceof Error &&
-            [copy.denied, copy.limited, copy.unavailable].some(
+            [copy.denied, copy.limited, copy.unavailable, copy.calendarContextChanged].some(
               (message) => message === error.message,
             )
               ? error.message
@@ -558,14 +681,28 @@ export function ConnectedAssistant({
       onClearContext={workspaceAssistant?.clearPageContext}
       messages={messages}
       renderMessageSupplement={(message) => {
+        const calendar = messages.find(item => item.id === message.id);
         const customer = messages.find(
           (item) => item.id === message.id,
         )?.customerResult;
         const workOrder = messages.find(
           (item) => item.id === message.id,
         )?.workOrderResult;
-        if (workOrder)
-          return (
+        const estimate = messages.find(item => item.id === message.id)?.estimateResult;
+        const estimateDraft = messages.find(item => item.id === message.id)?.estimateDraft;
+        const estimateSharing = messages.find(item => item.id === message.id)?.estimateSharing;
+        const estimateDecision = messages.find(item => item.id === message.id)?.estimateDecision;
+        const estimateDraftAction = messages.find(item => item.id === message.id)?.estimateDraftAction;
+        const estimateVoid = messages.find(item => item.id === message.id)?.estimateVoid;
+        const estimateArchive = messages.find(item => item.id === message.id)?.estimateArchive;
+        const estimateDraftDelete = messages.find(item => item.id === message.id)?.estimateDraftDelete;
+        const estimateConversion = messages.find(item => item.id === message.id)?.estimateConversion;
+        if (!calendar?.calendarProposal && !calendar?.calendarResult && !customer && !workOrder && !estimate && !estimateDraft && !estimateSharing && !estimateDecision && !estimateDraftAction && !estimateVoid && !estimateArchive && !estimateDraftDelete && !estimateConversion) return null;
+        return <div className="grid min-w-0 gap-4">
+          {calendar?.calendarProposal && <ConnectedCalendarSchedule ticket={calendar.calendarProposal} workspaceId={workspaceId} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} onRefresh={async () => { if (thread.current) await restore(thread.current);router.refresh(); }}/>}
+          {calendar?.calendarResult && calendar.calendarTurnId && <ConnectedCalendarResult key={`${workspaceId}:${calendar.calendarTurnId}:${calendar.calendarResult.id}`} result={calendar.calendarResult} workspaceId={workspaceId} turnId={calendar.calendarTurnId} disabled={blocked || runStatus === 'thinking' || runStatus === 'streaming'} onNavigate={href => { workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href); }}/>}
+
+          {workOrder && (
             <ConnectedWorkOrderResult
               result={workOrder}
               workspaceId={workspaceId}
@@ -582,8 +719,8 @@ export function ConnectedAssistant({
                 router.push(href);
               }}
             />
-          );
-        return customer ? (
+          )}
+        {customer && (
           <ConnectedCustomerResult
             result={customer}
             workspaceId={workspaceId}
@@ -619,7 +756,88 @@ export function ConnectedAssistant({
               router.push(href);
             }}
           />
-        ) : null;
+        )}
+        {estimate && <ConnectedEstimateResult
+          key={estimate.turnId}
+          result={estimate}
+          workspaceId={workspaceId}
+          disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
+          onRefresh={async () => {
+            if (thread.current) await restore(thread.current);
+          }}
+          onNavigate={href => {
+            workspaceAssistant?.setOpen(false);
+            workspaceAssistant?.clearPageContext();
+            router.push(href);
+          }}
+        />}
+        {estimateDraft && <ConnectedEstimateDraft
+          key={estimateDraft.draft.id} view={estimateDraft} workspaceId={workspaceId}
+          disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
+          onRefresh={async () => { if (thread.current) await restore(thread.current); router.refresh(); }}
+          onNavigate={href => {
+            workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href);
+          }}
+        />}
+        {estimateSharing && <ConnectedEstimateSharing
+          key={estimateSharing.id} ticket={estimateSharing} workspaceId={workspaceId}
+          disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
+          onRefresh={async () => { if (thread.current) await restore(thread.current); router.refresh(); }}
+          onNavigate={href => {
+            workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href);
+          }}
+        />}
+        {estimateVoid && <ConnectedEstimateVoid
+          key={estimateVoid.id} ticket={estimateVoid} workspaceId={workspaceId}
+          disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
+          onRefresh={async () => { if (thread.current) await restore(thread.current); router.refresh(); }}
+          onNavigate={href => {
+            workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href);
+          }}
+        />}
+        {estimateDraftAction && <ConnectedEstimateDraftAction
+          key={estimateDraftAction.id} ticket={estimateDraftAction} workspaceId={workspaceId}
+          disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
+          onRefresh={async () => { if (thread.current) await restore(thread.current); router.refresh(); }}
+          onNavigate={href => {
+            workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href);
+          }}
+        />}
+        {estimateDecision && <ConnectedEstimateDecision
+          key={estimateDecision.id} ticket={estimateDecision} workspaceId={workspaceId}
+          disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
+          onRefresh={async () => { if (thread.current) await restore(thread.current); router.refresh(); }}
+          onNavigate={href => {
+            workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href);
+          }}
+        />}
+        {estimateArchive && <ConnectedEstimateArchive
+          key={estimateArchive.id} ticket={estimateArchive} workspaceId={workspaceId}
+          disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
+          onRefresh={async () => { if (thread.current) await restore(thread.current); router.refresh(); }}
+          onNavigate={href => {
+            workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href);
+          }}
+        />}
+        {estimateDraftDelete && <ConnectedEstimateDraftDelete
+          key={estimateDraftDelete.id} ticket={estimateDraftDelete} workspaceId={workspaceId}
+          disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
+          onRefresh={async () => { if (thread.current) await restore(thread.current); router.refresh(); }}
+        />}
+        {estimateConversion && <ConnectedEstimateConversion
+          key={estimateConversion.id}
+          ticket={estimateConversion}
+          workspaceId={workspaceId}
+          disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
+          onRefresh={async () => { if (thread.current) await restore(thread.current); }}
+          onOpenReview={() => workspaceAssistant?.setOpen(false)}
+          onNavigate={href => {
+            workspaceAssistant?.setOpen(false);
+            workspaceAssistant?.clearPageContext();
+            router.push(href);
+          }}
+        />}
+        </div>;
       }}
       runStatus={runStatus}
       disabled={loading}

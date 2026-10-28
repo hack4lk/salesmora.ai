@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { expect, userEvent, waitFor, within } from 'storybook/test';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
+import { RelatedEstimatesCard } from '../../estimates/related-estimates-card/related-estimates-card';
+import { relatedEstimateFixtures } from '../../estimates/related-estimates-card/related-estimates-card.data';
 import { LeadsPagePreview } from './leads-page-preview';
 import { exportLeadsDialogData as exportCopy } from '../export-leads-dialog/export-leads-dialog.data';
 import { leadsPageData as copy } from './leads-page.data';
@@ -10,6 +12,18 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {};
 export const List: Story = { args: { initialView: 'list' } };
 export const Detail: Story = { args: { initialRecord: 'jordan' } };
+export const WithEstimates: Story = {
+  args: { initialRecord: 'jordan', onCreateEstimate: fn(),
+    relatedEstimates: <RelatedEstimatesCard recordType="lead" estimates={relatedEstimateFixtures} total={3} canRead canCreate onCreate={fn()} />,
+  },
+  play: async ({ canvasElement, args }) => {
+    const c = within(canvasElement);
+    await expect(c.getByRole('heading', { name: 'Estimates' })).toBeVisible();
+    await expect(c.getAllByRole('link', { name: /^Open estimate EST-/ })).toHaveLength(3);
+    await userEvent.click(c.getAllByRole('button', { name: 'Create estimate' })[0]);
+    await expect(args.onCreateEstimate).toHaveBeenCalledOnce();
+  },
+};
 export const Field: Story = { args: { assignedOnly: true }, play: async ({ canvasElement }) => {
   const c = within(canvasElement);
   await expect(c.queryByRole('button', { name: 'Add lead' })).not.toBeInTheDocument();

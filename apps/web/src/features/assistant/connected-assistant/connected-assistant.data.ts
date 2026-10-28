@@ -3,6 +3,7 @@ export const connectedAssistantData = {
   detailsChanged: 'These lead details have changed or are no longer available. Ask the assistant to retrieve them again.',
   searchChanged: 'These search results have changed or are no longer available. Ask the assistant to search again.',
   leadDeleted: 'The lead was permanently deleted.',
+  calendarContextChanged: 'This visit changed or is no longer available. Clear the context or select the visit again before continuing.',
   previousContext: 'previous message context',
   leadLimit: 'Your workspace has reached its monthly new-lead limit. Ask the Owner to change plans or wait for the next monthly reset. Your proposal has not been saved as a lead.',
   budgetExceeded: 'Your workspace does not have enough monthly AI allowance for this response. The allowance resets on the first of next month (UTC). You can continue working manually.',

@@ -162,7 +162,8 @@ async function prepare(trx: Knex.Transaction, context: AuthorizationContext, tur
         review: { ...head, ...target, action: "edit", changes: changes.map(c => ({ label: c.label, before: clip(c.before, 2200), after: clip(c.after, 2200) })), ...(issuedWarning.length ? { warnings: issuedWarning } : {}) } };
     }
     case "schedule": {
-      needsEdit();
+      const detail = await readWorkOrderDetail(trx, identityFor(context), enabledPermissions, wo.id);
+      if (!detail.access.canSchedule) throw new Declined("You do not have permission to change this work order schedule.");
       return { payload: mutation({ action: "schedule", scheduledDate: request.scheduledDate, arrivalWindow: request.arrivalWindow }),
         review: { ...head, ...target, action: "schedule", changes: [{ label: "Scheduled", before: window(wo.scheduledDate, wo.arrivalWindow), after: window(request.scheduledDate, request.arrivalWindow) }], ...(issuedWarning.length ? { warnings: issuedWarning } : {}) } };
     }

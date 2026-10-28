@@ -57,7 +57,9 @@ try{
     await change({action:"schedule",scheduledDate:null,arrivalWindow:null});row=await current();assert.equal(row.status,"needs-scheduling");assert.equal(row.completionDeadline,"2026-11-02");
   });
   await check("Field grant plus primary ownership, revoked grants and team-only restriction",async()=>{
-    await assert.rejects(change({action:"schedule",scheduledDate:"2026-10-20",arrivalWindow:null},"field"),AuthorizationAccessError);
+    await change({action:"schedule",scheduledDate:"2026-10-20",arrivalWindow:null},"field");
+    await db("workspaceRolePolicies").where({workspaceId,role:"field",permission:"jobs.schedule.update"}).delete();
+    await assert.rejects(change({action:"schedule",scheduledDate:"2026-10-21",arrivalWindow:null},"field"),AuthorizationAccessError);
     await db("workspaceRolePolicies").insert({workspaceId,role:"field",permission:"jobs.schedule.update",scope:"assigned"});
     await change({action:"schedule",scheduledDate:"2026-10-20",arrivalWindow:null},"field");
     await assert.rejects(change({action:"schedule",scheduledDate:"2026-10-21",arrivalWindow:null},"teammate"),AuthorizationAccessError);

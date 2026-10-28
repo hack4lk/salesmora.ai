@@ -556,3 +556,21 @@ These are design previews, not a completed app integration. No public Jobs route
 
 
 UI batch verification: 34 Storybook entries/196 states are ready for review, with passing checks for all 588 state/viewport combinations, workspace typecheck/lint, 487 unit tests and workspace/Storybook production builds. The [review index](jobs-components-review.md) records preview boundaries and remaining integration gates. No live Jobs route/tool or staging deployment was enabled.
+
+### Final assignment-removal notice privacy — October 27, 2026
+
+The user confirmed the minimal final-notice behavior for a previous owner or optional team member whose removal ends current Job access: show **only the Job number and workspace**, without the title, internal Job ID, actor identity or Job detail link. The notice can link to workspace Home/personal preferences and does not grant Job access. An independently authorized workspace-wide Job reader can receive the normal authorized Job projection instead. Enforce current workspace membership and email preferences at eventual delivery; all subsequent Job notifications and details continue to require current Job access. The assignment email component is in Storybook review; transactional assignment delivery is not activated by this decision alone.
+
+
+### Assignment notification integration — October 27, 2026
+
+Assignment changes now produce transactional in-app/email events locally through the shared Job mutation service (including confirmed assistant calls). Previous/new primary owners and optional team members receive their applicable removal/addition/update notice; the actor and no-op changes are excluded. Receipts prevent duplicate confirmation events. The outbox preserves checked previous/new assignment roles and Job number while retaining existing creation/status history.
+
+The approved final removal exception is implemented end-to-end: with current workspace membership but no Job read, only notification ID, Job number and event/read/time metadata are projected. No Job ID, title or actor is exposed; the action opens workspace Home. Normal Job APIs and prior created/status notices remain inaccessible. Current authorized workspace readers may see the ordinary removal detail/link. Email delivery rechecks membership/deletion, verification, personal opt-out and effective workspace assignment-email policy. The worker uses the approved template and stable retry keys. This is activated locally only; completion-deadline event delivery and Calendar assistant work remain separate slices.
+
+
+### Completion-deadline activity notifications — October 27, 2026
+
+Actual deadline additions, changes and removals now generate transactional in-app/email events locally using the approved JobDeadlineChanged template and shared Job mutation service. A reopened Job also produces this event if its explicitly reviewed deadline differs from its historical deadline. No-op/default-setting changes, initial creation and visit scheduling do not create extra deadline events. Immutable old/new SQL dates and timezone accompany deduplicated recipient-specific events with actor exclusion and receipt idempotency.
+
+Current Job read/assignment, active membership/deletion state, verified email, effective workspace deadline-email rule and personal Job activity preference are rechecked at delivery. Reminder email controls are separate. The in-app menu displays old/new dates and workspace timezone and supports current authorized read marking. All reviewed Job activity event types (creation, status, assignment, completion deadline) are now active locally; Calendar-specific assistant review and release QA remain later slices. No staging deployment.

@@ -1,28 +1,58 @@
 'use client';
+import { useCalendarScheduleRefresh } from '../../calendar/calendar-events';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FormFeedback } from '@salesmora/ui';
 import { useWorkspaceAssistant } from '../../assistant/workspace-assistant/workspace-assistant';
-import type { MaterialListResult, WorkOrderDetailResult, WorkOrderStatus } from '@salesmora/contracts';
+import type { WorkOrderVisitManagement, MaterialListResult, WorkOrderDetailResult, WorkOrderStatus } from '@salesmora/contracts';
 import type { MaterialPickerOption } from '../../materials/material-picker/material-picker';
 import { WorkOrderDetailPage } from '../work-order-detail-page/work-order-detail-page';
 import { WorkOrderMoveDialog } from '../work-order-move-dialog/work-order-move-dialog';
 import { WorkOrderReopenDialog } from '../work-order-reopen-dialog/work-order-reopen-dialog';
 import { WorkOrderDeleteDialog } from '../work-order-delete-dialog/work-order-delete-dialog';
+import { WorkOrderVisitDialog, type WorkOrderVisitChange } from '../work-order-visit-dialog/work-order-visit-dialog';
 import { WorkOrderScheduleDialog } from '../work-order-schedule-dialog/work-order-schedule-dialog';
 import { MaterialDialog } from '../../materials/material-dialog/material-dialog';
 import { fieldsFromForm, parseDollars, type MaterialFormValues } from '../../materials/material-dialog/material-form';
-import { createReceipts, workOrderRequest } from '../work-order-client';
+import { createReceipts, workOrderRequest, WorkOrderRequestError } from '../work-order-client';
 import { statusPayload, useWorkOrderWrites } from '../work-order-writes';
+import { woButton } from '../work-order-ui';
 import { toView } from '../work-order-view';
 import { workOrdersRouteData as copy } from './work-orders-route.data';
 
-type Overlay = { kind: 'move'; to: WorkOrderStatus | null } | { kind: 'reopen' } | { kind: 'schedule' } | { kind: 'delete' };
+type Overlay = { kind: 'move'; to: WorkOrderStatus | null } | { kind: 'reopen' } | { kind: 'schedule' } | { kind: 'delete' } | { kind: 'join' | 'separate' };
 
 export function WorkOrderDetailRoute({ workspaceId, initial }: { workspaceId: string; initial: WorkOrderDetailResult }) {
   const router = useRouter(), writes = useWorkOrderWrites(workspaceId, copy.saveError);
   const [detail, setDetail] = useState(initial), [overlay, setOverlay] = useState<Overlay>(), [loadError, setLoadError] = useState('');
   const w = detail.workOrder, view = toView(w), id = w.id;
+  const [visitPreview, setVisitPreview] = useState<{ key: string; value?: WorkOrderVisitManagement; error?: boolean }>();
+  const [visitRefresh, setVisitRefresh] = useState(0), [visitPending, setVisitPending] = useState(false), [visitError, setVisitError] = useState(''), [visitConflict, setVisitConflict] = useState(false);
+  const visitFlight = useRef(false), visitReceipts = useRef(createReceipts());
+  const visitKey = JSON.stringify([workspaceId, id, w.version, visitRefresh]);
+  const visitData = visitPreview?.key === visitKey ? visitPreview.value : undefined;
+  useEffect(() => {
+    const controller = new AbortController();
+    workOrderRequest<WorkOrderVisitManagement>(`/api/work-orders/${id}/visit?` + new URLSearchParams({ workspace: workspaceId }), { signal: controller.signal }, copy.error)
+      .then(value => { if (!controller.signal.aborted) setVisitPreview({ key: visitKey, value }); })
+      .catch(() => { if (!controller.signal.aborted) setVisitPreview({ key: visitKey, error: true }); });
+    return () => controller.abort();
+  }, [id, workspaceId, visitKey]);
+  const reloadVisits = () => { setVisitError(''); setVisitConflict(false); setVisitRefresh(n => n + 1); };
+  const openVisit = (kind: 'join' | 'separate') => { reloadVisits(); setOverlay({ kind }); };
+  async function confirmVisit(draft: WorkOrderVisitChange) {
+    if (visitFlight.current) throw new Error(copy.saveError);
+    visitFlight.current = true; setVisitPending(true); setVisitError(''); setVisitConflict(false);
+    try {
+      const payload = { workspaceId, ...draft };
+      await workOrderRequest(`/api/work-orders/${id}/visit`, { method: 'PATCH', body: JSON.stringify({ ...payload, submissionId: visitReceipts.current(payload) }) }, copy.saveError);
+    } catch (e) {
+      setVisitError(e instanceof Error ? e.message : copy.saveError);
+      setVisitConflict(e instanceof WorkOrderRequestError && e.status === 409);
+      throw e;
+    } finally { visitFlight.current = false; setVisitPending(false); }
+    setOverlay(undefined); reloadVisits(); await reload();
+  }
   const setPageContext = useWorkspaceAssistant()?.setPageContext;
   useEffect(() => {
     setPageContext?.({ key: `work-order:${id}`, label: `${w.number} · ${w.title}`, recordRefs: [{ type: 'work_order', id }] });
@@ -51,6 +81,7 @@ export function WorkOrderDetailRoute({ workspaceId, initial }: { workspaceId: st
     try { setDetail(await workOrderRequest<WorkOrderDetailResult>(`/api/work-orders/${id}${query}`, undefined, copy.error)); setLoadError(''); }
     catch (e) { setLoadError(e instanceof Error ? e.message : copy.error); }
   };
+  useCalendarScheduleRefresh(reload);
   async function save(payload: object) {
     const result = await writes.patch({ id, version: w.version }, payload);
     if (result) setOverlay(undefined);
@@ -85,6 +116,7 @@ export function WorkOrderDetailRoute({ workspaceId, initial }: { workspaceId: st
   }
   return <div className="grid min-w-0 gap-4">
     {(loadError || (writes.error && !overlay)) && <FormFeedback kind="error" message={loadError || writes.error} />}
+    {visitPreview?.key === visitKey && visitPreview.error && !overlay && <div className="grid gap-3"><FormFeedback kind="error" message={copy.visitLoadError}/><button type="button" className={`${woButton} justify-self-start`} onClick={reloadVisits}>{copy.reloadVisits}</button></div>}
     <WorkOrderDetailPage workspaceId={workspaceId} detail={detail} onBack={board} onOpenJob={jobId => router.push(`/jobs/${jobId}${query}`)}
       onHeaderAction={action => {
         writes.clearError();
@@ -97,6 +129,7 @@ export function WorkOrderDetailRoute({ workspaceId, initial }: { workspaceId: st
         else if (action === 'duplicate') void duplicate();
         else if (action === 'print') window.open(`/work-orders/${id}/print${query}`, '_blank', 'noopener');
       }}
+      visitActions={visitData ? { canJoin: visitData.canJoin, canSeparate: visitData.canSeparate, onJoin: () => openVisit('join'), onSeparate: () => openVisit('separate') } : undefined}
       onSaveInstructions={v => void save({ action: 'edit', ...v })}
       onToggleTask={(taskId, done) => void save({ action: 'task-toggle', taskId, done })}
       onAddTask={(label, required) => void save({ action: 'tasks', tasks: [...tasks, { label, required }] })}
@@ -120,6 +153,10 @@ export function WorkOrderDetailRoute({ workspaceId, initial }: { workspaceId: st
       onConfirm={(to, reason) => to === 'completed' ? setOverlay(undefined) : void save(statusPayload(to, reason))} />}
     {overlay?.kind === 'reopen' && <WorkOrderReopenDialog key={id} open number={w.number} pending={writes.pending} error={writes.error} conflict={writes.conflict} onReload={() => void reload()} onClose={() => setOverlay(undefined)} onConfirm={reason => void save({ action: 'reopen', reason })} />}
     {overlay?.kind === 'delete' && <WorkOrderDeleteDialog key={id} open number={w.number} title={w.title} pending={writes.pending} error={writes.error} onClose={() => setOverlay(undefined)} onConfirm={() => void remove()} />}
-    {overlay?.kind === 'schedule' && <WorkOrderScheduleDialog key={id} open schedule={{ date: w.scheduledDate, window: w.arrivalWindow }} pending={writes.pending} error={writes.error} conflict={writes.conflict} onReload={() => void reload()} onClose={() => setOverlay(undefined)} onConfirm={v => void save({ action: 'schedule', ...v })} />}
+    {(overlay?.kind === 'join' || overlay?.kind === 'separate') && <WorkOrderVisitDialog open mode={overlay.kind} today={visitData?.today ?? ''}
+      workOrder={{ id, jobId: w.jobId, number: w.number, title: w.title }} source={visitData?.source ?? null} target={visitData?.target}
+      state={visitData ? 'ready' : visitPreview?.key === visitKey && visitPreview.error ? 'error' : 'loading'} pending={visitPending} error={visitError} conflict={visitConflict}
+      onReload={reloadVisits} onClose={() => setOverlay(undefined)} onConfirm={confirmVisit} />}
+    {overlay?.kind === 'schedule'  && <WorkOrderScheduleDialog key={id} open schedule={{ date: w.scheduledDate, window: w.arrivalWindow }} pending={writes.pending} error={writes.error} conflict={writes.conflict} onReload={() => void reload()} onClose={() => setOverlay(undefined)} onConfirm={v => void save({ action: 'schedule', ...v })} />}
   </div>;
 }

@@ -33,7 +33,7 @@ export async function renderMaterialsPage(params: Record<string, string | string
     const initial = await readMaterials(database(), { userId: session.user.id, workspaceId: workspace.id }, enabledPermissions, query);
     return <WorkspaceShell currentPage="materials" workspaceId={workspace.id} workspaceName={workspace.businessName}
       user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} authorizedPages={workspaceNavigationPages(context)}
-      permissionsAvailable={capabilities.permissions} billingAvailable={capabilities.billing} assistantAvailable={capabilities.assistant}
+      jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} billingAvailable={capabilities.billing} assistantAvailable={capabilities.assistant}
       chatEnabled={chatRuntimeAvailable()} chatSurface="materials.list" contentWidth="full" onSignOut={signOut}>
       <MaterialsRoute key={workspace.id} workspaceId={workspace.id} initial={initial} initialQuery={query} />
     </WorkspaceShell>;

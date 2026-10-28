@@ -21,6 +21,42 @@ describe('chat transport contracts', () => {
       { type: 'turn.failed', messageId: id, code: 'interrupted' },
     ]) expect(chatStreamEventSchema.safeParse({ ...envelope, ...event }).success).toBe(true);
   });
+  it("streams only compact Archive/Restore tickets", () => {
+    const result = {
+      id, actionType: "estimate.archive", inputHash: "a".repeat(64), authorizationVersion: "b".repeat(64),
+      reviewHash: "c".repeat(64), createdAt: "2026-10-27T12:00:00.000Z",
+      expiresAt: "2026-10-27T12:15:00.000Z", state: "pending",
+      estimate: { id, version: 3, number: "EST-2048", revision: 1, name: "Repair", status: "declined", archived: false },
+    };
+    const event = { ...envelope, type: "estimates.archive", messageId: id, result };
+    expect(chatStreamEventSchema.safeParse(event).success).toBe(true);
+    for (const extra of [{ review: {} }, { receipt: {} }, { href: "/estimates/private" }]) {
+      expect(chatStreamEventSchema.safeParse({
+        ...event, result: { ...result, ...extra },
+      }).success).toBe(false);
+    }
+  });
+  it("streams only the compact permanent Draft-deletion ticket", () => {
+    const result = {
+      id,
+      actionType: "estimate.delete-draft",
+      inputHash: "a".repeat(64),
+      authorizationVersion: "b".repeat(64),
+      reviewHash: "c".repeat(64),
+      createdAt: "2026-10-27T12:00:00.000Z",
+      expiresAt: "2026-10-27T12:15:00.000Z",
+      state: "pending",
+      estimate: { id, version: 3, number: "EST-2048", revision: 1 },
+    };
+    const event = { ...envelope, type: "estimates.draft_delete", messageId: id, result };
+    expect(chatStreamEventSchema.safeParse(event).success).toBe(true);
+    for (const extra of [{ review: {} }, { receipt: {} }, { href: "/estimates/private" }]) {
+      expect(chatStreamEventSchema.safeParse({
+        ...event,
+        result: { ...result, ...extra },
+      }).success).toBe(false);
+    }
+  });
   it('rejects raw provider payloads, internal reasoning, arbitrary error details and bad sequences', () => {
     for (const event of [
       { type: 'response.output_text.delta', delta: 'text' },

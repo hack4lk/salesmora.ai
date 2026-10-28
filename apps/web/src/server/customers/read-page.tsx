@@ -74,7 +74,7 @@ export async function renderCustomersPage(
           role: context.membership.role,
         }}
         authorizedPages={workspaceNavigationPages(context)}
-        permissionsAvailable={capabilities.permissions}
+        jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt}
         billingAvailable={capabilities.billing}
         assistantAvailable={capabilities.assistant}
         chatEnabled={chatRuntimeAvailable()}

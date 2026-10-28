@@ -31,6 +31,8 @@ export type LeadPageRecord = LeadCardRecord & {
 };
 export type LeadsPageAccess = LeadsToolbarProps['access'] & { canAssign: boolean; canEdit: boolean; canDelete: boolean; canManageBilling: boolean; canPrepareEstimate: boolean; canStartJob: boolean };
 export type LeadsPageProps = { relatedCustomer?: import('react').ReactNode;
+  relatedEstimates?: import('react').ReactNode;
+  onCreateEstimate?: () => void;
   /** Already authorized/filtered/sorted/paged data. The host owns queries, URL state and counts. */
   rows: readonly LeadPageRecord[]; columns: readonly PipelineColumn[]; total: number; record?: LeadPageRecord;
   values: LeadsToolbarProps['values']; onChange: LeadsToolbarProps['onChange']; access: LeadsPageAccess;
@@ -139,12 +141,12 @@ export function LeadsPage(props: LeadsPageProps) {
     {record ? <>
       <LeadDetailHeader lead={record} now={props.now} timezone={props.timezone} backHref={props.listHref} pending={pending}
         permissions={{ canEdit: record.canEdit ?? access.canEdit, canArchive: archiveActions && (record.canArchive ?? !record.archived), canRestore: archiveActions && (record.canRestore ?? record.archived), canDelete: record.canDelete ?? access.canDelete, canCreateEstimate: access.canPrepareEstimate, canStartJob: access.canStartJob }}
-        onEdit={() => request('edit', record)} onRequestArchive={() => request('archive', record)} onRequestRestore={() => request('restore', record)} onRequestDelete={() => request('delete', record)}/>
+        onCreateEstimate={props.onCreateEstimate} onEdit={() => request('edit', record)} onRequestArchive={() => request('archive', record)} onRequestRestore={() => request('restore', record)} onRequestDelete={() => request('delete', record)}/>
       <div className="grid min-w-0 gap-6 lg:grid-cols-3"><div className="grid min-w-0 content-start gap-6 lg:col-span-2">
         <LeadContactCard contact={record} viewerId={props.viewerId}/>{props.relatedCustomer}<LeadServiceCard service={record.service} address={record.address} details={record.details}/>
         <LeadNotes key={record.id} leadId={record.id} value={note} onChange={setNote} notes={record.teamNotes} now={props.now} timezone={props.timezone} disabled={props.notesReadOnly} total={props.notesTotal} loading={props.notesLoading} onLoadMore={props.onLoadMoreNotes} onAdd={props.onNote} onAdded={() => setNotice({ kind: 'success', text: copy.saved })}/>
         <LeadActivityTimeline events={record.events} total={props.activityTotal ?? record.events.length} onLoadMore={props.onLoadMoreActivity} now={props.now} timezone={props.timezone}/>
-      </div><aside className="grid min-w-0 content-start gap-6"><LeadNextStepCard lead={record} suggestion={record.nextStep} onPrepare={props.onPrepareFollowUp} prepareButtonRef={props.prepareButtonRef} assistantStatus={props.assistantStatus}/>{controls}</aside></div>
+      </div><aside className="grid min-w-0 content-start gap-6"><LeadNextStepCard lead={record} suggestion={record.nextStep} onPrepare={props.onPrepareFollowUp} prepareButtonRef={props.prepareButtonRef} assistantStatus={props.assistantStatus}/>{props.relatedEstimates}{controls}</aside></div>
     </> : <>
       <header><h1 className="m-0 text-heading font-semibold text-ink sm:text-heading-lg">{copy.title}</h1><p className="mb-0 mt-3 text-base leading-6 text-muted">{copy.description}</p></header>
       <LeadsToolbar values={values} owners={props.filterOwners ?? (access.canAssign ? props.members : [])} viewerId={props.viewerId} access={access} disabled={pending || !interactive} onChange={props.onChange} onAdd={props.onRequestCreate ?? (() => setWorkflow({ kind: 'create' }))} onExport={reviewExport}/>

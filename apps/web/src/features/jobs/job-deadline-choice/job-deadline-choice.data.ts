@@ -1,0 +1,16 @@
+export const jobDeadlineChoiceData = {
+  title: 'Completion deadline', description: 'Use the workspace rule, choose a date for this Job, or deliberately leave its deadline unset. The scheduled visit date is separate.',
+  workspace: 'Use workspace default', custom: 'Choose a date', unset: 'Leave this Job without a deadline',
+  workspaceUnset: 'The workspace default leaves new Jobs without a deadline.',
+  relative: (days: number, count: 'business' | 'calendar') => `${days} ${count === 'business' ? 'business' : 'calendar'} ${days === 1 ? 'day' : 'days'} after Job creation`,
+  counting: 'Business days are Monday–Friday; holidays are not excluded. Counting starts after the creation day.',
+  customHelp: 'This date overrides the workspace default for this Job only.', unsetHelp: 'Create this Job with no deadline, even if the workspace default sets one.',
+  date: 'Deadline date', result: 'Deadline to review', noDeadline: 'No completion deadline', needsDate: 'Choose a valid deadline date.',
+  timezone: 'Workspace timezone', created: 'Creation date used for this preview',
+  preview: 'The server will verify the rule and creation date when you confirm. If the result has changed, review the updated deadline before creating the Job.',
+  limited: 'The workspace default applies. You need permission to override a Job’s deadline before choosing a different date or leaving it unset.',
+  readOnly: 'This deadline choice is read-only.', stale: 'The workspace default changed. Use the current default and review the resulting deadline again.', useCurrent: 'Use current default',
+  denied: 'You no longer have permission to override the workspace default. Choose the workspace default to continue.',
+  loading: 'Loading the workspace deadline rule…', error: 'The workspace deadline rule could not be loaded. Reload before reviewing this Job.', reload: 'Reload deadline rule',
+  stories: { notice: 'Interactive design preview. No Job is created and no deadline defaults are activated.', timezone: 'America/New_York', created: '2026-10-23', projected: '2026-11-12', customDate: '2026-11-20', longTimezone: 'America/Argentina/Buenos_Aires', revision: 'deadline-v1' },
+} as const;

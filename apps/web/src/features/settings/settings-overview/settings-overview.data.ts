@@ -1,5 +1,6 @@
 import { businessTypes, serviceCatalog } from '@salesmora/contracts';
 export const settingsOverviewData = {
+  jobNotificationsTitle: 'Deadlines & notifications', jobNotificationsDescription: 'Configure Job deadline defaults, reminder schedules and workspace email events.', viewJobNotifications: 'Job notification settings',
   accountTitle: 'Account', accountDescription: 'View your personal account details and workspace role.', viewAccount: 'View account',
   documentTitle: 'Settings | SalesMora.ai',
   billingTitle: 'Billing', billingDescription: 'View your workspace plan, payment summary, usage and invoice history.', viewBilling: 'View billing',
@@ -15,9 +16,15 @@ export const settingsOverviewData = {
   businessTypes, serviceCatalog,
   aiUsageTitle: 'AI usage', aiUsageDescription: 'View your shared monthly assistant allowance, usage and reset date.', viewAIUsage: 'View AI usage',
   workOrdersTitle: 'Work orders', workOrdersDescription: 'Require customer sign-off and set the business phone shown on printed crew sheets.', viewWorkOrders: 'Work order settings',
+  estimatesTitle: 'Estimates',
+  estimatesDescription: 'Manage the business identity and logo shown on customer estimates, payment-term presets and defaults for new Drafts. Previously shared estimates keep their captured details.',
+  viewEstimates: 'Estimate settings',
   permissionsTitle: 'Permissions',
   permissionsDescription: 'Choose what Owner, Admin, Office, and Field roles can see and do.',
   ownerOnly: 'Owner only',
   managePermissions: 'Manage permissions',
-  stories: { workspace: 'Northstar Plumbing', postalCode: '10013', longWorkspace: 'Northstar Property Maintenance, Construction and Professional Services', permissionsHref: '/settings/permissions?workspace=fictional-workspace', workOrdersHref: '/settings/work-orders?workspace=fictional-workspace' },
+  stories: { workspace: 'Northstar Plumbing', postalCode: '10013', longWorkspace: 'Northstar Property Maintenance, Construction and Professional Services', permissionsHref: '/settings/permissions?workspace=fictional-workspace', workOrdersHref: '/settings/work-orders?workspace=fictional-workspace',
+    estimatesHref: '/settings/estimates?workspace=fictional-workspace', estimatesNotice: 'Preview only. The Estimates settings route is not connected.',
+    estimatesNavigation: 'Estimate settings navigation requested. No live page was opened.',
+  },
 } as const;

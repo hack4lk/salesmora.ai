@@ -1,0 +1,53 @@
+import type { EstimateVoidRecord } from "./estimate-void-dialog.preview";
+
+export const estimateVoidDialogData = {
+  title: "Withdraw this estimate?",
+  description: "Voiding withdraws a Sent or Published estimate. Review the record and explain why it is being withdrawn.",
+  confirm: "Void estimate",
+  cancel: "Cancel",
+  pending: "Withdrawing estimate...",
+  reloading: "Reloading estimate...",
+  record: "Estimate",
+  revision: (value: number) => `Revision ${value}`,
+  preparedFor: "Prepared for",
+  status: "Current status",
+  reason: "Reason for voiding",
+  reasonHint: "Required. Kept in staff history for authorized readers, not shown on the customer link or estimate paper.",
+  count: (length: number) => `${length}/500 characters`,
+  limit: 500,
+  linkEffect: "The customer link will show that this estimate has been withdrawn.",
+  recordEffect: "The estimate and its frozen snapshot remain on record. Voiding is not deletion or archiving, and does not create or change a job or payment.",
+  noHandler: "Voiding estimates is not connected in this view.",
+  reload: "Reload estimate and review",
+  reloadUnavailable: "Reloading is not connected in this view. Close this review and reopen the current estimate before confirming.",
+  reloadFailed: "The estimate could not be reloaded. Nothing was withdrawn. Try again.",
+  errors: {
+    read: "This estimate is unavailable. Your access may have changed.",
+    permission: "You do not have permission to void this estimate.",
+    status: "Only Sent or Published estimates can be withdrawn. Reload the record.",
+    archived: "An archived estimate cannot be withdrawn.",
+    record: "The estimate's saved details are unavailable or invalid. Reload before confirming.",
+    binding: "This review does not match the current estimate version. Reload and review the withdrawal again.",
+    reason: "Enter a reason for voiding, no more than 500 characters.",
+  },
+  stories: {
+    notice: "Void dialog preview: fictional records and permissions. No estimate, customer link, snapshot, history entry, job or payment is changed.",
+    open: "Review sample withdrawal",
+    requested: "Sample withdrawal requested. The host has not confirmed a saved change.",
+    name: "Kitchen remodel estimate",
+    customer: "Jordan Lee",
+    reason: "The scope was sent to the customer in error and needs to be replaced.",
+    longReason: "The scope needs to be replaced after the site review. ".repeat(9),
+    literal: "<script>not executable</script>\nKeep this staff reason literal.",
+    longName: "Kitchen, bathroom and exterior restoration proposal for the Montgomery-Wellington residence",
+    longCustomer: "Alexandria Montgomery-Wellington and the Riverside Community Restoration Partnership",
+    failure: "The estimate could not be withdrawn. Review the record and try again.",
+    conflict: "The estimate changed while this review was open. Reload before confirming.",
+    rejection: "Sample operation rejected.",
+  },
+} as const;
+
+export const estimateVoidFixture: EstimateVoidRecord = {
+  id: "estimate-void-sample", number: "EST-2048", revision: 1, version: 5, status: "sent", archived: false,
+  name: estimateVoidDialogData.stories.name, recipientName: estimateVoidDialogData.stories.customer,
+};

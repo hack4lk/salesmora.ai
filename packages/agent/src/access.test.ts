@@ -11,6 +11,120 @@ function context(role: WorkspaceRole): AuthorizationContext {
     policy: createDefaultWorkspacePolicy(workspaceId), enabledPermissions: ['assistant.use', 'leads.read', 'leads.create', 'leads.assign', 'leads.stage.update', 'leads.update', 'leads.archive', 'leads.export', 'leads.delete'] };
 }
 describe('shared app, Leads capability and chat authorization', () => {
+  it('offers Calendar reads globally only with enabled assistant and Calendar grants', () => {
+    for (const role of workspaceRoles) {
+      const c = context(role); c.enabledPermissions = ['assistant.use','calendar.read'];
+      for (const surface of ['calendar','home','lead.detail']) expect(authorizeChatTool(c,surface,'calendar_query',chatToolIds).allowed).toBe(true);
+      for (const permission of ['assistant.use','calendar.read']) expect(authorizeChatTool({ ...c, enabledPermissions: c.enabledPermissions.filter(p => p !== permission) }, 'calendar','calendar_query',chatToolIds).allowed).toBe(false);
+      expect(authorizeChatTool(c,'calendar','calendar_query',[]).allowed).toBe(false);
+    }
+  });
+  it('permits Void preparation with independent read/Void potential only on supported surfaces', () => {
+    for (const role of ['owner', 'admin', 'office'] as const) {
+      const c = context(role);
+      c.enabledPermissions = ['assistant.use', 'estimates.read', 'estimates.void', 'jobs.read'];
+      for (const surface of ['home', 'estimates.list', 'estimate.detail', 'estimate.editor', 'lead.detail', 'customer.detail']) {
+        expect(authorizeChatTool(c, surface, 'estimates_propose_action', chatToolIds).allowed).toBe(true);
+      }
+      for (const permission of ['assistant.use', 'estimates.read', 'estimates.void']) {
+        expect(authorizeChatTool({ ...c, enabledPermissions: c.enabledPermissions.filter(value => value !== permission) }, 'home', 'estimates_propose_action', chatToolIds).allowed).toBe(false);
+      }
+      expect(authorizeChatTool(c, 'settings.overview', 'estimates_propose_action', chatToolIds).allowed).toBe(false);
+    }
+    const c = context('field');
+    c.enabledPermissions = ['assistant.use', 'estimates.read', 'estimates.void', 'jobs.read'];
+    expect(authorizeChatTool(c, 'home', 'estimates_propose_action', chatToolIds).allowed).toBe(false);
+  });
+  it("permits Archive/Restore preparation only with independent read and Archive access", () => {
+    for (const role of ["owner", "admin", "office"] as const) {
+      const c = context(role);
+      c.enabledPermissions = ["assistant.use", "estimates.read", "estimates.archive", "jobs.read"];
+      expect(authorizeChatTool(c, "home", "estimates_propose_action", chatToolIds).allowed).toBe(true);
+      for (const permission of ["assistant.use", "estimates.read", "estimates.archive"]) {
+        expect(authorizeChatTool({
+          ...c, enabledPermissions: c.enabledPermissions.filter(value => value !== permission),
+        }, "home", "estimates_propose_action", chatToolIds).allowed).toBe(false);
+      }
+    }
+    const field = context("field");
+    field.enabledPermissions = ["assistant.use", "estimates.read", "estimates.archive", "jobs.read"];
+    expect(authorizeChatTool(field, "home", "estimates_propose_action", chatToolIds).allowed).toBe(false);
+  });
+  it("permits permanent Draft-deletion preparation only with independent read and Delete access", () => {
+    for (const role of ["owner", "admin"] as const) {
+      const c = context(role);
+      c.enabledPermissions = ["assistant.use", "estimates.read", "estimates.delete", "jobs.read"];
+      expect(authorizeChatTool(c, "home", "estimates_propose_action", chatToolIds).allowed).toBe(true);
+      for (const permission of ["assistant.use", "estimates.read", "estimates.delete"]) {
+        expect(authorizeChatTool({
+          ...c, enabledPermissions: c.enabledPermissions.filter(value => value !== permission),
+        }, "home", "estimates_propose_action", chatToolIds).allowed).toBe(false);
+      }
+    }
+    const field = context("field");
+    field.enabledPermissions = ["assistant.use", "estimates.read", "estimates.delete", "jobs.read"];
+    expect(authorizeChatTool(field, "home", "estimates_propose_action", chatToolIds).allowed).toBe(false);
+  });
+  it("permits CSV export handoff only with independent Estimates read and export grants", () => {
+    for (const role of ["owner", "admin"] as const) {
+      const c = context(role);
+      c.enabledPermissions = ["assistant.use", "estimates.read", "estimates.export"];
+      expect(authorizeChatTool(c, "home", "estimates_propose_action", chatToolIds).allowed).toBe(true);
+      c.enabledPermissions = ["assistant.use", "estimates.read"];
+      expect(authorizeChatTool(c, "home", "estimates_propose_action", chatToolIds).allowed).toBe(false);
+    }
+    const field = context("field");
+    field.enabledPermissions = ["assistant.use", "estimates.read", "estimates.export"];
+    expect(authorizeChatTool(field, "home", "estimates_propose_action", chatToolIds).allowed).toBe(false);
+  });
+  it('advertises Duplicate preparation with read/create potential alone, while services still enforce the exact operation', () => {
+    for (const role of workspaceRoles) {
+      const c = context(role);
+      c.enabledPermissions = ['assistant.use', 'estimates.read', 'estimates.create', 'jobs.read'];
+      expect(authorizeChatTool(c, 'home', 'estimates_propose_action', chatToolIds).allowed).toBe(true);
+      c.enabledPermissions = c.enabledPermissions.filter(value => value !== 'estimates.create');
+      expect(authorizeChatTool(c, 'home', 'estimates_propose_action', chatToolIds).allowed).toBe(false);
+    }
+  });
+  it('permits decision preparation with read/decide alone, without granting correction or other operations', () => {
+    for (const role of workspaceRoles) {
+      const c = context(role);
+      c.enabledPermissions = ['assistant.use', 'estimates.read', 'estimates.decide', 'jobs.read'];
+      for (const surface of ['home', 'estimates.list', 'estimate.detail', 'estimate.editor', 'lead.detail', 'customer.detail']) {
+        expect(authorizeChatTool(c, surface, 'estimates_propose_action', chatToolIds).allowed).toBe(true);
+      }
+      for (const permission of ['estimates.read', 'estimates.decide', 'assistant.use']) {
+        expect(authorizeChatTool({ ...c, enabledPermissions: c.enabledPermissions.filter(value => value !== permission) }, 'home', 'estimates_propose_action', chatToolIds).allowed).toBe(false);
+      }
+      expect(authorizeChatTool(c, 'settings.overview', 'estimates_propose_action', chatToolIds).allowed).toBe(false);
+    }
+  });
+  it('permits sharing preparation with read/send alone, but not without independent read or send potential', () => {
+    for (const role of workspaceRoles) {
+      const c = context(role);
+      c.enabledPermissions = ['assistant.use', 'estimates.read', 'estimates.send', 'jobs.read'];
+      expect(authorizeChatTool(c, 'home', 'estimates_propose_action', chatToolIds).allowed).toBe(true);
+      for (const permission of ['estimates.read', 'estimates.send'] as const) {
+        expect(authorizeChatTool({ ...c, enabledPermissions: c.enabledPermissions.filter(value => value !== permission) }, 'home', 'estimates_propose_action', chatToolIds).allowed).toBe(false);
+      }
+      expect(authorizeChatTool(c, 'settings.overview', 'estimates_propose_action', chatToolIds).allowed).toBe(false);
+    }
+  });
+  it('prepares Estimate Drafts only with read plus create/update potential on registered Estimate surfaces', () => {
+    for (const role of workspaceRoles) {
+      const c = context(role);
+      c.enabledPermissions = [...c.enabledPermissions, 'estimates.read', 'estimates.create', 'estimates.update', 'jobs.read'];
+      for (const surface of ['home', 'estimates.list', 'estimate.editor', 'estimate.detail', 'lead.detail', 'customer.detail']) {
+        expect(authorizeChatTool(c, surface, 'estimates_propose_action', chatToolIds).allowed).toBe(true);
+      }
+      expect(authorizeChatTool(c, 'settings.overview', 'estimates_propose_action', chatToolIds).allowed).toBe(false);
+      c.enabledPermissions = c.enabledPermissions.filter(permission => permission !== 'estimates.read');
+      expect(authorizeChatTool(c, 'home', 'estimates_propose_action', chatToolIds).allowed).toBe(false);
+      c.enabledPermissions = [...c.enabledPermissions, 'estimates.read'];
+      c.policy.grants = c.policy.grants.filter(grant => grant.role !== role || !['estimates.create', 'estimates.update'].includes(grant.permission));
+      expect(authorizeChatTool(c, 'home', 'estimates_propose_action', chatToolIds).allowed).toBe(false);
+    }
+  });
   for (const role of workspaceRoles) it(`${role}: facade availability never grants another operation`, () => {
     const c = context(role);
     expect(authorizeChatTurn(c, request).allowed).toBe(true);
@@ -107,6 +221,36 @@ it('export follows the app role ceiling and intersected collection grants', () =
   expect(authorizeLeadOperation(context('owner'), 'settings.overview', 'export_csv').allowed).toBe(false);
 });
 
+it("exposes Estimate reads only on supported surfaces with Estimate read scope", () => {
+  const owner = context("owner");
+  owner.enabledPermissions.push("estimates.read");
+  expect(
+    authorizeChatTool(owner, "estimates.list", "estimates_query", chatToolIds)
+      .allowed,
+  ).toBe(true);
+  expect(
+    authorizeChatTool(owner, "home", "estimates_query", chatToolIds).allowed,
+  ).toBe(true);
+  expect(
+    authorizeChatTool(
+      owner,
+      "settings.overview",
+      "estimates_query",
+      chatToolIds,
+    ).allowed,
+  ).toBe(false);
+
+  const withoutEstimateRead = context("owner");
+  expect(
+    authorizeChatTool(
+      withoutEstimateRead,
+      "estimates.list",
+      "estimates_query",
+      chatToolIds,
+    ).allowed,
+  ).toBe(false);
+});
+
 it('permanent deletion requires the app role ceiling, workspace read and current delete grant', () => {
   for (const role of workspaceRoles) expect(authorizeLeadOperation(context(role), 'lead.detail', 'delete').allowed).toBe(role === 'owner' || role === 'admin');
   const c = context('admin'); c.policy.grants = c.policy.grants.map(g => g.role === 'admin' && g.permission === 'leads.read' ? { ...g, scope: 'assigned' } : g);
@@ -114,4 +258,13 @@ it('permanent deletion requires the app role ceiling, workspace read and current
   const revoked = context('admin'); revoked.policy.grants = revoked.policy.grants.filter(g => !(g.role === 'admin' && g.permission === 'leads.delete'));
   expect(authorizeLeadOperation(revoked, 'home', 'delete').allowed).toBe(false);
   expect(authorizeLeadOperation(context('owner'), 'settings.overview', 'delete').allowed).toBe(false);
+});
+
+describe('Calendar draft tool is a launcher, never record authority',()=>{
+ it('requires current assistant/read/scheduling grants on every registered surface',()=>{
+  const c=context('owner');c.enabledPermissions=['assistant.use','calendar.read','jobs.read','jobs.schedule.update'];
+  for(const surface of ['home','calendar','work_order.detail'])expect(authorizeChatTool(c,surface,'calendar_propose_action',chatToolIds).allowed).toBe(true);
+  for(const permission of c.enabledPermissions)expect(authorizeChatTool({...c,enabledPermissions:c.enabledPermissions.filter(p=>p!==permission)},'home','calendar_propose_action',chatToolIds).allowed).toBe(false);
+  expect(authorizeChatTool(c,'home','calendar_propose_action',[]).allowed).toBe(false);
+ });
 });

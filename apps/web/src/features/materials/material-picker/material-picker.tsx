@@ -52,14 +52,21 @@ export function MaterialPicker({ search, selected, onSelect, onClear, showPrices
         type="search" role="combobox" aria-expanded={open} aria-controls="material-picker-results" aria-label={copy.label} autoComplete="off" disabled={disabled}
         className="min-h-11 w-full rounded-xl border border-line bg-paper px-3 py-2 text-base text-ink focus-visible:focus-ring"
         placeholder={copy.placeholder} value={query}
+        onClick={() => setOpen(true)}
         onFocus={() => setOpen(true)} onChange={event => { setQuery(event.target.value); setOpen(true); }}
         onKeyDown={event => { if (event.key === 'Escape') setOpen(false); }}
       />
       {open && (
         <div id="material-picker-results" role="listbox" aria-label={copy.results} className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-line bg-paper p-1 shadow-lg">
-          {state.status === 'loading' && <p className="m-0 p-3 text-sm text-muted" role="status">{copy.searching}</p>}
-          {state.status === 'error' && <p className="m-0 p-3 text-sm text-danger" role="alert">{copy.error}</p>}
-          {state.status === 'idle' && state.options.length === 0 && <p className="m-0 p-3 text-sm text-muted">{copy.empty}</p>}
+          {state.status === 'loading' && <div role="option" aria-selected={false} aria-disabled="true">
+            <p className="m-0 p-3 text-sm text-muted" role="status">{copy.searching}</p>
+          </div>}
+          {state.status === 'error' && <div role="option" aria-selected={false} aria-disabled="true">
+            <p className="m-0 p-3 text-sm text-danger" role="alert">{copy.error}</p>
+          </div>}
+          {state.status === 'idle' && state.options.length === 0 && <div role="option" aria-selected={false} aria-disabled="true">
+            <p className="m-0 p-3 text-sm text-muted">{copy.empty}</p>
+          </div>}
           {state.status !== 'error' && state.options.map(option => (
             <button
               key={option.id} type="button" role="option" aria-selected={false}

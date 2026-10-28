@@ -10,9 +10,12 @@ if (!testURL || !new URL(testURL).pathname.endsWith('_test') || testURL === proc
 execFileSync('pnpm', ['--filter', '@salesmora/data', 'migrate', '--test'], { stdio: 'inherit' });
 const liveEval = process.env.SALESMORA_LIVE_EVAL === '1' && process.env.SALESMORA_PROXY_TEST !== '1';
 const bufferControl = process.env.SALESMORA_PROXY_TEST === '1' ? startBufferControl() : undefined;
-const child = spawn(process.execPath, [fileURLToPath(new URL('../apps/web/node_modules/next/dist/bin/next', import.meta.url)), 'dev', '--hostname', '127.0.0.1', '--port', '3002'], {
+const appEnv = { ...process.env, DATABASE_URL: testURL, BETTER_AUTH_URL: process.env.SALESMORA_PROXY_TEST === '1' ? 'http://127.0.0.1:3003' : 'http://127.0.0.1:3002', SALESMORA_TEST_SERVER: '1', BILLING_SANDBOX_ENABLED: process.env.SALESMORA_BILLING_TEST === '1' ? 'true' : 'false', CHAT_TEST_PROVIDER: liveEval ? '' : 'fixture', CHAT_ENABLED: liveEval ? 'true' : 'false', CHAT_MODEL: 'gpt-6-luna' };
+const production = process.env.SALESMORA_E2E_PRODUCTION === '1';
+if (production) execFileSync('pnpm', ['--filter', '@salesmora/web', 'build'], { stdio: 'inherit', env: appEnv });
+const child = spawn(process.execPath, [fileURLToPath(new URL('../apps/web/node_modules/next/dist/bin/next', import.meta.url)), production ? 'start' : 'dev', '--hostname', '127.0.0.1', '--port', '3002'], {
   stdio: 'inherit',
-  env: { ...process.env, DATABASE_URL: testURL, BETTER_AUTH_URL: process.env.SALESMORA_PROXY_TEST === '1' ? 'http://127.0.0.1:3003' : 'http://127.0.0.1:3002', SALESMORA_TEST_SERVER: '1', BILLING_SANDBOX_ENABLED: process.env.SALESMORA_BILLING_TEST === '1' ? 'true' : 'false', CHAT_TEST_PROVIDER: liveEval ? '' : 'fixture', CHAT_ENABLED: liveEval ? 'true' : 'false', CHAT_MODEL: 'gpt-6-luna' },
+  env: appEnv,
 });
 for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => child.kill(signal));
 child.on('exit', (code) => { bufferControl?.close(); process.exit(code ?? 0); });

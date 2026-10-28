@@ -28,7 +28,7 @@ export default async function WorkOrderSettingsPage({ searchParams }: { searchPa
   const { settings, canEdit } = await readWorkOrderSettings(database(), identity, enabledPermissions).catch(error => { if (error instanceof AuthorizationAccessError) notFound(); throw error; });
   const capabilities = workspaceCapabilities(context);
   return <WorkspaceShell currentPage="settings" workspaceId={workspace.id} workspaceName={workspace.businessName} user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} onSignOut={signOut}
-    authorizedPages={workspaceNavigationPages(context)} billingAvailable={capabilities.billing} permissionsAvailable={capabilities.permissions} assistantAvailable={capabilities.assistant} chatEnabled={chatRuntimeAvailable()} chatSurface="settings.overview" contentWidth="full">
+    authorizedPages={workspaceNavigationPages(context)} billingAvailable={capabilities.billing} jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} assistantAvailable={capabilities.assistant} chatEnabled={chatRuntimeAvailable()} chatSurface="settings.overview" contentWidth="full">
     <WorkOrderSettingsRoute key={`work-order-settings-${workspace.id}`} workspaceId={workspace.id} initial={settings} canEdit={canEdit} />
   </WorkspaceShell>;
 }

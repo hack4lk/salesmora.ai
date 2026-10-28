@@ -87,7 +87,7 @@ export const workOrdersProposeTool = {
 
 const operationPermissions: Record<WorkOrderProposeOperation, PermissionId[]> = {
   create: ["workorders.create"],
-  edit: ["workorders.update"], schedule: ["workorders.update"], assign: ["workorders.update"],
+  edit: ["workorders.update"], schedule: ["workorders.schedule.update"], assign: ["workorders.update"],
   add_tasks: ["workorders.update"], add_materials: ["workorders.update"],
   toggle_task: ["workorders.progress"], add_note: ["workorders.progress"],
   set_status: ["workorders.issue", "workorders.progress", "workorders.cancel"],

@@ -147,6 +147,134 @@ describe('OpenAI Responses adapter contract', () => {
   });
 });
 
+it("advertises strict decision preparation and explicit confirmation rules without a commit tool", async () => {
+  const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(response));
+  await createConversationModel("fictional", request).plan(messages, ["estimates_propose_action"], signal());
+  const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+  expect(body.tools).toHaveLength(1);
+  expect(body.tools[0]).toMatchObject({ name: "estimates_propose_action", strict: true });
+  const parameters = JSON.stringify(body.tools[0].parameters);
+  expect(parameters).toContain("correct-decision");
+  for (const field of ["confirm", "authorizationVersion", "workspaceId", "snapshotHash", "acceptedTotalCents"]) {
+    expect(parameters).not.toContain(`"${field}"`);
+  }
+  const instructions = JSON.stringify(body.input.filter((item: { role: string }) => ["system", "developer"].includes(item.role)));
+  expect(instructions).toContain("Missing initial outcome/date/channel are null");
+  expect(instructions).toContain("Empty note means explicitly clear the note");
+  expect(instructions).toContain("Natural-language yes cannot confirm");
+});
+
+it("advertises metadata-only Revise/Duplicate preparation with manual copy and explicit-confirmation boundaries", async () => {
+  const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(response));
+  await createConversationModel("fictional", request).plan(messages, ["estimates_propose_action"], signal());
+  const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+  const variants = body.tools[0].parameters.properties.request.anyOf;
+  for (const operation of ["revise", "duplicate"]) {
+    const variant = variants.find((entry: { properties: { operation: { enum?: string[] } } }) => entry.properties.operation.enum?.includes(operation));
+    expect(Object.keys(variant.properties).sort()).toEqual(["estimateRef", "operation"]);
+    expect(variant.additionalProperties).toBe(false);
+    expect(variant.required).toEqual(["operation", "estimateRef"]);
+  }
+  const instructions = JSON.stringify(body.input.filter((item: { role: string }) => ["system", "developer"].includes(item.role)));
+  for (const rule of ["REVISE/DUPLICATE", "without overwriting", "clears recipient name/email", "Natural-language yes cannot confirm",
+    "Preparation/cancellation save nothing", "status; use a current read"]) expect(instructions).toContain(rule);
+});
+
+it("advertises strict Void preparation, user-quoted reason and explicit withdrawal confirmation", async () => {
+  const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(response));
+  await createConversationModel("fictional", request).plan(messages, ["estimates_propose_action"], signal());
+  const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+  const variant = body.tools[0].parameters.properties.request.anyOf.find(
+    (entry: { properties: { operation: { const?: string } } }) => entry.properties.operation.const === "void",
+  );
+  expect(Object.keys(variant.properties).sort()).toEqual(["estimateRef", "operation", "reason"]);
+  expect(variant.additionalProperties).toBe(false);
+  expect(variant.required).toEqual(["operation", "estimateRef", "reason"]);
+  const instructions = JSON.stringify(body.input.filter((item: { role: string }) => ["system", "developer"].includes(item.role)));
+  for (const rule of ["VOID:", "500 raw characters before outer trimming", "Missing reason is null", "Confirm withdrawal",
+    "Natural-language yes cannot confirm", "No new customer message", "current Estimate status", "Quote the current user's staff reason exactly"]) {
+    expect(instructions).toContain(rule);
+  }
+});
+
+it("advertises strict Archive/Restore preparation and separate explicit confirmation", async () => {
+  const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(response));
+  await createConversationModel("fictional", request).plan(messages, ["estimates_propose_action"], signal());
+  const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+  const variants = body.tools[0].parameters.properties.request.anyOf;
+  for (const operation of ["archive", "restore"]) {
+    const variant = variants.find(
+      (entry: { properties: { operation: { enum?: string[] } } }) => entry.properties.operation.enum?.includes(operation),
+    );
+    expect(Object.keys(variant.properties).sort()).toEqual(["estimateRef", "operation"]);
+    expect(variant.additionalProperties).toBe(false);
+    expect(variant.required).toEqual(["operation", "estimateRef"]);
+  }
+  const parameters = JSON.stringify(body.tools[0].parameters);
+  for (const field of ["confirm", "workspaceId", "authorizationVersion", "archivedAt", "archivedBy"]) {
+    expect(parameters).not.toContain(`"${field}"`);
+  }
+  const instructions = JSON.stringify(body.input.filter((item: { role: string }) => ["system", "developer"].includes(item.role)));
+  for (const rule of ["ARCHIVE/RESTORE:", "unarchived Declined, Expired, Superseded or Void",
+    "Only its explicit Confirm archive/restore", "Preparation and cancellation change no business data",
+    "never substitute Archive for Void"]) {
+    expect(instructions).toContain(rule);
+  }
+});
+
+it("binds the strict Estimate query schema only when the read tool is available", async () => {
+  const args = {
+    request: {
+      operation: "search",
+      input: {
+        query: "Panel",
+        status: "all",
+        owner: "all",
+        parent: "all",
+        customer: null,
+        minTotalCents: null,
+        maxTotalCents: null,
+        validUntilFrom: null,
+        validUntilTo: null,
+        includeHidden: false,
+        limit: 10,
+      },
+    },
+  };
+  const request = vi.fn<typeof fetch>().mockResolvedValue(
+    Response.json({
+      ...response,
+      output: [
+        {
+          type: "function_call",
+          id: "fc_estimates",
+          call_id: "call_estimates",
+          name: "estimates_query",
+          arguments: JSON.stringify(args),
+          status: "completed",
+        },
+      ],
+    }),
+  );
+  const model = createConversationModel("fictional-unit-key", request);
+  expect(
+    await model.plan(
+      [{ role: "user", text: "Find estimates for Panel" }],
+      ["estimates_query"],
+      signal(),
+    ),
+  ).toEqual([{ name: "estimates_query", args }]);
+  const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+  expect(body.tools).toHaveLength(1);
+  expect(body.tools[0]).toMatchObject({
+    name: "estimates_query",
+    strict: true,
+    parameters: { additionalProperties: false, required: ["request"] },
+  });
+  expect(JSON.stringify(body.tools)).toContain("search");
+  expect(JSON.stringify(body.tools)).not.toContain("sql");
+});
+
 it('binds only authorized operation schemas within the shared proposal tool', async () => {
   const args = { request: { operation: 'change_stage', input: { leadRef: '', to: 'estimate-sent', reason: '' } } };
   const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ ...response, output: [{ type: 'function_call', id: 'fc_stage', call_id: 'call_stage', name: 'leads_propose_action', arguments: JSON.stringify(args), status: 'completed' }] }));

@@ -1,0 +1,57 @@
+import type { EstimateDeleteDraftRecord } from "./estimate-delete-draft-dialog.preview";
+
+export const estimateDeleteDraftDialogData = {
+  title: "Permanently delete this draft?",
+  description: "Only a Draft that has never been sent or published can be deleted. This action cannot be undone.",
+  confirm: "Delete draft permanently",
+  cancel: "Cancel",
+  pending: "Deleting draft...",
+  record: "Estimate",
+  revision: (value: number) => `Revision ${value}`,
+  preparedFor: "Prepared for",
+  recipientNotSet: "Not set on this draft",
+  status: "Current status",
+  type: "Estimate number",
+  impact: "Only this draft revision and its line items are deleted. Other revisions and linked leads, customers and jobs remain unchanged.",
+  numberEffect: "Deleting does not release or reuse the estimate number. A previously shared revision remains on record.",
+  noHandler: "Deleting drafts is not connected in this view.",
+  reload: "Reload estimate and review",
+  reloading: "Reloading estimate...",
+  reloadUnavailable: "Reloading is not connected in this view. Close this review and reopen the current estimate before confirming.",
+  reloadFailed: "The estimate could not be reloaded. No deletion was confirmed. Try again.",
+  live: {
+    loading: "Loading the current draft deletion review...",
+    loadError: "The draft deletion review could not be loaded. Reload and try again.",
+    saveError: "The draft could not be deleted. Retry or reload and review again.",
+    deleted: "Draft permanently deleted. Its estimate number will not be reused.",
+  },
+  errors: {
+    read: "This estimate is unavailable. Your access may have changed.",
+    permission: "You do not have permission to delete this draft.",
+    status: "Only Draft estimates can be deleted.",
+    archived: "An archived estimate cannot be deleted from this review.",
+    shared: "This revision has been sent or published and cannot be deleted.",
+    sharingUnavailable: "This revision's sharing history is unavailable. Reload before deleting.",
+    record: "The estimate's saved details are unavailable or invalid. Reload before confirming.",
+    binding: "This confirmation does not match the current estimate version. Reload and review again.",
+  },
+  stories: {
+    notice: "Delete draft preview: fictional records and permissions. No estimate, line item, history, number, linked record or other revision is deleted or changed.",
+    open: "Review sample draft deletion",
+    requested: "Sample deletion requested. The host has not confirmed a deleted draft.",
+    name: "Kitchen remodel estimate",
+    customer: "Jordan Lee",
+    longName: "Kitchen, bathroom and exterior restoration proposal for the Montgomery-Wellington residence",
+    longCustomer: "Alexandria Montgomery-Wellington and the Riverside Community Restoration Partnership",
+    literal: "<script>not executable</script>",
+    conflict: "The estimate changed while this review was open. Reload before confirming.",
+    failure: "The draft could not be deleted. Review the estimate and try again.",
+    rejection: "Sample operation rejected.",
+  },
+} as const;
+
+export const estimateDeleteDraftFixture: EstimateDeleteDraftRecord = {
+  id: "estimate-delete-draft-sample", number: "EST-2048", revision: 1, version: 3, status: "draft", archived: false,
+  name: estimateDeleteDraftDialogData.stories.name, recipientName: estimateDeleteDraftDialogData.stories.customer,
+  sharing: "never-shared",
+};

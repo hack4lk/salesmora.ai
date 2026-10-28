@@ -26,7 +26,7 @@ describe('all default role/action combinations', () => {
         const c = context(role);
         const spec: PermissionDefinition = permissionCatalog[permission];
         const resource = {
-          lead: lead(c.userId), job: job(c.userId, []), estimate: estimate(job(c.userId, [])), work_order: workOrder(job(c.userId, [])),
+          lead: lead(c.userId), job: job(c.userId, []), estimate: estimate(job(c.userId, [])), work_order: { ...workOrder(job(c.userId, []), [c.userId]), primaryAssigneeId: c.userId },
           customer: { kind: 'customer', id: 'customer-1', workspaceId: 'workspace-a', related: [lead(c.userId)] },
           calendar: { kind: 'calendar', id: 'event', workspaceId: 'workspace-a', userId: c.userId, job: null },
           campaign: { kind: 'campaign', id: 'campaign-1', workspaceId: 'workspace-a' },
@@ -50,8 +50,8 @@ describe('all default role/action combinations', () => {
 });
 
 describe('code-owned catalog and policy validation', () => {
-  it('has 77 unique actions, legal defaults, known dependencies and a consistent default template', () => {
-    expect(permissionIds).toHaveLength(77);
+  it('has 83 unique actions, legal defaults, known dependencies and a consistent default template', () => {
+    expect(permissionIds).toHaveLength(83);
     expect(new Set(permissionIds).size).toBe(permissionIds.length);
     expect(validateWorkspacePolicy(defaultPolicy()).ok).toBe(true);
     for (const id of permissionIds) {
@@ -74,6 +74,8 @@ describe('code-owned catalog and policy validation', () => {
   });
   for (const role of ['office', 'field'] as const) {
     for (const id of permissionIds.filter(id => /\.(export|delete|archive)$/.test(id))) {
+      // Estimate archive and never-shared Draft deletion are approved Office powers.
+      if (role === 'office' && (id === 'estimates.archive' || id === 'estimates.delete')) continue;
       it(`permanently rejects ${role} grant for ${id}`, () => {
         const policy = defaultPolicy(); setGrant(policy, role, id, permissionCatalog[id].scopes[0]);
         expect(validateWorkspacePolicy(policy)).toEqual({ ok: false, reason: 'role-ceiling' });
@@ -81,6 +83,14 @@ describe('code-owned catalog and policy validation', () => {
         expect(resolveAuthorizedCollectionScope(actor, id).allowed).toBe(false);
       });
     }
+  }
+  for (const id of ['estimates.archive', 'estimates.delete'] as const) {
+    it(`allows the approved Office ${id} grant and respects Owner revocation`, () => {
+      const actor = context('office');
+      expect(authorize(actor, { permission: id, resource: estimate() }).allowed).toBe(true);
+      remove(actor.policy, 'office', id);
+      expect(authorize(actor, { permission: id, resource: estimate() }).allowed).toBe(false);
+    });
   }
   for (const id of ['permissions.read', 'permissions.manage', 'billing.manage', 'ownership.transfer'] as const) {
     it(`protects ${id} against removal and delegation`, () => {
@@ -130,10 +140,10 @@ describe('fail-closed identity, feature and policy boundaries', () => {
     expect(Object.isFrozen(permissionCatalog['campaigns.archive'].eligibleRoles)).toBe(true);
     expect(Object.isFrozen(permissionCatalog['permissions.manage'].defaults)).toBe(true);
   });
-  it('keeps unreviewed proposals non-executable', () => {
+  it('keeps Owner-only deletion protected and reviewed job edits executable', () => {
     expect(authorize(context('owner'), { permission: 'workspace.delete' }).allowed).toBe(true);
     expect(authorize(context('admin'), { permission: 'workspace.delete' }).allowed).toBe(false);
-    expect(authorize(context('office'), { permission: 'jobs.update', resource: job() }).allowed).toBe(false);
+    expect(authorize(context('office'), { permission: 'jobs.update', resource: job() }).allowed).toBe(true);
   });
   it('denies unknown data and a missing policy rather than falling back to defaults', () => {
     expect(authorize({ ...context(), policy: undefined }, { permission: 'leads.read', resource: lead() }).allowed).toBe(false);
@@ -177,7 +187,7 @@ describe('record scopes and action separation', () => {
   });
   it('work-order access follows role defaults, assigned jobs and the price/cost ceilings', () => {
     const ids = permissionIds.filter(id => id.startsWith('workorders.'));
-    expect(ids).toHaveLength(13);
+    expect(ids).toHaveLength(14);
     expect(authorize(context('office'), { permission: 'workorders.read', resource: workOrder(job('other-user', [])) }).allowed).toBe(true);
     expect(authorize(context(), { permission: 'workorders.read', resource: workOrder() }).allowed).toBe(true);
     expect(authorize(context(), { permission: 'workorders.read', resource: workOrder(job('other-user', [])) }).allowed).toBe(false);
@@ -197,6 +207,15 @@ describe('record scopes and action separation', () => {
     expect(authorize(context('admin'), { permission: 'workorders.view_costs', resource: workOrder() }).allowed).toBe(true);
     expect(authorize(context('office'), { permission: 'workorders.delete', resource: workOrder() }).allowed).toBe(false);
     expect(validateWorkspacePolicy(defaultPolicy()).ok).toBe(true);
+  });
+  it('work-order scheduling requires a current grant and primary assignment for Field', () => {
+    const r = { ...workOrder(job('other-user', []), ['field-user']), primaryAssigneeId: 'field-user' };
+    expect(authorize(context(), { permission: 'workorders.schedule.update', resource: r }).allowed).toBe(true);
+    expect(authorize(context(), { permission: 'workorders.schedule.update', resource: { ...r, primaryAssigneeId: 'other-user' } }).allowed).toBe(false);
+    expect(authorize(context(), { permission: 'workorders.schedule.update', resource: workOrder(job('field-user', [])) }).allowed).toBe(false);
+    const revoked = context(); remove(revoked.policy, 'field', 'workorders.schedule.update');
+    expect(authorize(revoked, { permission: 'workorders.schedule.update', resource: r }).allowed).toBe(false);
+    expect(authorize(context(), { permission: 'workorders.update', resource: r }).allowed).toBe(false);
   });
   it('estimates require a current authorized assigned job, not arbitrary parent references', () => {
     for (const permission of ['estimates.read', 'estimates.create', 'estimates.update', 'estimates.send'] as const) {

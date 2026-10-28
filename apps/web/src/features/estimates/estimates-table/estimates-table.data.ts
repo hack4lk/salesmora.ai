@@ -1,0 +1,20 @@
+export const estimatesTableData = {
+  caption: "Estimates in this workspace",
+  estimate: "Estimate",
+  customer: "Customer / service",
+  status: "Status",
+  amount: "Amount",
+  related: "Related record",
+  owner: "Owner",
+  validUntil: "Valid until",
+  updated: "Updated",
+  actions: "Actions",
+  lead: "Lead",
+  job: "Job",
+  missingOwner: "Unassigned",
+  empty: "No estimates to display.",
+  error: "Estimates could not be loaded. Try again.",
+  forbidden: "You do not have access to Estimates.",
+  openRelated: (number: string) => `Open related record ${number}`,
+} as const;
+

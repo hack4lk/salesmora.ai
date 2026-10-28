@@ -17,6 +17,7 @@ export const confirmDialogData = {
     pending: 'Deleting record…',
     error: 'This record changed since you opened it. Refresh the record and review it again.',
     completed: 'Preview action completed. No records were changed.',
+    longContent: 'Review the full content before confirming. '.repeat(80),
     alternativeTitle: 'Remove this attachment?',
     alternativeDescription: 'The attachment will no longer appear on this record.',
     alternativeConfirm: 'Remove attachment',
