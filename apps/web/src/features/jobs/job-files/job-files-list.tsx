@@ -25,28 +25,6 @@ export function JobFilesList({ jobId, workspaceId, refreshTrigger, initialFiles,
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!initialFiles) {
-      fetchFiles();
-    }
-    
-    // Set up polling for file status updates
-    startPolling();
-    
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-    };
-  }, [jobId, workspaceId, refreshTrigger, initialFiles]);
-
-  const startPolling = () => {
-    // Poll every 2 seconds to check for status updates
-    pollIntervalRef.current = setInterval(() => {
-      fetchFiles();
-    }, 2000);
-  };
-
   const fetchFiles = async () => {
     try {
       if (!isLoading) setIsLoading(true);
@@ -76,6 +54,27 @@ export function JobFilesList({ jobId, workspaceId, refreshTrigger, initialFiles,
       setIsLoading(false);
     }
   };
+
+  const startPolling = () => {
+    // Poll every 2 seconds to check for status updates
+    pollIntervalRef.current = setInterval(() => {
+      fetchFiles();
+    }, 2000);
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => { if (!initialFiles) void fetchFiles(); }, 0);
+
+    // Set up polling for file status updates
+    startPolling();
+
+    return () => {
+      clearTimeout(timer);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [jobId, workspaceId, refreshTrigger, initialFiles]);
 
   const handleDelete = async (fileId: string) => {
     if (!confirm('Are you sure you want to delete this file?')) return;

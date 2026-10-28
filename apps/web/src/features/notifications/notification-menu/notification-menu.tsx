@@ -11,7 +11,10 @@ export type NotificationMenuItem = {
   description: string;
   createdAt: string;
   read: boolean;
-  /** Server-resolved, currently authorized workspace-scoped lead URL. */
+  /** Already-authorized display values only; no hidden linked records or aggregate counts. */
+  details?: readonly { label: string; value: string }[];
+  recordLabels?: readonly string[];
+  /** Server-resolved, currently authorized workspace-scoped destination. */
   href: string;
   /** Defaults to the lead link label. */
   actionLabel?: string;
@@ -62,6 +65,8 @@ export function NotificationMenu({ workspaceName, unreadCount, items, state, pre
               <div className="mb-3 flex flex-wrap items-center gap-2"><StatusBadge label={item.read ? copy.read : copy.unread} tone={item.read ? 'neutral' : 'info'}/>{validDate ? <time dateTime={date.toISOString()} className="text-xs leading-5 text-muted">{copy.timestamp(dateFormatter.format(date))}</time> : <span className="text-xs text-muted">{copy.unknownDate}</span>}</div>
               <h3 className="m-0 text-base font-semibold text-ink wrap-anywhere">{item.title}</h3>
               <p className="mb-0 mt-2 text-sm leading-6 text-muted wrap-anywhere">{item.description}</p>
+              {item.details && item.details.length > 0 && <dl className="mb-0 mt-3 grid min-w-0 gap-3 rounded-lg border border-line bg-paper p-3 text-sm">{item.details.map(detail => <div key={detail.label} className="min-w-0"><dt className="font-semibold text-muted">{detail.label}</dt><dd className="m-0 mt-1 wrap-anywhere">{detail.value}</dd></div>)}</dl>}
+              {item.recordLabels && item.recordLabels.length > 0 && <section aria-label={copy.visitRecords} className="mt-3 grid min-w-0 gap-2"><h4 className="m-0 text-sm font-semibold">{copy.visitRecords}</h4><ul className="m-0 grid min-w-0 list-none gap-1 p-0 text-sm">{item.recordLabels.map(label => <li key={label} className="wrap-anywhere">{label}</li>)}</ul></section>}
               <div className="mt-3 flex flex-wrap gap-2">
                 <a href={item.href} onClick={() => setAnchor(null)} className={buttonClass}>{item.actionLabel ?? copy.view}</a>
                 {!item.read && <button type="button" disabled={!!pendingId} aria-busy={pendingId === item.id} onClick={() => { if (!pendingId) onMarkRead(item.id); }} className={buttonClass}>{pendingId === item.id ? copy.marking : copy.markRead}</button>}

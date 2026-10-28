@@ -1,6 +1,6 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
-import { PlanCapacityError, AuthorizationAccessError } from '@salesmora/data';
+import { CalendarFocusUnavailableError, PlanCapacityError, AuthorizationAccessError } from '@salesmora/data';
 import { ChatConflictError, ChatLimitError } from './store';
 
 export const chatReply = (body: object, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -27,6 +27,7 @@ export async function chatBody(request: Request): Promise<unknown> {
 }
 export function chatError(error: unknown) {
   if (error instanceof PlanCapacityError) return chatReply({error:'plan_limit',resource:error.resource,limit:error.limit,resetAt:error.resetAt},409);
+  if (error instanceof CalendarFocusUnavailableError) return chatReply({error:'calendar_context_changed'},409);
   if (error instanceof AuthorizationAccessError) return chatReply({ error: 'access_denied' }, 403);
   if (error instanceof ChatConflictError) return chatReply({ error: 'conflict' }, 409);
   if (error instanceof ChatLimitError) return chatReply({ error: 'limit_exceeded' }, 429);

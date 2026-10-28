@@ -221,7 +221,8 @@ try{
     await change({action:"schedule",scheduledDate:"2030-01-02",arrivalWindow:"09:00-11:00"},"office",wid);
     await change({action:"edit",instructions:"Bring the long ladder"},"office",wid);
     const events=(await mine("field")).map(n=>n.kind==="work_order"&&n.event).sort();
-    assert.deepEqual(events,["changed","issued","rescheduled"]);
+    assert.deepEqual(events,["changed","issued"]);
+    assert.ok((await readNotifications(db,identity("field"),enabled)).items.some(n=>n.kind==="visit"&&n.records.some(r=>r.id===wid)&&n.event==="scheduled"));
     assert.ok(!JSON.stringify(await mine("field")).includes("long ladder"));
     assert.equal((await mine("stranger")).length,0);
     assert.equal((await mine("other")).length,0);

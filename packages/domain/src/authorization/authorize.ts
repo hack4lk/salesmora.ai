@@ -132,7 +132,11 @@ function resourceMatches(
   )
     return false;
   // Validate nested relationship tenant even when the outer grant is workspace-wide.
-  if (resource.kind === "estimate" || resource.kind === "work_order" || resource.kind === "calendar") {
+  if (
+    resource.kind === "estimate" ||
+    resource.kind === "work_order" ||
+    resource.kind === "calendar"
+  ) {
     if (resource.job && resource.job.workspaceId !== result.workspaceId)
       return false;
   }
@@ -146,8 +150,16 @@ function resourceMatches(
     return resource.ownerId === result.userId;
   if (resource.kind === "job" && result.scope === "assigned")
     return assignedJob(result.userId, resource);
-  if (resource.kind === "work_order" && result.scope === "assigned_job" && resource.assigneeIds?.includes(result.userId)) return true;
-  if ((resource.kind === "estimate" || resource.kind === "work_order") && result.scope === "assigned_job") {
+  if (
+    resource.kind === "work_order" &&
+    result.scope === "assigned_job" &&
+    resource.assigneeIds?.includes(result.userId)
+  )
+    return true;
+  if (
+    (resource.kind === "estimate" || resource.kind === "work_order") &&
+    result.scope === "assigned_job"
+  ) {
     return (
       !!resource.job &&
       assignedJob(result.userId, resource.job) &&
@@ -238,12 +250,33 @@ export function authorize(
   const context = authorizationContextSchema.parse(contextInput);
   const spec = definition(request.permission);
   if (!checkTarget(context, request)) return deny("target-role-denied");
-  if (request.permission === "jobs.schedule.update" && context.membership.role === "field" &&
-      (request.resource?.kind !== "job" || request.resource.ownerId !== context.userId))
+  if (
+    request.permission === "jobs.schedule.update" &&
+    context.membership.role === "field" &&
+    (request.resource?.kind !== "job" ||
+      request.resource.ownerId !== context.userId)
+  )
     return deny("primary-job-owner-required");
-  if (request.permission === 'customers.related.read' && context.membership.role === 'field' && request.resource?.kind === 'customer') {
-    const assigned=request.resource.related.some(record => (record.kind==='lead' ? record.ownerId===context.userId : assignedJob(context.userId,record)) && authorize(context,{permission:record.kind==='lead'?'leads.read':'jobs.read',resource:record}).allowed);
-    if(!assigned)return deny('field-related-assignment-required');
+  if (request.permission === "workorders.schedule.update" && context.membership.role === "field" &&
+      (request.resource?.kind !== "work_order" || request.resource.primaryAssigneeId !== context.userId)) {
+    return deny("primary-work-order-assignee-required");
+  }
+  if (
+    request.permission === "customers.related.read" &&
+    context.membership.role === "field" &&
+    request.resource?.kind === "customer"
+  ) {
+    const assigned = request.resource.related.some(
+      (record) =>
+        (record.kind === "lead"
+          ? record.ownerId === context.userId
+          : assignedJob(context.userId, record)) &&
+        authorize(context, {
+          permission: record.kind === "lead" ? "leads.read" : "jobs.read",
+          resource: record,
+        }).allowed,
+    );
+    if (!assigned) return deny("field-related-assignment-required");
   }
   if (request.permission === "leads.update") {
     if (
@@ -251,7 +284,12 @@ export function authorize(
       request.fields.some((field) => !ordinaryLeadFields.has(field))
     )
       return deny("forbidden-fields");
-    if (request.fields.includes('customerId') && (!access(contextInput, 'customers.read').allowed || !access(contextInput, 'customers.update').allowed)) return deny('customer-link-permission-required');
+    if (
+      request.fields.includes("customerId") &&
+      (!access(contextInput, "customers.read").allowed ||
+        !access(contextInput, "customers.update").allowed)
+    )
+      return deny("customer-link-permission-required");
   } else if (request.fields !== undefined) {
     // Do not imply generic field authorization for future schemas.
     return deny("unsupported-field-check");

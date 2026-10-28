@@ -28,3 +28,9 @@ export const DraftUnassigned:Story={args:{status:'draft',assignment:unassigned,s
 export const NoPhone:Story={args:{contact:{...workOrderContact,phone:null}}};
 export const Completed:Story={args:{status:'completed'}};
 export const Canceled:Story={args:{status:'canceled'}};
+export const IndependentVisit:Story={args:{visitActions:{canJoin:true,canSeparate:false,onJoin:fn(),onSeparate:fn()}},play:async({canvas,args})=>{
+ await userEvent.click(canvas.getByRole('button',{name:'Join Job’s visit'}));await expect(args.visitActions!.onJoin).toHaveBeenCalledOnce();await expect(canvas.queryByRole('button',{name:'Move to a separate visit'})).not.toBeInTheDocument();}};
+export const SharedVisit:Story={args:{visitActions:{canJoin:false,canSeparate:true,onJoin:fn(),onSeparate:fn()}},play:async({canvas,args})=>{
+ await userEvent.click(canvas.getByRole('button',{name:'Move to a separate visit'}));await expect(args.visitActions!.onSeparate).toHaveBeenCalledOnce();await expect(canvas.queryByRole('button',{name:'Join Job’s visit'})).not.toBeInTheDocument();}};
+export const VisitReadOnly:Story={args:{visitActions:{canJoin:false,canSeparate:false,onJoin:fn(),onSeparate:fn()}},play:async({canvas})=>{
+ await expect(canvas.queryByRole('button',{name:'Join Job’s visit'})).not.toBeInTheDocument();await expect(canvas.queryByRole('button',{name:'Move to a separate visit'})).not.toBeInTheDocument();}};

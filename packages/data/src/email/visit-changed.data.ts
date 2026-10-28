@@ -1,0 +1,27 @@
+export const visitChangedEmailData = {
+  brand: 'SalesMora.ai',
+  headings: { scheduled: 'A visit was scheduled', rescheduled: 'A visit was rescheduled', cleared: 'A visit’s schedule was cleared', joined: 'A Work Order joined a visit', separated: 'A Work Order moved to a separate visit' },
+  subject: (workspace: string, heading: string) => `${workspace}: ${heading}`,
+  introduction: (actor: string, workspace: string) => `${actor || 'A teammate'} updated a visit in ${workspace}.`,
+  explanations: {
+    scheduled: 'The records below now have a scheduled visit.', rescheduled: 'The schedule changed for the records below.',
+    cleared: 'The records below are now unscheduled.', joined: 'The Work Order joined the Job’s visit. Existing records kept their schedules.',
+    separated: 'The Work Order moved to a separate visit. Other records kept their schedules.',
+  },
+  before: 'Previous schedule', after: 'New schedule', timezone: 'Workspace timezone', records: 'Records in this update', noDate: 'Not scheduled', noWindow: 'No arrival window',
+  viewJob: 'View Job', viewWorkOrder: 'View Work Order',
+  access: 'Sign in to view the current details. Your access may have changed since this update.',
+  reason: 'You received this email because you are assigned to a record in this visit and visit-change emails are enabled in your notification preferences.',
+  preferences: 'Notification preferences', fallback: 'If the button does not work, copy and paste this link into your browser:', logoCid: 'cid:salesmora-logo',
+  stories: {
+    title: 'Visit change email', notice: 'Preview only. No email is sent; all records and people are fictional.', subject: 'Subject', frame: 'Visit change email HTML preview', textHeading: 'Plain-text visit change email',
+    baseURL: 'https://app.salesmora.test', workspaceId: '00000000-0000-4000-8000-000000000001', jobId: '00000000-0000-4000-8000-000000000002', orderId: '00000000-0000-4000-8000-000000000003',
+    workspace: 'Northstar Plumbing', actor: 'Alex Rivera', timezone: 'America/New_York', beforeDate: '2026-10-22', afterDate: '2026-10-23',
+    jobNumber: 'J-1042', orderNumber: 'WO-1007', jobTitle: 'Kitchen plumbing repair', orderTitle: 'Replace kitchen shutoff valves',
+    longWorkspace: 'Northstar Property Maintenance, Construction and Professional Services',
+    longActor: 'Alexandra Rivera from Operations and Customer Care',
+    longTitle: 'Inspect and replace the kitchen supply lines, valves and dishwasher connection in the rear extension of the community workshop',
+    escapedWorkspace: 'Northstar <script>fictional</script> & Partners', escapedActor: 'Alex <Rivera> & Team', escapedTitle: 'Replace <img src=x onerror="alert(1)"> & inspect pipes',
+    logoSrc: '/branding/salesmora-email-logo.png',
+  },
+} as const;

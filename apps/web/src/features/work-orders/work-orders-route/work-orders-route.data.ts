@@ -1,4 +1,6 @@
 export const workOrdersRouteData = {
+  visitLoadError: 'Visit controls could not be loaded. Reload to try again.',
+  reloadVisits: 'Reload visits',
   error: 'Work orders could not be loaded. Try again.',
   exportError: 'The export could not be created. Try again.',
   saveError: 'The work order could not be saved. Try again.',

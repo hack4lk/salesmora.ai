@@ -41,7 +41,7 @@ export async function renderJobsPage(params: Record<string, string | string[] | 
       : undefined;
     return <WorkspaceShell currentPage="jobs" workspaceId={workspace.id} workspaceName={workspace.businessName}
       user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} authorizedPages={workspaceNavigationPages(context)}
-      permissionsAvailable={capabilities.permissions} billingAvailable={capabilities.billing} assistantAvailable={capabilities.assistant}
+      jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} billingAvailable={capabilities.billing} assistantAvailable={capabilities.assistant}
       chatEnabled={chatRuntimeAvailable()} contentWidth="full" onSignOut={signOut}>
       <JobsRoute key={`${workspace.id}:${jobId ?? "list"}`} workspaceId={workspace.id} userId={session.user.id} field={context.membership.role === "field"}
         initial={initial} initialQuery={query} initialDetail={detail}

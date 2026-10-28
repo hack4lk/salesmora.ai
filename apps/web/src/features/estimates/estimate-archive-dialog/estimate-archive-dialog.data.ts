@@ -1,0 +1,65 @@
+import type { EstimateArchiveRecord } from "./estimate-archive-dialog.preview";
+
+export const estimateArchiveDialogData = {
+  archive: {
+    title: "Archive this estimate?",
+    description: "Hide this estimate from default lists without deleting it. You can restore it later.",
+    confirm: "Archive estimate",
+    pending: "Archiving estimate...",
+    effect: "Find it again using Include archived and superseded in the estimates list, then choose Restore from its actions menu.",
+    noHandler: "Archiving estimates is not connected in this view.",
+  },
+  restore: {
+    title: "Restore this estimate?",
+    description: "Remove the Archived flag. The estimate keeps its current status and revision.",
+    confirm: "Restore estimate",
+    pending: "Restoring estimate...",
+    effect: "List visibility still follows the current filters and revision rules. Restoring does not renew expired, withdrawn or replaced customer links.",
+    noHandler: "Restoring estimates is not connected in this view.",
+  },
+  cancel: "Cancel",
+  record: "Estimate",
+  revision: (value: number) => `Revision ${value}`,
+  preparedFor: "Prepared for",
+  status: "Current status",
+  retained: "The estimate, frozen snapshots, decisions and staff history are retained. This does not send an estimate, record a decision, delete data, or change a linked lead, job or payment.",
+  reload: "Reload estimate and review",
+  reloading: "Reloading estimate...",
+  reloadUnavailable: "Reloading is not connected in this view. Close this review and reopen the current estimate before confirming.",
+  reloadFailed: "The estimate could not be reloaded. No archive or restore was confirmed. Try again.",
+  errors: {
+    read: "This estimate is unavailable. Your access may have changed.",
+    permission: "You do not have permission to archive or restore this estimate.",
+    status: "Only Declined, Expired, Superseded or Void estimates can be archived.",
+    archived: "This estimate is already archived. Close this review and use Restore instead.",
+    notArchived: "This estimate is not archived. There is nothing to restore.",
+    record: "The estimate's saved details are unavailable or invalid. Reload before confirming.",
+    binding: "This review does not match the current estimate, version or action. Reload and review again.",
+  },
+  live: {
+    loading: "Loading the current archive or restore review...",
+    loadError: "The archive or restore review could not be loaded. Reload and try again.",
+    saveError: "The change could not be saved. Retry this confirmation or reload and review again.",
+    archived: "Estimate archived. Use Include archived and superseded to find it in the list.",
+    restored: "Estimate restored. Its status and customer-link validity are unchanged.",
+  },
+  stories: {
+    notice: "Archive/restore preview: fictional records and permissions. No estimate, history, snapshot, customer link, lead, job or payment is changed.",
+    openArchive: "Review sample archive",
+    openRestore: "Review sample restore",
+    requested: "Sample action requested. The host has not confirmed a saved archive or restore.",
+    name: "Kitchen remodel estimate",
+    customer: "Jordan Lee",
+    longName: "Kitchen, bathroom and exterior restoration proposal for the Montgomery-Wellington residence",
+    longCustomer: "Alexandria Montgomery-Wellington and the Riverside Community Restoration Partnership",
+    literal: "<script>not executable</script>",
+    conflict: "The estimate changed while this review was open. Reload before confirming.",
+    failure: "The change could not be saved. Review the estimate and try again.",
+    rejection: "Sample operation rejected.",
+  },
+} as const;
+
+export const estimateArchiveFixture: EstimateArchiveRecord = {
+  id: "estimate-archive-sample", number: "EST-2048", revision: 1, version: 6, status: "declined", archived: false,
+  name: estimateArchiveDialogData.stories.name, recipientName: estimateArchiveDialogData.stories.customer,
+};

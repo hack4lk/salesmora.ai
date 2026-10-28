@@ -9,7 +9,7 @@ import { emptyLeadsToolbarValues, type LeadsToolbarValues } from '../leads-toolb
 import type { LeadTableSort } from '../leads-table/leads-table';
 import type { LeadActivityEvent } from '../lead-activity-timeline/lead-activity-timeline';
 
-export type LeadsPagePreviewProps = { initialView?: 'list' | 'pipeline'; initialRecord?: string; empty?: boolean; filteredEmpty?: boolean; state?: 'ready' | 'loading' | 'error'; assignedOnly?: boolean; readOnly?: boolean; limitReached?: boolean; failActions?: boolean; exportPreviewState?: 'ready' | 'loading' | 'error' };
+export type LeadsPagePreviewProps = { relatedEstimates?: import('react').ReactNode; onCreateEstimate?: () => void; initialView?: 'list' | 'pipeline'; initialRecord?: string; empty?: boolean; filteredEmpty?: boolean; state?: 'ready' | 'loading' | 'error'; assignedOnly?: boolean; readOnly?: boolean; limitReached?: boolean; failActions?: boolean; exportPreviewState?: 'ready' | 'loading' | 'error' };
 const fixtureRecords: LeadPageRecord[] = Array.from({ length: 65 }, (_, index) => {
   const row = leadsTableData.stories.rows[index % 5];
   return { ...row, id: index === 0 ? 'jordan' : `lead-${index}`, name: index < 5 ? row.name : copy.stories.name(row.name, index), leadNumber: copy.stories.leadNumber(index),
@@ -19,7 +19,7 @@ const fixtureRecords: LeadPageRecord[] = Array.from({ length: 65 }, (_, index) =
 });
 
 /** Storybook-only in-memory adapter. It performs no API, provider, database or download calls. */
-export function LeadsPagePreview({ initialView = 'pipeline', initialRecord, empty, filteredEmpty, state: initialState = 'ready', assignedOnly = false, readOnly = false, limitReached = false, failActions = false, exportPreviewState }: LeadsPagePreviewProps) {
+export function LeadsPagePreview({ relatedEstimates, onCreateEstimate, initialView = 'pipeline', initialRecord, empty, filteredEmpty, state: initialState = 'ready', assignedOnly = false, readOnly = false, limitReached = false, failActions = false, exportPreviewState }: LeadsPagePreviewProps) {
   const [records, setRecords] = useState(empty ? [] : fixtureRecords);
   const current = useRef(records);
   const nextLeadNumber = useRef(fixtureRecords.length);
@@ -76,6 +76,7 @@ export function LeadsPagePreview({ initialView = 'pipeline', initialRecord, empt
     <main id="leads-preview-content" tabIndex={-1} className="min-w-0 flex-1 px-4 py-6 pb-28 focus-visible:focus-ring sm:px-8 sm:py-8 sm:pb-28">
       <p className="mb-6 mt-0 text-sm text-muted">{copy.stories.preview}</p>
       <LeadsPage rows={rows} columns={copy.stages.map(stage => ({ stage: stage.value, leads: sorted.filter(lead => lead.stage === stage.value), total: sorted.filter(lead => lead.stage === stage.value).length }))}
+        relatedEstimates={relatedEstimates} onCreateEstimate={onCreateEstimate}
         total={sorted.length} record={record} quickRecord={quickRecord} onQuickViewChange={setQuickId} values={values} onChange={next => { setValues(next); setPage(1); }} access={access}
         members={access.canAssign ? members : []} viewerId="sam" now={copy.stories.now} timezone={copy.stories.timezone} sort={sort} onSort={next => { setSort(next); setPage(1); }} page={activePage} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }}
         state={state} onRetry={() => setState('ready')} onClearFilters={() => { setValues({ ...emptyLeadsToolbarValues, view: values.view }); setPage(1); }}

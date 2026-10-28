@@ -32,12 +32,39 @@ export const TypedConfirm: Story = { ...Destructive, args: { ...Destructive.args
   await expect(c.getByRole('button', { name: copy.stories.delete })).toBeDisabled();
   await userEvent.clear(c.getByRole('textbox', { name: copy.stories.confirmationLabel }));
 } };
+export const TypedKeyboard: Story = { ...TypedConfirm, play: async ({ canvasElement }) => {
+  const c = within(canvasElement.ownerDocument.body);
+  await waitFor(() => expect(c.getByRole('button', { name: copy.cancel })).toHaveFocus());
+  await userEvent.tab({ shift: true });
+  const input = c.getByRole('textbox', { name: copy.stories.confirmationLabel });
+  await expect(input).toHaveFocus();
+  await expect(input).toHaveClass('min-h-11');
+  await userEvent.type(input, copy.stories.confirmationValue);
+  await expect(c.getByRole('button', { name: copy.stories.delete })).toBeEnabled();
+  await userEvent.tab();
+  await expect(c.getByRole('button', { name: copy.cancel })).toHaveFocus();
+} };
 export const Pending: Story = { args: { ...Destructive.args, pending: true, pendingLabel: copy.stories.pending }, play: async ({ canvasElement, args }) => {
   const c = within(canvasElement.ownerDocument.body);
   await userEvent.keyboard('{Escape}');
   await expect(c.getByRole('button', { name: copy.cancel })).toBeDisabled();
   await expect(args.onClose).not.toHaveBeenCalled();
   await expect(args.onConfirm).not.toHaveBeenCalled();
+} };
+export const LongPending: Story = { args: { pending: true, children: <p className="m-0 leading-6">{copy.stories.longContent}</p> }, play: async ({ canvasElement, args }) => {
+  const c = within(canvasElement.ownerDocument.body);
+  await expect(c.getByRole('alertdialog')).toHaveAttribute('tabindex', '0');
+  await expect(c.getByRole('button', { name: copy.cancel })).toBeDisabled();
+  await userEvent.keyboard('{Escape}');
+  await expect(args.onClose).not.toHaveBeenCalled();
+  await expect(args.onConfirm).not.toHaveBeenCalled();
+} };
+export const ContentFocus: Story = { args: { initialFocus: 'content', children: <p className="m-0 leading-6">{copy.stories.longContent}</p> }, play: async ({ canvasElement }) => {
+  const c = within(canvasElement.ownerDocument.body);
+  await waitFor(() => expect(c.getByRole('alertdialog')).toHaveFocus());
+  await expect(c.getByRole('alertdialog').scrollTop).toBe(0);
+  await userEvent.tab();
+  await expect(c.getByRole('button', { name: copy.cancel })).toHaveFocus();
 } };
 export const Error: Story = { args: { ...Destructive.args, error: copy.stories.error } };
 export const Attachment: Story = { args: { destructive: true, title: copy.stories.alternativeTitle, description: copy.stories.alternativeDescription, confirmLabel: copy.stories.alternativeConfirm } };

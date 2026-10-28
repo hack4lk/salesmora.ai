@@ -13,6 +13,7 @@ beforeEach(() => {
   vi.stubEnv('EMAIL_FROM', 'SalesMora Staging <no-reply@staging.mail.salesmora.ai>');
   vi.stubEnv('RESEND_API_KEY', 'fictional-test-key');
   vi.stubGlobal('fetch', request);
+  smtp.sendMail.mockResolvedValue({ messageId: '<fictional-id@salesmora.test>' });
   request.mockResolvedValue(new Response(JSON.stringify({ id: 'fictional-id' })));
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.clearAllMocks(); });

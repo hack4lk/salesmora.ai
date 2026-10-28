@@ -29,7 +29,7 @@ export async function notificationAPI(request: Request, operation: 'list' | 'rea
     }
     const parsed = saveNotificationPreferencesSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({error:'Invalid preferences.'},{status:400,headers});
-    return NextResponse.json(await saveNotificationPreferences(db,{userId:session.user.id,workspaceId:parsed.data.workspaceId},enabledPermissions,{leadAssignedEmail:parsed.data.leadAssignedEmail}),{headers});
+    return NextResponse.json(await saveNotificationPreferences(db,{userId:session.user.id,workspaceId:parsed.data.workspaceId},enabledPermissions,{leadAssignedEmail:parsed.data.leadAssignedEmail,visitChangedEmail:parsed.data.visitChangedEmail,estimateEmail:parsed.data.estimateEmail,deadlineReminderEmail:parsed.data.deadlineReminderEmail,jobActivityEmail:parsed.data.jobActivityEmail}),{headers});
   } catch(error) {
     return NextResponse.json({error: error instanceof AuthorizationAccessError ? 'Notifications are unavailable.' : 'Could not complete the notification request. Try again.'},{status:error instanceof AuthorizationAccessError ? 404 : 500,headers});
   }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { defaultDeadlineRuleSchema } from "./job-notification-settings";
 
 export const jobStatuses = ["needs-scheduling", "scheduled", "in-progress", "waiting", "completed", "canceled"] as const;
 export const jobStatusSchema = z.enum(jobStatuses);
@@ -15,6 +16,17 @@ export const jobDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(valu
 const userId = z.string().trim().min(1).max(200);
 const text = z.string().trim().max(4000);
 const expected = { workspaceId: z.uuid(), jobId: z.uuid(), submissionId: z.uuid(), expectedVersion: z.number().int().positive() };
+export const jobDeadlineIntentSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("workspace"), revision: z.string().regex(/^(0|[1-9]\d{0,8})$/) }).strict(),
+  z.object({ mode: z.literal("date"), date: jobDateSchema }).strict(),
+  z.object({ mode: z.literal("unset") }).strict(),
+]);
+export const jobDeadlinePreviewSchema = z.object({ revision: z.string().regex(/^(0|[1-9]\d{0,8})$/), createdDate: jobDateSchema, resolvedDate: jobDateSchema.nullable(), timezone: z.string().min(1).max(100) }).strict();
+export const jobCreationDeadlineContextSchema = z.object({
+  context: z.object({ rule: defaultDeadlineRuleSchema, revision: z.string(), projectedDate: jobDateSchema.nullable(), createdDate: jobDateSchema, timezone: z.string() }).strict(),
+  canOverride: z.boolean(),
+}).strict();
+export type JobCreationDeadlineContext = z.infer<typeof jobCreationDeadlineContextSchema>;
 export const createJobSchema = z.object({
   workspaceId: z.uuid(), submissionId: z.uuid(), customerId: z.uuid(), sourceLeadId: z.uuid().nullable().default(null),
   title: z.string().trim().min(1).max(200), service: z.string().trim().max(200).default(""),
@@ -22,7 +34,14 @@ export const createJobSchema = z.object({
   primaryOwnerId: userId.nullable(), teamUserIds: z.array(userId).max(100).refine(ids => new Set(ids).size === ids.length).default([]),
   scheduledDate: jobDateSchema.nullable().default(null), arrivalWindow: z.enum(arrivalWindows).nullable().default(null),
   completionDeadline: jobDateSchema.nullable().default(null),
-}).strict().refine(input => !input.arrivalWindow || !!input.scheduledDate, { message: "An arrival window requires a scheduled work date.", path: ["arrivalWindow"] });
+  deadlineIntent: jobDeadlineIntentSchema.optional(), deadlinePreview: jobDeadlinePreviewSchema.optional(),
+}).strict().refine(input => !input.arrivalWindow || !!input.scheduledDate, { message: "An arrival window requires a scheduled work date.", path: ["arrivalWindow"] }).superRefine((input, ctx) => {
+  if (!!input.deadlineIntent !== !!input.deadlinePreview || (input.deadlinePreview && input.completionDeadline !== input.deadlinePreview.resolvedDate) ||
+      (input.deadlineIntent?.mode === "workspace" && input.deadlineIntent.revision !== input.deadlinePreview?.revision) ||
+      (input.deadlineIntent?.mode === "date" && input.deadlineIntent.date !== input.completionDeadline) ||
+      (input.deadlineIntent?.mode === "unset" && input.completionDeadline !== null)) ctx.addIssue({ code: "custom", message: "Review the chosen deadline and its result together.", path: ["deadlinePreview"] });
+});
+export const createReviewedJobSchema = createJobSchema.refine(input => !!input.deadlineIntent && !!input.deadlinePreview, { message: "Review the creation deadline before confirming.", path: ["deadlinePreview"] });
 export type CreateJobInput = z.input<typeof createJobSchema>;
 export const jobMutationSchema = z.discriminatedUnion("action", [
   z.object({ ...expected, action: z.literal("schedule"), scheduledDate: jobDateSchema.nullable(), arrivalWindow: z.enum(arrivalWindows).nullable() }).strict()

@@ -21,6 +21,7 @@
     "db:migrate:test": "pnpm --filter @salesmora/data migrate --test",
     "db:rollback:test": "pnpm --filter @salesmora/data migrate --test --rollback",
     "test:authorization:db": "pnpm --filter @salesmora/data test:authorization",
+    "test:estimates:db": "pnpm --filter @salesmora/data test:estimates",
     "test:leads:db": "pnpm --filter @salesmora/data test:leads:read",
     "knowledge:seed": "pnpm --filter @salesmora/worker seed",
     "knowledge:evaluate": "pnpm --filter @salesmora/worker evaluate",

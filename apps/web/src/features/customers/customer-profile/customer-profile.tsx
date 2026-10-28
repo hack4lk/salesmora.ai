@@ -25,6 +25,7 @@ import {
 } from "../customer-ui";
 import { customerProfileData as c } from "./customer-profile.data";
 export type CustomerProfileProps = {
+  relatedEstimates?: React.ReactNode;
   pending?: boolean;
   customer?: CustomerRecord;
   members: readonly CustomerMember[];
@@ -56,6 +57,7 @@ export type CustomerProfileProps = {
   onRetry?: () => void;
 };
 export function CustomerProfile({
+  relatedEstimates,
   pending = false,
   customer,
   members,
@@ -224,6 +226,7 @@ export function CustomerProfile({
               </button>
             )}
           </section>
+          {relatedEstimates}
         </div>
       )}
       {tab === "leads" && (

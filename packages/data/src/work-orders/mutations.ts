@@ -1,3 +1,4 @@
+import { notifyVisitChange } from "../notifications/visits";
 import { createHash, randomUUID } from "node:crypto";
 import type { Knex } from "knex";
 import {
@@ -5,12 +6,15 @@ import {
   type AuthorizationContext, type CreateWorkOrderInput, type PermissionId, type WorkOrderMutation,
 } from "@salesmora/contracts";
 import {
-  authorize, WorkOrderLifecycleError, assertEditable, editsChangeIssuedContent, validateArchive, validateCompletion, validateDelete, validateReopen, validateStatusChange,
+  CalendarRevisionError, authorize, WorkOrderLifecycleError, assertEditable, editsChangeIssuedContent, validateArchive, validateCompletion, validateDelete, validateReopen, validateStatusChange,
 } from "@salesmora/domain";
 import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIdentity } from "../authorization/store";
 import { loadLinkableMaterials } from "../materials/snapshot";
 import { notifyWorkOrderChange } from "./notify";
 import { WorkOrderConflictError, WorkOrderValidationError, resource, scoped, selects, type Row } from "./store";
+
+import { linkCalendarWorkOrder, workOrderCreationVisit } from "../calendar/commands";
+import { assertIndependentCalendarSchedule, synchronizeCalendarRecord, removeEmptyCalendarVisits } from "../calendar/sync";
 
 type Source = "ui" | "assistant-confirmed";
 export type WorkOrderWriteOptions = { source?: Source; signoffRequired?: boolean };
@@ -57,6 +61,8 @@ export async function createWorkOrder(db: Knex, identity: WorkspaceIdentity, ena
     if (["completed", "canceled"].includes(job.status)) throw new WorkOrderValidationError("Reopen the job before adding a work order.");
     if (input.source.kind === "estimate") throw new WorkOrderValidationError("Creating from an estimate is not available yet.");
     await assertMembers(trx, context, input.assigneeId ? [input.assigneeId] : []);
+    const selectedVisit = input.visit?.kind === "job" ? await workOrderCreationVisit(trx, context, input.jobId) : null;
+    if (input.visit?.kind === "job" && (!selectedVisit?.canJoin || !selectedVisit.review || selectedVisit.id !== input.visit.visitId || selectedVisit.revision !== input.visit.revision)) throw new CalendarRevisionError();
     const id = randomUUID();
     let copied = { instructions: "", accessNotes: "", safetyNotes: "" }, tasks: { label: string; required: boolean }[] = [], materials: Record<string, unknown>[] = [];
     if (input.source.kind === "duplicate") {
@@ -79,8 +85,16 @@ export async function createWorkOrder(db: Knex, identity: WorkspaceIdentity, ena
       primaryAssigneeId: input.assigneeId, sourceWorkOrderId: input.source.kind === "duplicate" ? input.source.workOrderId : null, createdBy: context.userId });
     if (tasks.length) await trx("workOrderTasks").insert(tasks.map((t, i) => task(context.workspaceId, id, i, t.label, t.required)));
     if (materials.length) await trx("workOrderMaterials").insert(materials);
-    await log(trx, context, id, input.submissionId, 1, hash, "created", { title: input.title, jobId: input.jobId, assigneeId: input.assigneeId, source: input.source.kind }, source);
-    return { workOrderId: id, version: 1 };
+    await synchronizeCalendarRecord(trx, context.workspaceId, "work_order", id);
+    let version = 1;
+    if (selectedVisit?.review) {
+      const independent = await trx("calendarVisitRecords").where({ workspaceId: context.workspaceId, workOrderId: id }).whereNull("endedAt").first();
+      const linked = await linkCalendarWorkOrder(trx, identity, enabled, { workspaceId: context.workspaceId, submissionId: randomUUID(), visitId: selectedVisit.id,
+        ...selectedVisit.review, workOrderId: id, expectedWorkOrderVersion: 1, sourceVisitId: independent.visitId, expectedSourceVisitVersion: 1 }, source);
+      version = linked.records.find(r => r.type === "work_order" && r.id === id)!.expectedVersion;
+    }
+    await log(trx, context, id, input.submissionId, version, hash, "created", { title: input.title, jobId: input.jobId, assigneeId: input.assigneeId, source: input.source.kind }, source);
+    return { workOrderId: id, version };
   });
 }
 
@@ -94,6 +108,7 @@ const actionPermission = (input: WorkOrderMutation): PermissionId => {
     case "task-toggle": case "note": return "workorders.progress";
     case "complete": return "workorders.complete";
     case "reopen": return "workorders.reopen";
+    case "schedule": return "workorders.schedule.update";
     case "archive": return "workorders.archive";
     case "delete": return "workorders.delete";
     case "status": return input.to === "issued" ? "workorders.issue" : input.to === "canceled" ? "workorders.cancel" : "workorders.progress";
@@ -125,6 +140,8 @@ export async function mutateWorkOrderInTransaction(trx: Knex.Transaction, contex
     }
     case "schedule":
       assertEditable(state); flagChange();
+      if (context.membership.role === "field" && row.primaryAssigneeId !== context.userId) throw new AuthorizationAccessError();
+      await assertIndependentCalendarSchedule(trx, context.workspaceId, "work_order", row.id);
       Object.assign(patch, { scheduledDate: input.scheduledDate, arrivalWindow: input.arrivalWindow });
       changes = { from: { scheduledDate: row.scheduledDate, arrivalWindow: row.arrivalWindow }, to: { scheduledDate: input.scheduledDate, arrivalWindow: input.arrivalWindow } };
       break;
@@ -229,9 +246,12 @@ export async function mutateWorkOrderInTransaction(trx: Knex.Transaction, contex
   if (input.action === "delete") {
     await trx("workOrderDeleteAudit").insert({ id: randomUUID(), workspaceId: context.workspaceId, workOrderNumber: row.workOrderNumber, title: row.title, actorId: context.userId, source });
     await trx("workOrders").where({ workspaceId: context.workspaceId, id: row.id }).delete();
+    await removeEmptyCalendarVisits(trx, context.workspaceId);
     return { workOrderId: row.id, version: row.version };
   }
   await trx("workOrders").where({ workspaceId: context.workspaceId, id: row.id }).update(patch);
+  await synchronizeCalendarRecord(trx, context.workspaceId, "work_order", row.id);
+  if (input.action === "schedule") await notifyVisitChange(trx, context, input.submissionId, !input.scheduledDate ? "cleared" : row.scheduledDate ? "rescheduled" : "scheduled", [{ type: "work_order", id: row.id }], { scheduledDate: row.scheduledDate, arrivalWindow: row.arrivalWindow }, { scheduledDate: input.scheduledDate, arrivalWindow: input.arrivalWindow });
   await log(trx, context, row.id, input.submissionId, row.version + 1, hash, input.action, changes, source);
   await notifyWorkOrderChange(trx, context, row, input);
   return { workOrderId: row.id, version: row.version + 1 };

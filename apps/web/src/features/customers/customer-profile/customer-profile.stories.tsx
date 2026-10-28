@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { CustomerProfile } from "./customer-profile";
+import { RelatedEstimatesCard } from "../../estimates/related-estimates-card/related-estimates-card";
+import { relatedEstimateFixtures } from "../../estimates/related-estimates-card/related-estimates-card.data";
 import {
   customerPreviewData as preview,
   customerFixtures as rows,
@@ -49,6 +51,28 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const Default: Story = {};
+export const WithEstimates: Story = {
+  args: { relatedEstimates: <RelatedEstimatesCard recordType="customer"
+    estimates={relatedEstimateFixtures.map((estimate, index) => ({ ...estimate,
+      parent: { type: index === 1 ? "job" : "lead", number: index === 1 ? "J-1040" : "LD-1048" },
+    }))} total={3} canRead canCreate onCreate={fn()} /> },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement);
+    await expect(c.getByRole("heading", { name: "Estimates" })).toBeVisible();
+    await expect(c.getByText("Job · J-1040")).toBeVisible();
+    await expect(c.getByRole("button", { name: "Create estimate" })).toBeEnabled();
+    await userEvent.click(c.getByRole("tab", { name: "Activity" }));
+    await expect(c.queryByRole("heading", { name: "Estimates" })).not.toBeInTheDocument();
+  },
+};
+export const EstimatesAccessLost: Story = {
+  args: { relatedEstimates: <RelatedEstimatesCard recordType="customer" estimates={relatedEstimateFixtures} total={3} /> },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement);
+    await expect(c.queryByRole("link", { name: /^Open estimate/ })).not.toBeInTheDocument();
+    await expect(c.queryByRole("button", { name: "Create estimate" })).not.toBeInTheDocument();
+  },
+};
 export const Business: Story = { args: { customer: rows[2] } };
 export const Leads: Story = { args: { initialTab: "leads" } };
 export const Activity: Story = { args: { initialTab: "activity" } };

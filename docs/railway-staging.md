@@ -198,3 +198,19 @@ Railway buckets are created by hand; `.railway/railway.ts` does not manage them.
 3. Reference the DR bucket on `worker` only, under `DR_OBJECT_STORAGE_*` names.
 4. Generate `FILE_MASTER_KEY` (`openssl rand -base64 32`) and set it as a sealed secret on `web` and `worker`. Store a recovery copy outside Railway. Never commit it.
 5. Production needs a paid plan; an exhausted Free-plan credit suspends bucket access.
+
+
+## Approved complete-app release — October 28, 2026
+
+The user explicitly approved the complete current application, including Calendar, Estimates, Gantt and integrated file-storage/Jobs/Work Orders work. [Calendar staging release record](calendar-staging-release.md) documents the 1,974-file frozen source manifest (`2de210356202f62b8e8af9dbfb2c1ea1ecfbbfe984e9ecda3bb3e548466b19d9`), validation and cutover. Web `60aac1dd-cb0f-4167-afcc-48dd103a5437` and worker `33332492-3b93-48ba-9780-a54b46e411d0` are SUCCESS. The exact staging migration ledger now matches all 92 approved filenames; 39 additions ran once through web pre-deploy before the worker upload. No reset/rollback/seed was used.
+
+Same-volume custom-format PostgreSQL backups were fully restored into a disposable scratch database and checked before cutover; the scratch database was dropped. Railway managed backups were unavailable on this workspace plan and PITR is disabled, so neither is claimed as configured; no account upgrade occurred. The release does not establish off-volume disaster recovery. Web/worker variable presence/parity was validated without printing values. Existing database, Redis, bucket, runtime variables and production were unchanged; temporary SSH access was removed afterward.
+
+Public health, Calendar/Gantt rendering, shared scheduling/clear/idempotency, Field scope/revocation, combined in-app notices and Estimate/settings reads passed with fictional data. Two actual-model checks passed: scoped Calendar SSE with Thinking, and a shared schedule proposal that wrote only after a browser confirmation click. Four fictional-account deletion requests were accepted and final aggregate inspection found no active fixture accounts. Live inbox/reminder delivery and external alerts remain operational follow-ups. Estimate customer email sending remains local-Mailpit-only as implemented; no Resend Estimate-send rollout was enabled.
+
+
+## Estimate customer email enabled — October 28, 2026
+
+The user requested enabling staging email for testing. Web `589ba322-c154-4466-9c37-2d0af6b884b0` and worker `05fba878-ff4b-4164-b4f3-498a386c7865` are SUCCESS. `ESTIMATE_EMAIL_ENABLED=true` is configured on both; code additionally requires Railway staging identity and HTTPS. Existing Resend/sender/auth-origin/encryption settings are reused. Local Mailpit is unchanged and external production activation remains blocked.
+
+[Estimate staging email](estimate-staging-email.md) records the 1,978-file frozen source, local checks, provider retry boundary and actual live test. A reviewed fictional estimate to Resend's delivery-test address reached Sent on the first attempt; replay did not duplicate delivery, and its signed-out customer page/API worked without staff-only notes. The fixture was queued for deletion through the normal API. No new schema, database/Redis/bucket change or production deployment. Earlier local-only Estimate limitations in this deployment history are superseded on staging by this explicit rollout. Human inbox/rendering review and bounce/complaint webhook processing are separate from the verified provider acceptance.

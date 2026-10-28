@@ -13,8 +13,11 @@ async function status() {
     const scheduler = await queues[0].getJobScheduler('daily-chat-retention');
     const reports = await Promise.all(queues.map(async queue => ({ queue: queue.name, workers: await queue.getWorkersCount(), counts: await queue.getJobCounts('waiting', 'active', 'delayed', 'failed') })));
     const assignmentDelivery = await db('assignmentEmailOutbox').select('status').count({count:'*'}).groupBy('status');
+    const visitDelivery = await db('visitNotifications').select('emailStatus').count({count:'*'}).groupBy('emailStatus');
+    const deadlineDelivery = await db('deadlineNotifications').select('emailStatus').count({count:'*'}).groupBy('emailStatus');
+    const jobDelivery = await db('jobNotifications').select('emailStatus').count({count:'*'}).groupBy('emailStatus');
     const ready = !!scheduler && reports.every(report => report.workers > 0);
-    console.log(JSON.stringify({ event: 'worker.status', ready, retentionScheduled: !!scheduler, assignmentDelivery, queues: reports }));
+    console.log(JSON.stringify({ event: 'worker.status', ready, retentionScheduled: !!scheduler, assignmentDelivery, visitDelivery, deadlineDelivery, jobDelivery, queues: reports }));
     if (!ready) process.exitCode = 1;
   } finally { await Promise.allSettled(queues.map(queue => queue.close())); await db.destroy(); }
 }

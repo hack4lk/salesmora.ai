@@ -72,6 +72,244 @@ export function testDraftModel(
   message: string,
 ): import("@salesmora/agent").ConversationModel | undefined {
   if (!testChatProviderEnabled()) return;
+  if (message.startsWith('fixture:calendar-propose:') || message.startsWith('fixture:calendar-propose-slow:')) return {
+    async plan() { return [{ name:'calendar_propose_action',args:JSON.parse(message.slice(message.indexOf(':',8)+1)) }]; },
+    async *answer(_messages,evidence) {
+      yield 'Checking the requested schedule. ';
+      if (message.startsWith('fixture:calendar-propose-slow:')) await new Promise(resolve => setTimeout(resolve,1200));
+      yield JSON.stringify(evidence).slice(0,6000);
+    },
+  };
+  if (message.startsWith('fixture:calendar:') || message.startsWith('fixture:calendar-slow:')) return {
+    async plan() { return [{ name: 'calendar_query', args: JSON.parse(message.slice(message.indexOf(':', 8) + 1)) }]; },
+    async *answer(_messages, evidence) {
+      yield 'Calendar snapshot checked. ';
+      if (message.startsWith('fixture:calendar-slow:')) await new Promise(resolve => setTimeout(resolve,1200));
+      yield JSON.stringify(evidence).slice(0, 6000); // Keep this fictional answer within the real graph’s answer budget.
+    },
+  };
+  if (message === 'fixture:calendar-focus' || message === 'fixture:calendar-focus-slow') return {
+    async plan() { return []; },
+    async *answer(messages) {
+      yield 'Checking selected Calendar context. ';
+      if (message.endsWith('-slow')) await new Promise(resolve => setTimeout(resolve,1200));
+      const reference = [...messages].reverse().find(m => m.role === 'user' && m.text.startsWith('Current page reference'));
+      const raw = reference ? JSON.parse(reference.text.slice(reference.text.indexOf('\n')+1)) : null;
+      yield JSON.stringify(raw?.page?.selectedVisit ?? raw?.selectedVisit ?? 'No selected visit.');
+    },
+  };
+  if (message === 'fixture:calendar-history') return {
+    async plan() { return []; },
+    async *answer(messages) { yield 'Historical Calendar context: '; yield messages.filter(m => m.role === 'assistant').map(m => m.text).join(' '); },
+  };
+  if (message === "fixture:estimate-void-history" || message === "fixture:estimate-void-history-slow")
+    return {
+      async plan() { return []; },
+      async *answer(messages) {
+        yield "Checking the app-recorded withdrawal. ";
+        if (message.endsWith("-slow")) await new Promise(resolve => setTimeout(resolve, 1200));
+        yield messages.some(item => item.role === "assistant" && item.text.includes("App-recorded Estimate withdrawal") &&
+          item.text.includes('"state":"confirmed"')) ? "Verified confirmed withdrawal." : "No verified confirmed withdrawal.";
+      },
+    };
+  if (message === "fixture:estimate-archive-history" || message === "fixture:estimate-archive-history-slow")
+    return {
+      async plan() { return []; },
+      async *answer(messages) {
+        yield "Checking the app-recorded Archive/Restore proposal. ";
+        if (message.endsWith("-slow")) await new Promise(resolve => setTimeout(resolve, 1200));
+        yield messages.some(item => item.role === "assistant" && item.text.includes("App-recorded Estimate Archive/Restore proposal") &&
+          item.text.includes('"state":"confirmed"')) ? "Verified confirmed Archive/Restore." : "No verified confirmed Archive/Restore.";
+      },
+    };
+  if (message === "fixture:estimate-draft-delete-history" || message === "fixture:estimate-draft-delete-history-slow")
+    return {
+    async plan() { return []; },
+    async *answer(messages) {
+      yield "Checking the app-recorded Draft deletion proposal. ";
+      if (message.endsWith("-slow")) await new Promise(resolve => setTimeout(resolve, 1200));
+      yield messages.some(item => item.role === "assistant" &&
+        item.text.includes("App-recorded Estimate Draft deletion proposal") &&
+        item.text.includes('"state":"confirmed"')) ? "Verified confirmed Draft deletion." : "No verified confirmed Draft deletion.";
+    },
+    };
+  if (message.startsWith("fixture:estimate-draft-delete:") ||
+    message.startsWith("fixture:estimate-draft-delete-slow:"))
+    return {
+    async plan() {
+      const prefix = message.startsWith("fixture:estimate-draft-delete-slow:")
+        ? "fixture:estimate-draft-delete-slow:"
+        : "fixture:estimate-draft-delete:";
+      return [{ name: "estimates_propose_action", args: JSON.parse(message.slice(prefix.length)) }];
+    },
+    async *answer() {
+      yield "Review the permanent Draft-deletion card. Nothing has been deleted. Only exact typed confirmation in its dialog can delete this Draft.";
+      if (message.startsWith("fixture:estimate-draft-delete-slow:")) {
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        yield "Draft-deletion fixture complete.";
+      }
+    },
+    };
+  if (message === "fixture:estimate-convert-history")
+    return {
+      async plan() { return []; },
+      async *answer(messages) {
+        const history = messages.filter(item => item.role === "assistant").map(item => item.text).join("\n");
+        const verified = history.includes("App-recorded Estimate conversion review") &&
+          history.includes('"state":"pending"') &&
+          !history.includes("customer@example.test") &&
+          !history.includes("PRIVATE_ESTIMATE_NOTE") &&
+          !history.includes("PRIVATE_CUSTOMER_NOTE");
+        yield verified
+          ? "Verified pending conversion proposal and Estimate reference only; no Job creation receipt exists."
+          : "No verified conversion proposal is available.";
+      },
+    };
+  if (message.startsWith("fixture:estimate-convert:"))
+    return {
+      async plan() {
+        return [{
+          name: "estimates_propose_action",
+          args: JSON.parse(message.slice("fixture:estimate-convert:".length)),
+        }];
+      },
+      async *answer() {
+        yield "Review the conversion card to open the existing Job form. No Job has been created.";
+      },
+    };
+  if (message.startsWith("fixture:estimate-export:"))
+    return {
+      async plan() {
+        return [{
+          name: "estimates_propose_action",
+          args: JSON.parse(message.slice("fixture:estimate-export:".length)),
+        }];
+      },
+      async *answer() {
+        yield "Review the CSV export in the existing Estimates export dialog. No file has been downloaded.";
+      },
+    };
+  if (message.startsWith("fixture:estimate-archive:") || message.startsWith("fixture:estimate-archive-slow:"))
+    return {
+      async plan() {
+        const prefix = message.startsWith("fixture:estimate-archive-slow:") ? "fixture:estimate-archive-slow:" : "fixture:estimate-archive:";
+        return [{ name: "estimates_propose_action", args: JSON.parse(message.slice(prefix.length)) }];
+      },
+      async *answer() {
+        yield "Review the Archive/Restore card. Nothing has changed. Only explicit browser confirmation requests the action.";
+        if (message.startsWith("fixture:estimate-archive-slow:")) {
+          await new Promise(resolve => setTimeout(resolve, 1200));
+          yield "Archive/Restore fixture complete.";
+        }
+      },
+    };
+  if (message.startsWith("fixture:estimate-void:") || message.startsWith("fixture:estimate-void-slow:"))
+    return {
+      async plan() {
+        const prefix = message.startsWith("fixture:estimate-void-slow:") ? "fixture:estimate-void-slow:" : "fixture:estimate-void:";
+        return [{ name: "estimates_propose_action", args: JSON.parse(message.slice(prefix.length)) }];
+      },
+      async *answer() {
+        yield "Review the withdrawal card. Nothing has been withdrawn. Only explicit browser confirmation requests withdrawal.";
+        if (message.startsWith("fixture:estimate-void-slow:")) {
+          await new Promise(resolve => setTimeout(resolve, 1200));
+          yield "Withdrawal fixture complete.";
+        }
+      },
+    };
+  if (message === "fixture:estimate-draft-action-history" || message === "fixture:estimate-draft-action-history-slow")
+    return {
+      async plan() { return []; },
+      async *answer(messages) {
+        yield "Checking the app-recorded Draft operation. ";
+        if (message.endsWith("-slow")) await new Promise(resolve => setTimeout(resolve, 1200));
+        yield messages.some(item => item.role === "assistant" && item.text.includes("App-recorded Estimate Draft action") &&
+          item.text.includes('"state":"confirmed"')) ? "Verified confirmed Draft operation." : "No verified confirmed Draft operation.";
+      },
+    };
+  if (message.startsWith("fixture:estimate-draft-action:") || message.startsWith("fixture:estimate-draft-action-slow:"))
+    return {
+      async plan() {
+        const prefix = message.startsWith("fixture:estimate-draft-action-slow:") ? "fixture:estimate-draft-action-slow:" : "fixture:estimate-draft-action:";
+        return [{ name: "estimates_propose_action", args: JSON.parse(message.slice(prefix.length)) }];
+      },
+      async *answer() {
+        yield "Review the Draft operation card. Nothing has been saved or reused. Only explicit browser confirmation requests the operation.";
+        if (message.startsWith("fixture:estimate-draft-action-slow:")) {
+          await new Promise(resolve => setTimeout(resolve, 1200));
+          yield "Draft action fixture complete.";
+        }
+      },
+    };
+  if (message === "fixture:estimate-decision-history" || message === "fixture:estimate-decision-history-slow")
+    return {
+      async plan() { return []; },
+      async *answer(messages) {
+        yield "Checking the app-recorded decision outcome. ";
+        if (message.endsWith("-slow")) await new Promise(resolve => setTimeout(resolve, 1200));
+        yield messages.some(item => item.role === "assistant" && item.text.includes("App-recorded Estimate decision proposal") &&
+          item.text.includes('"state":"confirmed"')) ? "Verified recorded decision receipt." : "No verified recorded decision receipt.";
+      },
+    };
+  if (message.startsWith("fixture:estimate-decision:") || message.startsWith("fixture:estimate-decision-slow:"))
+    return {
+      async plan() {
+        const prefix = message.startsWith("fixture:estimate-decision-slow:") ? "fixture:estimate-decision-slow:" : "fixture:estimate-decision:";
+        return [{ name: "estimates_propose_action", args: JSON.parse(message.slice(prefix.length)) }];
+      },
+      async *answer() {
+        yield "Review the Decision card. Nothing has been recorded. Only explicit confirmation records the customer's response.";
+        if (message.startsWith("fixture:estimate-decision-slow:")) {
+          await new Promise(resolve => setTimeout(resolve, 1200));
+          yield "Decision fixture complete.";
+        }
+      },
+    };
+  if (message.startsWith("fixture:estimate-sharing:"))
+    return {
+      async plan() {
+        return [{ name: "estimates_propose_action", args: JSON.parse(message.slice("fixture:estimate-sharing:".length)) }];
+      },
+      async *answer() {
+        yield "Review the sharing proposal in the app. Nothing has been shared or queued. Only the review's explicit confirmation requests sharing.";
+      },
+    };
+  if (message.startsWith("fixture:estimate-draft:") || message.startsWith("fixture:estimate-draft-slow:"))
+    return {
+      async plan() {
+        const prefix = message.startsWith("fixture:estimate-draft-slow:") ? "fixture:estimate-draft-slow:" : "fixture:estimate-draft:";
+        return [{ name: "estimates_propose_action", args: JSON.parse(message.slice(prefix.length)) }];
+      },
+      async *answer() {
+        yield "Review the Estimate Draft proposal. Nothing has been saved. Use the card to confirm, cancel or review missing prices in the editor.";
+        if (message.startsWith("fixture:estimate-draft-slow:")) {
+          await new Promise(resolve => setTimeout(resolve, 1200));
+          yield "Estimate Draft fixture complete.";
+        }
+      },
+    };
+  if (message.startsWith("fixture:estimate:") || message.startsWith("fixture:estimate-slow:"))
+    return {
+      async plan() {
+        const prefix = message.startsWith("fixture:estimate-slow:") ? "fixture:estimate-slow:" : "fixture:estimate:";
+        return [{ name: "estimates_query", args: { request: JSON.parse(message.slice(prefix.length)) } }];
+      },
+      async *answer(_messages, evidence) {
+        const read = evidence[0];
+        yield `Authorized Estimate summary. ${JSON.stringify(read).slice(0, 3000)}`;
+        if (message.startsWith("fixture:estimate-slow:")) {
+          await new Promise(resolve => setTimeout(resolve, 1200));
+          yield "Estimate fixture complete.";
+        }
+      },
+    };
+  if (message === "fixture:estimate-history")
+    return {
+      async plan() { return []; },
+      async *answer(messages) {
+        yield messages.filter(item => item.role === "assistant").map(item => item.text).join(" ").slice(0, 4000) || "No prior Estimate content.";
+      },
+    };
   if (message.startsWith("fixture:customer:"))
     return {
       async plan() {

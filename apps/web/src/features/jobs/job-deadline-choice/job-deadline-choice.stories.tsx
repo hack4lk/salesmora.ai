@@ -1,0 +1,32 @@
+import { useState } from 'react';
+import type { Meta, StoryObj } from '@storybook/nextjs-vite';
+import { expect, fn, userEvent, within } from 'storybook/test';
+import { JobDeadlineChoice, jobDeadlineChoiceValid, type JobDeadlineChoiceProps } from './job-deadline-choice';
+import { jobDeadlineChoiceData as copy } from './job-deadline-choice.data';
+const context: JobDeadlineChoiceProps['context'] = { rule: { mode: 'relative', days: 14, count: 'business' }, revision: copy.stories.revision, projectedDate: copy.stories.projected, createdDate: copy.stories.created, timezone: copy.stories.timezone };
+function Preview(args: JobDeadlineChoiceProps) { const [value, setValue] = useState(args.value); return <JobDeadlineChoice {...args} value={value} onChange={next => { args.onChange(next); setValue(next); }}/>; }
+const meta = { title: 'Jobs/JobDeadlineChoice', component: JobDeadlineChoice, render: args => <Preview {...args}/>, args: { context, value: { mode: 'workspace', revision: context.revision }, canOverride: true, onChange: fn(), onReload: fn() },
+  decorators: [Story => <main className="mx-auto grid min-h-screen w-full max-w-3xl content-start gap-6 p-4 sm:p-8"><p className="m-0 text-sm leading-6 text-muted">{copy.stories.notice}</p><Story/></main>], parameters: { layout: 'fullscreen' },
+} satisfies Meta<typeof JobDeadlineChoice>;
+export default meta; type Story = StoryObj<typeof meta>;
+export const Default: Story = { play: async ({ canvasElement, args }) => { const c = within(canvasElement); await expect(c.getByRole('radio', { name: copy.workspace })).toBeChecked(); await expect(c.getByLabelText(copy.result).querySelector('time')).toHaveAttribute('dateTime', context.projectedDate); await expect(args.onChange).not.toHaveBeenCalled(); } };
+export const WorkspaceUnset: Story = { args: { context: { ...context, rule: { mode: 'unset' }, projectedDate: null } }, play: async ({ canvasElement }) => { await expect(within(canvasElement).getByText(copy.noDeadline)).toBeVisible(); } };
+export const CustomDate: Story = { args: { value: { mode: 'date', date: copy.stories.customDate } }, play: async ({ canvasElement }) => { await expect(within(canvasElement).getByLabelText(copy.date)).toHaveValue(copy.stories.customDate); } };
+export const ExplicitlyUnset: Story = { args: { value: { mode: 'unset' } }, play: async ({ canvasElement }) => { const c = within(canvasElement); await expect(c.getByRole('radio', { name: copy.unset })).toBeChecked(); await expect(c.getByText(copy.noDeadline)).toBeVisible(); } };
+export const SwitchChoices: Story = { play: async ({ canvasElement, args }) => {
+  const c = within(canvasElement); await userEvent.click(c.getByRole('radio', { name: copy.custom })); await expect(c.getByRole('alert')).toHaveTextContent(copy.needsDate);
+  await userEvent.type(c.getByLabelText(copy.date), copy.stories.customDate); await expect(args.onChange).toHaveBeenLastCalledWith({ mode: 'date', date: copy.stories.customDate });
+  await userEvent.click(c.getByRole('radio', { name: copy.unset })); await expect(args.onChange).toHaveBeenLastCalledWith({ mode: 'unset' }); await expect(c.queryByLabelText(copy.date)).not.toBeInTheDocument();
+  await userEvent.click(c.getByRole('radio', { name: copy.workspace })); await expect(args.onChange).toHaveBeenLastCalledWith({ mode: 'workspace', revision: context.revision });
+} };
+export const InvalidDate: Story = { args: { value: { mode: 'date', date: '' } }, play: async ({ canvasElement, args }) => { await expect(within(canvasElement).queryByLabelText(copy.result)).not.toBeInTheDocument(); await expect(jobDeadlineChoiceValid(args)).toBe(false); } };
+export const DefaultOnly: Story = { args: { canOverride: false }, play: async ({ canvasElement }) => { const c = within(canvasElement); await expect(c.getByRole('radio', { name: copy.custom })).toBeDisabled(); await expect(c.getByRole('radio', { name: copy.unset })).toBeDisabled(); await expect(c.getByRole('radio', { name: copy.workspace })).toBeEnabled(); } };
+export const PermissionLost: Story = { args: { canOverride: false, value: { mode: 'date', date: copy.stories.customDate } }, play: async ({ canvasElement, args }) => { const c = within(canvasElement); await expect(c.getByRole('alert')).toHaveTextContent(copy.denied); await expect(jobDeadlineChoiceValid(args)).toBe(false); await userEvent.click(c.getByRole('radio', { name: copy.workspace })); await expect(args.onChange).toHaveBeenCalledWith({ mode: 'workspace', revision: context.revision }); } };
+export const ChangedDefault: Story = { args: { context: { ...context, revision: 'deadline-v2' } }, play: async ({ canvasElement, args }) => { const c = within(canvasElement); await expect(c.getByRole('alert')).toHaveTextContent(copy.stale); await expect(c.queryByLabelText(copy.result)).not.toBeInTheDocument(); await expect(jobDeadlineChoiceValid(args)).toBe(false); await userEvent.click(c.getByRole('button', { name: copy.useCurrent })); await expect(args.onChange).toHaveBeenCalledWith({ mode: 'workspace', revision: 'deadline-v2' }); await expect(c.getByLabelText(copy.result)).toBeVisible(); } };
+export const Pending: Story = { args: { pending: true }, play: async ({ canvasElement }) => { for (const input of within(canvasElement).getAllByRole('radio')) await expect(input).toBeDisabled(); } };
+export const ReadOnly: Story = { args: { readOnly: true } };
+export const Loading: Story = { args: { state: 'loading' }, play: async ({ canvasElement }) => { await expect(within(canvasElement).queryByRole('radio')).not.toBeInTheDocument(); } };
+export const LoadError: Story = { args: { state: 'error' }, play: async ({ canvasElement, args }) => { await userEvent.click(within(canvasElement).getByRole('button', { name: copy.reload })); await expect(args.onReload).toHaveBeenCalledOnce(); } };
+export const InvalidProjection: Story = { args: { context: { ...context, projectedDate: null } }, play: async ({ canvasElement, args }) => { await expect(within(canvasElement).queryByRole('radio')).not.toBeInTheDocument(); await expect(jobDeadlineChoiceValid(args)).toBe(false); } };
+export const LongTimezone: Story = { args: { context: { ...context, timezone: copy.stories.longTimezone } } };
+export const Keyboard: Story = { play: async ({ canvasElement, args }) => { const c = within(canvasElement); c.getByRole('radio', { name: copy.unset }).focus(); await userEvent.keyboard(' '); await expect(args.onChange).toHaveBeenCalledWith({ mode: 'unset' }); await expect(c.getByRole('radio', { name: copy.unset })).toHaveFocus(); } };

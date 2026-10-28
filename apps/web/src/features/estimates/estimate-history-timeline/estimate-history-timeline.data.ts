@@ -1,0 +1,102 @@
+import type { EstimateHistoryEvent, EstimateHistoryField, EstimateDecisionChannel } from "./estimate-history-timeline.preview";
+
+export const estimateHistoryTimelineData = {
+  title: "Estimate history",
+  description: "Staff-only activity, newest first. Long-text and contact edits list changed fields without repeating their contents.",
+  newest: "Newest first",
+  empty: "No saved activity yet.",
+  loading: "Loading estimate history...",
+  older: "Load older activity",
+  retry: "Try again",
+  unavailable: "Estimate history is unavailable. Your access may have changed.",
+  stale: "Previously loaded activity is shown below. The history may be incomplete until loading succeeds.",
+  moreUnavailable: "More history is available, but loading older activity is not connected in this view.",
+  loaded: (count: number, total: number) => `${count.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} events loaded`,
+  timezone: (timezone: string) => `Times shown in ${timezone}`,
+  timezoneUnavailable: "The workspace timezone is invalid. Event times cannot be displayed; refresh the record.",
+  dateUnavailable: "Event time unavailable",
+  decisionDateUnavailable: "Decision date unavailable",
+  former: "Former or unavailable teammate",
+  system: "System",
+  sources: { ui: "App", chat: "Assistant · confirmed by staff", worker: "System automation", system: "System" },
+  before: "Before",
+  after: "After",
+  changed: "Changed field",
+  fields: {
+    name: "Estimate name", recipientName: "Recipient name", recipientEmail: "Recipient email",
+    serviceAddress: "Service address", owner: "Prepared by", scope: "Scope and assumptions",
+    message: "Customer message", termsNote: "Additional terms", paymentTerms: "Payment terms", paymentLink: "Payment link",
+    validUntil: "Valid until", deposit: "Deposit setting", taxRate: "Tax rate",
+    discount: "Discount", items: "Line items", internalNotes: "Internal notes",
+  } satisfies Record<EstimateHistoryField, string>,
+  total: "Estimate total",
+  status: "Estimate status",
+  noStatus: "Not yet created",
+  revision: "Revision",
+  convertedJob: "Created Job",
+  decisionDate: "Customer decision date",
+  channel: "Decision channel",
+  channels: { email: "Email", phone: "Phone", "in-person": "In person", other: "Other" } satisfies Record<EstimateDecisionChannel, string>,
+  decisionNote: "Decision note",
+  correctionReason: "Correction reason",
+  voidReason: "Withdrawal reason",
+  events: {
+    created: "Draft created", updated: "Draft updated", sent: "Estimate sent",
+    published: "Estimate published", "decision-recorded": "Customer decision recorded",
+    "decision-corrected": "Customer decision corrected", "revision-created": "Draft revision created",
+    expired: "Estimate expired", superseded: "Revision superseded", voided: "Estimate voided",
+    archived: "Estimate archived", restored: "Estimate restored", duplicated: "Draft duplicated",
+    converted: "Converted to job", "delivery-queued": "Email queued", "delivery-sent": "Email sent",
+    "delivery-failed": "Email delivery failed", "delivery-bounced": "Email bounced", viewed: "First customer view recorded",
+  } satisfies Record<EstimateHistoryEvent["kind"], string>,
+  stories: {
+    notice: "Component preview: fictional staff-only events. No activity is fetched, recorded or changed.",
+    timezone: "America/New_York",
+    error: "Older activity could not be loaded. Try again; the displayed events have not been changed.",
+    longActor: "Alexandria-Montgomery-Wellington-Riverside-Community-Restoration-Partnership",
+    longReason: "Review the recorded customer decision with the office before continuing. ".repeat(7),
+    literalNote: "<script>not executable</script>\nThe customer called to discuss the proposal.",
+    revoke: "Remove sample history access",
+    secret: "Private input that must not appear in history",
+  },
+} as const;
+
+/** Independent event samples, not a single record's lifecycle. */
+export const estimateHistoryFixtures: readonly EstimateHistoryEvent[] = [
+  {
+    id: "event-accepted", kind: "decision-recorded", createdAt: "2026-10-22T19:00:00Z",
+    source: { type: "ui", actorName: "Alex Morgan" },
+    changes: [{ kind: "status", before: "sent", after: "accepted" }],
+    decisionDate: "2026-10-22", channel: "phone", note: "The customer confirmed the proposed scope by phone.",
+  },
+  {
+    id: "event-sent", kind: "sent", createdAt: "2026-10-22T18:00:00Z",
+    source: { type: "ui", actorName: "Alex Morgan" },
+    changes: [{ kind: "status", before: "draft", after: "sent" }],
+  },
+  {
+    id: "event-updated", kind: "updated", createdAt: "2026-10-22T17:00:00Z",
+    source: { type: "chat", actorName: "Sam Rivera" },
+    changes: [{ kind: "field", field: "items" }, { kind: "field", field: "scope" }, { kind: "total", beforeCents: 84260, afterCents: 94793 }],
+  },
+  {
+    id: "event-created", kind: "created", createdAt: "2026-10-22T16:00:00Z",
+    source: { type: "ui", actorName: "Alex Morgan" },
+    changes: [{ kind: "status", before: null, after: "draft" }],
+  },
+];
+
+export const estimateHistoryEventExamples: readonly EstimateHistoryEvent[] = [
+  ...estimateHistoryFixtures,
+  { id: "event-published", kind: "published", createdAt: "2026-10-21T16:00:00Z", source: { type: "ui", actorName: "Alex Morgan" }, changes: [{ kind: "status", before: "draft", after: "published" }] },
+  { id: "event-corrected", kind: "decision-corrected", createdAt: "2026-10-20T16:00:00Z", source: { type: "chat", actorName: "Sam Rivera" }, changes: [{ kind: "status", before: "accepted", after: "declined" }], decisionDate: "2026-10-20", channel: "email", reason: "The original phone response was recorded incorrectly.", note: "The customer requested a revised proposal." },
+  { id: "event-revised", kind: "revision-created", createdAt: "2026-10-19T16:00:00Z", source: { type: "ui", actorName: "Alex Morgan" }, changes: [{ kind: "revision", before: 1, after: 2 }] },
+  { id: "event-expired", kind: "expired", createdAt: "2026-10-18T04:00:00Z", source: { type: "worker" }, changes: [{ kind: "status", before: "sent", after: "expired" }] },
+  { id: "event-superseded", kind: "superseded", createdAt: "2026-10-17T16:00:00Z", source: { type: "worker" }, changes: [{ kind: "status", before: "published", after: "superseded" }] },
+  { id: "event-voided", kind: "voided", createdAt: "2026-10-16T16:00:00Z", source: { type: "ui", actorName: "Alex Morgan" }, changes: [{ kind: "status", before: "sent", after: "void" }], reason: "This proposal was sent for the wrong scope. Prepare a new draft." },
+  ...(["archived", "restored", "duplicated", "converted", "delivery-queued", "delivery-sent", "delivery-failed", "delivery-bounced", "viewed"] as const).map((kind, index) => ({
+    id: `event-${kind}`, kind, createdAt: `2026-10-${String(15 - index).padStart(2, "0")}T16:00:00Z`,
+    source: kind.startsWith("delivery") || kind === "viewed" ? { type: "worker" as const } : { type: "ui" as const, actorName: "Alex Morgan" },
+    changes: [],
+  })),
+];

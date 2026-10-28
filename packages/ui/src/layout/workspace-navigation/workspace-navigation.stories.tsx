@@ -12,7 +12,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 async function openNavigationIfMobile(canvasElement: HTMLElement) {
-  const c=within(canvasElement); const button=c.getByRole('button',{name:copy.open,hidden:true});
+  const c=within(canvasElement); const button=c.getByLabelText(copy.open);
   if (getComputedStyle(button).display !== 'none') await userEvent.click(button);
   return c;
 }
@@ -69,13 +69,34 @@ export const Calendar: Story = {args:{currentPage:'calendar'},play:async({canvas
   await userEvent.click(c.getByRole('link',{name:item.label}));
   await expect(args.onNavigate).toHaveBeenCalledWith('calendar');
 }};
-export const Estimates: Story = {args:{currentPage:'estimates'},play:async({canvasElement,args})=>{
+export const Estimates: Story = {args:{currentPage:'estimates',estimatesHref:'/estimates?workspace=fictional-workspace'},play:async({canvasElement,args})=>{
   const c=await openNavigationIfMobile(canvasElement); const item=copy.items.find(item=>item.id==='estimates')!;
+  const links = c.getAllByRole('link').map(link => link.textContent?.trim());
+  await expect(links.indexOf(item.label)).toBeLessThan(links.indexOf('Jobs'));
   await expect(c.getByRole('link',{name:item.label})).toHaveAttribute('aria-current','page');
+  await expect(c.getByRole('link',{name:item.label})).toHaveAttribute('href',args.estimatesHref);
   await userEvent.click(c.getByRole('link',{name:item.label}));
   await expect(args.onNavigate).toHaveBeenCalledWith('estimates');
 }};
-
+export const EstimateSettings: Story = {args:{
+  currentPage:'settings',
+  currentSettingsPage:'estimates',
+  authorizedPages:['home','settings','estimate-settings'],
+  estimateSettingsHref:'/settings/estimates?workspace=fictional-workspace',
+},play:async({canvasElement,args})=>{
+  const c=await openNavigationIfMobile(canvasElement);
+  const link=c.getByRole('link',{name:copy.estimateSettings});
+  await expect(link).toHaveAttribute('aria-current','page');
+  await expect(link).toHaveAttribute('href',args.estimateSettingsHref);
+}};
+export const EstimateSettingsDenied: Story = {args:{
+  currentPage:'settings',
+  authorizedPages:['home','settings'],
+  estimateSettingsHref:undefined,
+},play:async({canvasElement})=>{
+  const c=await openNavigationIfMobile(canvasElement);
+  await expect(c.queryByRole('link',{name:copy.estimateSettings})).not.toBeInTheDocument();
+}};
 export const Office:Story={args:{user:{name:copy.stories.name,email:copy.stories.email,role:'office'},authorizedPages:['home','leads','jobs','calendar','estimates','reports','campaigns']}};
 export const DeniedCapabilities:Story={args:{authorizedPages:['home']},play:async({canvasElement})=>{const c=await openNavigationIfMobile(canvasElement);await expect(c.queryByRole('link',{name:'Campaigns'})).not.toBeInTheDocument();await expect(c.queryByRole('navigation',{name:copy.management})).not.toBeInTheDocument();}};
 
@@ -133,3 +154,25 @@ export const AccountSettings: Story = {
     await expect(c.getByRole('link', { name: copy.items.find(item => item.id === 'settings')!.label })).not.toHaveAttribute('aria-current');
   },
 };
+
+const calendarLabel = copy.items.find(item => item.id === 'calendar')!.label;
+export const CalendarGantt: Story = {
+  args: { currentPage: 'calendar', currentCalendarPage: 'gantt', calendarHref: '/calendar?workspace=fictional-workspace', ganttHref: '/calendar/gantt?workspace=fictional-workspace' },
+  play: async ({ canvasElement, args }) => {
+    const c = within(canvasElement);
+    const gantt = c.getByRole('link', { name: copy.ganttChart });
+    await expect(gantt).toHaveAttribute('href', args.ganttHref);
+    await expect(gantt).toHaveAttribute('aria-current', 'page');
+    await expect(c.getByRole('link', { name: calendarLabel })).not.toHaveAttribute('aria-current');
+  },
+};
+export const CalendarWithoutGantt: Story = {
+  args: { currentPage: 'calendar', ganttHref: undefined },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement);
+    await expect(c.queryByRole('link', { name: copy.ganttChart })).not.toBeInTheDocument();
+    await expect(c.getByRole('link', { name: calendarLabel })).toHaveAttribute('aria-current', 'page');
+  },
+};
+export const JobNotifications: Story = { args: { currentPage: 'settings', currentSettingsPage: 'job-notifications', jobNotificationsHref: '/settings/job-notifications?workspace=fictional-workspace' }, play: async ({ canvasElement }) => { const c = await openNavigationIfMobile(canvasElement); await expect(c.getByRole('link', { name: copy.jobNotifications })).toHaveAttribute('aria-current', 'page'); } };
+export const NoJobNotifications: Story = { args: { currentPage: 'settings', notificationsHref: '/settings/notifications?workspace=fictional-workspace' }, play: async ({ canvasElement }) => { const c = await openNavigationIfMobile(canvasElement); await expect(c.queryByRole('link', { name: copy.jobNotifications })).not.toBeInTheDocument(); } };

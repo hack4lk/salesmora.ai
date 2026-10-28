@@ -1,0 +1,20 @@
+export const estimateSettingsPageData = {
+  back: "Back to settings",
+  leaveTitle: "Leave estimate settings?",
+  leaveDescription: "Unsaved changes will be discarded if you leave this page.",
+  discard: "Discard changes",
+  stay: "Stay on this page",
+  eyebrow: "Workspace settings",
+  title: "Estimates",
+  description: "Manage the business identity shown on customer estimates and the defaults used for new Drafts.",
+  navigationUnavailable: "Settings navigation is not connected.",
+  stories: {
+    notice: "Page preview: fictional workspace settings only. Nothing is saved, uploaded, sent or published.",
+    workspace: "Harbor Home Services",
+    settingsHref: "/settings?workspace=workspace-harbor",
+    navigation: "Back navigation preview only. No page was opened and the form has not been discarded.",
+    reload: "Sample reload requested. The host has not replaced the current settings.",
+    request: "Sample save requested. No settings were persisted.",
+    saved: "The fixture host supplied a saved revision. No real settings were updated.",
+  },
+} as const;

@@ -30,6 +30,7 @@
   --color-assistant-accent: #8dbbe8;
   --color-error: #d32f2f;
   --color-success: #236144;
+  --color-warning: #ff9800;
   --color-disabled: rgb(0 0 0 / 38%);
 
   /* Brand typography uses Tailwind's 3xl/4xl and 5xl/6xl size steps. */
@@ -51,6 +52,8 @@
   --container-brand: 28rem;
   --container-reading: 24rem;
   --spacing-brand-logo: 14rem;
+  --container-letter: 8.5in;
+  --spacing-letter-page: 11in;
 }
 
 @font-face {
@@ -63,6 +66,31 @@
 
 @utility focus-ring {
   @apply outline-3 outline-solid outline-primary outline-offset-4;
+}
+
+@utility letter-paper {
+  page: salesmora-letter;
+}
+
+@utility paper-prose {
+  orphans: 3;
+  widows: 3;
+}
+
+@page salesmora-letter {
+  size: letter;
+  margin: 0.5in;
+}
+
+@media print {
+  body:has(.letter-paper) {
+    page: salesmora-letter;
+  }
+  /* Editor reviews use MUI portals outside the screen's print-hidden subtree. */
+  body:has(.estimate-editor-host) .MuiModal-root,
+  .estimate-editor-host dialog {
+    display: none !important;
+  }
 }
 
 @layer base {

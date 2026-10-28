@@ -11,6 +11,7 @@
     "typecheck": "tsc --project tsconfig.check.json --noEmit"
   },
   "dependencies": {
+    "@salesmora/domain": "workspace:*",
     "@mui/material": "9.5.0",
     "@mui/icons-material": "9.5.0",
     "@emotion/react": "11.14.0",

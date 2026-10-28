@@ -1,4 +1,5 @@
 'use client';
+import { useCalendarScheduleRefresh } from '../../calendar/calendar-events';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FormFeedback, Pagination, Toast } from '@salesmora/ui';
@@ -12,8 +13,10 @@ import { JobsEmptyState } from '../jobs-empty-state/jobs-empty-state';
 import { JobWorkOrdersCard } from '../../work-orders/job-work-orders-card/job-work-orders-card';
 import type { JobWorkOrderRow } from '../../work-orders/work-order-preview.types';
 import { JobDetailPage } from '../job-detail-page/job-detail-page';
+import { RelatedEstimates } from '../../estimates/related-estimates-card/related-estimates';
 import { JobPeekDrawer } from '../job-peek-drawer/job-peek-drawer';
-import { JobCreateDialog, type JobCreateValues } from '../job-create-dialog/job-create-dialog';
+import { type JobCreateValues } from '../job-create-dialog/job-create-dialog';
+import { JobCreateConnectedDialog } from '../job-create-dialog/job-create-connected-dialog';
 import { JobEditDialog } from '../job-edit-dialog/job-edit-dialog';
 import { JobStatusDialog } from '../job-status-dialog/job-status-dialog';
 import { JobScheduleDialog } from '../job-schedule-dialog/job-schedule-dialog';
@@ -73,6 +76,7 @@ export function JobsRoute({ workspaceId, userId, initial, initialQuery, initialD
     setDetail(result); setSelected(result.job); return result;
   }
   function close() { if (flight.current) return; setOverlay(undefined); setError(''); setConflict(false); writeReceipt.current = undefined; }
+  useCalendarScheduleRefresh(reload);
   async function reload() {
     if (flight.current) return;
     setError(''); setConflict(false); setOverlay(undefined); writeReceipt.current = undefined;
@@ -133,7 +137,7 @@ export function JobsRoute({ workspaceId, userId, initial, initialQuery, initialD
   async function create(values: JobCreateValues) {
     await write({ customerId: values.customerId, title: values.title, primaryOwnerId: values.primaryOwnerId, teamUserIds: values.teamUserIds,
       service: values.service, location: values.location, description: values.description, scheduledDate: values.scheduledDate,
-      arrivalWindow: values.arrivalWindow, completionDeadline: values.completionDeadline }, true);
+      arrivalWindow: values.arrivalWindow, completionDeadline: values.completionDeadline, deadlineIntent: values.deadlineIntent, deadlinePreview: values.deadlinePreview }, true);
   }
   const common = { open: true, pending, error: error || undefined, conflict, onReload: reload, onClose: close };
   const job = selected;
@@ -146,6 +150,7 @@ export function JobsRoute({ workspaceId, userId, initial, initialQuery, initialD
     {error && !overlay && <button className={`${jobButton} justify-self-start`} onClick={reload}>{copy.reload}</button>}
     {initialDetail && detail ? <>
       <JobDetailPage job={detail.job} today={list.today} activity={detail.activity.map(jobActivityView)} files={[]} messages={messages} currentUserId={userId} related={related}
+        relatedEstimates={<RelatedEstimates key={`${workspaceId}:${detail.job.id}:${detail.job.version}`} workspaceId={workspaceId} recordType="job" recordId={detail.job.id} />}
         extendedFeatures={true} assistantAvailable={false} workspaceId={workspaceId}
         workOrdersSlot={workOrders && <JobWorkOrdersCard workOrders={workOrders.rows} canCreate={workOrders.canCreate} jobClosed={['completed', 'canceled'].includes(detail.job.status)}
           onOpen={id => router.push(`/work-orders/${id}?workspace=${encodeURIComponent(workspaceId)}`)}
@@ -173,7 +178,7 @@ export function JobsRoute({ workspaceId, userId, initial, initialQuery, initialD
       <Pagination total={list.total} page={list.page} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={n => { setPageSize(n); setPage(1); }}/>
     </>}
     {overlay === 'peek' && job && <JobPeekDrawer open job={job} today={list.today} onClose={close} onOpen={() => openAction(job, 'open')} onAction={a => openAction(job, a)}/>}
-    {overlay === 'create' && <JobCreateDialog {...common} members={list.options.members} customers={list.options.customers} allowNewCustomer={false}
+    {overlay === 'create' && <JobCreateConnectedDialog {...common} workspaceId={workspaceId} onPreviewReload={() => { setConflict(false); setError(''); writeReceipt.current = undefined; }} members={list.options.members} customers={list.options.customers} allowNewCustomer={false}
       canSchedule={list.canScheduleCreation} onConfirm={create}/>}
     {overlay === 'edit' && job && <JobEditDialog key={job.version} {...common} job={job}
       onConfirm={v => write({ action: 'edit', ...v })}/>}

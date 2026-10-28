@@ -1,0 +1,16 @@
+export const workOrderVisitChoiceData = {
+  title: 'Choose a visit', description: 'Decide whether this Work Order belongs to the Job’s scheduled visit or needs its own visit.',
+  useJob: 'Use Job’s visit', useJobHelp: 'Share the existing date and arrival window. This does not change the Job’s schedule.',
+  separate: 'Separate visit', separateHelp: 'Create an independent, unscheduled visit. Schedule it after creating the draft.',
+  date: 'Job’s scheduled date', window: 'Arrival window', noWindow: 'No arrival window', timezone: 'Workspace timezone',
+  records: 'Linked active records you can access', required: 'Choose an option to continue. No visit option is selected automatically.',
+  sharedHelp: 'Future shared schedule changes require review of every affected active record.',
+  separateSelected: 'The Job’s visit stays unchanged. This Work Order will be scheduled separately.',
+  denied: 'Joining this visit is unavailable with your current access or this visit’s state. You can choose a separate visit.',
+  unscheduled: 'This Job has no scheduled visit. The Work Order will have a separate visit that you can schedule after creating the draft.',
+  loading: 'Loading the Job’s visit…', error: 'The Job’s visit could not be loaded. Reload its details before choosing a visit.', retry: 'Reload visit',
+  stories: { job: 'J-1042', workOrder: 'WO-1007', date: '2026-11-02', timezone: 'America/New_York',
+    longReference: 'WO-1028 · Northside Community Workshop — equipment access and service inspection',
+    selected: 'Selected visit option', none: 'None', revoke: 'Remove joining access', restore: 'Restore joining access',
+  },
+} as const;

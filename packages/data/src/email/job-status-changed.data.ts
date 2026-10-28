@@ -1,0 +1,28 @@
+export const jobStatusChangedEmailData = {
+  brand: 'SalesMora.ai',
+  headings: { changed: 'A Job’s status changed', completed: 'A Job was completed', canceled: 'A Job was canceled', reopened: 'A Job was reopened' },
+  statusLabels: {
+    'needs-scheduling': 'Needs Scheduling', scheduled: 'Scheduled', 'in-progress': 'In Progress',
+    waiting: 'Waiting', completed: 'Completed', canceled: 'Canceled',
+  },
+  subject: (workspace: string, number: string, heading: string) => `${workspace}: ${number} · ${heading}`,
+  introduction: (actor: string, workspace: string) => `${actor || 'A teammate'} updated a Job’s status in ${workspace}.`,
+  job: 'Job', before: 'Previous status', after: 'New status', updatedBy: 'Updated by', teammate: 'A teammate',
+  action: 'View Job',
+  access: 'Sign in to view current details. This email records a status change; the Job may have changed again and your access may have changed since this update.',
+  reason: 'You received this email because you are the primary owner or on the assigned Job team and Job activity emails are enabled. Your own actions do not send you an activity email.',
+  preferences: 'Notification preferences', fallback: 'If the button does not work, copy and paste this link into your browser:', logoCid: 'cid:salesmora-logo',
+  stories: {
+    title: 'Job status change email', notice: 'Preview only. No email is sent; all records and people are fictional.',
+    subject: 'Subject', frame: 'Job status change HTML preview', textHeading: 'Plain-text Job status change email',
+    baseURL: 'https://app.salesmora.test', workspaceId: '00000000-0000-4000-8000-000000000001',
+    jobId: '00000000-0000-4000-8000-000000000002', workspace: 'Northstar Plumbing', actor: 'Alex Rivera',
+    jobNumber: 'J-1042', jobTitle: 'Kitchen plumbing repair',
+    longWorkspace: 'Northstar Property Maintenance, Construction and Professional Services',
+    longActor: 'Alexandra Rivera from Operations and Customer Care',
+    longTitle: 'Inspect and replace kitchen supply lines, valves and dishwasher connections in the rear extension of the community workshop',
+    escapedWorkspace: 'Northstar <script>fictional</script> & Partners',
+    escapedActor: 'Alex <Rivera> & Team', escapedTitle: 'Replace <img src=x onerror="alert(1)"> & inspect pipes',
+    logoSrc: '/branding/salesmora-email-logo.png',
+  },
+} as const;

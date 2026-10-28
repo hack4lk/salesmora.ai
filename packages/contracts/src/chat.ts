@@ -1,3 +1,5 @@
+import { calendarProposalTicketSchema, calendarProposalEvidenceSchema } from './calendar-proposal';
+import { calendarVisitReferenceSchema, calendarChatContextSchema, calendarChatResultSchema } from './calendar-chat';
 import { customerChatResultSchema } from "./customer-chat";
 import { customerQuerySchema } from "./customer";
 import { workOrderChatResultSchema } from "./work-order-chat";
@@ -12,6 +14,22 @@ import { leadToolNames } from "./lead-capabilities";
 import { leadExportSchema } from "./lead-export";
 import { helpSourceSchema } from "./knowledge";
 import { chatActionReviewSchema } from "./chat-actions";
+import { estimateChatFilterSchema, estimateChatResultSchema } from "./estimate-chat";
+import { estimateDraftChatViewSchema } from "./estimate-draft-chat";
+import { estimateShareChatTicketSchema } from "./estimate-share-chat";
+import { estimateDecisionChatTicketSchema } from "./estimate-decision-chat";
+import { estimateDraftActionChatTicketSchema } from "./estimate-draft-action-chat";
+import { estimateVoidChatTicketSchema } from "./estimate-void-chat";
+import { estimateArchiveChatTicketSchema } from "./estimate-archive-chat";
+import { estimateDraftDeleteChatTicketSchema } from "./estimate-draft-delete-chat";
+import { estimateConversionChatTicketSchema } from "./estimate-conversion-chat";
+
+export const estimateDecisionEvidenceSchema = z.array(z.uuid()).max(7);
+export const estimateDraftActionEvidenceSchema = z.array(z.uuid()).max(7);
+export const estimateVoidEvidenceSchema = z.array(z.uuid()).max(7);
+export const estimateArchiveEvidenceSchema = z.array(z.uuid()).max(7);
+export const estimateDraftDeleteEvidenceSchema = z.array(z.uuid()).max(7);
+export const estimateConversionEvidenceSchema = z.array(z.uuid()).max(7);
 
 export const chatSurfaceKeys = [
   "customers.list",
@@ -19,7 +37,11 @@ export const chatSurfaceKeys = [
   "work_order.list",
   "work_order.detail",
   "materials.list",
+  "estimates.list",
+  "estimate.editor",
+  "estimate.detail",
   "home",
+  "calendar",
   "leads.create",
   "leads.list",
   "lead.detail",
@@ -30,6 +52,8 @@ export const chatSurfaceKeySchema = z.enum(chatSurfaceKeys);
 export type ChatSurfaceKey = z.infer<typeof chatSurfaceKeySchema>;
 export const chatToolIds = [
   "search_help",
+  "calendar_query",
+  "calendar_propose_action",
   "customers_query",
   "customers_propose_action",
   "work_orders_query",
@@ -37,13 +61,15 @@ export const chatToolIds = [
   "materials_query",
   "materials_propose_action",
   ...leadToolNames,
+  "estimates_query",
+  "estimates_propose_action",
 ] as const;
 export const chatToolIdSchema = z.enum(chatToolIds);
 export type ChatToolId = z.infer<typeof chatToolIdSchema>;
 
 export const chatRecordRefsSchema = z
   .array(
-    z.object({ type: z.enum(["lead", "customer", "work_order"]), id: z.uuid() }).strict(),
+    z.object({ type: z.enum(["lead", "customer", "work_order", "estimate"]), id: z.uuid() }).strict(),
   )
   .max(1);
 export const chatUIStateSchema = z
@@ -59,6 +85,9 @@ export const chatPageContextSchema = z
     customerFilters: customerQuerySchema
       .omit({ workspaceId: true, page: true, pageSize: true })
       .optional(),
+    estimateFilters: estimateChatFilterSchema.optional(),
+    calendarFilters: calendarChatContextSchema.optional(),
+    calendarVisit: calendarVisitReferenceSchema.optional(),
   })
   .strict();
 export type ChatPageContext = z.infer<typeof chatPageContextSchema>;
@@ -91,19 +120,24 @@ export const chatTurnRequestSchema = z
     customerFilters: customerQuerySchema
       .omit({ workspaceId: true, page: true, pageSize: true })
       .optional(),
+    estimateFilters: estimateChatFilterSchema.optional(),
+    calendarFilters: calendarChatContextSchema.optional(),
+    calendarVisit: calendarVisitReferenceSchema.optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
+    if (value.calendarVisit && value.surfaceKey !== 'calendar') ctx.addIssue({ code:'custom',path:['calendarVisit'],message:'Invalid Calendar visit context.' });
+    if (value.calendarFilters && value.surfaceKey !== "calendar") ctx.addIssue({ code: "custom", path: ["calendarFilters"], message: "Invalid Calendar context." });
     if (
       value.recordRefs?.length &&
-      !["lead.detail", "customer.detail", "work_order.detail"].includes(
+      !["lead.detail", "customer.detail", "work_order.detail", "estimate.detail", "estimate.editor"].includes(
         value.surfaceKey,
       )
     )
       ctx.addIssue({
         code: "custom",
         path: ["recordRefs"],
-        message: "Record context is only supported on lead details.",
+        message: "Record context is only supported on record detail pages.",
       });
     if (
       value.recordRefs?.some(
@@ -113,7 +147,9 @@ export const chatTurnRequestSchema = z
             ? "customer"
             : value.surfaceKey === "work_order.detail"
               ? "work_order"
-              : "lead"),
+                : value.surfaceKey === "estimate.detail" || value.surfaceKey === "estimate.editor"
+                  ? "estimate"
+                : "lead"),
       )
     )
       ctx.addIssue({
@@ -132,6 +168,12 @@ export const chatTurnRequestSchema = z
         code: "custom",
         path: ["uiState"],
         message: "Filter context is only supported on the Leads list.",
+      });
+    if (value.estimateFilters && value.surfaceKey !== "estimates.list")
+      ctx.addIssue({
+        code: "custom",
+        path: ["estimateFilters"],
+        message: "Filter context is only supported on the Estimates list.",
       });
     if (
       value.uiState?.filters.created === "custom" &&
@@ -211,6 +253,62 @@ export const chatStreamEventSchema = z.discriminatedUnion("type", [
       result: workOrderChatResultSchema,
     })
     .strict(),
+  z.object({ ...envelope, type: z.literal("calendar.proposal"), messageId:z.uuid(),result:calendarProposalTicketSchema }).strict(),
+  z.object({ ...envelope, type: z.literal("calendar.result"), messageId: z.uuid(), result: calendarChatResultSchema }).strict(),
+  z.object({
+    ...envelope,
+    type: z.literal("estimates.void"),
+    messageId: z.uuid(),
+    result: estimateVoidChatTicketSchema,
+  }).strict(),
+  z.object({
+    ...envelope,
+    type: z.literal("estimates.archive"),
+    messageId: z.uuid(),
+    result: estimateArchiveChatTicketSchema,
+  }).strict(),
+  z.object({
+    ...envelope,
+    type: z.literal("estimates.draft_delete"),
+    messageId: z.uuid(),
+    result: estimateDraftDeleteChatTicketSchema,
+  }).strict(),
+  z.object({
+    ...envelope,
+    type: z.literal("estimates.convert"),
+    messageId: z.uuid(),
+    result: estimateConversionChatTicketSchema,
+  }).strict(),
+  z.object({
+    ...envelope,
+    type: z.literal("estimates.draft_action"),
+    messageId: z.uuid(),
+    result: estimateDraftActionChatTicketSchema,
+  }).strict(),
+  z.object({
+    ...envelope,
+    type: z.literal("estimates.decision"),
+    messageId: z.uuid(),
+    result: estimateDecisionChatTicketSchema,
+  }).strict(),
+  z.object({
+    ...envelope,
+    type: z.literal("estimates.sharing"),
+    messageId: z.uuid(),
+    result: estimateShareChatTicketSchema,
+  }).strict(),
+  z.object({
+    ...envelope,
+    type: z.literal("estimates.draft"),
+    messageId: z.uuid(),
+    result: estimateDraftChatViewSchema,
+  }).strict(),
+  z.object({
+    ...envelope,
+    type: z.literal("estimates.result"),
+    messageId: z.uuid(),
+    result: estimateChatResultSchema,
+  }).strict(),
   z
     .object({
       ...envelope,
@@ -299,6 +397,26 @@ export const chatHistoryResponseSchema = z
             customerResult: customerChatResultSchema.optional(),
             customerStamp: z.string().optional(),
             workOrderResult: workOrderChatResultSchema.optional(),
+            calendarResult: calendarChatResultSchema.optional(),
+            calendarProposal: calendarProposalTicketSchema.optional(),
+            calendarProposalEvidence: calendarProposalEvidenceSchema.optional(),
+            calendarStamp: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+            estimateResult: estimateChatResultSchema.optional(),
+            estimateDraft: estimateDraftChatViewSchema.optional(),
+            estimateSharing: estimateShareChatTicketSchema.optional(),
+            estimateDecision: estimateDecisionChatTicketSchema.optional(),
+            estimateDecisionEvidence: estimateDecisionEvidenceSchema.optional(),
+            estimateDraftAction: estimateDraftActionChatTicketSchema.optional(),
+            estimateDraftActionEvidence: estimateDraftActionEvidenceSchema.optional(),
+            estimateVoid: estimateVoidChatTicketSchema.optional(),
+            estimateVoidEvidence: estimateVoidEvidenceSchema.optional(),
+            estimateArchive: estimateArchiveChatTicketSchema.optional(),
+            estimateArchiveEvidence: estimateArchiveEvidenceSchema.optional(),
+            estimateDraftDelete: estimateDraftDeleteChatTicketSchema.optional(),
+            estimateDraftDeleteEvidence: estimateDraftDeleteEvidenceSchema.optional(),
+            estimateConversion: estimateConversionChatTicketSchema.optional(),
+            estimateConversionEvidence: estimateConversionEvidenceSchema.optional(),
+            estimateStamp: z.string().regex(/^[a-f0-9]{32}$/).optional(),
             surfaceKey: chatSurfaceKeySchema.optional(),
             pageContext: chatPageContextSchema.optional(),
             leadEvidence: chatLeadEvidenceSchema.optional(),

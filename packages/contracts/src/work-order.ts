@@ -33,6 +33,8 @@ export const workOrderSourceSchema = z.discriminatedUnion("kind", [
 export const createWorkOrderSchema = z.object({
   workspaceId: z.uuid(), submissionId: z.uuid(), jobId: z.uuid(), title: z.string().trim().min(1).max(200),
   assigneeId: userId.nullable().default(null), source: workOrderSourceSchema.default({ kind: "blank" }),
+  visit: z.discriminatedUnion("kind", [z.object({ kind: z.literal("separate") }).strict(),
+    z.object({ kind: z.literal("job"), visitId: z.uuid(), revision: z.string().regex(/^[a-f0-9]{64}$/) }).strict()]).optional(),
 }).strict();
 export type CreateWorkOrderInput = z.input<typeof createWorkOrderSchema>;
 

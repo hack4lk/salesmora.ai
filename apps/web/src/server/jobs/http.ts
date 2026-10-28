@@ -2,7 +2,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { JobContractError } from "@salesmora/contracts";
 import { jobIdSchema } from "@salesmora/contracts";
-import { AuthorizationAccessError, JobConflictError, JobValidationError } from "@salesmora/data";
+import { CalendarSharedReviewRequiredError, JobDeadlineReviewConflict, AuthorizationAccessError, JobConflictError, JobValidationError } from "@salesmora/data";
 import { JobLifecycleError } from "@salesmora/domain";
 import { getSession } from "../auth/session";
 export const jobHeaders = { "Cache-Control": "private, no-store", Vary: "Cookie" };
@@ -24,8 +24,8 @@ export async function jobRequest(request: Request, run: (identity: { userId: str
     if (!jobIdSchema.safeParse(workspaceId).success) throw new AuthorizationAccessError();
     return await run({ userId: session.user.id, workspaceId: workspaceId! }, body);
   } catch (error) {
-    const status = error instanceof AuthorizationAccessError ? 404 : error instanceof JobConflictError ? 409 : error instanceof JobContractError || error instanceof JobValidationError || error instanceof JobLifecycleError ? 422 : 500;
-    const message = status === 404 ? "This job or workspace is unavailable." : error instanceof JobConflictError || error instanceof JobValidationError || error instanceof JobLifecycleError ? error.message : status === 422 ? "Check the job details and try again." : "Jobs could not be loaded or saved. Try again.";
-    return NextResponse.json({ error: message, ...(status === 409 ? { code: "conflict" } : {}) }, { status, headers: jobHeaders });
+    const status = error instanceof AuthorizationAccessError ? 404 : (error instanceof JobDeadlineReviewConflict || error instanceof JobConflictError || error instanceof CalendarSharedReviewRequiredError) ? 409 : error instanceof JobContractError || error instanceof JobValidationError || error instanceof JobLifecycleError ? 422 : 500;
+    const message = status === 404 ? "This job or workspace is unavailable." : error instanceof JobDeadlineReviewConflict || error instanceof JobConflictError || error instanceof CalendarSharedReviewRequiredError || error instanceof JobValidationError || error instanceof JobLifecycleError ? error.message : status === 422 ? "Check the job details and try again." : "Jobs could not be loaded or saved. Try again.";
+    return NextResponse.json({ error: message, ...(status === 409 ? { code: error instanceof JobDeadlineReviewConflict ? "deadline-review-changed" : "conflict" } : {}) }, { status, headers: jobHeaders });
   }
 }

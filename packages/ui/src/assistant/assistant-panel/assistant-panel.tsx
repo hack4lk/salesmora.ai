@@ -206,6 +206,7 @@ export function AssistantPanel({
       onCancel={(event) => { event.preventDefault(); collapse(); }}
       onKeyDown={(event) => {
         if (!expanded || event.key !== "Tab") return;
+        if (event.target instanceof Element && event.target.closest('[role="alertdialog"]')) return;
         const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), textarea:not(:disabled), a[href]"));
         const first = controls[0];
         const last = controls[controls.length - 1];

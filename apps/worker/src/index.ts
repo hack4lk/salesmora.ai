@@ -1,3 +1,9 @@
+import { startJobEmails } from './job-emails.js';
+import { startDeadlineReminders } from './deadline-reminders.js';
+import { startVisitEmails } from './visit-emails.js';
+import { startEstimateEmails } from './estimate-emails.js';
+import { startEstimateExpiry } from './estimate-expiry.js';
+import { startEstimateNotificationEmails } from './estimate-notification-emails.js';
 import { startAssignmentEmails } from './assignment-emails.js';
 import { startAccountDeletion } from './account-deletion.js';
 import { startBillingReconciliation } from './billing.js';
@@ -12,6 +18,12 @@ async function main() {
   const config = workerConfiguration();
   const db = createDatabase(config.databaseURL);
   let knowledge: Worker | undefined;
+  let stopJobEmails: (() => Promise<void>) | undefined;
+  let stopDeadlines: (() => Promise<void>) | undefined;
+  let stopVisits: (() => Promise<void>) | undefined;
+  let stopEstimates: (() => Promise<void>) | undefined;
+  let stopEstimateExpiry: (() => Promise<void>) | undefined;
+  let stopEstimateNotifications: (() => Promise<void>) | undefined;
   let stopAssignment: (() => Promise<void>) | undefined;
   let stopDeletion: (() => Promise<void>) | undefined;
   let stopBilling: (() => Promise<void>) | undefined;
@@ -19,7 +31,7 @@ async function main() {
   let stopFileProcessing: (() => Promise<void>) | undefined;
   async function close() {
     // All resources are attempted even when one close fails.
-    const results = await Promise.allSettled([stopAssignment?.(), stopDeletion?.(), stopRetention?.(), stopBilling?.(), stopFileProcessing?.(), knowledge?.close()]);
+    const results = await Promise.allSettled([stopJobEmails?.(), stopDeadlines?.(), stopEstimateExpiry?.(), stopEstimateNotifications?.(), stopEstimates?.(), stopVisits?.(), stopAssignment?.(), stopDeletion?.(), stopRetention?.(), stopBilling?.(), stopFileProcessing?.(), knowledge?.close()]);
     await db.destroy();
     if (results.some(result => result.status === 'rejected')) throw Error('Worker shutdown incomplete');
   }
@@ -45,6 +57,12 @@ async function main() {
     }
     stopRetention = await startChatRetention(db, config);
     stopAssignment = await startAssignmentEmails(db);
+    stopVisits = await startVisitEmails(db);
+    stopDeadlines = await startDeadlineReminders(db);
+    stopJobEmails = await startJobEmails(db);
+    stopEstimates = await startEstimateEmails(db);
+    stopEstimateExpiry = await startEstimateExpiry(db);
+    stopEstimateNotifications = await startEstimateNotificationEmails(db);
     stopDeletion = await startAccountDeletion(db);
     stopBilling = await startBillingReconciliation(db);
     stopFileProcessing = await startFileProcessing(db);

@@ -51,7 +51,10 @@ export async function initializeWorkspacePolicy(trx: Knex.Transaction, identity:
   const workspace = await trx('workspaces').where({ id: identity.workspaceId, ownerId: identity.userId }).first('id');
   const owner = await trx('workspaceMemberships').where({ ...identity, role: 'owner' }).first('userId');
   if (!workspace || !owner || await trx('workspacePolicies').where({ workspaceId: identity.workspaceId }).first()) throw new AuthorizationAccessError();
-  const result = validateWorkspacePolicy({ workspaceId: identity.workspaceId, revision: 0, grants: [...defaults, {role: 'owner', permission: 'billing.read', scope: 'enabled'}, {role: 'admin', permission: 'billing.read', scope: 'enabled'}] });
+  const result = validateWorkspacePolicy({ workspaceId: identity.workspaceId, revision: 0, grants: [...defaults,
+    {role: "field", permission: "jobs.schedule.update", scope: "assigned"},
+    ...(["owner", "admin", "office"] as const).map(role => ({role, permission: "workorders.schedule.update" as const, scope: "workspace" as const})),
+    {role: "field", permission: "workorders.schedule.update", scope: "assigned_job"}, {role: 'owner', permission: 'billing.read', scope: 'enabled'}, {role: 'admin', permission: 'billing.read', scope: 'enabled'}] });
   if (!result.ok) throw new AuthorizationAccessError();
   await trx('workspacePolicies').insert({ workspaceId: identity.workspaceId, revision: 0, templateVersion: 1 });
   await trx('workspaceRolePolicies').insert(result.policy.grants.map(grant => ({ workspaceId: identity.workspaceId, ...grant })));

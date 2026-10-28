@@ -58,6 +58,7 @@ try {
   });
   await db.transaction(readModel);
   await db.transaction(notificationsMigration);
+  await db.schema.alterTable('notificationPreferences', t => { t.boolean('visitChangedEmail').notNullable().defaultTo(true); });
   await db.transaction(async trx => { await chat(trx); await chatActions(trx); await chatContextMigration(trx); await admissions(trx); await admissionTracking(trx); await deletionAudit(trx); await exportsAudit(trx); });
   await check('migration preserves records, numbers, dates, versions and creation history', async () => {
     const rows = await db('leads').where({ workspaceId: a }); assert.equal(rows.length, 62); assert.equal(new Set(rows.map(row => row.leadNumber)).size, 62);

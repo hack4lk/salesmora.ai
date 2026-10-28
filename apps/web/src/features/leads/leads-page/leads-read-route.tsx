@@ -1,5 +1,6 @@
 'use client';
 import { RelatedCustomerContact } from '../../customers/customer-contact-card/customer-contact-card';
+import { RelatedEstimates } from '../../estimates/related-estimates-card/related-estimates';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FormFeedback } from '@salesmora/ui';
@@ -52,6 +53,12 @@ export function LeadsReadRoute({ workspaceId, viewerId, initial, initialDetail, 
   const editAttempt = useRef<{ fingerprint: string; submissionId: string } | undefined>(undefined);
   const activityPage = useRef(1), notesPage = useRef(1), notesGeneration = useRef(0);
   const [notesBusy, setNotesBusy] = useState(false);
+  const [estimateCreation, setEstimateCreation] = useState({ id: '', version: 0, allowed: false });
+  const estimateLeadId = detail?.lead.id, estimateLeadVersion = detail?.lead.version;
+  const onEstimateCreation = useCallback((allowed: boolean) => {
+    setEstimateCreation({ id: estimateLeadId ?? '', version: estimateLeadVersion ?? 0, allowed });
+  }, [estimateLeadId, estimateLeadVersion]);
+  const canCreateEstimate = !recordLoading && state === 'ready' && estimateCreation.id === estimateLeadId && estimateCreation.version === estimateLeadVersion && estimateCreation.allowed;
   const setPageContext = assistant?.setPageContext;
   const pageContext = useMemo(() => initialDetail && !detail ? undefined : leadAssistantContext(query, detail?.lead), [query, detail, initialDetail]);
   useEffect(() => { setPageContext?.(pageContext); }, [setPageContext, pageContext]);
@@ -307,8 +314,10 @@ export function LeadsReadRoute({ workspaceId, viewerId, initial, initialDetail, 
     {feedback && <div className="mb-6"><FormFeedback kind="error" message={feedback}/></div>}
     {(recordLoading || columnsBusy.length > 0 || activityBusy) && <p role="status" className="mb-4 text-sm text-muted">{recordLoading ? copy.loadingRecord : copy.loadingMore}</p>}
     <LeadsPage relatedCustomer={detail?.relatedCustomer ? <RelatedCustomerContact customer={detail.relatedCustomer} onOpenProfile={detail.relatedCustomer.customerId ? () => router.push(`/customers/${detail.relatedCustomer!.customerId}?workspace=${encodeURIComponent(workspaceId)}`) : undefined}/> : undefined} rows={result.rows.map(lead => pageRecord(lead))} columns={result.columns.map(column => ({ ...column, leads: column.leads.map(lead => pageRecord(lead)), loading: columnsBusy.includes(column.stage) }))}
+      relatedEstimates={detail && !recordLoading && state === 'ready' && <RelatedEstimates key={`${workspaceId}:${detail.lead.id}:${detail.lead.version}`} workspaceId={workspaceId} recordType="lead" recordId={detail.lead.id} onCanCreateChange={onEstimateCreation} />}
+      onCreateEstimate={canCreateEstimate && detail ? () => router.push(`/estimates/new?${new URLSearchParams({ workspace: workspaceId, leadId: detail.lead.id })}`) : undefined}
       record={record} assistantStatus={assistant?.status ?? 'unavailable'} prepareButtonRef={prepareRef} onPrepareFollowUp={assistant && detail ? () => assistant.prepare(copy.followUpPrompt(detail.lead), prepareRef.current) : undefined} activityTotal={detail?.activityTotal} onLoadMoreActivity={detail && detail.activity.length < detail.activityTotal && !activityBusy ? () => { void loadActivity(); } : undefined}
-      total={result.total} values={values} onChange={change} access={{ scope: result.scope, canCreate: result.canCreate, canExport: result.canExport, canArchive: detail?.canShowArchived ?? result.canShowArchived, canAssign: detail?.canAssign ?? result.canAssign, canEdit: detail?.lead.canEdit ?? false, canDelete: detail?.lead.canDelete ?? false, canManageBilling: false, canPrepareEstimate: false, canStartJob: false }}
+      total={result.total} values={values} onChange={change} access={{ scope: result.scope, canCreate: result.canCreate, canExport: result.canExport, canArchive: detail?.canShowArchived ?? result.canShowArchived, canAssign: detail?.canAssign ?? result.canAssign, canEdit: detail?.lead.canEdit ?? false, canDelete: detail?.lead.canDelete ?? false, canManageBilling: false, canPrepareEstimate: canCreateEstimate, canStartJob: false }}
       members={detail?.owners ?? result.owners} filterOwners={result.owners} viewerId={viewerId} now={new Date().toISOString()} timezone={result.timezone} notesTotal={detail?.notesTotal} notesLoading={notesBusy} onLoadMoreNotes={detail && detail.teamNotes.length < detail.notesTotal ? () => { void loadNotes(); } : undefined} canManageArchive={detail?.canShowArchived ?? result.canShowArchived}
       quickRecord={quick ? pageRecord(quick.lead, quick) : undefined} onQuickViewChange={id => { void quickView(id); }}
       sort={{ column: query.sort, direction: query.direction }} onSort={sort => navigate({ ...query, sort: sort.column, direction: sort.direction, page: 1 })} page={result.page} pageSize={result.pageSize}

@@ -1,4 +1,6 @@
+import { canProposeCalendarSchedule } from './calendar/tools';
 import { availableCustomerOperations } from "./customers/tools";
+import { canProposeEstimateAction } from "./estimates/tools";
 import { canQueryMaterials, availableMaterialOperations } from "./materials/tools";
 import { canQueryWorkOrders, availableWorkOrderOperations } from "./work-orders/tools";
 import {
@@ -15,7 +17,11 @@ import {
   authorizeLeadOperation,
   availableLeadOperations,
 } from "./leads/authorization";
-import { authorize, type AuthorizationDecision } from "@salesmora/domain";
+import {
+  authorize,
+  resolveAuthorizedCollectionScope,
+  type AuthorizationDecision,
+} from "@salesmora/domain";
 
 /** Registered surfaces constrain relevance; they never grant app permissions. */
 export const chatSurfaceRegistry = Object.fromEntries(
@@ -23,12 +29,22 @@ export const chatSurfaceRegistry = Object.fromEntries(
     surface,
     [
       "search_help",
+      "calendar_query",
+      "calendar_propose_action",
       "customers_query",
       "customers_propose_action",
       "work_orders_query",
       "materials_query",
       "materials_propose_action",
       "work_orders_propose_action",
+      ...(surface === "estimates.list" ||
+      surface === "estimate.editor" ||
+      surface === "estimate.detail" ||
+      surface === "lead.detail" ||
+      surface === "customer.detail" ||
+      surface === "home"
+        ? ["estimates_query" as const, "estimates_propose_action" as const]
+        : []),
       ...new Set(
         Object.values(leadCapabilities)
           .filter((entry) => entry.surfaces.some((value) => value === surface))
@@ -75,9 +91,17 @@ export function authorizeChatTool(
   const assistant = authorize(context, { permission: "assistant.use" });
   if (!assistant.allowed) return denied();
   switch (id) {
+    case "calendar_propose_action":
+      return canProposeCalendarSchedule(context) ? assistant : denied();
+    case "calendar_query":
+      return resolveAuthorizedCollectionScope(context, "calendar.read");
     // Retrieval must additionally filter every article by its current required app permissions.
     case "search_help":
       return assistant;
+    case "estimates_query":
+      return resolveAuthorizedCollectionScope(context, "estimates.read");
+    case "estimates_propose_action":
+      return canProposeEstimateAction(context) ? assistant : denied();
     case "materials_propose_action":
       return availableMaterialOperations(context).length ? assistant : denied();
     case "materials_query":

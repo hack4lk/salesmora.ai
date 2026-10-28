@@ -1,0 +1,60 @@
+import type { EstimateLinkedParent } from "./estimate-linked-record";
+
+export const estimateLinkedRecordData = {
+  title: "Linked record",
+  description: "An estimate belongs to one lead or job. Its customer comes from that record.",
+  fieldDescription: "Choose a job assigned to you. Estimates cannot be linked directly to a customer.",
+  empty: "Choose a lead or job before saving this estimate.",
+  emptyField: "Choose an assigned job before saving this estimate.",
+  readOnlyEmpty: "No linked lead or job is available.",
+  chooseLead: "Choose lead",
+  chooseJob: "Choose job",
+  open: { lead: "Open lead", job: "Open job" },
+  kinds: { lead: "Lead", job: "Job" },
+  openLabel: (label: string, number: string) => `${label} · ${number}`,
+  customer: "Customer",
+  noCustomer: "No customer linked yet",
+  contact: "Lead contact",
+  noCustomerHint:
+    "The estimate uses the lead's contact details. Customer linking or creation is handled during conversion to a job.",
+  cannotOpen: "The linked record cannot be opened with your current access.",
+  existingTitle: "This lead already has an open estimate",
+  existingHint: "Review the existing Draft, Sent or Published estimate before creating another. You can still create a separate estimate.",
+  openExisting: "Open existing estimate",
+  loading: "Loading linked record…",
+  loadError: "The linked record could not be loaded. Try again.",
+  retry: "Try again",
+  unavailable: "The linked record is unavailable with your current access.",
+  stories: {
+    notice: "Component preview: fictional records only. No draft is saved and no app route is opened.",
+    validation: "Select a lead or job to save the draft.",
+    selected: (number: string) => `Selected ${number} in this preview.`,
+    longName:
+      "Whole-home kitchen, bathroom and exterior restoration for the Montgomery-Wellington residence",
+    longCustomer:
+      "Alexandria Montgomery-Wellington and the Riverside Community Restoration Partnership",
+    lead: {
+      type: "lead",
+      id: "lead-1048",
+      number: "LD-1048",
+      name: "Kitchen remodel",
+      status: "Contacted",
+      customer: { id: "customer-jordan", name: "Jordan Lee" },
+      contactName: "Jordan Lee",
+      href: "#preview-lead-1048",
+    } satisfies EstimateLinkedParent,
+    job: {
+      type: "job",
+      id: "job-1040",
+      number: "J-1040",
+      name: "Water heater replacement",
+      status: "Scheduled",
+      customer: { id: "customer-priya", name: "Priya Shah" },
+      href: "#preview-job-1040",
+    } satisfies EstimateLinkedParent,
+    existing: [
+      { id: "est-2048", number: "EST-2048", status: "draft", href: "#preview-est-2048" },
+      { id: "est-2047", number: "EST-2047", status: "sent", href: "#preview-est-2047" },
+    ] as const,
+  },
+} as const;

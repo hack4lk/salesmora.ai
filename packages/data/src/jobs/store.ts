@@ -1,11 +1,16 @@
+import { notifyJobCreated, notifyJobStatusChanged, notifyJobAssignmentChanged, notifyJobDeadlineChanged } from '../notifications/jobs';
+import { resolveReviewedJobDeadline } from "./deadline";
+import { notifyVisitChange } from "../notifications/visits";
 import { createHash, randomUUID } from "node:crypto";
 import type { Knex } from "knex";
 import {
-  createJobSchema, jobMutationSchema, jobQuerySchema, jobIdSchema,
+  createJobSchema, defaultDeadlineRuleSchema, jobMutationSchema, jobQuerySchema, jobIdSchema,
   type JobMember, type JobView, type JobListResult, type JobDetailResult, type JobActivityRecord, type AuthorizationContext, type CreateJobInput, type JobMutation, type JobQuery, type JobRecord, type PermissionId,
 } from "@salesmora/contracts";
 import { authorize, resolveAuthorizedCollectionScope, isClosedJob, scheduledJobStatus, validateJobTransition } from "@salesmora/domain";
 import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIdentity } from "../authorization/store";
+
+import { assertIndependentCalendarSchedule, synchronizeCalendarRecord } from "../calendar/sync";
 
 export class JobConflictError extends Error {
   constructor(message = "This job changed. Reload its current details before trying again.") { super(message); }
@@ -55,44 +60,129 @@ async function receipt(trx:Knex.Transaction,context:AuthorizationContext,id:stri
   if(previous && (previous.actorId!==context.userId || previous.inputHash!==hash)) throw new JobConflictError();
   return previous ? {jobId:previous.jobId as string,version:previous.version as number} : undefined;
 }
-async function activity(trx:Knex.Transaction,context:AuthorizationContext,jobId:string,submissionId:string,version:number,hash:string,type:string,changes:unknown,source:Source) {
+async function activity(trx:Knex.Transaction,context:AuthorizationContext,jobId:string,submissionId:string,version:number,hash:string,type:string,changes:unknown,source:Source,createdAt?:Date) {
   const actor=await trx("users").where({id:context.userId}).first("name");
-  await trx("jobActivity").insert({id:randomUUID(),workspaceId:context.workspaceId,jobId,actorId:context.userId,actorName:actor.name,source,type,changes:JSON.stringify(changes)});
+  await trx("jobActivity").insert({id:randomUUID(),workspaceId:context.workspaceId,jobId,actorId:context.userId,actorName:actor.name,source,type,changes:JSON.stringify(changes),...(createdAt?{createdAt}:{})});
   await trx("jobOperations").insert({workspaceId:context.workspaceId,jobId,submissionId,actorId:context.userId,inputHash:hash,version});
 }
 const hashInput=(input:unknown)=>createHash("sha256").update(JSON.stringify(input)).digest("hex");
 
-export async function createJob(db:Knex,identity:WorkspaceIdentity,enabled:readonly PermissionId[],raw:CreateJobInput,source:Source="ui") {
-  const input=createJobSchema.parse(raw);
-  if(input.workspaceId!==identity.workspaceId)throw new AuthorizationAccessError();
-  return withWorkspaceAuthorization(db,identity,enabled,true,async(trx,context)=>{
-    permit(context,"jobs.create");
-    // Creation includes an explicit owner/team choice; no implicit self-assignment or assignment bypass.
-    const assignmentScope=resolveAuthorizedCollectionScope(context,"jobs.read");
-    const fake={id:input.submissionId,workspaceId:context.workspaceId,primaryOwnerId:input.primaryOwnerId,teamUserIds:input.teamUserIds} as JobRow;
-    permit(context,"jobs.assign",fake);
-    if(!assignmentScope.allowed)throw new AuthorizationAccessError();
-    const hash=hashInput(input),previous=await receipt(trx,context,input.submissionId,hash);
-    if(previous){await record(trx,context,previous.jobId);return previous;}
-    const customer=await trx("customers").where({id:input.customerId,workspaceId:context.workspaceId}).whereNull("archivedAt").first("id","name");
-    if(!customer || !authorize(context,{permission:"customers.read",resource:{kind:"customer",id:customer.id,workspaceId:context.workspaceId,related:[]}}).allowed)throw new AuthorizationAccessError();
-    let sourceLeadNumber:string|null=null;
-    if(input.sourceLeadId){
-      const lead=await trx("leads").where({id:input.sourceLeadId,workspaceId:context.workspaceId}).whereNull("archivedAt").first();
-      if(!lead || !authorize(context,{permission:"leads.read",resource:{kind:"lead",id:lead.id,workspaceId:context.workspaceId,ownerId:lead.ownerId}}).allowed)throw new AuthorizationAccessError();
-      if(lead.customerId && lead.customerId!==customer.id)throw new JobValidationError("Choose the customer linked to the source lead.");
-      if(await trx("jobs").where({workspaceId:context.workspaceId,sourceLeadId:lead.id}).first("id"))throw new JobConflictError("This lead already has a job.");
-      sourceLeadNumber=`LD-${String(lead.leadNumber).padStart(4,"0")}`;
+export async function createJobInTransaction(
+  trx: Knex.Transaction,
+  context: AuthorizationContext,
+  raw: CreateJobInput,
+  options: { source?: Source; acceptedEstimateId?: string; requireRead?: boolean } = {},
+) {
+  const input = createJobSchema.parse(raw);
+  if (input.workspaceId !== context.workspaceId) throw new AuthorizationAccessError();
+  if (options.acceptedEstimateId && !input.sourceLeadId) {
+    throw new JobValidationError("An estimate-linked job must retain its source lead.");
+  }
+
+  permit(context, "jobs.create");
+  const assignmentScope = resolveAuthorizedCollectionScope(context, "jobs.read");
+  const fake = {
+    id: input.submissionId,
+    workspaceId: context.workspaceId,
+    primaryOwnerId: input.primaryOwnerId,
+    teamUserIds: input.teamUserIds,
+  } as JobRow;
+  permit(context, "jobs.assign", fake);
+  if (!assignmentScope.allowed) throw new AuthorizationAccessError();
+
+  if (input.scheduledDate || (input.deadlineIntent ? input.deadlineIntent.mode !== "workspace" : input.completionDeadline)) permit(context, "jobs.schedule.update", fake);
+  if (!input.deadlineIntent && !input.completionDeadline && !authorize(context, { permission: "jobs.schedule.update", resource: resource(fake) }).allowed) {
+    const defaultRow = await trx("jobNotificationSettings").where({ workspaceId: context.workspaceId, section: "deadline" }).first("values");
+    if (defaultDeadlineRuleSchema.parse(defaultRow?.values ?? { mode: "unset" }).mode === "relative") throw new AuthorizationAccessError();
+  }
+  const hash = hashInput(input);
+  const previous = await receipt(trx, context, input.submissionId, hash);
+  if (previous) {
+    await record(trx, context, previous.jobId);
+    return previous;
+  }
+
+  const customer = await trx("customers")
+    .where({ id: input.customerId, workspaceId: context.workspaceId })
+    .whereNull("archivedAt")
+    .first("id", "name");
+  if (!customer || !authorize(context, {
+    permission: "customers.read",
+    resource: { kind: "customer", id: customer.id, workspaceId: context.workspaceId, related: [] },
+  }).allowed) throw new AuthorizationAccessError();
+
+  let sourceLeadNumber: string | null = null;
+  if (input.sourceLeadId) {
+    const lead = await trx("leads")
+      .where({ id: input.sourceLeadId, workspaceId: context.workspaceId })
+      .whereNull("archivedAt")
+      .first();
+    if (!lead || !authorize(context, {
+      permission: "leads.read",
+      resource: { kind: "lead", id: lead.id, workspaceId: context.workspaceId, ownerId: lead.ownerId },
+    }).allowed) throw new AuthorizationAccessError();
+    if (lead.customerId && lead.customerId !== customer.id) {
+      throw new JobValidationError("Choose the customer linked to the source lead.");
     }
-    await validTeam(trx,context,input.primaryOwnerId,input.teamUserIds);
-    if(input.scheduledDate || input.completionDeadline)permit(context,"jobs.schedule.update",fake);
-    const id=randomUUID();
-    const {submissionId,teamUserIds,...values}=input;
-    await trx("jobs").insert({...values,id,customerName:customer.name,sourceLeadNumber,createdBy:context.userId,status:input.scheduledDate?"scheduled":"needs-scheduling"});
-    if(teamUserIds.length)await trx("jobTeamMembers").insert(teamUserIds.map(userId=>({workspaceId:context.workspaceId,jobId:id,userId})));
-    await activity(trx,context,id,submissionId,1,hash,"created",{status:input.scheduledDate?"scheduled":"needs-scheduling",primaryOwnerId:input.primaryOwnerId,teamUserIds,scheduledDate:input.scheduledDate,arrivalWindow:input.arrivalWindow,completionDeadline:input.completionDeadline},source);
-    return {jobId:id,version:1};
+    if (await trx("jobs").where({ workspaceId: context.workspaceId, sourceLeadId: lead.id }).first("id")) {
+      throw new JobConflictError("This lead already has a job.");
+    }
+    sourceLeadNumber = `LD-${String(lead.leadNumber).padStart(4, "0")}`;
+  }
+
+  await validTeam(trx, context, input.primaryOwnerId, input.teamUserIds);
+  const { completionDeadline, createdAt } = await resolveReviewedJobDeadline(trx, context, input);
+  // The reviewed workspace rule is a creation policy; manual overrides require scheduling authority above.
+  const id = randomUUID();
+  const { submissionId, teamUserIds, deadlineIntent, deadlinePreview, ...values } = input;
+  await trx("jobs").insert({
+    ...values,
+    completionDeadline,
+    ...(createdAt ? { createdAt, updatedAt: createdAt } : {}),
+    id,
+    acceptedEstimateId: options.acceptedEstimateId ?? null,
+    customerName: customer.name,
+    sourceLeadNumber,
+    createdBy: context.userId,
+    status: input.scheduledDate ? "scheduled" : "needs-scheduling",
   });
+  if (teamUserIds.length) {
+    await trx("jobTeamMembers").insert(teamUserIds.map((userId) => ({
+      workspaceId: context.workspaceId, jobId: id, userId,
+    })));
+  }
+  await synchronizeCalendarRecord(trx, context.workspaceId, "job", id);
+  await activity(
+    trx, context, id, submissionId, 1, hash, "created",
+    {
+      status: input.scheduledDate ? "scheduled" : "needs-scheduling",
+      primaryOwnerId: input.primaryOwnerId,
+      teamUserIds,
+      scheduledDate: input.scheduledDate,
+      arrivalWindow: input.arrivalWindow,
+      completionDeadline,
+      ...(deadlineIntent ? { deadlineIntent, deadlinePreview } : {}),
+    },
+    options.source ?? "ui",
+    createdAt,
+  );
+  await notifyJobCreated(trx, context, id, submissionId);
+  if (options.requireRead) await record(trx, context, id);
+  return { jobId: id, version: 1 };
+}
+
+export async function createJob(
+  db: Knex,
+  identity: WorkspaceIdentity,
+  enabled: readonly PermissionId[],
+  raw: CreateJobInput,
+  source: Source = "ui",
+) {
+  const input = createJobSchema.parse(raw);
+  if (input.workspaceId !== identity.workspaceId) throw new AuthorizationAccessError();
+  return withWorkspaceAuthorization(db, identity, enabled, true, (trx, context) =>
+    createJobInTransaction(trx, context, input, { source }),
+  );
 }
 
 async function membersFor(trx: Knex.Transaction, context: AuthorizationContext, ids?: string[]): Promise<JobMember[]> {
@@ -199,6 +289,7 @@ export async function mutateJobInTransaction(trx:Knex.Transaction,context:Author
     if(isClosedJob(row.status))patch.completionDeadline=input.reopenDeadline;
     changes={from:row.status,to:input.to,waitingReason:input.waitingReason,cancellationReason:input.cancellationReason,note:input.note,...(isClosedJob(row.status)?{previousDeadline:row.completionDeadline,completionDeadline:input.reopenDeadline}:{} )};
   }else if(input.action==="schedule"){
+    await assertIndependentCalendarSchedule(trx, context.workspaceId, "job", row.id);
     Object.assign(patch,{scheduledDate:input.scheduledDate,arrivalWindow:input.arrivalWindow,status:scheduledJobStatus(row.status,input.scheduledDate)});
     changes={from:{scheduledDate:row.scheduledDate,arrivalWindow:row.arrivalWindow,status:row.status},to:{scheduledDate:input.scheduledDate,arrivalWindow:input.arrivalWindow,status:patch.status}};
   }else if(input.action==="deadline"){
@@ -215,7 +306,13 @@ export async function mutateJobInTransaction(trx:Knex.Transaction,context:Author
     if(input.teamUserIds.length)await trx("jobTeamMembers").insert(input.teamUserIds.map(userId=>({workspaceId:context.workspaceId,jobId:row.id,userId})));
   }else changes={body:input.body};
   await trx("jobs").where({workspaceId:context.workspaceId,id:row.id}).update(patch);
+  await synchronizeCalendarRecord(trx, context.workspaceId, "job", row.id);
+  if (input.action === "schedule") await notifyVisitChange(trx, context, input.submissionId, !input.scheduledDate ? "cleared" : row.scheduledDate ? "rescheduled" : "scheduled", [{ type: "job", id: row.id }], { scheduledDate: row.scheduledDate, arrivalWindow: row.arrivalWindow }, { scheduledDate: input.scheduledDate, arrivalWindow: input.arrivalWindow });
   await activity(trx,context,row.id,input.submissionId,row.version+1,hash,input.action,changes,source);
+  if (input.action === "status") await notifyJobStatusChanged(trx, context, row.id, input.submissionId, row.status, input.to);
+  if (input.action === "deadline") await notifyJobDeadlineChanged(trx, context, row.id, input.submissionId, row.completionDeadline, input.completionDeadline);
+  if (input.action === "status" && input.reopenDeadline !== undefined) await notifyJobDeadlineChanged(trx, context, row.id, input.submissionId, row.completionDeadline, input.reopenDeadline);
+  if (input.action === "assign") await notifyJobAssignmentChanged(trx, context, row.id, input.submissionId, row, input);
   return {jobId:row.id,version:row.version+1};
 }
 

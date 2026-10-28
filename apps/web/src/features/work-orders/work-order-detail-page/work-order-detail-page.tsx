@@ -6,7 +6,7 @@ import { WorkOrderHeader, type WorkOrderHeaderAction } from '../work-order-heade
 import { WorkOrderInstructionsCard } from '../work-order-instructions-card/work-order-instructions-card';
 import { WorkOrderTaskList } from '../work-order-task-list/work-order-task-list';
 import { WorkOrderMaterials, type WorkOrderMaterialInput, type WorkOrderMaterialsProps } from '../work-order-materials/work-order-materials';
-import { WorkOrderCrewCard } from '../work-order-crew-card/work-order-crew-card';
+import { WorkOrderCrewCard, type WorkOrderVisitActions } from '../work-order-crew-card/work-order-crew-card';
 import { WorkOrderSignoff } from '../work-order-signoff/work-order-signoff';
 import { WorkOrderCrewNotes } from '../work-order-crew-notes/work-order-crew-notes';
 import { WorkOrderPhotos } from '../work-order-photos/work-order-photos';
@@ -16,6 +16,7 @@ import { toView } from '../work-order-view';
 import { workOrderDetailPageData as copy } from './work-order-detail-page.data';
 
 export type WorkOrderDetailHandlers = {
+  visitActions?: WorkOrderVisitActions;
   onBack: () => void; onOpenJob: (jobId: string) => void; onHeaderAction: (action: WorkOrderHeaderAction) => void;
   onSaveInstructions: (value: WorkOrderInstructions) => void;
   onToggleTask: (taskId: string, done: boolean) => void; onAddTask: (label: string, required: boolean) => void; onRemoveTask: (taskId: string) => void; onToggleRequired: (taskId: string, required: boolean) => void;
@@ -143,7 +144,7 @@ export function WorkOrderDetailPage({ workspaceId, detail, ...h }: { workspaceId
         <WorkOrderSignoff status={w.status} completion={completion && { ...completion, signatureUrl: completion.signatureImage }} openRequiredTasks={tasks.filter(t => t.required && !t.done).length} signoffRequired={access.signoffRequired} canOverride={access.canOverride} capabilities={c} onComplete={h.onComplete} onReopen={h.onReopen} />
       </div>
       <div className="grid min-w-0 content-start gap-6">
-        <WorkOrderCrewCard status={w.status} assignment={{ assigneeId: w.primaryAssigneeId, crewIds: w.crewIds }} members={members} schedule={{ date: w.scheduledDate, window: w.arrivalWindow }} contact={contact} capabilities={c} canSchedule={access.canSchedule} onSave={h.onSaveAssignment} onOpenSchedule={h.onOpenSchedule} />
+        <WorkOrderCrewCard visitActions={h.visitActions} status={w.status} assignment={{ assigneeId: w.primaryAssigneeId, crewIds: w.crewIds }} members={members} schedule={{ date: w.scheduledDate, window: w.arrivalWindow }} contact={contact} capabilities={c} canSchedule={access.canSchedule} onSave={h.onSaveAssignment} onOpenSchedule={h.onOpenSchedule} />
         <section className={`${woPanel} grid gap-3`} aria-labelledby="wo-activity"><h2 id="wo-activity" className="m-0 text-lg font-semibold">{copy.activity}</h2>
           {activity.length === 0 ? <p className="m-0 text-sm text-muted">{copy.noActivity}</p> : <ul className="m-0 grid list-none gap-2 p-0">{activity.map(a => {
             const changes = typeof a.changes === 'string' ? JSON.parse(a.changes) : a.changes;

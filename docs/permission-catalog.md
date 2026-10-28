@@ -74,6 +74,7 @@ Agreed in the work-orders plan (Q8, October 19, 2026); reviewed and enabled with
 | `workorders.read` | Lists, details, print; W/A | W | W | W | A | Agreed |
 | `workorders.create` | Create draft from a job | ✓ | ✓ | ✓ | — | Agreed |
 | `workorders.update` | Edit instructions, tasks list, materials, safety notes, crew; W | W | W | W | — | Agreed |
+| `workorders.schedule.update` | Change visit date/window; W/A; Field must be the **primary assignee**, with a current grant | W | W | W | A | Agreed (Calendar, October 21) |
 | `workorders.issue` | Issue a draft to the crew | W | W | W | — | Agreed |
 | `workorders.progress` | Check tasks, log materials used, add crew notes and photos; W/A | W | W | W | A | Agreed (plan ACC-4) |
 | `workorders.complete` | Complete, including sign-off capture; W/A | W | W | W | A | Agreed (plan Q19) |
@@ -85,7 +86,7 @@ Agreed in the work-orders plan (Q8, October 19, 2026); reviewed and enabled with
 | `workorders.view_prices` | See and override customer prices on work-order materials; W | W | W | W | — | Agreed (plan CNT-3b) |
 | `workorders.view_costs` | See internal cost and margin on work-order materials; W | W | W | — | — | Agreed (plan CNT-3c) |
 
-Field cannot edit instructions, reassign, reschedule beyond the `jobs.schedule.update` primary-owner exception, or see prices. Notifications and the assistant never include sensitive access notes.
+Field cannot edit instructions, reassign or see prices by default. Scheduling uses `jobs.schedule.update` for primary-owned Jobs and `workorders.schedule.update` for primarily assigned Work Orders; team/crew membership alone is insufficient. Shared visits require current scheduling and read authority for every affected active record. Notifications and the assistant never include sensitive access notes.
 
 ## Estimates, intake, campaigns, and reports
 
@@ -95,6 +96,8 @@ Field cannot edit instructions, reassign, reschedule beyond the `jobs.schedule.u
 | `estimates.create` | Create draft; workspace or assigned-job parent | W | W | W | J | Agreed |
 | `estimates.update` | Edit draft estimate; W/J | W | W | W | J | Agreed |
 | `estimates.send` | Explicitly send an estimate; W/J | W | W | W | J | Agreed |
+| `estimates.decide` | Record Accepted/Declined; W/J. Correct a saved decision with a reason; Owner/Admin/Office only | W | W | W | J (initial only) | Agreed; connected locally October 24 |
+| `estimates.void` | Withdraw active Sent/Published estimate with private reason; W | W | W | W | — | Agreed; connected locally October 24 |
 | `intake.read` | View intake items/evidence; W | W | W | W | — | Agreed |
 | `intake.update` | Correct proposed intake data; W | W | W | W | — | Office handling agreed; exact fields proposed |
 | `intake.approve` | Approve intake proposal; W | W | W | W | — | Agreed |
@@ -185,3 +188,5 @@ Customer chat (local October 18): model-visible customer operations are filtered
 
 
 Jobs foundation checkpoint (October 19): local stores enforce current policy and SQL read scope before counts/records, with an additional Field primary-owner requirement for `jobs.schedule.update`. There is no bypass around a missing/revoked grant. The documented Field default `A` still needs a reviewed, versioned cutover from the existing code/stored default template before enabling Jobs/Calendar; foundation migration deliberately changes no saved grants. `jobs.update` stays unreviewed and `jobs.delete` stays unavailable (cancel retained jobs instead). Protected routes/UI/model tools are not activated in this slice.
+
+Calendar scheduling cutover (October 21): new workspaces seed the agreed primary-responsibility scheduling defaults. Existing non-Field Work Order scheduling authority is carried forward from explicit `workorders.update` grants. Missing Field scheduling grants are added only for workspaces with no Owner-saved customization and sufficient read scopes; customized policies retain their existing Field restrictions until the Owner changes them. No migration restores a revoked grant in a customized policy. Changes are audited and increment the policy revision.

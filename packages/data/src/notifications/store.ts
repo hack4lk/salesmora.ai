@@ -1,18 +1,30 @@
+import { jobNotificationQuery, readJobNotifications } from './jobs';
+import { deadlineNotificationQuery, readDeadlineNotifications } from './deadlines';
+import { visitNotificationQuery, projectVisitNotification, canReadVisitNotifications } from './visits';
 import type { Knex } from 'knex';
-import { notificationPreferencesSchema, notificationQuerySchema, markNotificationReadSchema, type NotificationPreferences, type NotificationRecord, type NotificationResult, type AuthorizationContext, type PermissionId } from '@salesmora/contracts';
+import { estimateNotificationEventSchema, estimateStatusSchema, notificationPreferencesSchema, notificationQuerySchema, markNotificationReadSchema, type NotificationPreferences, type NotificationRecord, type NotificationResult, type AuthorizationContext, type PermissionId } from '@salesmora/contracts';
 import { resolveAuthorizedCollectionScope } from '@salesmora/domain';
 import { scoped, formatWorkOrderNumber } from '../work-orders/store';
 import { materialAccess } from '../materials/store';
 import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIdentity } from '../authorization/store';
+import { canReadEstimateNotifications, estimateNotificationQuery } from './estimates';
 export async function readNotificationPreferences(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[]) {
   return withWorkspaceAuthorization(db, identity, enabled, false, async trx => {
-    const row = await trx('notificationPreferences').where({ userId: identity.userId }).first('leadAssignedEmail');
-    return notificationPreferencesSchema.parse(row ?? { leadAssignedEmail: true });
+    const row = await trx('notificationPreferences').where({ userId: identity.userId }).first('leadAssignedEmail', 'visitChangedEmail', 'estimateEmail', 'deadlineReminderEmail', 'jobActivityEmail');
+    return notificationPreferencesSchema.parse(row ?? { leadAssignedEmail: true, estimateEmail: true });
   });
 }
-export async function saveNotificationPreferences(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], raw: NotificationPreferences) {
-  const values = notificationPreferencesSchema.parse(raw);
+export async function saveNotificationPreferences(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], raw: Omit<NotificationPreferences, "visitChangedEmail" | "estimateEmail" | "deadlineReminderEmail" | "jobActivityEmail"> & { visitChangedEmail?: boolean; estimateEmail?: boolean; deadlineReminderEmail?: boolean; jobActivityEmail?: boolean }) {
   return withWorkspaceAuthorization(db, identity, enabled, true, async trx => {
+    await trx('users').where({ id: identity.userId }).forUpdate().first('id');
+    const existing = await trx('notificationPreferences').where({ userId: identity.userId }).first('visitChangedEmail', 'estimateEmail', 'deadlineReminderEmail', 'jobActivityEmail');
+    const values = notificationPreferencesSchema.parse({
+      leadAssignedEmail: raw.leadAssignedEmail,
+      visitChangedEmail: raw.visitChangedEmail ?? existing?.visitChangedEmail ?? true,
+      estimateEmail: raw.estimateEmail ?? existing?.estimateEmail ?? true,
+      deadlineReminderEmail: raw.deadlineReminderEmail ?? existing?.deadlineReminderEmail ?? true,
+      jobActivityEmail: raw.jobActivityEmail ?? existing?.jobActivityEmail ?? true,
+    });
     await trx('notificationPreferences').insert({ userId: identity.userId, ...values }).onConflict('userId').merge({ ...values, updatedAt: trx.fn.now() });
     return values;
   });
@@ -54,6 +66,29 @@ export async function readNotifications(db: Knex, identity: WorkspaceIdentity, e
       const rows = await query.select('n.id','n.leadId','l.leadNumber','l.name','l.service','a.actorName','n.createdAt','n.readAt').orderBy('n.createdAt','desc').orderBy('n.id','desc').limit(take);
       items.push(...rows.map(row => ({ kind: 'lead' as const, id: row.id, leadId: row.leadId, leadNumber: leadNumber(row.leadNumber), leadName: row.name, service: row.service, assignerName: row.actorName ?? '', createdAt: row.createdAt.toISOString(), read: !!row.readAt })));
     }
+    if (canReadEstimateNotifications(context)) {
+      const query = estimateNotificationQuery(trx, context);
+      const count = await query.clone().whereNull('n.readAt').count<{ count: string }[]>({ count: 'n.id' }).first();
+      unread += Number(count?.count ?? 0);
+      const rows = await query.select(
+        'n.id', 'n.event', 'n.createdAt', 'n.readAt',
+        'e.id as estimateId', 'e.estimateNumber', 'e.name as estimateName',
+        trx.raw(`CASE WHEN e.status IN ('sent','published')
+          AND e."validUntil" < (now() AT TIME ZONE w.timezone)::date
+          THEN 'expired' ELSE e.status END AS "currentStatus"`),
+      ).orderBy('n.createdAt', 'desc').orderBy('n.id', 'desc').limit(take);
+      items.push(...rows.map(row => ({
+        kind: 'estimate' as const,
+        id: row.id,
+        event: estimateNotificationEventSchema.parse(row.event),
+        estimateId: row.estimateId,
+        estimateNumber: `EST-${String(row.estimateNumber).padStart(4, '0')}`,
+        estimateName: row.estimateName,
+        status: estimateStatusSchema.parse(row.currentStatus),
+        createdAt: new Date(row.createdAt).toISOString(),
+        read: !!row.readAt,
+      })));
+    }
     if (canReadWorkOrderNotifications(context)) {
       const query = workOrderNotificationQuery(trx, context);
       const count = await query.clone().whereNull('n.readAt').count<{ count: string }[]>({count:'n.id'}).first();
@@ -68,6 +103,17 @@ export async function readNotifications(db: Knex, identity: WorkspaceIdentity, e
       const rows = await query.select('n.id','n.event','n.materialId','n.materialName','n.reason','n.actorName','n.createdAt','n.readAt').orderBy('n.createdAt','desc').orderBy('n.id','desc').limit(take);
       items.push(...rows.map(row => ({ kind: 'material' as const, id: row.id, event: row.event, materialId: row.materialId, materialName: row.materialName, reason: row.reason, actorName: row.actorName, createdAt: new Date(row.createdAt).toISOString(), read: !!row.readAt })));
     }
+    if (canReadVisitNotifications(context)) {
+      const visits = visitNotificationQuery(trx, context);
+      unread += Number((await visits.clone().whereNull('n.readAt').count({ count: 'n.id' }).first())?.count ?? 0);
+      for (const row of await visits.select('n.*').orderBy('n.createdAt', 'desc').orderBy('n.id', 'desc').limit(take)) {
+        const projected = await projectVisitNotification(trx, context, row); if (projected) items.push(projected);
+      }
+    }
+    const jobs = await readJobNotifications(trx, context, take);
+    unread += jobs.unread; items.push(...jobs.items);
+    const deadlines = await readDeadlineNotifications(trx, context, take);
+    unread += deadlines.unread; items.push(...deadlines.items);
     items.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
     const slice = items.slice((page-1)*20, page*20 + 1);
     return { items: slice.slice(0,20), unreadCount: unread, page, hasMore: slice.length > 20 };
@@ -76,6 +122,21 @@ export async function readNotifications(db: Knex, identity: WorkspaceIdentity, e
 export async function markNotificationRead(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], id: string) {
   markNotificationReadSchema.parse({ workspaceId: identity.workspaceId, id });
   return withWorkspaceAuthorization(db, identity, enabled, true, async (trx, context) => {
+    if (await jobNotificationQuery(trx, context).where('n.id', id).first('n.id')) {
+      await trx('jobNotifications').where({ id, workspaceId: identity.workspaceId, userId: identity.userId }).whereNull('readAt').update({ readAt: trx.fn.now() });
+      return;
+    }
+    if (await deadlineNotificationQuery(trx, context).where('n.id', id).first('n.id')) {
+      await trx('deadlineNotifications').where({ id, workspaceId: identity.workspaceId, userId: identity.userId }).whereNull('readAt').update({ readAt: trx.fn.now() });
+      return;
+    }
+    if (canReadEstimateNotifications(context) && await estimateNotificationQuery(trx, context).where('n.id', id).first('n.id')) {
+      await trx('estimateNotifications').where({ id, workspaceId: identity.workspaceId, userId: identity.userId }).whereNull('readAt').update({ readAt: trx.fn.now() });
+      return;
+    }
+    if (canReadVisitNotifications(context) && await visitNotificationQuery(trx, context).where('n.id', id).first('n.id')) {
+      await trx('visitNotifications').where({ id, workspaceId: identity.workspaceId, userId: identity.userId }).whereNull('readAt').update({ readAt: trx.fn.now() }); return;
+    }
     const scope = resolveAuthorizedCollectionScope(context,'leads.read');
     if (canReadMaterialNotifications(context) && await materialNotificationQuery(trx, context).where('n.id',id).first('n.id')) {
       await trx('materialNotifications').where({id,workspaceId:identity.workspaceId,userId:identity.userId}).whereNull('readAt').update({readAt:trx.fn.now()});

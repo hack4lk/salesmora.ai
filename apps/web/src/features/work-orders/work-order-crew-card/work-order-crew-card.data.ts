@@ -1,4 +1,4 @@
-export const copy={
+export const copy={joinVisit:'Join Job’s visit',separateVisit:'Move to a separate visit',
  title:'Crew and schedule',
  primary:'Primary assignee',
  crew:'Additional crew',

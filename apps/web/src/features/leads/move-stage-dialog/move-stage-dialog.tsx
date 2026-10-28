@@ -16,17 +16,22 @@ export type MoveStageDialogProps = {
   /** Caller reauthorizes, checks the expected version, and owns success closure or optimistic dispatch. */
   onConfirm: (request: MoveStageRequest) => void | Promise<void>;
   onReload?: () => void | Promise<void>;
+  /** Contextual suggestions can restrict the review to their explicitly offered target. */
+  allowedStages?: readonly LeadStage[];
+  container?: () => HTMLElement;
+  printHidden?: boolean;
 };
 
 /** Controlled stage review; no persistence or role-name policy is implemented here. */
-export function MoveStageDialog({ open, lead, value, pending = false, error, onChange, onClose, onConfirm, onReload }: MoveStageDialogProps) {
+export function MoveStageDialog({ open, lead, value, pending = false, error, onChange, onClose, onConfirm, onReload, allowedStages, container, printHidden }: MoveStageDialogProps) {
   const id = useId();
   const [reloadError, setReloadError] = useState(false);
   const [working, setWorking] = useState(false);
   const busy = pending || working;
   const forbidden = !lead.canMove || lead.archived;
   const conflict = error?.kind === 'conflict';
-  const stageValid = copy.stages.some(stage => stage.value === value.to) && value.to !== lead.stage;
+  const stages = copy.stages.filter(stage => !allowedStages || allowedStages.includes(stage.value));
+  const stageValid = stages.some(stage => stage.value === value.to) && value.to !== lead.stage;
   const valid = stageValid && (value.to !== 'lost' || value.reason.length <= 500);
   const blocked = forbidden || conflict || !valid;
   const current = copy.stages.find(stage => stage.value === lead.stage)!.label;
@@ -44,7 +49,7 @@ export function MoveStageDialog({ open, lead, value, pending = false, error, onC
     catch { setReloadError(true); }
     finally { setWorking(false); }
   }
-  return <ConfirmDialog open={open} title={copy.title} description={copy.description(lead.name, current)} confirmLabel={copy.confirm}
+  return <ConfirmDialog open={open} container={container} printHidden={printHidden} title={copy.title} description={copy.description(lead.name, current)} confirmLabel={copy.confirm}
     cancelLabel={copy.cancel} pendingLabel={copy.pending} pending={busy} confirmDisabled={blocked}
     error={error?.kind === 'error' ? error.message : undefined} onClose={onClose} onConfirm={confirm}>
     <div className="grid gap-4">
@@ -53,7 +58,7 @@ export function MoveStageDialog({ open, lead, value, pending = false, error, onC
           <select id={`${id}-stage`} value={value.to} disabled={busy || conflict} onChange={event => onChange({ ...value, to: event.target.value as LeadStage })}
             className="min-h-11 rounded-xl border border-line bg-paper px-3 text-base focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50">
             {!stageValid && <option value={value.to} disabled>{copy.choose}</option>}
-            {copy.stages.filter(stage => stage.value !== lead.stage).map(stage => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
+            {stages.filter(stage => stage.value !== lead.stage).map(stage => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
           </select>
         </label>
         {value.to === 'lost' && <div className="grid gap-2">

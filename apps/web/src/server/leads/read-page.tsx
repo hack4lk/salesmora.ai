@@ -31,7 +31,7 @@ export async function renderLeadsPage(params: LeadSearchParams, leadId?: string)
     else initial = await workspaceLeads(session.user.id, query);
   } catch (error) { if (error instanceof AuthorizationAccessError) notFound(); throw error; }
   return <WorkspaceShell currentPage="leads" workspaceId={workspace.id} workspaceName={workspace.businessName} user={{ name: session.user.name, email: session.user.email, role: context.membership.role }}
-    authorizedPages={workspaceNavigationPages(context)} assistantAvailable={capabilities.assistant} chatEnabled={chatRuntimeAvailable()} chatSurface={leadId ? 'lead.detail' : 'leads.list'} chatContext={leadAssistantContext(query, detail?.lead)} permissionsAvailable={capabilities.permissions} billingAvailable={capabilities.billing} contentWidth="full" onSignOut={signOut}>
+    authorizedPages={workspaceNavigationPages(context)} assistantAvailable={capabilities.assistant} chatEnabled={chatRuntimeAvailable()} chatSurface={leadId ? 'lead.detail' : 'leads.list'} chatContext={leadAssistantContext(query, detail?.lead)} jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} billingAvailable={capabilities.billing} contentWidth="full" onSignOut={signOut}>
     <LeadsReadRoute key={`${workspace.id}-${leadId ?? 'list'}-${detail?.lead.version ?? 0}-${detail?.activityTotal ?? 0}`} workspaceId={workspace.id} viewerId={session.user.id} initial={initial} initialDetail={detail} initialQuery={query}/>
   </WorkspaceShell>;
 }

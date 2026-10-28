@@ -61,3 +61,38 @@ export { StorageAdapter, createStorageAdapter, type StorageObject, type StorageO
 export { FileStore, FileStorageError, FileNotFoundError, QuotaExceededError, UnauthorizedFileAccessError, createFileStore, type FileRecord, type UploadFileInput, type StorageUsage } from './files/store';
 export { encryptFile, decryptFile, generateDataEncryptionKey, generateFileId, serializeDekEnvelope, deserializeDekEnvelope, serializeFileCiphertext, deserializeFileCiphertext, type EncryptedEnvelope, type DecryptionResult } from './files/encryption';
 export { generateThumbnail, convertHeicToJpeg, isHeic, isProcessableImage, type ThumbnailOptions } from './files/thumbnail-processor';
+export * from './calendar/commands';
+export { CalendarSharedReviewRequiredError } from './calendar/sync';
+export * from './calendar/read';
+export * from './gantt/read';
+
+export { processVisitEmails } from './notifications/visits';
+export { processEstimateNotificationEmails, scheduleEstimateReminders } from './notifications/estimates';
+export * from './job-notification-settings/store';
+export { readEstimates, readEstimatesForChat, readEstimateAgingForChat, estimateCreationAvailability, readRelatedEstimates, readEstimateCustomerParents, readEstimateCustomerSources } from './estimates/read';
+export { estimateChatStamp, estimateChatEvidenceAllowed } from './estimates/chat-evidence';
+export * from './estimates/export';
+export * from './estimates/drafts';
+export * from './estimates/chat-drafts';
+export * from './estimates/chat-sharing';
+export * from './estimates/chat-decisions';
+export * from './estimates/chat-draft-actions';
+export * from './estimates/chat-voids';
+export * from './estimates/chat-archives';
+export * from './estimates/chat-draft-deletes';
+export * from './estimates/chat-conversions';
+export * from './estimates/business-profile';
+export * from './estimates/sharing';
+export * from './estimates/lifecycle';
+export * from './estimates/decisions';
+export * from './estimates/lead-stage';
+export * from './estimates/conversion';
+export { expireEstimates } from './estimates/expiry';
+export { processEstimateEmails, type EstimateEmailDelivery } from './estimates/delivery';
+export { readJobCreationDeadline, JobDeadlineReviewConflict } from './jobs/deadline';
+
+export { scheduleDeadlineReminders, processDeadlineEmails } from './notifications/deadlines';
+
+export { processJobEmails } from './notifications/jobs';
+export { CalendarFocusUnavailableError, readCalendarFocusForChat, readCalendarForChat, calendarChatStamp, calendarChatEvidenceAllowed, calendarChatClock } from './calendar/chat';
+export * from './calendar/proposals';
