@@ -1,5 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto';
-import { randomUUID } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes, randomUUID, type CipherGCM, type DecipherGCM } from 'node:crypto';
 
 /**
  * File encryption uses AES-256-GCM envelope encryption.
@@ -25,12 +24,61 @@ export interface DecryptionResult {
   dek: Buffer;
 }
 
+export interface StreamingFileEncryption {
+  cipher: CipherGCM;
+  dekEnvelope: Buffer;
+  fileIv: Buffer;
+}
+
+export function createStreamingFileDecryption(
+  masterKey: Buffer,
+  dekEnvelope: Buffer,
+  fileIv: Buffer,
+  fileAuthTag: Buffer,
+): DecipherGCM {
+  if (masterKey.length !== 32) throw new Error('The file encryption master key must be 32 bytes.');
+  if (dekEnvelope.length !== 64 || fileIv.length !== 16 || fileAuthTag.length !== 16) {
+    throw new Error('The encrypted file envelope is invalid.');
+  }
+  const dekDecipher = createDecipheriv('aes-256-gcm', masterKey, dekEnvelope.subarray(0, 16));
+  dekDecipher.setAuthTag(dekEnvelope.subarray(16, 32));
+  const dek = Buffer.concat([
+    dekDecipher.update(dekEnvelope.subarray(32)),
+    dekDecipher.final(),
+  ]);
+  if (dek.length !== 32) {
+    dek.fill(0);
+    throw new Error('The encrypted file key is invalid.');
+  }
+  const decipher = createDecipheriv('aes-256-gcm', dek, fileIv);
+  dek.fill(0);
+  decipher.setAuthTag(fileAuthTag);
+  return decipher;
+}
+
 function getMasterKey(): Buffer {
   const masterKeyB64 = process.env.FILE_MASTER_KEY;
   if (!masterKeyB64) {
     throw new Error('FILE_MASTER_KEY environment variable is required');
   }
   return Buffer.from(masterKeyB64, 'base64');
+}
+
+export function createStreamingFileEncryption(masterKey: Buffer): StreamingFileEncryption {
+  if (masterKey.length !== 32) throw new Error('The file encryption master key must be 32 bytes.');
+  const dek = generateDataEncryptionKey();
+  const dekIv = randomBytes(16);
+  const dekCipher = createCipheriv('aes-256-gcm', masterKey, dekIv);
+  const encryptedDek = Buffer.concat([dekCipher.update(dek), dekCipher.final()]);
+  const dekAuthTag = dekCipher.getAuthTag();
+  const fileIv = randomBytes(16);
+  const cipher = createCipheriv('aes-256-gcm', dek, fileIv);
+  dek.fill(0);
+  return {
+    cipher,
+    dekEnvelope: Buffer.concat([dekIv, dekAuthTag, encryptedDek]),
+    fileIv,
+  };
 }
 
 export function generateDataEncryptionKey(): Buffer {
@@ -64,8 +112,8 @@ export function encryptFile(plaintext: Buffer, dek?: Buffer): EncryptedEnvelope 
   };
 }
 
-export function decryptFile(envelope: EncryptedEnvelope): DecryptionResult {
-  const masterKey = getMasterKey();
+export function decryptFile(envelope: EncryptedEnvelope, masterKey = getMasterKey()): DecryptionResult {
+  if (masterKey.length !== 32) throw new Error('The file encryption master key must be 32 bytes.');
 
   // Decrypt the DEK
   const dekDecipher = createDecipheriv('aes-256-gcm', masterKey, envelope.dekIv);

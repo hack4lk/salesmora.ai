@@ -12,13 +12,19 @@
     "start": "tsx src/index.ts",
     "status": "tsx src/status.ts",
     "test:runtime": "tsx src/rehearsal.ts --test",
+    "test:admin-workspace-exports": "node --import tsx src/admin-workspace-exports.rehearsal.ts",
     "test:file-processing": "tsx src/file-processing-simple.test.ts"
   },
   "dependencies": {
+    "@salesmora/agent": "workspace:*",
     "@salesmora/contracts": "workspace:*",
     "@salesmora/data": "workspace:*",
     "@salesmora/domain": "workspace:*",
+    "archiver": "^8.0.0",
     "bullmq": "5.81.5",
     "tsx": "4.23.15"
+  },
+  "devDependencies": {
+    "@types/archiver": "^8.0.0"
   }
 }

@@ -7,6 +7,8 @@ import { filterBarData as copy } from './filter-bar.data';
 export type ActiveFilter = { id: string; label: string };
 export type FilterBarProps = {
   title?: string;
+  /** Keep the section name accessible without showing a heading above the controls. */
+  hideTitle?: boolean;
   /** Supply labeled controls; custom controls must also honor disabled themselves. */
   children: ReactNode;
   activeFilters: readonly ActiveFilter[];
@@ -16,7 +18,7 @@ export type FilterBarProps = {
 };
 
 /** Controlled presentation only. Consumers own URL state, filtering and authorization. */
-export function FilterBar({ title = copy.title, children, activeFilters, disabled = false, onRemove, onClearAll }: FilterBarProps) {
+export function FilterBar({ title = copy.title, hideTitle = false, children, activeFilters, disabled = false, onRemove, onClearAll }: FilterBarProps) {
   const id = useId();
   const group = useRef<HTMLDivElement>(null);
   const controls = useRef<HTMLFieldSetElement>(null);
@@ -35,8 +37,8 @@ export function FilterBar({ title = copy.title, children, activeFilters, disable
   }, [activeFilters, disabled]);
 
   return <section aria-labelledby={`${id}-title`} className="min-w-0 rounded-2xl border border-line bg-paper p-6">
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-      <h2 id={`${id}-title`} className="m-0 text-base font-semibold text-ink">{title}</h2>
+    <div className={hideTitle ? activeFilters.length > 0 ? 'mb-5 flex justify-end' : '' : 'mb-5 flex flex-wrap items-center justify-between gap-3'}>
+      <h2 id={`${id}-title`} className={hideTitle ? 'sr-only' : 'm-0 text-base font-semibold text-ink'}>{title}</h2>
       {activeFilters.length > 0 && <button type="button" disabled={disabled} onClick={event => {
         if (disabled) return;
         intent.current = { preferredIds: [], trigger: event.currentTarget };

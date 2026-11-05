@@ -4,6 +4,7 @@
 /* Scan shared components/stories and the consuming web app. */
 @source '../';
 @source '../../../../apps/web/src';
+@source '../../../../apps/admin/src';
 
 @theme {
   --font-sans: 'Source Sans 3', 'Segoe UI', Arial, sans-serif;

@@ -1,4 +1,5 @@
 import 'server-only';
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../http/suspension';
 import { NextResponse } from 'next/server';
 import { CalendarContractError, jobIdSchema } from '@salesmora/contracts';
 import { AuthorizationAccessError } from '@salesmora/data';
@@ -22,6 +23,7 @@ export async function calendarRequest(request: Request, run: (identity: { worksp
     if (!jobIdSchema.safeParse(workspaceId).success) throw new AuthorizationAccessError();
     return await run({ workspaceId: workspaceId!, userId: session.user.id }, body);
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     const status = error instanceof AuthorizationAccessError ? 404 : error instanceof CalendarRevisionError ? 409 : error instanceof CalendarContractError || error instanceof JobLifecycleError || error instanceof WorkOrderLifecycleError ? 422 : 500;
     return NextResponse.json({ error: status === 404 ? 'This Calendar or visit is unavailable.' : status === 409 ? 'The visit changed. Reload and review its current schedule.' : status === 422 ? 'Check the Calendar details and try again.' : 'The Calendar could not be loaded or saved. Try again.', ...(status === 409 ? { code: 'conflict' } : {}) }, { status, headers: calendarHeaders });
   }

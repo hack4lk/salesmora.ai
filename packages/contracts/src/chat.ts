@@ -1,3 +1,6 @@
+import { captureAssistantProposalTicketSchema } from './lead-capture/assistant';
+import { captureSetupContextSchema } from './lead-capture/assistant-setup';
+import { captureAssistantContextSchema, captureChatTicketSchema } from './lead-capture';
 import { calendarProposalTicketSchema, calendarProposalEvidenceSchema } from './calendar-proposal';
 import { calendarVisitReferenceSchema, calendarChatContextSchema, calendarChatResultSchema } from './calendar-chat';
 import { customerChatResultSchema } from "./customer-chat";
@@ -32,6 +35,7 @@ export const estimateDraftDeleteEvidenceSchema = z.array(z.uuid()).max(7);
 export const estimateConversionEvidenceSchema = z.array(z.uuid()).max(7);
 
 export const chatSurfaceKeys = [
+  "lead_capture.list", "lead_capture.new", "lead_capture.setup", "lead_capture.detail",
   "customers.list",
   "customer.detail",
   "work_order.list",
@@ -51,6 +55,8 @@ export const chatSurfaceKeys = [
 export const chatSurfaceKeySchema = z.enum(chatSurfaceKeys);
 export type ChatSurfaceKey = z.infer<typeof chatSurfaceKeySchema>;
 export const chatToolIds = [
+  "lead_capture_query",
+  "lead_capture_propose_action",
   "search_help",
   "calendar_query",
   "calendar_propose_action",
@@ -88,6 +94,8 @@ export const chatPageContextSchema = z
     estimateFilters: estimateChatFilterSchema.optional(),
     calendarFilters: calendarChatContextSchema.optional(),
     calendarVisit: calendarVisitReferenceSchema.optional(),
+    captureContext: captureAssistantContextSchema.optional(),
+    captureSetup: captureSetupContextSchema.optional(),
   })
   .strict();
 export type ChatPageContext = z.infer<typeof chatPageContextSchema>;
@@ -123,9 +131,13 @@ export const chatTurnRequestSchema = z
     estimateFilters: estimateChatFilterSchema.optional(),
     calendarFilters: calendarChatContextSchema.optional(),
     calendarVisit: calendarVisitReferenceSchema.optional(),
+    captureContext: captureAssistantContextSchema.optional(),
+    captureSetup: captureSetupContextSchema.optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
+    if (value.captureSetup && (value.surfaceKey !== 'lead_capture.setup' || value.captureContext?.surface !== 'lead_capture.setup' || value.captureContext.sourceId !== value.captureSetup.sourceId)) ctx.addIssue({ code: 'custom', path: ['captureSetup'], message: 'Invalid unsaved setup context.' });
+    if (value.captureContext && value.captureContext.surface !== value.surfaceKey) ctx.addIssue({ code: 'custom', path: ['captureContext'], message: 'Invalid capture page context.' });
     if (value.calendarVisit && value.surfaceKey !== 'calendar') ctx.addIssue({ code:'custom',path:['calendarVisit'],message:'Invalid Calendar visit context.' });
     if (value.calendarFilters && value.surfaceKey !== "calendar") ctx.addIssue({ code: "custom", path: ["calendarFilters"], message: "Invalid Calendar context." });
     if (
@@ -254,6 +266,9 @@ export const chatStreamEventSchema = z.discriminatedUnion("type", [
     })
     .strict(),
   z.object({ ...envelope, type: z.literal("calendar.proposal"), messageId:z.uuid(),result:calendarProposalTicketSchema }).strict(),
+  z.object({ ...envelope, type: z.literal("capture.source"), messageId: z.uuid(), result: captureAssistantProposalTicketSchema }).strict(),
+  z.object({ ...envelope, type: z.literal("capture.setup"), messageId: z.uuid(), result: captureAssistantProposalTicketSchema }).strict(),
+  z.object({ ...envelope, type: z.literal("capture.result"), messageId: z.uuid(), result: captureChatTicketSchema }).strict(),
   z.object({ ...envelope, type: z.literal("calendar.result"), messageId: z.uuid(), result: calendarChatResultSchema }).strict(),
   z.object({
     ...envelope,
@@ -398,6 +413,12 @@ export const chatHistoryResponseSchema = z
             customerStamp: z.string().optional(),
             workOrderResult: workOrderChatResultSchema.optional(),
             calendarResult: calendarChatResultSchema.optional(),
+            captureResult: captureChatTicketSchema.optional(),
+            captureSource: captureAssistantProposalTicketSchema.optional(),
+            captureSourceEvidence: z.array(z.uuid()).max(7).optional(),
+            captureSetup: captureAssistantProposalTicketSchema.optional(),
+            captureSetupEvidence: z.array(z.uuid()).max(7).optional(),
+            captureStamp: z.string().regex(/^[a-f0-9]{64}$/).optional(),
             calendarProposal: calendarProposalTicketSchema.optional(),
             calendarProposalEvidence: calendarProposalEvidenceSchema.optional(),
             calendarStamp: z.string().regex(/^[a-f0-9]{64}$/).optional(),

@@ -1,10 +1,15 @@
 import 'server-only';
+import { randomUUID } from 'node:crypto';
 import { safelyDeliverOwnerInvitations } from '../invitations/store';
 import { betterAuth } from 'better-auth';
 import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api';
 import { nextCookies } from 'better-auth/next-js';
 import { sandboxBillingEnabled } from '@salesmora/data';
 import { createAuthPool } from '@salesmora/data';
+import {
+  adminEmailVerificationSignatureHeaders,
+  verifyAdminEmailVerificationRequest,
+} from '@salesmora/data/admin-email-verification-signature';
 import { registrationSchema, registrationPolicy } from '@salesmora/contracts';
 import { sendVerificationEmail } from '../email/send-verification';
 import { sendPasswordResetEmail } from '../email/send-password-reset';
@@ -85,18 +90,42 @@ export const auth = betterAuth({
   },
   // Local requests share a bucket. Do not trust caller-supplied proxy headers.
   // Configure a verified deployment proxy before public hosting.
-  advanced: { ipAddress: { ipAddressHeaders: [] } },
+  advanced: { ipAddress: { ipAddressHeaders: [] }, crossSubDomainCookies: { enabled: false } },
   logger: { level: 'error' },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path === '/send-verification-email') {
         if (ctx.request?.headers.get('origin') !== new URL(baseURL).origin) throw new APIError('FORBIDDEN', { message: 'Invalid origin.' });
+        const email = typeof ctx.body?.email === 'string' ? ctx.body.email.trim().toLowerCase() : undefined;
+        const callbackURL = new URL('/verify-email', baseURL).href;
+        const adminRequest = email && ctx.body?.callbackURL === callbackURL &&
+          verifyAdminEmailVerificationRequest(
+            process.env.ADMIN_EMAIL_VERIFICATION_SECRET,
+            ctx.request.headers,
+            email,
+            callbackURL,
+          );
+        if (adminRequest) {
+          const nonce = ctx.request?.headers.get(adminEmailVerificationSignatureHeaders.nonce);
+          if (!nonce) throw new APIError('UNAUTHORIZED', { message: 'Invalid admin verification-email request.' });
+          const now = Date.now();
+          await pool.query('DELETE FROM "rateLimits" WHERE "key" LIKE $1 AND "lastRequest" < $2',
+            ['admin-email-verification:%', now - 120_000]);
+          const consumed = await pool.query(
+            'INSERT INTO "rateLimits" ("id", "key", "count", "lastRequest") VALUES ($1, $2, 1, $3) ON CONFLICT ("key") DO NOTHING RETURNING "key"',
+            [randomUUID(), `admin-email-verification:${nonce}`, now],
+          );
+          if (consumed.rowCount !== 1) {
+            throw new APIError('UNAUTHORIZED', { message: 'This admin verification-email request was already used.' });
+          }
+          return { context: { ...ctx, body: { email, callbackURL } } };
+        }
         const session = await getSessionFromCtx(ctx);
         if (!session) throw new APIError('UNAUTHORIZED', { message: 'Sign in to resend verification.' });
-        if (typeof ctx.body?.email === 'string' && ctx.body.email.toLowerCase() !== session.user.email.toLowerCase()) {
+        if (email && email !== session.user.email.trim().toLowerCase()) {
           throw new APIError('FORBIDDEN', { message: 'Invalid recipient.' });
         }
-        return { context: { ...ctx, body: { email: session.user.email, callbackURL: new URL('/verify-email', baseURL).href } } };
+        return { context: { ...ctx, body: { email: session.user.email, callbackURL } } };
       }
       if (ctx.path === '/request-password-reset' || ctx.path === '/reset-password') {
         const origin = ctx.request?.headers.get('origin');
@@ -121,8 +150,12 @@ export const auth = betterAuth({
   },
   databaseHooks: {
     session: { create: { before: async (session) => {
-      const result = await pool.query('SELECT "deletionRequestedAt" FROM users WHERE id = $1', [session.userId]);
-      return result.rows[0]?.deletionRequestedAt ? false : { data: session };
+      const result = await pool.query('SELECT "deletionRequestedAt", "suspendedAt" FROM users WHERE id = $1', [session.userId]);
+      const user = result.rows[0];
+      if (user?.deletionRequestedAt) return false;
+      // Runs only after the password is verified, so the 423 does not reveal which emails exist.
+      if (user?.suspendedAt) throw new APIError('LOCKED', { message: 'This account is unavailable. Contact support.' });
+      return { data: session };
     } } },
     user: { create: { before: async (user) => ({ data: {
       ...user, termsVersion, termsAcceptedAt: new Date(), onboardingStatus: 'pending',

@@ -1,4 +1,5 @@
 import 'server-only';
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../../../server/http/suspension';
 import { NextResponse } from 'next/server';
 import { createFileStore, createStorageAdapter, FileStorageError } from '@salesmora/data';
 import { getSession } from '../../../../../../server/auth/session';
@@ -77,6 +78,7 @@ export async function GET(
       },
     });
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) {
       return NextResponse.json(
         { error: 'You do not have permission to access this file.' },
@@ -159,6 +161,7 @@ export async function DELETE(
       { status: 200, headers }
     );
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) {
       return NextResponse.json(
         { error: 'You do not have permission to delete this file.' },

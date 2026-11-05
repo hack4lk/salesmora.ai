@@ -1499,6 +1499,31 @@ try {
     assert.equal(await cleanupStagedEstimateBusinessLogos(db, rehearsalStorage), 1);
     const orphanRecord = await db("files").where({ id: orphanId, workspaceId }).first("deletedAt");
     assert.ok(orphanRecord?.deletedAt);
+
+    const heldOrphan = await uploadEstimateBusinessLogo(
+      db,
+      rehearsalStorage,
+      identity(),
+      enabled,
+      saved.version,
+      { type: "image/png", data: png },
+    );
+    const heldOrphanId = heldOrphan.logoPath.split("/").at(-1)!;
+    await db("files")
+      .where({ id: heldOrphanId, workspaceId })
+      .update({ createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) });
+    await db("workspaces").where({ id: workspaceId }).update({
+      suspendedAt: new Date(),
+      suspendedReason: "Hold staged logo cleanup",
+    });
+    try {
+      await cleanupStagedEstimateBusinessLogos(db, rehearsalStorage);
+      assert.equal((await db("files").where({ id: heldOrphanId, workspaceId }).first("deletedAt"))?.deletedAt, null);
+    } finally {
+      await db("workspaces").where({ id: workspaceId }).update({ suspendedAt: null, suspendedReason: null });
+    }
+    await cleanupStagedEstimateBusinessLogos(db, rehearsalStorage);
+    assert.ok((await db("files").where({ id: heldOrphanId, workspaceId }).first("deletedAt"))?.deletedAt);
   });
 
   await check("create and duplicate retries return the committed result before parent re-resolution", async () => {
@@ -2029,7 +2054,7 @@ try {
         }).count("* as n").then(result => Number(result[0].n)), 1);
         const review = await readEstimateSharingReview(db, identity(), enabled, queued.estimateId);
         assert.ok(review.delivery.email.state === "failed");
-        assert.match(review.delivery.email.failureMessage ?? "", /five attempts/);
+        assert.match(review.delivery.email.failureMessage ?? "", /within the retry window/);
         assert.ok(!JSON.stringify(review.delivery).includes("PRIVATE_TRANSPORT"));
       }
     }

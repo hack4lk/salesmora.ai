@@ -22,6 +22,7 @@ applyTo: "**" # when provided, instructions will automatically be added to the r
   - After approved plan, create the necessary steps to implement the feature or component, including coding, testing, and documentation.
   - Do one step at a time and ask for review and feedback from team members before proceeding to the next step.
   - Always create storied components if the component is part of a page to ensure proper documentation and testing.
+  - Keep one canonical component per feature. Storybook stories for live features must exercise that component with mocked API responses; do not create a parallel preview-only implementation. Separate data-fetching or action orchestration only when it composes the same shared UI rather than duplicating its markup and behavior.
   - After all components have been created, create the page
   - After the page has been created, integrate the page into the application or relevant module.
   - Next create any chat assistant logic that needs to be implemented for the feature or component.

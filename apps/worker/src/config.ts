@@ -17,11 +17,11 @@ export interface WorkerConfiguration {
   databaseURL: string;
   queueName: string;
   connection: { host: string; port: number; username?: string; password?: string; db?: number; tls?: { servername: string }; connectTimeout?: number };
-  tasks?: 'all' | 'retention';
+  tasks?: 'all' | 'retention' | 'gmail';
 }
-function workerTasks(value?: string): 'all' | 'retention' {
+function workerTasks(value?: string): 'all' | 'retention' | 'gmail' {
   if (value === undefined || value === 'all') return 'all';
-  if (value === 'retention') return value;
+  if (value === 'retention' || value === 'gmail') return value;
   throw Error('Invalid worker tasks');
 }
 function serviceURL(value: string | undefined, protocols: string[]) {
@@ -37,6 +37,8 @@ export function productionConfiguration(env: NodeJS.ProcessEnv, args: readonly s
   if (args.includes('--test')) throw Error('Production workers refuse test mode');
   const database = serviceURL(env.DATABASE_URL, ['postgres:', 'postgresql:']);
   if (!database.pathname || database.pathname === '/' || database.pathname.endsWith('_test')) throw Error('Invalid production worker database');
+  const tasks = workerTasks(env.WORKER_TASKS);
+  if (tasks === 'gmail') return { databaseURL: env.DATABASE_URL!, tasks, queueName: '', connection: { host: '', port: 0 } };
   const redis = serviceURL(env.REDIS_URL, ['redis:', 'rediss:']);
   if (redis.search || !/^\/(?:\d+)?$/.test(redis.pathname || '/') || (redis.port && Number(redis.port) < 1)) throw Error('Invalid worker Redis configuration');
   const queueName = env.WORKER_QUEUE_NAME;
@@ -46,7 +48,7 @@ export function productionConfiguration(env: NodeJS.ProcessEnv, args: readonly s
   catch { throw Error('Invalid worker Redis credentials'); }
   const redisDB = Number(redis.pathname.slice(1) || 0);
   if (!Number.isSafeInteger(redisDB) || redisDB < 0) throw Error('Invalid worker Redis database');
-  return { databaseURL: env.DATABASE_URL!, queueName, tasks: workerTasks(env.WORKER_TASKS), connection: {
+  return { databaseURL: env.DATABASE_URL!, queueName, tasks, connection: {
     host: redis.hostname, port: Number(redis.port || 6379), username, password, db: redisDB, connectTimeout: 5000,
     ...(redis.protocol === 'rediss:' ? { tls: { servername: redis.hostname } } : {}),
   } };
@@ -54,5 +56,17 @@ export function productionConfiguration(env: NodeJS.ProcessEnv, args: readonly s
 export function workerConfiguration(): WorkerConfiguration {
   if (process.env.NODE_ENV === 'production') return productionConfiguration(process.env, process.argv);
   const local = localConfiguration();
-  return { ...local, tasks: workerTasks(process.env.WORKER_TASKS) };
+  // A long-running test worker connects as the runtime role; one-off scripts keep the owner URL.
+  const isTest = process.argv.includes('--test');
+  let databaseURL = isTest ? process.env.TEST_APP_DATABASE_URL || local.databaseURL : local.databaseURL;
+  if (!isTest && (process.env.ADMIN_WORKSPACE_EXPORTS_ENABLED === 'true' || process.env.WORKER_TASKS === 'gmail')) {
+    const workerPassword = process.env.DB_WORKER_PASSWORD;
+    if (!workerPassword) throw Error('DB_WORKER_PASSWORD is required for this local worker task.');
+    const workerURL = new URL(databaseURL);
+    workerURL.username = 'salesmora_worker';
+    workerURL.password = workerPassword;
+    databaseURL = workerURL.href;
+  }
+  if (new URL(databaseURL).pathname !== new URL(local.databaseURL).pathname) throw Error('TEST_APP_DATABASE_URL must use the local test database');
+  return { ...local, databaseURL, tasks: workerTasks(process.env.WORKER_TASKS) };
 }

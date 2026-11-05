@@ -6,7 +6,8 @@ const meta = { slug: 'test-help', title: 'Test help', roles: ['field'], capabili
 describe('canonical help sources', () => {
   it('loads reviewed coherent sections and explicitly marks campaign planning', async () => {
     const articles = await loadCorpus();
-    expect(articles).toHaveLength(8); expect(articles.reduce((n, a) => n + a.sections.length, 0)).toBe(23);
+    expect(articles).toHaveLength(9); expect(articles.reduce((n, a) => n + a.sections.length, 0)).toBe(27);
+    expect(articles.find(a => a.slug === 'lead-capture-assistant')).toMatchObject({ productStatus: 'implemented', capabilities: ['leadCapture.read'] });
     expect(articles.find(a => a.slug === 'campaign-planning')?.productStatus).toBe('planned');
   });
   it('hashes metadata changes as well as text and gives stable section links', () => {

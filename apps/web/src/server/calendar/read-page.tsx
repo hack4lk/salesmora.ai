@@ -9,7 +9,7 @@ import { database, findWorkspace } from '../workspaces/store';
 import { enabledPermissions, workspaceAuthorization, workspaceCapabilities, workspaceNavigationPages } from '../authorization/permissions';
 import { WorkspaceShell } from '../../features/workspace/workspace-shell/workspace-shell';
 import { CalendarRoute } from '../../features/calendar/calendar-page/calendar-route';
-import { chatRuntimeAvailable } from '../chat/config';
+import { workspaceChatAvailable } from '../chat/config';
 async function signOut() { 'use server'; await auth.api.signOut({ headers: await headers() }); redirect('/login'); }
 export async function renderCalendarPage(params: Record<string, string | string[] | undefined>) {
   const session = await getSession(); if (!session) redirect('/login');
@@ -27,7 +27,7 @@ export async function renderCalendarPage(params: Record<string, string | string[
     const initialVisit = search.has('visit') ? await readCalendarVisit(database(), identity, enabledPermissions, jobIdSchema.parse(search.get('visit'))) : undefined;
     return <WorkspaceShell currentPage="calendar" workspaceId={workspace.id} workspaceName={workspace.businessName}
       user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} authorizedPages={workspaceNavigationPages(context)}
-      jobNotificationsAvailable={caps.jobNotifications} permissionsAvailable={caps.permissions} ganttAvailable={caps.readGantt} billingAvailable={caps.billing} assistantAvailable={caps.assistant} chatEnabled={chatRuntimeAvailable()}
+      jobNotificationsAvailable={caps.jobNotifications} permissionsAvailable={caps.permissions} ganttAvailable={caps.readGantt} billingAvailable={caps.billing} assistantAvailable={caps.assistant} chatEnabled={await workspaceChatAvailable(workspace.id)}
       chatSurface="calendar" contentWidth="full" onSignOut={signOut}>
       <CalendarRoute key={`calendar:${workspace.id}`} initial={initial} initialVisit={initialVisit}/>
     </WorkspaceShell>;

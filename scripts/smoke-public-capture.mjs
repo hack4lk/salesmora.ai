@@ -1,0 +1,16 @@
+// GET-only post-deployment checks. No session, form answers, provider secret or mutation is supplied.
+import assert from 'node:assert/strict';
+const raw = process.env.CAPTURE_SMOKE_ORIGIN, origin = new URL(raw ?? '');
+if (origin.origin !== raw || origin.protocol !== 'https:' || !['forms.salesmora.ai', 'forms-staging.salesmora.ai'].includes(origin.hostname)) throw Error('Configure an approved canonical HTTPS forms origin.');
+const canary = process.env.CAPTURE_SMOKE_PUBLIC_KEY;
+if (canary && !/^[a-f0-9]{64}$/.test(canary)) throw Error('Invalid public canary key.');
+const key = canary ?? '0'.repeat(64); let count = 0;
+async function get(path, headers) { return fetch(`${origin.origin}${path}`, { headers, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(10000) }); }
+async function check(label, run) { try { await run(); count++; console.log(`PASS ${label}`); } catch { throw Error(`Failed ${label}; no response content was logged.`); } }
+function privateHeaders(response) { assert.match(response.headers.get('cache-control') ?? '', /no-store/); assert.equal(response.headers.get('set-cookie'), null); }
+await check('gateway liveness', async () => { const response = await get('/healthz'); assert.equal(response.status, 200); privateHeaders(response); assert.deepEqual(await response.json(), { status: 'ok' }); });
+await check('private route isolation despite forwarded host forgery', async () => { for (const path of ['/login', '/settings/leads', '/api/auth/get-session', '/api/settings/leads']) { const response = await get(path, { 'X-Forwarded-Host': 'app.salesmora.ai' }); assert.equal(response.status, 404); privateHeaders(response); } });
+await check('standalone canonical loader', async () => { const response = await get('/embed.js'); assert.equal(response.status, 200); privateHeaders(response); assert.match(response.headers.get('content-type') ?? '', /application\/javascript/); assert.equal(response.headers.get('cross-origin-resource-policy'), 'cross-origin'); assert.ok((await response.text()).includes(JSON.stringify(origin.origin))); });
+await check('hosted/embed frame and production CSP policy', async () => { for (const embedded of [false, true]) { const response = await get(`/${embedded ? 'embed' : 'f'}/${key}`); assert.equal(response.status, canary ? 200 : 404); privateHeaders(response); const csp = response.headers.get('content-security-policy') ?? ''; assert.ok(!csp.includes('unsafe-eval')); assert.ok(csp.includes(embedded ? 'frame-ancestors https: http:' : "frame-ancestors 'none'")); assert.match(response.headers.get('x-robots-tag') ?? '', /noindex/); assert.equal(response.headers.get('referrer-policy'), 'no-referrer'); } });
+if (canary) await check('ready canary projection with submission policy enabled', async () => { const response = await get(`/api/public/capture/${canary}`); assert.equal(response.status, 200); privateHeaders(response); const result = await response.json(); assert.equal(result.state, 'ready'); assert.equal(result.submissionAvailable, true); assert.equal(result.definition.publicKey, canary); assert.deepEqual(Object.keys(result).sort(), ['context', 'definition', 'state', 'submissionAvailable']); assert.equal(typeof result.context, 'string'); });
+console.log(JSON.stringify({ checks: count, canaryChecked: !!canary, writesOrProviderVerificationClaimed: false }));

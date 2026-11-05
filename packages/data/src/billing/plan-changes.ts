@@ -1,8 +1,9 @@
+import { assertCaptureDowngrade } from '../lead-capture/capacity';
 import { isDeepStrictEqual } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
 import { getWorkspacePlan } from '@salesmora/domain';
-import { type WorkspacePlanId, planChangeQuoteSchema, type PlanChangeResult } from '@salesmora/contracts';
+import { adminWorkspacePlanChangeResultSchema, type AdminWorkspacePlanChangeResult, type WorkspacePlanId, planChangeQuoteSchema, type PlanChangeResult } from '@salesmora/contracts';
 import { lockWorkspaceBilling, ownerBilling, createWorkspaceCheckout } from './checkout';
 import { stripeSandbox, stripePlanPrice, verifyPlanPrice, type Stripe } from './stripe';
 import { reconcileWorkspaceSubscription } from './events';
@@ -21,6 +22,12 @@ async function subscription(stripe: Stripe, row: {
     return sub;
 }
 function basis(sub: Stripe.Subscription | null) { return sub ? { id: sub.id, price: sub.items.data[0].price.id, start: sub.items.data[0].current_period_start, end: sub.items.data[0].current_period_end, invoice: id(sub.latest_invoice) ?? null, schedule: id(sub.schedule) ?? null, cancel: sub.cancel_at_period_end } : null; }
+async function workspaceOwnerId(trx: Knex.Transaction, workspaceId: string) {
+    const workspace = await trx('workspaces').where({ id: workspaceId }).whereNull('deletionRequestedAt').forShare().first('ownerId');
+    if (!workspace?.ownerId)
+        throw Error('Workspace owner is unavailable.');
+    return workspace.ownerId as string;
+}
 async function previewAmount(stripe: Stripe, sub: Stripe.Subscription, plan: 'standard' | 'premium', at: number) {
     const invoice = await stripe.invoices.createPreview({ subscription: sub.id, subscription_details: { items: [{ id: sub.items.data[0].id, price: stripePlanPrice(plan) }], proration_date: at, proration_behavior: 'always_invoice' } });
     if (invoice.currency !== 'usd' || invoice.amount_due < 0)
@@ -28,10 +35,11 @@ async function previewAmount(stripe: Stripe, sub: Stripe.Subscription, plan: 'st
     return invoice.amount_due;
 }
 /** Durable quoted intent; request bodies never choose a customer, price, amount or effective date. */
-export async function previewPlanChange(db: Knex, userId: string, workspaceId: string, plan: WorkspacePlanId) {
-    const stripe = stripeSandbox();
+async function previewPlanChangeFor(db: Knex, actor: { type: 'owner'; userId: string } | { type: 'admin' }, workspaceId: string, plan: WorkspacePlanId, provider?: Stripe) {
+    const stripe = provider ?? stripeSandbox();
     return db.transaction(async (trx) => {
         await lockWorkspaceBilling(trx, workspaceId);
+        const userId = actor.type === 'admin' ? await workspaceOwnerId(trx, workspaceId) : actor.userId;
         await ownerBilling(trx, userId, workspaceId);
         if (await trx('billingRenewalRecoveries').where({workspaceId}).whereIn('state',['applying','action','pending']).first()) throw Error('Resolve renewal payment first');
         const row = await trx('workspaceSubscriptions').where({ workspaceId }).forUpdate().first();
@@ -43,6 +51,8 @@ export async function previewPlanChange(db: Knex, userId: string, workspaceId: s
         const active = sub && !['canceled', 'incomplete_expired'].includes(sub.status) ? sub : null;
         if (active && (active.status !== 'active' || active.pending_update || active.schedule || active.cancel_at_period_end))
             throw Error('Resolve the pending subscription change or payment first.');
+        if (actor.type === 'admin' && !active)
+            throw Error('An active paid subscription is required for admin plan changes.');
         const current = active ? (['standard', 'premium'] as const).find(p => stripePlanPrice(p) === active.items.data[0].price.id) : 'free';
         if (!current || current === plan)
             throw Error('Choose a different plan.');
@@ -54,13 +64,20 @@ export async function previewPlanChange(db: Knex, userId: string, workspaceId: s
         const kind = !active ? 'checkout' : plan === 'free' ? 'free' : getWorkspacePlan(plan).monthlyPriceCents > getWorkspacePlan(current).monthlyPriceCents ? 'upgrade' : 'downgrade';
         const amountDue = kind === 'upgrade' ? await previewAmount(stripe, active!, plan as 'standard' | 'premium', now) : kind === 'checkout' ? getWorkspacePlan(plan).monthlyPriceCents : 0;
         const quote = { id: randomUUID(), plan, kind, amountDue, currency: 'usd', effectiveAt: new Date((kind === 'downgrade' || kind === 'free' ? active!.items.data[0].current_period_end : now) * 1000).toISOString(), expiresAt: new Date((now + 600) * 1000).toISOString() };
+        if (kind === 'downgrade' || kind === 'free') await assertCaptureDowngrade(trx, workspaceId, plan, new Date(quote.effectiveAt));
         await trx('billingPlanChanges').insert({ id: quote.id, workspaceId, actorId: userId, targetPlan: plan, kind, basis: JSON.stringify(basis(sub)), amountDue, prorationAt: now });
         return planChangeQuoteSchema.parse(quote);
     });
 }
+export async function previewPlanChange(db: Knex, userId: string, workspaceId: string, plan: WorkspacePlanId, provider?: Stripe) {
+    return previewPlanChangeFor(db, { type: 'owner', userId }, workspaceId, plan, provider);
+}
+export async function previewAdminPlanChange(db: Knex, workspaceId: string, plan: WorkspacePlanId, provider?: Stripe) {
+    return previewPlanChangeFor(db, { type: 'admin' }, workspaceId, plan, provider);
+}
 /** Persist applying before network mutation. Retry uses the same Stripe idempotency keys. */
-export async function confirmPlanChange(db: Knex, userId: string, workspaceId: string, quoteId: string, refresh = false): Promise<PlanChangeResult> {
-    const stripe = stripeSandbox();
+async function confirmPlanChangeFor(db: Knex, userId: string, workspaceId: string, quoteId: string, refresh = false, provider?: Stripe, policy: { allowCheckout?: boolean; requireActivePaidSubscription?: boolean; auditActorId?: string } = {}): Promise<PlanChangeResult> {
+    const stripe = provider ?? stripeSandbox();
     const kind = await db.transaction(async (trx) => {
         await lockWorkspaceBilling(trx, workspaceId);
         await ownerBilling(trx, userId, workspaceId);
@@ -68,6 +85,8 @@ export async function confirmPlanChange(db: Knex, userId: string, workspaceId: s
         const quote = await trx('billingPlanChanges').where({ id: quoteId, workspaceId, actorId: userId }).forUpdate().first();
         if (!quote)
             throw Error('Unknown quote.');
+        if (policy.allowCheckout === false && quote.kind === 'checkout')
+            throw Error('Admin plan changes cannot start checkout.');
         if (!['quoted','applying','payment','complete','scheduled','expired'].includes(quote.state)) throw Error('Plan change is no longer active.');
         if (quote.state === 'quoted') {
             if (quote.targetPlan !== 'free') await verifyPlanPrice(stripe, quote.targetPlan);
@@ -77,10 +96,16 @@ export async function confirmPlanChange(db: Knex, userId: string, workspaceId: s
                 throw Error('A change is already running.');
             const row = await trx('workspaceSubscriptions').where({ workspaceId }).first();
             const sub = await subscription(stripe, row, workspaceId);
+            if (policy.requireActivePaidSubscription &&
+                (!sub || sub.status !== 'active' || sub.pending_update || sub.schedule || sub.cancel_at_period_end ||
+                    sub.items.data[0].current_period_end <= Math.floor(Date.now() / 1000) + 600)) {
+                throw Error('Subscription changed. Review again.');
+            }
             if (!isDeepStrictEqual(basis(sub), quote.basis))
                 throw Error('Subscription changed. Review again.');
             if (quote.kind === 'upgrade' && await previewAmount(stripe, sub!, quote.targetPlan, quote.prorationAt) !== quote.amountDue)
                 throw Error('Price changed. Review again.');
+            if (quote.kind === 'downgrade' || quote.kind === 'free') await assertCaptureDowngrade(trx, workspaceId, quote.targetPlan, new Date(quote.basis.end * 1000));
             await trx('billingPlanChanges').where({ id: quoteId }).update({ state: 'applying' });
         }
         return { kind: quote.kind as string, state: quote.state as string };
@@ -88,6 +113,8 @@ export async function confirmPlanChange(db: Knex, userId: string, workspaceId: s
     if (['complete', 'scheduled', 'expired'].includes(kind.state))
         return { status: kind.state as 'complete' | 'scheduled' | 'expired' };
     if (kind.kind === 'checkout') {
+        if (policy.allowCheckout === false)
+            throw Error('Admin plan changes cannot start checkout.');
         await db.transaction(async (trx) => {
             await lockWorkspaceBilling(trx, workspaceId);
             await ownerBilling(trx, userId, workspaceId);
@@ -141,6 +168,13 @@ export async function confirmPlanChange(db: Knex, userId: string, workspaceId: s
         let sub = await subscription(stripe, row, workspaceId);
         if (!sub || sub.id !== quote.basis.id)
             throw Error('Subscription changed.');
+        if (policy.requireActivePaidSubscription &&
+            (sub.status !== 'active' ||
+                (quote.state !== 'payment' && (sub.pending_update || sub.schedule || sub.cancel_at_period_end)) ||
+                (quote.state === 'payment' && (sub.schedule || sub.cancel_at_period_end)))) {
+            throw Error('Subscription changed. Review again.');
+        }
+        if (quote.kind === 'downgrade' || quote.kind === 'free') await assertCaptureDowngrade(trx, workspaceId, quote.targetPlan, new Date(quote.basis.end * 1000));
         if (quote.kind === 'upgrade') {
             if (quote.state === 'applying')
                 await stripe.subscriptions.update(sub.id, { payment_settings: { save_default_payment_method: 'on_subscription', payment_method_types: ['card'] } }, { idempotencyKey: `salesmora-save-payment-${quote.id}` });
@@ -172,11 +206,50 @@ export async function confirmPlanChange(db: Knex, userId: string, workspaceId: s
         }
         const status = quote.kind === 'upgrade' ? 'complete' : 'scheduled';
         await trx('billingPlanChanges').where({ id: quote.id }).update({ state: status });
-        await trx('billingAudit').insert({ workspaceId, actorId: userId, action: 'plan.changed', details: JSON.stringify({ quoteId: quote.id, plan: quote.targetPlan, status, amountDue: quote.amountDue }) });
+        await trx('billingAudit').insert({ workspaceId, actorId: policy.auditActorId ?? userId, action: 'plan.changed', details: JSON.stringify({ quoteId: quote.id, plan: quote.targetPlan, status, amountDue: quote.amountDue }) });
         return { status } as PlanChangeResult;
     });
-    await reconcileWorkspaceSubscription(db, workspaceId);
+    await reconcileWorkspaceSubscription(db, workspaceId, stripe);
     return result;
+}
+export async function confirmPlanChange(db: Knex, userId: string, workspaceId: string, quoteId: string, refresh = false, provider?: Stripe): Promise<PlanChangeResult> {
+    return confirmPlanChangeFor(db, userId, workspaceId, quoteId, refresh, provider);
+}
+export async function confirmAdminPlanChange(db: Knex, staffUserId: string, workspaceId: string, quoteId: string, provider?: Stripe): Promise<AdminWorkspacePlanChangeResult> {
+    const quote = await db.transaction(async trx => {
+        await lockWorkspaceBilling(trx, workspaceId);
+        const ownerId = await workspaceOwnerId(trx, workspaceId);
+        await ownerBilling(trx, ownerId, workspaceId);
+        const record = await trx('billingPlanChanges')
+            .where({ id: quoteId, workspaceId, actorId: ownerId })
+            .forUpdate()
+            .first();
+        if (!record)
+            throw Error('Unknown quote.');
+        if (record.kind === 'checkout')
+            throw Error('Admin plan changes cannot start checkout.');
+        if (!['upgrade', 'downgrade', 'free'].includes(record.kind))
+            throw Error('Unsupported admin plan change.');
+        const effectiveAt = record.kind === 'upgrade' ? record.prorationAt : record.basis?.end;
+        if (!Number.isSafeInteger(effectiveAt) || effectiveAt <= 0)
+            throw Error('Plan change effective date is unavailable.');
+        return {
+            ownerId,
+            plan: record.targetPlan as WorkspacePlanId,
+            effectiveAt: new Date(effectiveAt * 1000).toISOString(),
+        };
+    });
+    const result = await confirmPlanChangeFor(db, quote.ownerId, workspaceId, quoteId, false, provider, {
+        allowCheckout: false,
+        requireActivePaidSubscription: true,
+        auditActorId: `admin:${staffUserId}`,
+    });
+    return adminWorkspacePlanChangeResultSchema.parse({
+        status: result.status === 'payment' ? 'customer_action_required' : result.status,
+        plan: quote.plan,
+        effectiveAt: quote.effectiveAt,
+        ...(result.status === 'payment' ? { handoff: 'workspace_owner_billing' } : {}),
+    });
 }
 /** Undo only our scheduled change, before its effective date. Never release unrelated schedules. */
 export async function undoPlanChange(db: Knex, userId: string, workspaceId: string, quoteId: string): Promise<PlanChangeResult> {

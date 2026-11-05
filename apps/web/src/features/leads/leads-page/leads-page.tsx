@@ -26,7 +26,7 @@ import { useFormReady } from '../../auth/use-form-ready';
 import { leadsPageData as copy } from './leads-page.data';
 
 export type LeadPageRecord = LeadCardRecord & {
-  canArchive?: boolean; canRestore?: boolean; canAssign?: boolean; canEdit?: boolean; origin?: 'manual' | 'gmail' | 'campaign'; leadNumber: string; email: string; phone: string; address: string; details: string; notes: string;
+  canArchive?: boolean; canRestore?: boolean; canAssign?: boolean; canEdit?: boolean; origin?: 'manual' | 'gmail' | 'campaign' | 'lead_capture'; leadNumber: string; email: string; phone: string; address: string; details: string; notes: string;
   nextStep: { title: string; body: string } | null; teamNotes: readonly LeadNote[]; events: readonly LeadActivityEvent[];
 };
 export type LeadsPageAccess = LeadsToolbarProps['access'] & { canAssign: boolean; canEdit: boolean; canDelete: boolean; canManageBilling: boolean; canPrepareEstimate: boolean; canStartJob: boolean };

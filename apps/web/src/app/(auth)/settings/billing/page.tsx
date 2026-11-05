@@ -1,4 +1,4 @@
-import { chatRuntimeAvailable } from "../../../../server/chat/config";
+import { workspaceChatAvailable } from "../../../../server/chat/config";
 import {
   AuthorizationAccessError,
   readWorkspaceBilling,
@@ -60,7 +60,7 @@ export default async function BillingSettingsPage({
   const capabilities = workspaceCapabilities(context);
   return (
     <WorkspaceShell
-      chatEnabled={chatRuntimeAvailable()}
+      chatEnabled={await workspaceChatAvailable(workspace.id)}
       chatSurface="settings.overview"
       currentPage="settings"
       currentSettingsPage="billing"

@@ -1,0 +1,23 @@
+export const captureSourceListData = {
+  caption: 'Capture sources', name: 'Capture source', source: 'Source type', status: 'Status', captured: 'Captured', activity: 'Last activity', actions: 'Actions',
+  sources: { website: 'Website or shareable link', gmail: 'Gmail' },
+  statuses: { draft: 'Draft', scheduled: 'Scheduled', active: 'Active', paused: 'Paused', archived: 'Archived' },
+  action: { setup: 'Continue setup', edit: 'Edit setup', pause: 'Pause', resume: 'Review and resume', duplicate: 'Duplicate', archive: 'Archive', restore: 'Review and restore' },
+  open: (name: string) => `Open capture source · ${name}`,
+  actionLabel: (action: string, name: string) => `${action} · ${name}`,
+  review: (count: number) => `${count.toLocaleString('en-US')} awaiting review`,
+  pending: 'Waiting for the current action…',
+  never: 'No activity yet',
+  empty: 'No capture sources yet. Create a capture source to start receiving website requests or Gmail inquiries.',
+  archivedEmpty: 'No archived capture sources. Archived sources will appear here with their history preserved.',
+  filteredEmpty: 'No capture sources match this view. Try another search or filter.',
+  error: 'Capture sources could not be loaded. Your current filters are preserved.',
+  forbidden: 'You do not have permission to view capture sources.',
+  stories: {
+    title: 'Lead Capture', description: 'Capture-source list using fictional data. Actions open mocked review flows; no source is changed.',
+    names: ['Kitchen remodel requests', 'Quote request intake', 'Seasonal service requests', 'New plumbing inquiries', 'Referral intake', 'Summer website form'],
+    longName: 'Residential kitchen remodeling and whole-home improvement requests across the Northstar service area',
+    longAttention: 'The connected account needs attention. An authorized teammate must review its connection before intake can continue.',
+    retry: 'Retry requested',
+  },
+} as const;

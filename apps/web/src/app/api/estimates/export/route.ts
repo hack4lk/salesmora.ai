@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../server/http/suspension';
 import { NextResponse } from "next/server";
 import {
   AuthorizationAccessError,
@@ -19,6 +20,7 @@ const exportHeaders = {
 };
 
 function failure(error: unknown) {
+  if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
   if (error instanceof AuthorizationAccessError) {
     return NextResponse.json(
       { error: "Export is unavailable or you no longer have permission." },

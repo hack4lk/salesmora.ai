@@ -1,0 +1,30 @@
+.page { display: grid; gap: 1.25rem; }
+.header h1, .card h2, .editor h2, .history h2 { margin: 0; }
+.header p { color: #536171; margin: .45rem 0 0; }
+.note { border-left: 3px solid #d5a22e; padding-left: .75rem; }
+.list { display: grid; gap: 1rem; }
+.card, .editor, .history { background: #fff; border: 1px solid #d9e0e7; border-radius: .75rem; padding: 1rem; }
+.cardHeader { align-items: flex-start; display: flex; flex-wrap: wrap; gap: .75rem; justify-content: space-between; }
+.cardHeader p { color: #536171; margin: .4rem 0 0; }
+.owner { color: #536171; font-size: .9rem; }
+.global { background: #f5f7f9; border-radius: .5rem; display: grid; gap: .35rem; margin-top: 1rem; padding: .8rem; }
+.global span, .overrides span, .history li span { color: #536171; font-size: .9rem; }
+.actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .8rem; }
+.button, .secondary { border: 1px solid #173b57; border-radius: .45rem; cursor: pointer; font: inherit; font-weight: 650; min-height: 2.6rem; padding: .55rem .85rem; }
+.button { background: #173b57; color: #fff; }
+.secondary { background: #fff; color: #173b57; }
+.button:disabled, .secondary:disabled { cursor: not-allowed; opacity: .55; }
+.card h3 { font-size: 1rem; margin: 1rem 0 .4rem; }
+.overrides, .history ol { display: grid; gap: .65rem; list-style: none; margin: 0; padding: 0; }
+.overrides li, .history li { border-top: 1px solid #e6eaee; display: grid; gap: .25rem; padding-top: .65rem; }
+.empty { color: #536171; margin: .5rem 0 0; }
+.editor { display: grid; gap: .8rem; }
+.editor label { display: grid; font-weight: 600; gap: .35rem; max-width: 38rem; }
+.editor input, .editor select, .editor textarea { border: 1px solid #9aa8b5; border-radius: .4rem; font: inherit; min-height: 2.5rem; padding: .45rem .6rem; }
+.editor textarea { min-height: 5rem; }
+.verification { border-top: 1px solid #e6eaee; display: grid; gap: .75rem; padding-top: .8rem; }
+.success, .error, .notice { border-radius: .5rem; margin: 0; padding: .7rem .85rem; }
+.success { background: #e7f6ec; color: #15582d; }
+.error { background: #fff0ef; color: #8d1d19; }
+.notice { background: #fff8e6; color: #694e10; }
+.history li strong { font-size: .95rem; }

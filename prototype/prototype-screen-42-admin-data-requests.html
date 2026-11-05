@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#f4f8fc">
+<title>Data requests · SalesMora Admin prototype</title>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#23384d;background:#f4f8fc;--blue:#3b6fa5;--blue-dark:#315c8a;--line:#e2eaf1;--muted:#64778a;--red:#b42318;--red-bg:#fef3f2;--amber:#b54708;--amber-bg:#fffaeb;--green:#067647;--green-bg:#ecfdf3}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#f4f8fc}button,input,textarea{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #8db5d5;outline-offset:2px}[hidden]{display:none!important}
+.env{display:flex;height:28px;align-items:center;justify-content:center;background:#f79009;color:#3d1d00;font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase}
+.app{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:calc(100vh - 28px)}.sidebar{position:sticky;top:0;display:flex;height:calc(100vh - 28px);flex-direction:column;padding:20px 12px 14px;border-right:1px solid var(--line);background:#fff}
+.logo{display:flex;align-items:center;justify-content:space-between;margin:0 8px 22px}.logo img{width:142px;height:auto}.admin-tag{padding:3px 7px;border-radius:6px;background:#23384d;color:white;font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.nav-label{margin:14px 10px 6px;color:#8a9bab;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}.nav{display:grid;gap:3px}.nav a{display:flex;min-height:38px;align-items:center;gap:9px;padding:0 10px;border-radius:8px;color:#4d6175;font-size:12px;text-decoration:none}.nav a.active{background:#e6eff8;color:var(--blue-dark);font-weight:650}.nav a span:last-child{margin-left:auto}
+.staff{display:flex;align-items:center;gap:9px;margin-top:auto;padding:12px 6px 0;border-top:1px solid #eef2f6}.avatar{display:grid;width:32px;height:32px;place-items:center;border-radius:50%;background:#dce9f5;color:var(--blue-dark);font-size:10px;font-weight:700}.staff-copy{min-width:0}.staff-copy strong,.staff-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.staff-copy strong{font-size:11px}.staff-copy small{margin-top:2px;color:#8a9bab;font-size:9px}
+.main{min-width:0}.topbar{display:flex;height:60px;align-items:center;justify-content:space-between;gap:12px;padding:0 26px;border-bottom:1px solid var(--line);background:#ffffffed}.crumb{color:#8796a5;font-size:11px}.crumb strong{color:#34495e}.role{padding:7px 10px;border:1px solid #d3dee8;border-radius:7px;background:white;color:#3d5268;font-size:11px}
+.content{max-width:1320px;margin:0 auto;padding:24px 26px 52px}.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px}.eyebrow{margin:0 0 5px;color:#6c8299;font-size:10px;font-weight:750;letter-spacing:.11em;text-transform:uppercase}h1{margin:0;font-size:25px;font-weight:680;letter-spacing:-.04em}.head p{max-width:720px;margin:6px 0 0;color:var(--muted);font-size:12px;line-height:1.55}
+.button{display:inline-flex;min-height:36px;align-items:center;justify-content:center;gap:7px;padding:0 12px;border:1px solid #d3dee8;border-radius:8px;background:white;color:#3d5268;font-size:11px;font-weight:620}.button:hover{background:#f4f8fc}.button.primary{border-color:var(--blue);background:var(--blue);color:white}.button.primary:hover{background:var(--blue-dark)}.button:disabled{cursor:not-allowed;opacity:.55}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin-bottom:15px}.metric,.panel{border:1px solid var(--line);border-radius:11px;background:white}.metric{padding:13px 15px}.metric span{display:block;color:#6c8299;font-size:10px;font-weight:620}.metric strong{display:block;margin-top:7px;font-size:22px;letter-spacing:-.03em}.metric small{display:block;margin-top:3px;color:#8998a7;font-size:10px}.red{color:var(--red)}.amber{color:var(--amber)}
+.notice{display:flex;gap:10px;margin-bottom:16px;padding:12px 14px;border:1px solid #ead8aa;border-radius:9px;background:#fffbef;color:#705b2b;font-size:11px;line-height:1.5}.notice strong{color:#59451d}
+.tabs{display:flex;gap:5px;margin-bottom:12px;border-bottom:1px solid var(--line)}.tabs button{min-height:39px;padding:0 13px;border:0;border-bottom:2px solid transparent;background:transparent;color:#607488;font-size:11px;font-weight:650}.tabs button[aria-selected="true"]{border-color:var(--blue);color:var(--blue-dark)}.count{margin-left:5px;padding:2px 6px;border-radius:999px;background:#eef3f8;color:#52687d;font-size:9px}
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 11px}.filter{min-width:210px;height:35px;padding:0 10px;border:1px solid #d3dee8;border-radius:7px;background:white;color:#53687d;font-size:11px}.toolbar-note{margin-left:auto;color:#7a8a99;font-size:10px}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid #eef2f6}.panel-head h2{margin:0;font-size:13px;font-weight:680}.panel-head p{margin:4px 0 0;color:#8493a1;font-size:10px;line-height:1.45}
+.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;text-align:left}th{padding:10px 12px;background:#fbfcfd;color:#8191a0;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}td{padding:12px;border-top:1px solid #eef2f6;color:#41566b;font-size:11px;vertical-align:middle}tbody tr{cursor:pointer}tbody tr:hover{background:#f8fafc}td strong{display:block;color:#253b50;font-size:11px;font-weight:650}td small{display:block;margin-top:4px;color:#8291a0;font-size:9px}.mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px}
+.chip{display:inline-flex;align-items:center;padding:4px 7px;border-radius:999px;background:#eef3f8;color:#4d6175;font-size:9px;font-weight:650;white-space:nowrap}.chip.red{background:var(--red-bg);color:var(--red)}.chip.amber{background:var(--amber-bg);color:var(--amber)}.chip.green{background:var(--green-bg);color:var(--green)}.chip.blue{background:#e6eff8;color:#315c8a}
+.row-action{border:0;background:transparent;color:var(--blue);font-size:10px;font-weight:650}.empty{padding:30px 15px;color:var(--muted);font-size:11px;text-align:center}.fine{margin:10px 1px 0;color:#7d8b98;font-size:10px;line-height:1.5}
+.drawer-backdrop,.modal-backdrop{position:fixed;inset:0;z-index:10;display:flex;justify-content:flex-end;background:#182b3d66}.drawer{width:min(460px,100%);height:100%;overflow:auto;padding:22px;background:#fff;box-shadow:-10px 0 35px #142b4026}.drawer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}.drawer h2,.modal h2{margin:0;font-size:18px}.drawer p,.modal p{color:var(--muted);font-size:11px;line-height:1.55}.close{width:32px;height:32px;border:1px solid var(--line);border-radius:7px;background:white;color:#5d7186;font-size:18px}.detail-list{display:grid;grid-template-columns:135px minmax(0,1fr);gap:10px;padding:14px 0;border-top:1px solid #eef2f6;font-size:11px}.detail-list dt{color:#718295}.detail-list dd{margin:0;color:#34495e;overflow-wrap:anywhere}.subpanel{margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:8px;background:#fbfcfd}.subpanel h3{margin:0 0 7px;font-size:11px}.subpanel p{margin:0}.note{margin-top:14px;padding:10px 11px;border-radius:8px;background:#f4f8fc;color:#52677b;font-size:10px;line-height:1.5}
+.modal-backdrop{z-index:12;align-items:center;justify-content:center;padding:16px}.modal{width:min(520px,100%);max-height:calc(100vh - 32px);overflow-y:auto;padding:22px;border:1px solid var(--line);border-radius:13px;background:white;box-shadow:0 20px 60px #10263a44}.field{display:grid;gap:6px;margin:14px 0}.field label{color:#52677b;font-size:10px;font-weight:650}.field input,.field textarea{width:100%;padding:10px;border:1px solid #d3dee8;border-radius:7px;background:white;color:#34495e;font-size:11px}.field textarea{min-height:80px;resize:vertical}.field small{color:#8291a0;font-size:9px;line-height:1.4}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:17px}.error{color:var(--red);font-size:10px}.success{padding:10px;border-radius:8px;background:var(--green-bg);color:var(--green);font-size:10px;line-height:1.5}
+.prototype-controls{position:fixed;right:14px;bottom:14px;z-index:8;width:min(330px,calc(100vw - 28px));padding:12px;border:1px solid #cbd9e6;border-radius:10px;background:#fff;box-shadow:0 8px 26px #152b3d24}.controls-head{display:flex;justify-content:space-between;align-items:center}.controls-head strong{font-size:10px}.controls-head button{border:0;background:none;color:var(--blue);font-size:10px}.control-row{display:flex;gap:5px;margin-top:9px}.control-row button{flex:1;min-height:28px;padding:4px;border:1px solid var(--line);border-radius:6px;background:white;color:#52677b;font-size:9px}.control-row button.active{border-color:var(--blue);background:#eaf1f8;color:var(--blue-dark);font-weight:650}.sr-only{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+@media(max-width:900px){.app{grid-template-columns:180px minmax(0,1fr)}.content{padding:20px 16px 46px}.topbar{padding:0 16px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.app{display:block}.sidebar{position:static;width:100%;height:auto;padding:11px 12px;border-right:0;border-bottom:1px solid var(--line)}.logo{margin:0 4px 9px}.nav{display:flex;overflow:auto;gap:4px}.nav-label{display:none}.nav a{min-width:max-content;min-height:34px;padding:0 9px;font-size:10px}.staff{display:none}.topbar{height:48px}.content{padding:17px 12px 45px}.head{display:block}.head>.button{margin-top:12px}.head h1{font-size:22px}.metrics{gap:7px}.metric{padding:10px}.metric strong{font-size:19px}.toolbar{align-items:stretch}.filter{width:100%}.toolbar-note{width:100%;margin:0}.hide-sm{display:none}th,td{padding:9px 8px}.drawer{padding:17px}.prototype-controls{position:static;width:auto;margin:15px 12px}.modal{padding:17px}}
+</style>
+</head>
+<body>
+<div class="env" role="status">Local development · Prototype only</div>
+<div class="app">
+  <aside class="sidebar" aria-label="Admin navigation">
+    <div class="logo"><img src="../branding/assets/salesmora-logo.svg" alt="SalesMora.ai"><span class="admin-tag">Admin</span></div>
+    <p class="nav-label">Administration</p>
+    <nav class="nav">
+      <a href="prototype-screen-38-admin-dashboard.html"><span aria-hidden="true">⌂</span>Dashboard</a>
+      <a href="prototype-screen-39-admin-users.html"><span aria-hidden="true">♙</span>Users</a>
+      <a href="prototype-screen-40-admin-workspaces.html"><span aria-hidden="true">▦</span>Workspaces</a>
+      <a href="#" aria-current="page" class="active"><span aria-hidden="true">▤</span>Data requests<span class="chip amber" id="navCount">4</span></a>
+      <a href="prototype-screen-41-admin-audit.html"><span aria-hidden="true">◷</span>Audit</a>
+    </nav>
+    <div class="staff"><span class="avatar" id="avatar">LK</span><span class="staff-copy"><strong id="staffName">Lukasz K.</strong><small id="staffRole">Super Admin</small></span></div>
+  </aside>
+  <div class="main">
+    <header class="topbar"><div class="crumb">Admin <span aria-hidden="true">/</span> <strong>Data requests</strong></div><label>Role <select class="role" id="roleSelect" aria-label="Prototype staff role"><option value="super">Super Admin</option><option value="support">Support</option><option value="billing">Billing</option></select></label></header>
+    <main class="content">
+      <div class="head"><div><p class="eyebrow">Privacy operations</p><h1>Data requests</h1><p>Review customer deletion processing and prepare verified workspace-owner data exports. This page does not change account access or deletion state.</p></div><button class="button primary" id="newExport" type="button">Request workspace export</button></div>
+      <section class="metrics" aria-label="Request summary">
+        <div class="metric"><span>Deletion requests</span><strong>12</strong><small>4 awaiting worker retry</small></div>
+        <div class="metric"><span>Retry due</span><strong class="amber">3</strong><small>Next retry within 1 minute</small></div>
+        <div class="metric"><span>Exports in progress</span><strong>2</strong><small>Worker queue</small></div>
+        <div class="metric"><span>Ready for Owner</span><strong>5</strong><small>Exports expire 7 days after generation</small></div>
+      </section>
+      <div class="notice" role="note"><span aria-hidden="true">ⓘ</span><span><strong>Deletion actions are not available here.</strong> Customer deletion blocks access immediately and the worker permanently processes the request. Admin cancellation, expedite and confirmation controls are deferred until deletion grace rules are defined.</span></div>
+      <div class="tabs" role="tablist" aria-label="Data request type">
+        <button id="deletionTab" role="tab" aria-selected="true" aria-controls="deletionPanel" type="button">Deletion requests <span class="count">12</span></button>
+        <button id="exportTab" role="tab" aria-selected="false" aria-controls="exportPanel" type="button" tabindex="-1">Workspace exports <span class="count">7</span></button>
+      </div>
+      <section id="deletionPanel" role="tabpanel" aria-labelledby="deletionTab">
+        <div class="toolbar">
+          <select class="filter" id="deletionFilter" aria-label="Filter deletion requests"><option value="all">All requests</option><option value="pending">Pending</option><option value="retry">Retry scheduled</option><option value="completed">Completed</option></select>
+          <span class="toolbar-note">Worker retry details are read-only. Provider or customer data is not shown.</span>
+        </div>
+        <section class="panel" aria-labelledby="deletionHeading">
+          <div class="panel-head"><div><h2 id="deletionHeading">Account deletion queue</h2><p>Worker status reflects persisted queue state, attempt count and next retry time.</p></div><button class="button" type="button" id="refreshDeletion">Refresh</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Customer / request</th><th class="hide-sm">Workspace</th><th>Requested</th><th>Worker status</th><th>Attempts / next retry</th><th><span class="sr-only">Details</span></th></tr></thead><tbody id="deletionRows"></tbody></table></div>
+        </section>
+        <p class="fine">Pending means the worker has not committed the purge. A retry status reports only the generic retry marker; the page does not imply a finer processing stage than the worker records.</p>
+      </section>
+      <section id="exportPanel" role="tabpanel" aria-labelledby="exportTab" hidden>
+        <div class="toolbar"><select class="filter" id="exportFilter" aria-label="Filter workspace exports"><option>All exports</option><option>Queued</option><option>Generating</option><option>Ready</option><option>Expired</option></select><span class="toolbar-note">Only verified Owners receive the secure download notice.</span></div>
+        <section class="panel" aria-labelledby="exportHeading">
+          <div class="panel-head"><div><h2 id="exportHeading">Workspace export requests</h2><p>Staff-triggered exports contain CSV datasets and file metadata, not uploaded file contents.</p></div></div>
+          <div class="table-wrap"><table><thead><tr><th>Workspace / request</th><th>Owner</th><th class="hide-sm">Requested by</th><th>Status</th><th>Owner notice</th><th>Expires</th><th><span class="sr-only">Details</span></th></tr></thead><tbody id="exportRows"></tbody></table></div>
+        </section>
+        <p class="fine">The Owner must sign in with the verified account associated with the email. The link is not a bearer credential; the server-managed encrypted artifact is deleted seven days after generation.</p>
+      </section>
+    </main>
+  </div>
+</div>
+<div class="drawer-backdrop" id="drawerBackdrop" hidden>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle"><div class="drawer-head"><div><p class="eyebrow" id="drawerEyebrow">Request details</p><h2 id="drawerTitle">Deletion request</h2><p id="drawerSubtitle"></p></div><button class="close" type="button" id="closeDrawer" aria-label="Close details">×</button></div><div id="drawerBody"></div></aside>
+</div>
+<div class="modal-backdrop" id="exportModal" hidden>
+  <section class="modal" role="alertdialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalDesc">
+    <div class="drawer-head"><div><p class="eyebrow">Workspace export</p><h2 id="modalTitle">Request a secure data export</h2></div><button class="close" type="button" id="closeModal" aria-label="Close export request">×</button></div>
+    <div id="requestStep">
+      <p id="modalDesc">The worker will prepare one encrypted ZIP for the workspace Owner. Starting an export is audited and requires a reason and fresh step-up verification.</p>
+      <div class="field"><label for="workspaceInput">Workspace ID or name</label><input id="workspaceInput" value="ws_8f27… · Harbor Home Services" readonly><small>Owner: Maya Chen · verified email: m••••@northstar.example</small></div>
+      <div class="subpanel"><h3>Included datasets</h3><p>Leads · Customers · Estimates · Jobs · Work orders · Materials · File metadata</p><p class="fine">Uploaded file contents are excluded.</p></div>
+      <div class="field"><label for="reasonInput">Audit reason</label><textarea id="reasonInput" maxlength="500" placeholder="Why is this export needed? (10–500 characters)"></textarea><small>Required. The reason is retained in the admin audit log, not inside the archive.</small></div>
+      <div class="note">After fresh step-up verification, the request enters the worker queue. The verified Owner must sign in to download within 7 days.</div>
+    </div>
+    <div id="verificationStep" hidden>
+      <p>Verify with your staff password and one enrolled second factor. This is a prototype; no credentials are checked.</p>
+      <div class="field"><label for="staffPassword">Staff password</label><input id="staffPassword" type="password" autocomplete="current-password"></div>
+      <div class="field"><label for="factorSelect">Second factor</label><select class="filter" id="factorSelect"><option value="totp">Authenticator code</option><option value="passkey">Passkey</option></select></div>
+      <div class="field" id="totpGroup"><label for="totpCode">6-digit authenticator code</label><input id="totpCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456"></div>
+      <div class="field" id="passkeyGroup" hidden><button class="button" type="button" id="mockPasskey">Verify passkey (prototype)</button></div>
+    </div>
+    <div id="confirmationStep" hidden>
+      <p>Review the request before it is added to the worker queue.</p>
+      <dl class="detail-list"><dt>Workspace</dt><dd>Harbor Home Services · <span class="mono">ws_8f27…</span></dd><dt>Verified Owner</dt><dd>Maya Chen · m••••@northstar.example</dd><dt>Contents</dt><dd>6 CSV datasets and file metadata only</dd><dt>Artifact expiry</dt><dd>7 days after generation</dd><dt>Audit reason</dt><dd id="confirmationReason"></dd></dl>
+      <div class="note">The worker creates the encrypted archive. The Owner must authenticate to download; no uploaded file contents are included.</div>
+    </div>
+    <p class="error" id="modalError" role="alert" hidden></p>
+    <p class="success" id="exportSuccess" role="status" hidden>Prototype only: the export request would be queued and the Owner notified when ready. No real request or email was sent.</p>
+    <div class="modal-actions"><button class="button" type="button" id="cancelExport">Cancel</button><button class="button primary" type="button" id="confirmExport">Continue to verification</button></div>
+  </section>
+</div>
+<aside class="prototype-controls" aria-label="Prototype review controls">
+  <div class="controls-head"><strong>Prototype states</strong><button id="toggleControls" type="button" aria-expanded="true">Hide</button></div>
+  <div id="controlBody"><div class="control-row"><button type="button" data-role="super" class="active">Super Admin</button><button type="button" data-role="support">Support</button><button type="button" data-role="billing">Billing</button></div><div class="control-row"><button type="button" data-state="populated" class="active">Populated</button><button type="button" data-state="empty">Empty</button><button type="button" data-state="retry">Retry error</button></div></div>
+</aside>
+<script>
+const $=id=>document.getElementById(id);
+let role='super', state='populated';
+const deletions=[
+  {id:'del_7c19a2',name:'Taylor Morgan',email:'t••••@northstar.example',workspace:'Harbor Home Services',workspaceId:'ws_8f27…',requested:'Nov 1, 2026 · 09:14',status:'Retry scheduled',attempts:'2 attempts',retry:'Due in 42 sec',lastError:'retry_required',completed:'—'},
+  {id:'del_31ab08',name:'Riley Chen',email:'r••••@cedar.example',workspace:'Personal account',workspaceId:'—',requested:'Nov 1, 2026 · 08:02',status:'Pending',attempts:'0 attempts',retry:'Next worker pass',lastError:'—',completed:'—'},
+  {id:'del_208df1',name:'Avery Patel',email:'a••••@lake.example',workspace:'Northstar Heating',workspaceId:'ws_42cc…',requested:'Oct 30, 2026 · 16:40',status:'Completed',attempts:'0 attempts',retry:'—',lastError:'—',completed:'Oct 30, 2026 · 16:45'},
+];
+const exports=[
+  {id:'exp_9a20f1',workspace:'Northstar Heating',workspaceId:'ws_42cc…',owner:'Morgan Bell',email:'m••••@lake.example',requestedBy:'Alex Rivera · Support',status:'Ready for Owner',notice:'Sent',expires:'Nov 8, 2026',files:'6 CSVs · 23 file metadata rows',downloaded:'Not downloaded'},
+  {id:'exp_86bd11',workspace:'Harbor Home Services',workspaceId:'ws_8f27…',owner:'Maya Chen',email:'m••••@northstar.example',requestedBy:'Lukasz K. · Super Admin',status:'Generating',notice:'Pending',expires:'—',files:'Worker is preparing the archive',downloaded:'—'},
+  {id:'exp_011c3e',workspace:'Cedar Home Repair',workspaceId:'ws_a1ef…',owner:'Riley Chen',email:'r••••@cedar.example',requestedBy:'Lukasz K. · Super Admin',status:'Expired',notice:'Sent',expires:'Oct 31, 2026',files:'6 CSVs · 4 file metadata rows',downloaded:'Downloaded Oct 29'},
+];
+function chip(value){const type=value.includes('Retry')||value==='Expired'?'amber':value==='Completed'?'green':value==='Ready for Owner'?'blue':'blue';return `<span class="chip ${type}">${value}</span>`}
+function renderDeletion(){
+  const filter=$('deletionFilter').value;
+  const rows=state==='empty'?[]:deletions.filter(item=>filter==='all'||(filter==='pending'&&item.status==='Pending')||(filter==='retry'&&item.status==='Retry scheduled')||(filter==='completed'&&item.status==='Completed'));
+  $('deletionRows').innerHTML=rows.length?rows.map(item=>`<tr data-deletion="${item.id}"><td><strong>${item.name}</strong><small>${item.email} · <span class="mono">${item.id}</span></small></td><td class="hide-sm">${item.workspace}</td><td>${item.requested}</td><td>${chip(item.status)}</td><td><strong>${item.attempts}</strong><small>${item.retry}</small></td><td><button class="row-action" type="button" data-deletion="${item.id}">Details</button></td></tr>`).join(''):'<tr><td colspan="6"><div class="empty">No deletion requests match this view.</div></td></tr>';
+}
+function renderExports(){
+  const rows=state==='empty'?[]:exports;
+  $('exportRows').innerHTML=rows.length?rows.map(item=>`<tr data-export="${item.id}"><td><strong>${item.workspace}</strong><small><span class="mono">${item.id}</span></small></td><td><strong>${item.owner}</strong><small>${item.email}</small></td><td class="hide-sm">${item.requestedBy}</td><td>${chip(item.status)}</td><td>${chip(item.notice)}</td><td>${item.expires}</td><td><button class="row-action" type="button" data-export="${item.id}">Details</button></td></tr>`).join(''):'<tr><td colspan="7"><div class="empty">No workspace exports yet. Request one for a verified workspace Owner.</div></td></tr>';
+}
+function openDeletion(id){const item=deletions.find(row=>row.id===id);if(!item)return;$('drawerEyebrow').textContent='Deletion request';$('drawerTitle').textContent=item.name;$('drawerSubtitle').textContent=`${item.email} · ${item.id}`;$('drawerBody').innerHTML=`<dl class="detail-list"><dt>Workspace</dt><dd>${item.workspace} <span class="mono">${item.workspaceId}</span></dd><dt>Requested</dt><dd>${item.requested}</dd><dt>Worker state</dt><dd>${chip(item.status)}</dd><dt>Attempts</dt><dd>${item.attempts}</dd><dt>Next retry</dt><dd>${item.retry}</dd><dt>Last worker result</dt><dd>${item.lastError}</dd><dt>Completed</dt><dd>${item.completed}</dd></dl><div class="subpanel"><h3>Deletion policy</h3><p>Access was revoked when the customer submitted the request. The worker performs the irreversible purge. Admin cancellation, expedite and confirmation are not available while grace rules are undefined.</p></div><div class="note">No customer record, provider message, or full email is exposed in worker errors.</div>`;$('drawerBackdrop').hidden=false;$('closeDrawer').focus()}
+function openExport(id){const item=exports.find(row=>row.id===id);if(!item)return;$('drawerEyebrow').textContent='Workspace export';$('drawerTitle').textContent=item.workspace;$('drawerSubtitle').textContent=`${item.workspaceId} · ${item.id}`;$('drawerBody').innerHTML=`<dl class="detail-list"><dt>Verified Owner</dt><dd>${item.owner} · ${item.email}</dd><dt>Requested by</dt><dd>${item.requestedBy}</dd><dt>Status</dt><dd>${chip(item.status)}</dd><dt>Owner notice</dt><dd>${chip(item.notice)}</dd><dt>Archive contents</dt><dd>${item.files}</dd><dt>Artifact expires</dt><dd>${item.expires}</dd><dt>Download state</dt><dd>${item.downloaded}</dd></dl><div class="subpanel"><h3>Security and audit</h3><p>Archive encrypted at rest. The email link is not a bearer credential; download requires sign-in as the current verified Owner. Request, generation, notification, download and expiry events are audited.</p></div><div class="note">Uploaded file contents are never included. The artifact is deleted seven days after generation.</div>`;$('drawerBackdrop').hidden=false;$('closeDrawer').focus()}
+function setRole(next){role=next;document.querySelectorAll('[data-role]').forEach(button=>button.classList.toggle('active',button.dataset.role===role));$('staffRole').textContent=role==='super'?'Super Admin':role==='support'?'Support':'Billing';$('staffName').textContent=role==='super'?'Lukasz K.':role==='support'?'Alex Rivera':'Jordan Lee';$('avatar').textContent=role==='super'?'LK':role==='support'?'AR':'JL';const denied=role==='billing';$('newExport').hidden=denied;$('deletionPanel').setAttribute('aria-disabled',String(denied));$('exportPanel').setAttribute('aria-disabled',String(denied));if(denied){$('deletionRows').innerHTML='<tr><td colspan="6"><div class="empty">Billing staff do not have access to data requests.</div></td></tr>';$('exportRows').innerHTML='<tr><td colspan="7"><div class="empty">Billing staff do not have access to data requests.</div></td></tr>'}else{renderDeletion();renderExports()}}
+function setState(next){state=next;document.querySelectorAll('[data-state]').forEach(button=>button.classList.toggle('active',button.dataset.state===state));renderDeletion();renderExports()}
+$('deletionTab').addEventListener('click',()=>{$('deletionTab').setAttribute('aria-selected','true');$('exportTab').setAttribute('aria-selected','false');$('deletionTab').removeAttribute('tabindex');$('exportTab').tabIndex=-1;$('deletionPanel').hidden=false;$('exportPanel').hidden=true});
+$('exportTab').addEventListener('click',()=>{$('exportTab').setAttribute('aria-selected','true');$('deletionTab').setAttribute('aria-selected','false');$('exportTab').removeAttribute('tabindex');$('deletionTab').tabIndex=-1;$('deletionPanel').hidden=true;$('exportPanel').hidden=false});
+$('deletionFilter').addEventListener('change',renderDeletion);$('refreshDeletion').addEventListener('click',()=>{$('refreshDeletion').textContent='Refreshing…';setTimeout(()=>{$('refreshDeletion').textContent='Refresh'},500)});
+$('deletionRows').addEventListener('click',event=>{const target=event.target.closest('[data-deletion]');if(target)openDeletion(target.dataset.deletion)});
+$('exportRows').addEventListener('click',event=>{const target=event.target.closest('[data-export]');if(target)openExport(target.dataset.export)});
+$('closeDrawer').addEventListener('click',()=>$('drawerBackdrop').hidden=true);$('drawerBackdrop').addEventListener('click',event=>{if(event.target===$('drawerBackdrop'))$('drawerBackdrop').hidden=true});
+let exportStage='request';let passkeyVerified=false;
+function setExportStage(next){exportStage=next;$('requestStep').hidden=next!=='request';$('verificationStep').hidden=next!=='verification';$('confirmationStep').hidden=next!=='confirmation';$('modalError').hidden=true;$('exportSuccess').hidden=true;$('modalTitle').textContent=next==='request'?'Request workspace export':next==='verification'?'Verify this export request':'Confirm export request';$('confirmExport').textContent=next==='request'?'Continue to verification':next==='verification'?'Verify and review':next==='confirmation'?'Confirm export request':'Done'}
+function closeExport(){ $('exportModal').hidden=true;$('reasonInput').value='';$('staffPassword').value='';$('totpCode').value='';$('factorSelect').value='totp';$('totpGroup').hidden=false;$('passkeyGroup').hidden=true;$('mockPasskey').textContent='Verify passkey (prototype)';passkeyVerified=false;setExportStage('request');$('confirmExport').disabled=false;$('newExport').focus() }
+$('newExport').addEventListener('click',()=>{if(role==='billing')return;$('exportModal').hidden=false;$('reasonInput').focus()});$('closeModal').addEventListener('click',closeExport);$('cancelExport').addEventListener('click',closeExport);
+$('factorSelect').addEventListener('change',()=>{const usePasskey=$('factorSelect').value==='passkey';$('totpGroup').hidden=usePasskey;$('passkeyGroup').hidden=!usePasskey;passkeyVerified=false;$('mockPasskey').textContent='Verify passkey (prototype)'});
+$('mockPasskey').addEventListener('click',()=>{passkeyVerified=true;$('mockPasskey').textContent='Passkey verified (prototype)'});
+$('confirmExport').addEventListener('click',()=>{if(exportStage==='request'){const length=$('reasonInput').value.trim().length;if(length<10||length>500){$('modalError').textContent='Enter a reason between 10 and 500 characters.';$('modalError').hidden=false;$('reasonInput').focus();return}setExportStage('verification');$('staffPassword').focus();return}if(exportStage==='verification'){if(!$('staffPassword').value){$('modalError').textContent='Enter your staff password to continue.';$('modalError').hidden=false;$('staffPassword').focus();return}const validFactor=$('factorSelect').value==='passkey'?passkeyVerified:/^\d{6}$/.test($('totpCode').value);if(!validFactor){$('modalError').textContent=$('factorSelect').value==='passkey'?'Complete the passkey step to continue.':'Enter a 6-digit authenticator code.';$('modalError').hidden=false;if($('factorSelect').value==='totp')$('totpCode').focus();return}$('confirmationReason').textContent=$('reasonInput').value.trim();setExportStage('confirmation');return}if(exportStage==='confirmation'){$('exportSuccess').hidden=false;$('confirmExport').textContent='Done';exportStage='complete';return}closeExport()});
+$('roleSelect').addEventListener('change',event=>setRole(event.target.value));document.querySelectorAll('[data-role]').forEach(button=>button.addEventListener('click',()=>{$('roleSelect').value=button.dataset.role;setRole(button.dataset.role)}));document.querySelectorAll('[data-state]').forEach(button=>button.addEventListener('click',()=>setState(button.dataset.state)));
+$('toggleControls').addEventListener('click',()=>{const body=$('controlBody');body.hidden=!body.hidden;$('toggleControls').textContent=body.hidden?'Show':'Hide';$('toggleControls').setAttribute('aria-expanded',String(!body.hidden))});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(!$('exportModal').hidden)closeExport();else $('drawerBackdrop').hidden=true}});
+renderDeletion();renderExports();
+</script>
+</body>
+</html>

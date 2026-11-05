@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../server/http/suspension';
 import { NextResponse } from 'next/server';
 import { workOrderIdSchema } from '@salesmora/contracts';
 import { AuthorizationAccessError, JobNotificationSettingsConflict, JobNotificationSettingsInvalid, readJobNotificationSettings, saveJobNotificationSettings } from '@salesmora/data';
@@ -23,6 +24,7 @@ async function handle(request: Request, write: boolean) {
     const identity = { userId: session.user.id, workspaceId: parsed.data };
     return NextResponse.json(write ? await saveJobNotificationSettings(database(), identity, enabledPermissions, body) : await readJobNotificationSettings(database(), identity, enabledPermissions), { headers });
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     const status = error instanceof AuthorizationAccessError ? 404 : error instanceof JobNotificationSettingsConflict ? 409 : error instanceof JobNotificationSettingsInvalid ? 422 : 500;
     return NextResponse.json({ error: status === 404 ? 'These settings are unavailable.' : status === 409 ? 'Settings changed. Reload before saving.' : status === 422 ? 'Check the settings and current plan before saving.' : 'Settings could not be loaded or saved.', ...(status === 409 ? { code: 'conflict' } : {}) }, { status, headers });
   }

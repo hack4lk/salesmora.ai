@@ -1,3 +1,4 @@
+import { captureQuery, capturePropose } from './lead-capture';
 import { calendarQuery,calendarPropose } from './calendar';
 import { customersQuery, customersPropose } from "../customers";
 import "server-only";
@@ -14,6 +15,8 @@ import type { ChatToolContext, ChatToolHandler } from "./types";
 
 /** Keep this explicit and exhaustive: a definition requires a server handler to execute. */
 const handlers = {
+  lead_capture_query: captureQuery,
+  lead_capture_propose_action: capturePropose,
   calendar_query: calendarQuery,
   calendar_propose_action: calendarPropose,
   customers_query: customersQuery,

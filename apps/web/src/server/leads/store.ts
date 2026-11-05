@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { Knex } from '@salesmora/data';
 import type { AuthorizationContext, LeadInput } from '@salesmora/contracts';
 import { authorize } from '@salesmora/domain';
-import { assignLead, assertLeadCapacity, authorizedLeadPipelineCounts } from '@salesmora/data';
+import { assignLead, insertAdmittedLead, authorizedLeadPipelineCounts } from '@salesmora/data';
 import { authorizedWorkspace, enabledPermissions } from '../authorization/permissions';
 import { database } from '../workspaces/store';
 export class LeadAccessError extends Error {}
@@ -28,11 +28,10 @@ export async function createLeadInTransaction(trx: Knex.Transaction, context: Au
     return { id: existing.id as string, created: false };
   }
   if (input.ownerId && !await trx('workspaceMemberships as m').join('users as u','u.id','m.userId').where({ 'm.workspaceId': workspaceId, 'm.userId': input.ownerId }).whereNull('u.deletionRequestedAt').first('u.id')) throw new LeadOwnerError();
-  const createdAt=await assertLeadCapacity(trx,workspaceId);
-  const inserted = await trx('leads').insert({ ...input, ownerId: null, ...key, submissionHash, createdAt, id: randomUUID() }).onConflict(['workspaceId', 'createdBy', 'submissionId']).ignore().returning('id');
-  if (inserted.length) {
-    if (input.ownerId) await assignLead(trx, {userId,workspaceId}, context.enabledPermissions, {workspaceId,leadId:inserted[0].id,ownerId:input.ownerId,expectedVersion:1,submissionId:randomUUID()});
-    return { id: inserted[0].id as string, created: true };
+  const inserted = await insertAdmittedLead(trx, input, { ...key, submissionHash });
+  if (inserted) {
+    if (input.ownerId) await assignLead(trx, {userId,workspaceId}, context.enabledPermissions, {workspaceId,leadId:inserted,ownerId:input.ownerId,expectedVersion:1,submissionId:randomUUID()});
+    return { id: inserted, created: true };
   }
   const saved = await trx('leads').where(key).first();
   if (saved.submissionHash !== submissionHash) throw new LeadConflictError();

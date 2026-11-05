@@ -1,4 +1,5 @@
 import 'server-only';
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../../../../server/http/suspension';
 import { NextResponse } from 'next/server';
 import {
   createStorageAdapter,
@@ -102,6 +103,7 @@ export async function GET(
       },
     });
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) {
       return NextResponse.json(
         { error: 'You do not have permission to access this file.' },

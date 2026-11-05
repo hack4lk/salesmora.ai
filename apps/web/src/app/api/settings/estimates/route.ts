@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../server/http/suspension';
 import { NextResponse } from "next/server";
 import {
   estimateIdSchema,
@@ -39,6 +40,7 @@ export async function GET(request: Request) {
     );
     return NextResponse.json(result, { headers });
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) {
       return NextResponse.json({ error: "These settings are unavailable." }, { status: 404, headers });
     }
@@ -86,6 +88,7 @@ export async function PUT(request: Request) {
     );
     return NextResponse.json({ record }, { headers });
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) {
       return NextResponse.json({ error: "These settings are unavailable." }, { status: 404, headers });
     }

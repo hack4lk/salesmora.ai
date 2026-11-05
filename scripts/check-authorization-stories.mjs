@@ -22,7 +22,7 @@ try {
     await expect(page.getByRole('button', { name: 'Create campaign' })).toHaveCount(0);
     await page.goto('http://127.0.0.1:6006/iframe.html?id=workspace-workspacenavigation--denied-capabilities&viewMode=story');
     await expect(page.getByRole('link', { name: 'Home', exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Campaigns', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Lead Capture', exact: true })).toHaveCount(0);
     await expect(page.getByRole('navigation', { name: 'Management navigation' })).toHaveCount(0);
     await page.goto('http://127.0.0.1:6006/iframe.html?id=workspace-workspacenavigation--workspace-settings&viewMode=story');
     await expect(page.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings?workspace=fictional-workspace');

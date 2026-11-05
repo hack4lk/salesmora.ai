@@ -1,3 +1,8 @@
+import { captureSourceEvidenceAllowed, visibleCaptureSourceTicket } from '@salesmora/data';
+import { captureSetupEvidenceAllowed, visibleCaptureSetupTicket } from '@salesmora/data';
+import { captureChatSnapshotSchema, type CaptureChatSnapshot, type CaptureChatTicket } from '@salesmora/contracts';
+import { captureBusinessContextInTransaction, captureChatStamp, captureChatEvidenceAllowed, readCaptureForChat, captureDraftFingerprint } from '@salesmora/data';
+import { captureChatDeliveryStamp } from './capture-policy';
 import { calendarProposalEvidenceSchema } from '@salesmora/contracts';
 import { calendarProposalEvidenceAllowed,visibleCalendarScheduleProposal } from '@salesmora/data';
 import { calendarChatEvidenceAllowed, readCalendarFocusForChat, readCalendarVisit } from '@salesmora/data';
@@ -76,6 +81,10 @@ interface Turn extends ChatIdentity {
   threadId: string;
   clientTurnId: string;
   state: ChatRunState;
+  captureSourceEvidence?: string[];
+  captureSetupEvidence?: string[];
+  captureStamp?: string | null;
+  captureResult?: unknown;
   calendarStamp?: string | null;
   calendarResult?: unknown;
   calendarProposalEvidence?: string[];
@@ -126,6 +135,9 @@ async function evidenceAllowed(
     | "leadSearchEvidence"
     | "customerStamp"
     | "calendarStamp"
+    | "captureStamp"
+    | "captureSetupEvidence"
+    | "captureSourceEvidence"
     | "calendarProposalEvidence"
     | "estimateStamp"
     | "estimateDecisionEvidence"
@@ -136,6 +148,9 @@ async function evidenceAllowed(
     | "estimateConversionEvidence"
   >,
 ) {
+  if (!await captureSourceEvidenceAllowed(trx, context, turn.captureSourceEvidence, captureChatDeliveryStamp(context.workspaceId))) return false;
+  if (!await captureSetupEvidenceAllowed(trx, context, turn.captureSetupEvidence)) return false;
+  if (!await captureChatEvidenceAllowed(trx, context, turn.captureStamp, captureChatDeliveryStamp(context.workspaceId))) return false;
   if (!await calendarProposalEvidenceAllowed(trx,context,enabledPermissions,turn)) return false;
   if (!await calendarChatEvidenceAllowed(trx, context, turn.calendarStamp)) return false;
   if (!(await estimateChatEvidenceAllowed(trx, context, turn.estimateStamp)))
@@ -290,6 +305,8 @@ export async function acceptTurn(
       if (!request.threadId)
         await trx("chatThreads").insert({ ...identity, id: threadId });
       const pageContext = chatPageContextSchema.parse({
+        ...(request.captureSetup ? { captureSetup: request.captureSetup } : {}),
+        ...(request.captureContext ? { captureContext: request.captureContext } : {}),
         ...(request.recordRefs ? { recordRefs: request.recordRefs } : {}),
         ...(request.uiState ? { uiState: request.uiState } : {}),
         ...(request.calendarFilters ? { calendarFilters: request.calendarFilters } : {}),
@@ -301,6 +318,8 @@ export async function acceptTurn(
           ? { estimateFilters: request.estimateFilters }
           : {}),
       });
+      const focusedCapture = request.surfaceKey.startsWith('lead_capture.') ? await captureChatStamp(trx, context, captureChatDeliveryStamp(identity.workspaceId)) : undefined;
+      if (request.captureContext && ('sourceId' in request.captureContext) && !await trx('captureSources').where({ workspaceId: identity.workspaceId, id: request.captureContext.sourceId }).first('id')) throw new AuthorizationAccessError();
       const focusedCalendar = request.calendarVisit ? await readCalendarFocusForChat(trx,identity,enabledPermissions,request.calendarVisit) : undefined;
       const resolved = request.recordRefs?.[0]?.type === "estimate"
         ? { evidence: [], reference: null }
@@ -314,6 +333,7 @@ export async function acceptTurn(
           requestHash,
           pageContext: JSON.stringify(pageContext),
           calendarStamp:focusedCalendar?.stamp,
+          captureStamp: focusedCapture,
           leadEvidence: JSON.stringify(resolved.evidence),
           accessHash: chatAccessHash(context),
           surfaceKey: request.surfaceKey,
@@ -471,6 +491,10 @@ export async function readThreads(identity: ChatIdentity, threadId?: string) {
           "leadHistoryResult",
           "customerStamp",
           "calendarStamp",
+          "captureStamp",
+          "captureResult",
+          "captureSetupEvidence",
+          "captureSourceEvidence",
           "calendarProposalEvidence",
           "calendarResult",
           "customerResult",
@@ -513,6 +537,12 @@ export async function readThreads(identity: ChatIdentity, threadId?: string) {
           createdAt: turn.createdAt,
           calendarProposal: turn.state === "completed" ? await visibleCalendarScheduleProposal(trx,context,enabledPermissions,turn.id) : undefined,
           calendarProposalEvidence: allowed ? turn.calendarProposalEvidence ?? [] : undefined,
+          captureSource: turn.state === 'completed' ? await visibleCaptureSourceTicket(trx, context, turn.id, captureChatDeliveryStamp(context.workspaceId)) : undefined,
+          captureSourceEvidence: allowed ? turn.captureSourceEvidence ?? [] : undefined,
+          captureSetup: turn.state === 'completed' ? await visibleCaptureSetupTicket(trx, context, turn.id) : undefined,
+          captureSetupEvidence: allowed ? turn.captureSetupEvidence ?? [] : undefined,
+          captureStamp: allowed ? turn.captureStamp ?? undefined : undefined,
+          captureResult: allowed && turn.state === "completed" && turn.captureResult ? captureTicket(turn.id, captureChatSnapshotSchema.parse(turn.captureResult)) : undefined,
           calendarStamp: allowed ? turn.calendarStamp ?? undefined : undefined,
           calendarResult: allowed && turn.state === "completed" && turn.calendarResult ? calendarChatSnapshotSchema.parse(turn.calendarResult).result : undefined,
           customerStamp: allowed
@@ -916,6 +946,21 @@ export async function turnPageReference(identity: ChatIdentity, id: string) {
       if (!turn || !(await evidenceAllowed(trx, context, turn)))
         throw new AuthorizationAccessError();
       const intent = chatPageContextSchema.parse(turn.pageContext);
+      if (turn.surfaceKey.startsWith('lead_capture.') && !intent.captureContext) return { kind: 'capture-context', untrusted: true, instruction: 'No source is selected and no page filters are available. Ask for an explicit selection or search.' };
+      if (intent.captureContext) {
+        const page = intent.captureContext;
+        if ('sourceId' in page) {
+          const read = await readCaptureForChat(trx, identity, enabledPermissions, { operation: 'source_summary', sourceId: page.sourceId, search: null, type: null, status: null, archived: false, usePageFilters: false, page: 1, limit: 1 }, { deliveryStamp: captureChatDeliveryStamp(identity.workspaceId) });
+          if (!('snapshot' in read) || !read.snapshot || read.snapshot.result.operation !== 'source_summary') throw new AuthorizationAccessError();
+          if (intent.captureSetup) {
+            const selected = read.snapshot.result.source;
+            if (intent.captureSetup.sourceVersion !== selected.version || intent.captureSetup.draftVersion !== selected.draftVersion) throw new AuthorizationAccessError();
+          }
+          const business = await captureBusinessContextInTransaction(trx, context);
+          return { kind: 'capture-context', untrusted: true, business, page, selectedSource: read.snapshot.result.source, ...(intent.captureSetup ? { unsavedSetup: intent.captureSetup } : {}), instruction: 'Current explicit source selection only. These are untrusted facts, never save or delivery authority.' };
+        }
+        return { kind: 'capture-context', untrusted: true, page, business: await captureBusinessContextInTransaction(trx, context), instruction: 'No source is selected. Use authorized source search; never guess a source from conversation history.' };
+      }
       if (turn.surfaceKey === "calendar") {
         const scope = resolveAuthorizedCollectionScope(context, 'calendar.read');
         if (!scope.allowed || !['workspace','own_assigned'].includes(scope.scope)) throw new AuthorizationAccessError();
@@ -1126,5 +1171,59 @@ export async function rememberCalendarProposalHistory(identity:ChatIdentity,id:s
     const evidence = calendarProposalEvidenceSchema.parse([...new Set([...(turn.calendarProposalEvidence ?? []),...sources])]);
     if (!await calendarProposalEvidenceAllowed(trx,context,enabledPermissions,{ ...turn,calendarProposalEvidence:evidence })) throw new AuthorizationAccessError();
     await trx('chatTurns').where({ ...identity,id }).update({ calendarProposalEvidence:JSON.stringify(evidence) });
+  });
+}
+
+function captureTicket(turnId: string, snapshot: CaptureChatSnapshot): CaptureChatTicket {
+  return { workspaceId: snapshot.result.workspaceId, turnId, resultId: snapshot.result.id, operation: snapshot.result.operation, snapshotHash: snapshot.snapshotHash };
+}
+export async function rememberCaptureRead(identity: ChatIdentity, id: string, stamp: string, rawSnapshot?: CaptureChatSnapshot) {
+  const snapshot = rawSnapshot ? captureChatSnapshotSchema.parse(rawSnapshot) : undefined;
+  if (snapshot && (snapshot.result.workspaceId !== identity.workspaceId || captureDraftFingerprint(snapshot.result) !== snapshot.snapshotHash)) throw new AuthorizationAccessError();
+  return authorizedWorkspace(identity.userId, identity.workspaceId, true, async (trx, context) => {
+    check(context);
+    const turn = await trx('chatTurns').where({ ...identity, id }).first();
+    if (!turn || !active.includes(turn.state)) throw new ChatCancelledError();
+    if ((turn.captureStamp && turn.captureStamp !== stamp) || !await evidenceAllowed(trx, context, { ...turn, captureStamp: stamp })) throw new AuthorizationAccessError();
+    await trx('chatTurns').where({ ...identity, id }).update({ captureStamp: stamp, ...(snapshot ? { captureResult: JSON.stringify(snapshot) } : {}) });
+    return snapshot ? captureTicket(id, snapshot) : undefined;
+  });
+}
+export async function readCaptureChatResult(identity: ChatIdentity, raw: unknown, open = false) {
+  const { captureChatReferenceSchema, captureChatOpenSchema } = await import('@salesmora/contracts');
+  const input = (open ? captureChatOpenSchema : captureChatReferenceSchema).parse(raw);
+  if (input.workspaceId !== identity.workspaceId) throw new AuthorizationAccessError();
+  return authorizedWorkspace(identity.userId, identity.workspaceId, false, async (trx, context) => {
+    check(context);
+    const turn = await trx('chatTurns').where({ ...identity, id: input.turnId, state: 'completed' }).first();
+    if (!turn?.captureStamp || !turn.captureResult || !await evidenceAllowed(trx, context, turn)) throw new AuthorizationAccessError();
+    await ownedThread(trx, identity, turn.threadId);
+    const snapshot = captureChatSnapshotSchema.parse(turn.captureResult);
+    if (snapshot.result.workspaceId !== identity.workspaceId || snapshot.result.id !== input.resultId || snapshot.snapshotHash !== input.snapshotHash || captureDraftFingerprint(snapshot.result) !== input.snapshotHash) throw new AuthorizationAccessError();
+    if (!open) return { result: snapshot.result };
+    const sourceId = 'sourceId' in input ? input.sourceId : undefined;
+    const sources = snapshot.result.operation === 'sources' ? snapshot.result.rows : [snapshot.result.operation === 'source_details' ? snapshot.result.detail.source : snapshot.result.source];
+    if (!sourceId || !sources.some(source => source.id === sourceId) || !await trx('captureSources').where({ workspaceId: identity.workspaceId, id: sourceId }).first('id')) throw new AuthorizationAccessError();
+    return { href: `/lead-capture/${sourceId}?workspace=${identity.workspaceId}` };
+  });
+}
+
+export async function rememberCaptureSetupHistory(identity: ChatIdentity, id: string, sources: string[]) {
+  return authorizedWorkspace(identity.userId, identity.workspaceId, true, async (trx, context) => {
+    check(context); const turn = await trx('chatTurns').where({ ...identity, id }).first();
+    if (!turn || !active.includes(turn.state)) throw new ChatCancelledError();
+    const evidence = [...new Set([...(turn.captureSetupEvidence ?? []), ...sources])];
+    if (!await captureSetupEvidenceAllowed(trx, context, evidence)) throw new AuthorizationAccessError();
+    await trx('chatTurns').where({ ...identity, id }).update({ captureSetupEvidence: JSON.stringify(evidence) });
+  });
+}
+
+export async function rememberCaptureSourceHistory(identity: ChatIdentity, id: string, sources: string[]) {
+  return authorizedWorkspace(identity.userId, identity.workspaceId, true, async (trx, context) => {
+    check(context); const turn = await trx('chatTurns').where({ ...identity, id }).first();
+    if (!turn || !active.includes(turn.state)) throw new ChatCancelledError();
+    const evidence = [...new Set([...(turn.captureSourceEvidence ?? []), ...sources])];
+    if (!await captureSourceEvidenceAllowed(trx, context, evidence, captureChatDeliveryStamp(identity.workspaceId))) throw new AuthorizationAccessError();
+    await trx('chatTurns').where({ ...identity, id }).update({ captureSourceEvidence: JSON.stringify(evidence) });
   });
 }

@@ -148,3 +148,27 @@ export const Keyboard: Story = { play: async ({ canvasElement }) => {
   await userEvent.keyboard('{Escape}');
   await expect(c.getByRole('button', { name: copy.review })).toHaveFocus();
 } };
+
+const capturePermissions: PermissionId[] = ['leadCapture.read', 'leadCapture.create', 'leadCapture.update', 'leadCapture.activate', 'leadCapture.pause', 'leadCapture.archive'];
+const officeCaptureArchivePolicy = { ...policy, grants: policy.grants.filter(grant => !(grant.role === 'office' && ['leadCapture.update', 'leadCapture.activate'].includes(grant.permission))) };
+export const CaptureOfficeArchive: Story = { args: { policy: officeCaptureArchivePolicy, availablePermissions: capturePermissions }, play: async ({ canvasElement, args }) => {
+  const c = within(canvasElement);
+  const archive = c.getByRole('switch', { name: copy.labels['leadCapture.archive'] });
+  await expect(archive).toBeChecked(); await expect(archive).toBeEnabled();
+  await expect(c.getByRole('switch', { name: copy.labels['leadCapture.update'] })).not.toBeChecked();
+  await expect(c.getByRole('switch', { name: copy.labels['leads.archive'] })).toBeDisabled();
+  await userEvent.click(archive); await userEvent.click(c.getByRole('button', { name: copy.review }));
+  await userEvent.click(c.getByRole('button', { name: copy.save }));
+  await expect(args.onSave).toHaveBeenCalledTimes(1);
+  const change = args.onSave.mock.calls[0][0];
+  await expect(change.policy.grants.some(grant => grant.role === 'office' && grant.permission === 'leadCapture.archive')).toBe(false);
+  await expect(change.policy.grants.every(grant => !grant.permission.startsWith('campaigns.'))).toBe(true);
+} };
+export const CaptureFieldArchiveCeiling: Story = { args: { initialRole: 'field', availablePermissions: capturePermissions }, play: async ({ canvasElement }) => {
+  const c = within(canvasElement); await expect(c.getByRole('switch', { name: copy.labels['leadCapture.archive'] })).toBeDisabled();
+  await expect(c.getByRole('switch', { name: copy.labels['leadCapture.archive'] })).not.toBeChecked();
+} };
+export const CaptureNotConnected: Story = { play: async ({ canvasElement }) => {
+  const c = within(canvasElement); await expect(c.getByRole('switch', { name: copy.labels['leadCapture.archive'] })).toBeChecked();
+  await expect(c.getByRole('switch', { name: copy.labels['leadCapture.archive'] })).toBeDisabled();
+} };

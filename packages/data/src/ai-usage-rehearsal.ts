@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createDatabase } from './database';
-import { createAIUsageRecorder, configureWorkspaceAIBudget, workspaceAIAllowance } from './ai-usage';
+import {
+  createAIUsageRecorder,
+  configureWorkspaceAIBudget,
+  configureWorkspaceAIBudgetInTransaction,
+  defaultMonthlyAITokens,
+  workspaceAIAllowance,
+} from './ai-usage';
 import { AIBudgetExceededError } from '@salesmora/contracts';
 process.loadEnvFile(fileURLToPath(new URL('../../../.env.local', import.meta.url)));
 const target = process.env.TEST_DATABASE_URL;
@@ -11,6 +17,40 @@ if (process.env.NODE_ENV === 'production' || !target || !['localhost', '127.0.0.
 const db = createDatabase(target);
 const trx = await db.transaction();
 try {
+  const settingActor = randomUUID();
+  const settingWorkspace = randomUUID();
+  const settingVersion = Number((await trx.withSchema('admin').table('systemSettingVersions')
+    .max<{ version: number | string | null }[]>({ version: 'version' }).where({ key: 'default_monthly_ai_tokens' }))[0]?.version ?? 0);
+  await trx.withSchema('admin').table('staffUsers').insert({
+    id: settingActor,
+    name: 'AI budget defaults rehearsal',
+    email: `ai-budget-default-${settingActor}@example.test`,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+  await trx.withSchema('admin').table('systemSettingVersions').insert({
+    id: randomUUID(),
+    key: 'default_monthly_ai_tokens',
+    version: settingVersion + 1,
+    value: { monthlyTokens: 1234 },
+    reason: 'Temporary allowance for isolated test',
+    createdBy: settingActor,
+  });
+  assert.equal((await workspaceAIAllowance(trx, settingWorkspace)).monthlyTokens, 1234);
+  await configureWorkspaceAIBudgetInTransaction(trx, settingWorkspace, 4321);
+  assert.equal((await workspaceAIAllowance(trx, settingWorkspace)).monthlyTokens, 4321,
+    'An explicit workspace budget continues to take precedence over the platform default.');
+  await trx.withSchema('admin').table('systemSettingVersions').insert({
+    id: randomUUID(),
+    key: 'default_monthly_ai_tokens',
+    version: settingVersion + 2,
+    value: { monthlyTokens: null },
+    reason: 'Reset to environment default for isolated test',
+    createdBy: settingActor,
+  });
+  assert.equal((await workspaceAIAllowance(trx, randomUUID())).monthlyTokens, defaultMonthlyAITokens(),
+    'A versioned reset falls back to the environment default.');
+
   const identity = { workspaceId: randomUUID(), userId: 'fictional-usage-user', turnId: randomUUID() };
   const recorder = createAIUsageRecorder(trx, identity);
   const finish = await recorder.start('fictional-model', 'answer', 100);

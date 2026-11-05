@@ -19,7 +19,7 @@ import {
 } from "../authorization/permissions";
 import { WorkspaceShell } from "../../features/workspace/workspace-shell/workspace-shell";
 import { CustomersRoute } from "../../features/customers/customers-page/customers-route";
-import { chatRuntimeAvailable } from "../chat/config";
+import { workspaceChatAvailable } from "../chat/config";
 async function signOut() {
   "use server";
   await auth.api.signOut({ headers: await headers() });
@@ -77,7 +77,7 @@ export async function renderCustomersPage(
         jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt}
         billingAvailable={capabilities.billing}
         assistantAvailable={capabilities.assistant}
-        chatEnabled={chatRuntimeAvailable()}
+        chatEnabled={await workspaceChatAvailable(workspace.id)}
         contentWidth="full"
         onSignOut={signOut}
       >

@@ -2,7 +2,7 @@ import { jobNotificationQuery, readJobNotifications } from './jobs';
 import { deadlineNotificationQuery, readDeadlineNotifications } from './deadlines';
 import { visitNotificationQuery, projectVisitNotification, canReadVisitNotifications } from './visits';
 import type { Knex } from 'knex';
-import { estimateNotificationEventSchema, estimateStatusSchema, notificationPreferencesSchema, notificationQuerySchema, markNotificationReadSchema, type NotificationPreferences, type NotificationRecord, type NotificationResult, type AuthorizationContext, type PermissionId } from '@salesmora/contracts';
+import { captureNoticeReasonSchema, estimateNotificationEventSchema, estimateStatusSchema, notificationPreferencesSchema, notificationQuerySchema, markNotificationReadSchema, type NotificationPreferences, type NotificationRecord, type NotificationResult, type AuthorizationContext, type PermissionId } from '@salesmora/contracts';
 import { resolveAuthorizedCollectionScope } from '@salesmora/domain';
 import { scoped, formatWorkOrderNumber } from '../work-orders/store';
 import { materialAccess } from '../materials/store';
@@ -53,11 +53,21 @@ function materialNotificationQuery(trx: Knex.Transaction, context: Authorization
 // Proposal alerts are for approvers only; a proposer's decision notices need just read access.
 const hiddenMaterialEvents = (context: AuthorizationContext) => materialAccess(context).manage ? [] : ['proposed'];
 const canReadMaterialNotifications = (context: AuthorizationContext) => materialAccess(context).read;
+function captureNoticeQuery(trx: Knex.Transaction, context: AuthorizationContext) {
+  return trx('captureAdminNotices as n').join('captureSources as s', function () { this.on('s.id','n.sourceId').andOn('s.workspaceId','n.workspaceId'); }).where({ 'n.workspaceId': context.workspaceId, 'n.userId': context.userId });
+}
+const canReadCaptureNotices = (context: AuthorizationContext) => ['owner','admin'].includes(context.membership.role) && resolveAuthorizedCollectionScope(context, 'leadCapture.read').allowed;
 export async function readNotifications(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], page = 1): Promise<NotificationResult> {
   notificationQuerySchema.parse({ workspaceId: identity.workspaceId, page });
   return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
     const take = page * 20 + 1, items: NotificationRecord[] = [];
     let unread = 0;
+    if (canReadCaptureNotices(context)) {
+      const query = captureNoticeQuery(trx, context);
+      unread += Number((await query.clone().whereNull('n.readAt').count({ count: 'n.id' }).first())?.count ?? 0);
+      const rows = await query.select('n.id','n.sourceId','s.name as sourceName','n.reason','n.createdAt','n.readAt').orderBy('n.createdAt','desc').orderBy('n.id','desc').limit(take);
+      items.push(...rows.map(row => ({ kind: 'capture' as const, id: row.id, sourceId: row.sourceId, sourceName: row.sourceName, reason: captureNoticeReasonSchema.parse(row.reason), createdAt: row.createdAt.toISOString(), read: !!row.readAt })));
+    }
     const leadScope = resolveAuthorizedCollectionScope(context,'leads.read');
     if (leadScope.allowed && leadScope.resourceKind === 'lead' && ['workspace','assigned'].includes(leadScope.scope)) {
       const query = currentAssignmentQuery(trx, identity);
@@ -122,6 +132,9 @@ export async function readNotifications(db: Knex, identity: WorkspaceIdentity, e
 export async function markNotificationRead(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], id: string) {
   markNotificationReadSchema.parse({ workspaceId: identity.workspaceId, id });
   return withWorkspaceAuthorization(db, identity, enabled, true, async (trx, context) => {
+    if (canReadCaptureNotices(context) && await captureNoticeQuery(trx, context).where('n.id',id).first('n.id')) {
+      await trx('captureAdminNotices').where({ workspaceId: identity.workspaceId, userId: identity.userId, id }).whereNull('readAt').update({ readAt: trx.fn.now() }); return;
+    }
     if (await jobNotificationQuery(trx, context).where('n.id', id).first('n.id')) {
       await trx('jobNotifications').where({ id, workspaceId: identity.workspaceId, userId: identity.userId }).whereNull('readAt').update({ readAt: trx.fn.now() });
       return;

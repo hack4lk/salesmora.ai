@@ -1,3 +1,5 @@
+import { enqueueCaptureAccessCheck } from '../lead-capture/capacity';
+import { workspaceEntitlements } from './entitlements';
 import {workspaceSeatUsage} from './entitlements';
 import { randomUUID } from 'node:crypto';
 import { billingCheckoutRequestSchema } from '@salesmora/contracts';
@@ -7,6 +9,7 @@ import { authorize } from '@salesmora/domain';
 import { getWorkspacePlan } from '@salesmora/domain';
 import { stripeSandbox, stripePlanPrice, type Stripe } from './stripe';
 import { lockWorkspaceBilling } from './checkout';
+import { initialRecoveryGraceUntil, maximumRecoveryGraceUntil } from './recovery-grace';
 const supported = new Set(['checkout.session.completed','checkout.session.async_payment_succeeded','checkout.session.expired','customer.subscription.created','customer.subscription.updated','customer.subscription.deleted','customer.subscription.pending_update_applied','customer.subscription.pending_update_expired','invoice.paid','invoice.payment_failed','invoice.payment_action_required']);
 export async function recordBillingEvent(db: Knex, event: Stripe.Event) {
   if (event.livemode || event.account) throw Error('Unexpected event scope.');
@@ -17,10 +20,29 @@ export async function recordBillingEvent(db: Knex, event: Stripe.Event) {
 }
 const objectId = (value: string | {id:string} | null | undefined) => typeof value === 'string' ? value : value?.id;
 
+/** Associate an event only after the processor resolves it through a local billing mapping. */
+export async function associateBillingEvent(db: Knex, eventId: string, workspaceId: string) {
+  const existing = await db('billingWebhookEvents').where({ id: eventId })
+    .first<{ workspaceId: string | null; processedAt: Date | null }>('workspaceId', 'processedAt');
+  if (!existing) throw Error('Billing webhook event not found.');
+  if (existing.workspaceId === workspaceId) return;
+  if (existing.workspaceId !== null || existing.processedAt) {
+    throw Error('Billing webhook event cannot be associated with this workspace.');
+  }
+
+  await db('billingWebhookEvents').where({ id: eventId }).whereNull('workspaceId').whereNull('processedAt')
+    .update({ workspaceId });
+  const linked = await db('billingWebhookEvents').where({ id: eventId })
+    .first<{ workspaceId: string | null }>('workspaceId');
+  if (linked?.workspaceId !== workspaceId) {
+    throw Error('Billing webhook workspace mapping changed.');
+  }
+}
+
 /** Lock before fetching provider state: delayed events cannot apply an older snapshot. */
-export async function reconcileWorkspaceSubscription(db: Knex, workspaceId: string) {
-  const stripe = stripeSandbox();
-  await db.transaction(async trx => {
+export async function reconcileWorkspaceSubscription(db: Knex, workspaceId: string, provider?: Stripe) {
+  const stripe = provider ?? stripeSandbox();
+  const reconcile = async (trx: Knex.Transaction) => {
     await lockWorkspaceBilling(trx,workspaceId);
     if (!await trx('workspaces').where({id:workspaceId}).whereNull('deletionRequestedAt').forUpdate().first('id')) return;
     const row = await trx('workspaceSubscriptions').where({workspaceId}).forUpdate().first();
@@ -48,11 +70,36 @@ export async function reconcileWorkspaceSubscription(db: Knex, workspaceId: stri
     const invoice = typeof sub.latest_invoice === 'object' && sub.latest_invoice ? sub.latest_invoice : null;
     const paid = sub.status === 'active' && invoice?.status === 'paid';
     // Grace starts from the authoritative failed-renewal invoice, never from event delivery time.
-    const recoveryUntil = sub.status === 'past_due' && invoice ? new Date(invoice.created*1000+7*86400000) : null;
+    let recoveryUntil = sub.status === 'past_due' && invoice
+      ? initialRecoveryGraceUntil(new Date(invoice.created * 1000))
+      : null;
+    if (recoveryUntil && invoice) {
+      const extension = await trx('billingRecoveryGraceExtensions')
+        .where({ workspaceId, invoiceId: invoice.id })
+        .where('invoiceCreatedAt', new Date(invoice.created * 1000))
+        .max('extendedUntil as extendedUntil')
+        .first<{ extendedUntil: Date | string | null }>();
+      if (extension?.extendedUntil) {
+        const maximum = maximumRecoveryGraceUntil(new Date(invoice.created * 1000));
+        const extendedUntil = new Date(extension.extendedUntil);
+        if (extendedUntil > maximum) throw Error('Stored recovery grace extension exceeds its invoice limit.');
+        if (extendedUntil > recoveryUntil) recoveryUntil = extendedUntil;
+      }
+    }
     const grace = recoveryUntil !== null && recoveryUntil.getTime()>Date.now() && row.subscriptionId !== null;
     const pendingPaid = sub.status === 'active' && row.paidThrough && new Date(row.paidThrough).getTime()>Date.now();
     const effectivePlan = paid || grace ? plan : pendingPaid ? row.plan : 'free';
+    const previousEnd = row.status === 'past_due' ? row.recoveryUntil : row.paidThrough;
+    if (paid && previousEnd && new Date(previousEnd) <= new Date()) {
+      const previousAccess = await workspaceEntitlements(trx, workspaceId);
+      await enqueueCaptureAccessCheck(trx, workspaceId, previousAccess.plan.id, new Date(previousEnd));
+    }
     await trx('workspaceSubscriptions').where({workspaceId}).update({subscriptionId:sub.id,plan:effectivePlan,status:sub.status,priceId:item.price.id,cancelAtPeriodEnd:sub.cancel_at_period_end,paidThrough:paid ? new Date(item.current_period_end*1000) : row.paidThrough,recoveryUntil,updatedAt:trx.fn.now()});
+    if (row.plan !== effectivePlan || row.status !== sub.status || row.subscriptionId !== sub.id ||
+      new Date(row.recoveryUntil ?? 0).getTime() !== new Date(recoveryUntil ?? 0).getTime()) {
+      const entitlement = await workspaceEntitlements(trx, workspaceId);
+      await enqueueCaptureAccessCheck(trx, workspaceId, entitlement.plan.id, entitlement.now);
+    }
     // Resolve durable intents after verified provider transitions, including expired upgrades.
     const changes = await trx('billingPlanChanges').where({workspaceId}).whereIn('state',['applying','payment','scheduled']);
     for(const change of changes) {
@@ -85,12 +132,14 @@ export async function reconcileWorkspaceSubscription(db: Knex, workspaceId: stri
 
     }
     if (row.plan !== effectivePlan || row.status !== sub.status || row.subscriptionId !== sub.id) await trx('billingAudit').insert({workspaceId,action:'subscription.reconciled',details:JSON.stringify({plan:effectivePlan,status:sub.status,subscriptionId:sub.id})});
-  });
+  };
+  if (db.isTransaction) await reconcile(db as Knex.Transaction);
+  else await db.transaction(reconcile);
 }
 
 /** Durable DB inbox; retries retain only identifiers, never provider/customer payloads. */
-export async function processBillingEvents(db: Knex) {
-  const stripe = stripeSandbox();
+export async function processBillingEvents(db: Knex, provider?: Stripe) {
+  const stripe = provider ?? stripeSandbox();
   const events = await db('billingWebhookEvents').whereNull('processedAt').where('retryAt','<=',new Date()).orderBy('receivedAt').limit(10);
   for (const event of events) {
     try {
@@ -122,7 +171,8 @@ export async function processBillingEvents(db: Knex) {
         workspaceId = local.workspaceId;
       }
       if (!workspaceId) throw Error('Workspace mapping is unavailable.');
-      await reconcileWorkspaceSubscription(db,workspaceId);
+      await associateBillingEvent(db, event.id, workspaceId);
+      await reconcileWorkspaceSubscription(db,workspaceId,stripe);
       await db('billingWebhookEvents').where({id:event.id}).whereNull('processedAt').update({processedAt:db.fn.now()});
     } catch {
       const attempts = Number(event.attempts)+1;

@@ -11,7 +11,7 @@ import {
   workspaceCapabilities,
   workspaceNavigationPages,
 } from "../../../../server/authorization/permissions";
-import { chatRuntimeAvailable } from "../../../../server/chat/config";
+import { workspaceChatAvailable } from "../../../../server/chat/config";
 import { WorkspaceShell } from "../../../../features/workspace/workspace-shell/workspace-shell";
 import { EstimateSettingsRoute } from "../../../../features/settings/estimate-settings-page/estimate-settings-route";
 import { estimateSettingsPageData as copy } from "../../../../features/settings/estimate-settings-page/estimate-settings-page.data";
@@ -69,7 +69,7 @@ export default async function EstimateSettingsPageRoute({
     permissionsAvailable={capabilities.permissions}
     ganttAvailable={capabilities.readGantt}
     assistantAvailable={capabilities.assistant}
-    chatEnabled={chatRuntimeAvailable()}
+    chatEnabled={await workspaceChatAvailable(workspace.id)}
     chatSurface="settings.overview"
     contentWidth="full"
   >

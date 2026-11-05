@@ -5,7 +5,7 @@ import { getSession } from '../../../../server/auth/session';
 import { auth } from '../../../../server/auth/auth';
 import { findWorkspace, database } from '../../../../server/workspaces/store';
 import { enabledPermissions, workspaceAuthorization, workspaceCapabilities, workspaceNavigationPages } from '../../../../server/authorization/permissions';
-import { chatRuntimeAvailable } from '../../../../server/chat/config';
+import { workspaceChatAvailable } from '../../../../server/chat/config';
 import { WorkspaceShell } from '../../../../features/workspace/workspace-shell/workspace-shell';
 import { JobNotificationSettingsRoute } from '../../../../features/settings/job-notification-settings-page/job-notification-settings-route';
 import { jobNotificationSettingsPageData as copy } from '../../../../features/settings/job-notification-settings-page/job-notification-settings-page.data';
@@ -28,7 +28,7 @@ export default async function JobNotificationSettingsPage({ searchParams }: { se
   const initial = await readJobNotificationSettings(database(), identity, enabledPermissions).catch(error => { if (error instanceof AuthorizationAccessError) notFound(); throw error; });
   const capabilities = workspaceCapabilities(context);
   return <WorkspaceShell currentPage="settings" currentSettingsPage="job-notifications" workspaceId={workspace.id} workspaceName={workspace.businessName} user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} onSignOut={signOut}
-    authorizedPages={workspaceNavigationPages(context)} billingAvailable={capabilities.billing} jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} assistantAvailable={capabilities.assistant} chatEnabled={chatRuntimeAvailable()} chatSurface="settings.overview" contentWidth="full">
+    authorizedPages={workspaceNavigationPages(context)} billingAvailable={capabilities.billing} jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} assistantAvailable={capabilities.assistant} chatEnabled={await workspaceChatAvailable(workspace.id)} chatSurface="settings.overview" contentWidth="full">
     <JobNotificationSettingsRoute key={`job-notifications-${workspace.id}`} workspaceId={workspace.id} initial={initial} />
   </WorkspaceShell>;
 }

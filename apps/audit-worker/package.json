@@ -1,0 +1,14 @@
+{
+  "name": "@salesmora/audit-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "prepare:archive": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@salesmora/data": "workspace:*",
+    "tsx": "4.23.15"
+  }
+}

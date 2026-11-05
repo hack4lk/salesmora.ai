@@ -1,4 +1,5 @@
 import 'server-only';
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../http/suspension';
 import { NextResponse } from 'next/server';
 import { AuthorizationAccessError, readNotifications, markNotificationRead, readNotificationPreferences, saveNotificationPreferences } from '@salesmora/data';
 import { notificationQuerySchema, markNotificationReadSchema, saveNotificationPreferencesSchema } from '@salesmora/contracts';
@@ -31,6 +32,7 @@ export async function notificationAPI(request: Request, operation: 'list' | 'rea
     if (!parsed.success) return NextResponse.json({error:'Invalid preferences.'},{status:400,headers});
     return NextResponse.json(await saveNotificationPreferences(db,{userId:session.user.id,workspaceId:parsed.data.workspaceId},enabledPermissions,{leadAssignedEmail:parsed.data.leadAssignedEmail,visitChangedEmail:parsed.data.visitChangedEmail,estimateEmail:parsed.data.estimateEmail,deadlineReminderEmail:parsed.data.deadlineReminderEmail,jobActivityEmail:parsed.data.jobActivityEmail}),{headers});
   } catch(error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     return NextResponse.json({error: error instanceof AuthorizationAccessError ? 'Notifications are unavailable.' : 'Could not complete the notification request. Try again.'},{status:error instanceof AuthorizationAccessError ? 404 : 500,headers});
   }
 }

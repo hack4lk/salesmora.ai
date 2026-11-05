@@ -64,7 +64,12 @@ describe("public estimate boundary", () => {
   ])("maps inactive %s without exposing a snapshot", async (state, status) => {
     mocks.read.mockResolvedValue({ state });
     expect(await publicEstimateSource("fictional-token")).toEqual({ source: { state }, status });
-    expect(mocks.read).toHaveBeenCalledWith(undefined, "fictional-token", "estimate-public-local");
+    expect(mocks.read).toHaveBeenCalledWith(
+      undefined,
+      "fictional-token",
+      "estimate-public-local",
+      expect.any(Function),
+    );
   });
 
   it("reports unexpected failure without logging the token, customer content or raw error", async () => {

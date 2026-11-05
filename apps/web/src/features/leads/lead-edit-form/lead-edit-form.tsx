@@ -8,7 +8,7 @@ import type { CreateLeadValues } from '../create-lead-form/create-lead-form';
 import { leadEditFormData as copy } from './lead-edit-form.data';
 
 export type LeadEditValues = Pick<CreateLeadValues, 'name' | 'email' | 'phone' | 'service' | 'address' | 'details' | 'notes' | 'source'>;
-export type LeadEditRecord = { id: string; version: number; values: LeadEditValues; canEdit: boolean; origin: 'manual' | 'gmail' | 'campaign' };
+export type LeadEditRecord = { id: string; version: number; values: LeadEditValues; canEdit: boolean; origin: 'manual' | 'gmail' | 'campaign' | 'lead_capture' };
 export type LeadEditError = { kind: 'error' | 'conflict'; message: string; changedFields?: readonly (keyof LeadEditValues)[] };
 export type LeadEditRequest = { leadId: string; expectedVersion: number; values: Omit<LeadEditValues, 'source'> & { source?: LeadEditValues['source'] } };
 export type LeadEditFormProps = {

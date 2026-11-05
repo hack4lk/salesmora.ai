@@ -1,16 +1,44 @@
 import {randomUUID} from 'node:crypto';
 import type {Knex} from 'knex';
-import {paymentRecoveryResultSchema,type PaymentRecoveryResult} from '@salesmora/contracts';
+import {
+  adminWorkspaceRecoveryPreviewResponseSchema,
+  adminWorkspaceRecoveryResultSchema,
+  paymentRecoveryResultSchema,
+  type PaymentRecoveryResult,
+} from '@salesmora/contracts';
 import {lockWorkspaceBilling,ownerBilling} from './checkout';
 import {stripeSandbox,stripePlanPrice,type Stripe} from './stripe';
 import {reconcileWorkspaceSubscription} from './events';
+import {initialRecoveryGraceUntil,maximumRecoveryGraceUntil,nextRecoveryGraceUntil} from './recovery-grace';
 const id=(value:string|{id:string}|null|undefined)=>typeof value==='string'?value:value?.id??null;
 const active=['applying','action','pending'];
 interface RecoveryQuote { id:string;expiresAt:Date|string;attemptedAt?:Date|string|null;amountDue:number;paymentMethodId:string|null; }
+interface RecoveryMappingOptions { authorizeOwner?:boolean; requireCurrentOwner?:boolean; }
 const empty:PaymentRecoveryResult={status:'unavailable',quoteId:null,expiresAt:null,invoice:null,card:null};
+const DAY_MS=24*60*60*1000;
 
-async function mapping(trx:Knex.Transaction,stripe:Stripe,userId:string,workspaceId:string,invoiceId?:string){
-  await ownerBilling(trx,userId,workspaceId);
+function dateISO(value:Date|string|null|undefined){return value==null?null:new Date(value).toISOString();}
+function paymentState(payment:Stripe.PaymentIntent|null){
+  if(!payment)return'none' as const;
+  if(['processing','requires_action','succeeded','requires_payment_method'].includes(payment.status))return payment.status;
+  return'other' as const;
+}
+
+async function mapping(
+  trx:Knex.Transaction,
+  stripe:Stripe,
+  userId:string,
+  workspaceId:string,
+  invoiceId?:string,
+  options:RecoveryMappingOptions={},
+){
+  if(options.authorizeOwner??true)await ownerBilling(trx,userId,workspaceId);
+  else{
+    const workspaceQuery=trx('workspaces').where({id:workspaceId}).whereNull('deletionRequestedAt');
+    if(trx.isTransaction)workspaceQuery.forShare();
+    const workspace=await workspaceQuery.first('ownerId');
+    if(!workspace||(options.requireCurrentOwner&&workspace.ownerId!==userId))throw Error('Workspace owner mapping changed.');
+  }
   const row=await trx('workspaceSubscriptions').where({workspaceId}).forUpdate().first();
   if(!row?.customerId||!row.subscriptionId)throw Error('Missing subscription');
   const customer=await stripe.customers.retrieve(row.customerId);
@@ -61,21 +89,24 @@ async function observe(trx:Knex.Transaction,stripe:Stripe,row:RecoveryQuote,curr
   await trx('billingRenewalRecoveries').where({id:row.id}).update({state:'pending'});
   return result(row,current,'pending');
 }
-async function reconcilePaid(db:Knex,workspaceId:string,value:PaymentRecoveryResult){
+async function reconcilePaid(db:Knex,workspaceId:string,value:PaymentRecoveryResult,stripe?:Stripe){
   if(!['paid','already-paid'].includes(value.status))return value;
   try{
-    await reconcileWorkspaceSubscription(db,workspaceId);
+    await reconcileWorkspaceSubscription(db,workspaceId,stripe);
     if(value.quoteId)await db('billingRenewalRecoveries').where({id:value.quoteId,state:'paid'}).update({reconciledAt:db.fn.now()});
     return value;
-  }catch{return{...value,status:'pending' as const};}
+  }catch{
+    console.error(JSON.stringify({event:'billing.renewal_recovery_reconciliation_failed',workspaceId}));
+    return{...value,status:'pending' as const};
+  }
 }
 /** Read/quote only: opening, refreshing and changing cards cannot call invoices.pay. */
-export async function previewRenewalRecovery(db:Knex,userId:string,workspaceId:string):Promise<PaymentRecoveryResult>{
-  const stripe=stripeSandbox();
+export async function previewRenewalRecovery(db:Knex,userId:string,workspaceId:string,provider?:Stripe):Promise<PaymentRecoveryResult>{
+  const stripe=provider??stripeSandbox();
   const value=await db.transaction(async trx=>{
     await lockWorkspaceBilling(trx,workspaceId);
     await ownerBilling(trx,userId,workspaceId);
-    const pending=await trx('billingRenewalRecoveries').where({workspaceId}).whereIn('state',active).orderBy('createdAt','desc').first();
+    const pending=await trx('billingRenewalRecoveries').where({workspaceId}).whereNull('retryCancelledAt').whereIn('state',active).orderBy('createdAt','desc').first();
     if(pending){
       if(pending.actorId!==userId)throw Error('Recovery actor changed');
       const current=await mapping(trx,stripe,userId,workspaceId,pending.invoiceId);
@@ -87,7 +118,7 @@ export async function previewRenewalRecovery(db:Knex,userId:string,workspaceId:s
     await trx('billingRenewalRecoveries').insert(quote);
     return result(quote,current,current.invoice.status==='paid'?'already-paid':'review');
   });
-  return reconcilePaid(db,workspaceId,value);
+  return reconcilePaid(db,workspaceId,value,stripe);
 }
 /** Consent commits before payment, and the provider request reuses this quote's idempotency key. */
 export async function confirmRenewalRecovery(db:Knex,userId:string,workspaceId:string,quoteId:string){
@@ -110,16 +141,27 @@ export async function confirmRenewalRecovery(db:Knex,userId:string,workspaceId:s
     return null;
   });
   if(initial)return reconcilePaid(db,workspaceId,initial);
-  return executeRenewalRecovery(db,userId,workspaceId,quoteId);
+  return executeRenewalRecovery(db,userId,workspaceId,quoteId,stripe);
 }
-async function executeRenewalRecovery(db:Knex,userId:string,workspaceId:string,quoteId:string){
-  const stripe=stripeSandbox();
+async function executeRenewalRecovery(
+  db:Knex,
+  userId:string,
+  workspaceId:string,
+  quoteId:string,
+  provider?:Stripe,
+  automatic=false,
+  adminAction=false,
+){
+  const stripe=provider??stripeSandbox();
   const value=await db.transaction(async trx=>{
     await lockWorkspaceBilling(trx,workspaceId);
     const row=await trx('billingRenewalRecoveries').where({id:quoteId,workspaceId,actorId:userId}).forUpdate().first();
     if(!row)throw Error('Unknown recovery');
-    let current=await mapping(trx,stripe,userId,workspaceId,row.invoiceId);
+    let current=await mapping(trx,stripe,userId,workspaceId,row.invoiceId,adminAction
+      ?{authorizeOwner:false,requireCurrentOwner:true}
+      :undefined);
     if(row.customerId!==current.customer.id||row.subscriptionId!==current.sub.id)throw Error('Recovery mapping changed');
+    if(automatic&&row.retryCancelledAt)return result(row,current,'pending');
     if(row.state==='paid')return result(row,current,'paid');
     if(!active.includes(row.state))return result(row,current,row.state==='declined'?'declined':'changed');
     if(current.invoice.status==='paid')return observe(trx,stripe,row,current);
@@ -132,12 +174,14 @@ async function executeRenewalRecovery(db:Knex,userId:string,workspaceId:string,q
     let declined=false;
     try{await stripe.invoices.pay(row.invoiceId,{payment_method:row.paymentMethodId,off_session:false},{idempotencyKey:`salesmora-renewal-${row.id}`});}
     catch(error){declined=typeof error==='object'&&error!==null&&'type'in error&&error.type==='StripeCardError';}
-    current=await mapping(trx,stripe,userId,workspaceId,row.invoiceId);
+    current=await mapping(trx,stripe,userId,workspaceId,row.invoiceId,adminAction
+      ?{authorizeOwner:false,requireCurrentOwner:true}
+      :undefined);
     const next=await observe(trx,stripe,row,current,declined);
     if(next.status==='paid')await trx('billingAudit').insert({workspaceId,actorId:userId,action:'renewal.payment_verified',details:JSON.stringify({quoteId:row.id,amount:row.amountDue})});
     return next;
   });
-  return reconcilePaid(db,workspaceId,value);
+  return reconcilePaid(db,workspaceId,value,stripe);
 }
 /** Status requests never submit a payment. Unknown results remain non-payable until verified. */
 export async function renewalRecoveryStatus(db:Knex,userId:string,workspaceId:string,quoteId:string){
@@ -158,11 +202,162 @@ export async function renewalRecoveryStatus(db:Knex,userId:string,workspaceId:st
   });
   return reconcilePaid(db,workspaceId,value);
 }
-export async function reconcileRenewalRecoveries(db:Knex){
-  const rows=await db('billingRenewalRecoveries').where(q=>q.whereIn('state',active).orWhere(s=>s.where({state:'paid'}).whereNull('reconciledAt'))).where('retryAt','<=',db.fn.now()).orderBy('retryAt').limit(10);
+export async function reconcileRenewalRecoveries(db:Knex,provider?:Stripe){
+  const stripe=provider??stripeSandbox();
+  const rows=await db('billingRenewalRecoveries').whereNull('retryCancelledAt')
+    .where(q=>q.whereIn('state',active).orWhere(s=>s.where({state:'paid'}).whereNull('reconciledAt')))
+    .where('retryAt','<=',db.fn.now()).orderBy('retryAt').limit(10);
   for(const row of rows){
-    try{await executeRenewalRecovery(db,row.actorId,row.workspaceId,row.id);}
+    try{await executeRenewalRecovery(db,row.actorId,row.workspaceId,row.id,stripe,true);}
     catch{console.error(JSON.stringify({event:'worker.renewal_recovery_retry_pending'}));}
-    await db('billingRenewalRecoveries').where({id:row.id}).update({attempts:db.raw('attempts + 1'),retryAt:new Date(Date.now()+Math.min(3600000,5000*2**Math.min(Number(row.attempts),9)))});
+    await db('billingRenewalRecoveries').where({id:row.id}).whereNull('retryCancelledAt')
+      .update({attempts:db.raw('attempts + 1'),retryAt:new Date(Date.now()+Math.min(3600000,5000*2**Math.min(Number(row.attempts),9)))});
   }
+}
+
+/** Snapshot for authorized staff; provider identifiers and payment secrets never leave this adapter. */
+export async function previewAdminRenewalRecovery(trx:Knex.Transaction,workspaceId:string,provider?:Stripe){
+  await lockWorkspaceBilling(trx,workspaceId);
+  const workspace=await trx('workspaces').where({id:workspaceId}).whereNull('deletionRequestedAt').first('ownerId');
+  if(!workspace)throw Error('Workspace unavailable.');
+  const subscription=await trx('workspaceSubscriptions').where({workspaceId}).first();
+  if(subscription?.subscriptionId&&!subscription.customerId)throw Error('Workspace billing mapping is incomplete.');
+  if(!subscription?.customerId||!subscription.subscriptionId){
+    return adminWorkspaceRecoveryPreviewResponseSchema.parse({
+      workspaceId,providerStatus:'not_linked',invoice:null,paymentState:'none',recovery:null,
+      grace:{currentUntil:null,maximumUntil:null,additionalDaysAvailable:0},
+    });
+  }
+  const stripe=provider??stripeSandbox();
+  const current=await mapping(trx,stripe,workspace.ownerId,workspaceId,undefined,{authorizeOwner:false});
+  const payment=await intent(stripe,current);
+  const createdAt=new Date(current.invoice.created*1000);
+  let graceCurrent:Date|null=null;
+  let graceMaximum:Date|null=null;
+  let additionalDaysAvailable=0;
+  if(current.sub.status==='past_due'){
+    const extension=await trx('billingRecoveryGraceExtensions').where({
+      workspaceId,invoiceId:current.invoice.id,invoiceCreatedAt:createdAt,
+    }).max('extendedUntil as extendedUntil').first<{extendedUntil:Date|string|null}>();
+    const base=initialRecoveryGraceUntil(createdAt);
+    graceCurrent=extension?.extendedUntil
+      ? new Date(Math.max(base.getTime(),new Date(extension.extendedUntil).getTime()))
+      : base;
+    graceMaximum=maximumRecoveryGraceUntil(createdAt);
+    if(graceMaximum.getTime()>Date.now()){
+      additionalDaysAvailable=Math.max(0,Math.min(7,Math.floor((graceMaximum.getTime()-graceCurrent.getTime())/DAY_MS)));
+    }
+  }
+  const recovery=await trx('billingRenewalRecoveries').where({
+    workspaceId,invoiceId:current.invoice.id,
+  }).orderBy('createdAt','desc').first();
+  return adminWorkspaceRecoveryPreviewResponseSchema.parse({
+    workspaceId,
+    providerStatus:'available',
+    invoice:{
+      number:current.invoice.number,
+      createdAt:createdAt.toISOString(),
+      status:current.invoice.status,
+      amountDue:current.invoice.amount_remaining,
+    },
+    paymentState:paymentState(payment),
+    recovery:recovery?{
+      id:recovery.id,
+      state:recovery.state,
+      amountDue:recovery.amountDue,
+      attempts:recovery.attempts,
+      createdAt:dateISO(recovery.createdAt),
+      attemptedAt:dateISO(recovery.attemptedAt),
+      retryAt:dateISO(recovery.retryAt),
+      retriesCancelledAt:dateISO(recovery.retryCancelledAt),
+    }:null,
+    grace:{
+      currentUntil:graceCurrent?.toISOString()??null,
+      maximumUntil:graceMaximum?.toISOString()??null,
+      additionalDaysAvailable,
+    },
+  });
+}
+
+/** Staff may repeat only an Owner-confirmed row; it retains the same provider idempotency key. */
+export async function retryAdminRenewalRecovery(
+  db:Knex,
+  workspaceId:string,
+  recoveryId:string,
+  provider?:Stripe,
+){
+  const recovery=await db('billingRenewalRecoveries').where({id:recoveryId,workspaceId}).first();
+  if(!recovery||!active.includes(recovery.state)||!recovery.attemptedAt)throw Error('No Owner-confirmed recovery is available to retry.');
+  const value=await executeRenewalRecovery(db,recovery.actorId,workspaceId,recoveryId,provider,false,true);
+  if(!value.quoteId)throw Error('Recovery result is missing its recovery identifier.');
+  if(value.status==='authenticating'){
+    return adminWorkspaceRecoveryResultSchema.parse({
+      status:'owner_action_required',recoveryId:value.quoteId,handoff:'workspace_owner_billing',
+    });
+  }
+  if(['paid','already-paid','declined','changed','pending'].includes(value.status)){
+    return adminWorkspaceRecoveryResultSchema.parse({
+      status:value.status==='already-paid'?'already-paid':value.status,
+      recoveryId:value.quoteId,
+    });
+  }
+  throw Error('Recovery retry did not produce a safe staff result.');
+}
+
+/** Extends only this currently past-due subscription's latest failed renewal invoice. */
+export async function extendAdminRecoveryGrace(
+  db:Knex,
+  workspaceId:string,
+  additionalDays:number,
+  provider?:Stripe,
+){
+  if(!Number.isSafeInteger(additionalDays)||additionalDays<1||additionalDays>7)throw Error('Grace extension must be between one and seven days.');
+  const stripe=provider??stripeSandbox();
+  const extend=async(trx:Knex.Transaction)=>{
+    await lockWorkspaceBilling(trx,workspaceId);
+    const workspace=await trx('workspaces').where({id:workspaceId}).whereNull('deletionRequestedAt').first('ownerId');
+    if(!workspace)throw Error('Workspace unavailable.');
+    const current=await mapping(trx,stripe,workspace.ownerId,workspaceId,undefined,{authorizeOwner:false});
+    if(current.sub.status!=='past_due'||current.invoice.status!=='open'||current.invoice.amount_remaining<=0)throw Error('No open past-due renewal invoice can receive a grace extension.');
+    const invoiceCreatedAt=new Date(current.invoice.created*1000);
+    if(maximumRecoveryGraceUntil(invoiceCreatedAt).getTime()<=Date.now())throw Error('The invoice recovery grace window has expired.');
+    const existing=await trx('billingRecoveryGraceExtensions').where({
+      workspaceId,invoiceId:current.invoice.id,invoiceCreatedAt,
+    }).max('extendedUntil as extendedUntil').first<{extendedUntil:Date|string|null}>();
+    const extendedUntil=nextRecoveryGraceUntil(invoiceCreatedAt,existing?.extendedUntil??null,additionalDays);
+    await trx('billingRecoveryGraceExtensions').insert({
+      id:randomUUID(),workspaceId,invoiceId:current.invoice.id,invoiceCreatedAt,extendedUntil,
+    });
+    await reconcileWorkspaceSubscription(trx,workspaceId,stripe);
+    return adminWorkspaceRecoveryResultSchema.parse({
+      status:'grace_extended',graceUntil:extendedUntil.toISOString(),
+    });
+  };
+  return db.isTransaction?extend(db as Knex.Transaction):db.transaction(extend);
+}
+
+/** Stops worker retries only; never cancels or mutates a Stripe invoice, intent or subscription. */
+export async function cancelAdminRenewalRecovery(
+  db:Knex,
+  workspaceId:string,
+  recoveryId:string,
+  provider?:Stripe,
+){
+  const stripe=provider??stripeSandbox();
+  return db.transaction(async trx=>{
+    await lockWorkspaceBilling(trx,workspaceId);
+    const row=await trx('billingRenewalRecoveries').where({id:recoveryId,workspaceId}).forUpdate().first();
+    if(!row||!active.includes(row.state)||!row.attemptedAt)throw Error('No Owner-confirmed recovery is available to cancel.');
+    const current=await mapping(trx,stripe,row.actorId,workspaceId,row.invoiceId,{authorizeOwner:false});
+    if(current.invoice.status==='paid')throw Error('Invoice is already paid; no recovery retries remain.');
+    const payment=await intent(stripe,current);
+    const providerState=paymentState(payment);
+    if(!row.retryCancelledAt){
+      await trx('billingRenewalRecoveries').where({id:recoveryId,workspaceId}).whereNull('retryCancelledAt')
+        .update({retryCancelledAt:trx.fn.now()});
+    }
+    return adminWorkspaceRecoveryResultSchema.parse({
+      status:'retries_cancelled',paymentState:providerState,
+    });
+  });
 }

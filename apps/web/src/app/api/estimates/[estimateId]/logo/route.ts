@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../../server/http/suspension';
 import { NextResponse } from "next/server";
 import { estimateIdSchema } from "@salesmora/contracts";
 import { AuthorizationAccessError, createStorageAdapter, readEstimateSnapshotLogo } from "@salesmora/data";
@@ -24,6 +25,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ est
       headers: { ...estimateHeaders, "Content-Type": "image/webp", "X-Content-Type-Options": "nosniff" },
     });
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) {
       return NextResponse.json({ error: "This logo is unavailable." }, { status: 404, headers: estimateHeaders });
     }

@@ -5,7 +5,7 @@ import { loginScreenData as copy } from './login-screen.data';
 import { loginFormData } from '../login-form/login-form.data';
 import type { LoginResult, LoginSubmission } from '../login-form/login-form';
 
-async function signIn(values: LoginSubmission): Promise<LoginResult> {
+async function signIn(values: LoginSubmission, returnTo?: string): Promise<LoginResult> {
   try {
     const response = await fetch('/api/auth/sign-in/email', {
       method: 'POST',
@@ -16,15 +16,23 @@ async function signIn(values: LoginSubmission): Promise<LoginResult> {
     if (!response.ok) return {
       ok: false,
       message: response.status === 429 ? copy.errors.rateLimited
+        : response.status === 423 ? copy.errors.accountUnavailable
         : response.status === 401 ? loginFormData.errors.submission : copy.errors.unavailable,
     };
-    window.location.assign('/setup');
+    window.location.assign(returnTo ?? '/setup');
     return { ok: true };
   } catch {
     return { ok: false, message: copy.errors.unavailable };
   }
 }
 
-export function LoginRoute({ accountDeletionRequested = false }: { accountDeletionRequested?: boolean }) {
-  return <LoginScreen accountDeletionRequested={accountDeletionRequested} onSubmit={signIn} notice={copy.localNotice} />;
+export function LoginRoute({
+  accountDeletionRequested = false,
+  returnTo,
+}: {
+  accountDeletionRequested?: boolean;
+  returnTo?: string;
+}) {
+  return <LoginScreen accountDeletionRequested={accountDeletionRequested}
+    onSubmit={values => signIn(values, returnTo)} notice={copy.localNotice} />;
 }

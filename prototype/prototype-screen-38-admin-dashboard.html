@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><meta name="theme-color" content="#f4f8fc"><title>Dashboard · SalesMora Admin prototype</title>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#23384D;background:#F4F8FC;--blue:#3B6FA5;--blue-dark:#315C8A;--seafoam:#7CCBB7;--ink:#23384D;--line:#E2EAF1;--muted:#64778A;--red:#b42318;--red-bg:#fef3f2;--amber:#b54708;--amber-bg:#fffaeb;--green:#067647;--green-bg:#ecfdf3}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#F4F8FC}button,input{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #8DB5D5;outline-offset:2px}[hidden]{display:none!important}
+.icon{width:18px;height:18px;flex:0 0 auto;fill:currentColor}.icon.sm{width:15px;height:15px}
+.env-bar{position:sticky;top:0;z-index:9;display:flex;align-items:center;justify-content:center;height:28px;background:#f79009;color:#3d1d00;font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase}.env-bar.production{background:#d92d20;color:#fff}
+.app{display:grid;grid-template-columns:236px 1fr;min-height:calc(100vh - 28px)}
+.sidebar{position:sticky;top:28px;height:calc(100vh - 28px);display:flex;flex-direction:column;padding:20px 12px 14px;background:#fff;border-right:1px solid var(--line)}
+.logo{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 8px 22px}.logo img{display:block;width:142px;height:auto}
+.admin-tag{padding:3px 7px;border-radius:6px;background:var(--ink);color:#fff;font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.nav-label{margin:14px 10px 6px;color:#8a9bab;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.nav{display:grid;gap:2px}.nav-item{display:flex;align-items:center;gap:10px;width:100%;min-height:36px;padding:0 10px;border:0;border-radius:8px;background:none;color:#4d6175;font-size:12px;font-weight:570;text-align:left}
+.nav-item:hover{background:#F4F8FC}.nav-item.active{background:#e6eff8;color:var(--blue-dark);font-weight:650}.nav-item .icon{color:#7d91a5}.nav-item.active .icon{color:var(--blue)}
+.nav-badge{margin-left:auto;min-width:20px;padding:2px 6px;border-radius:999px;background:var(--red-bg);color:var(--red);font-size:9px;font-weight:700;text-align:center}
+.nav-spacer{flex:1}.sidebar-foot{display:flex;align-items:center;gap:9px;padding:12px 6px 0;border-top:1px solid #eef2f6}
+.avatar{display:grid;width:32px;height:32px;flex:0 0 auto;place-items:center;border-radius:50%;background:#dce9f5;color:var(--blue-dark);font-size:10px;font-weight:700}
+.who{min-width:0;flex:1}.who strong,.who span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.who strong{font-size:11px}.who span{margin-top:2px;color:#8a9bab;font-size:9px}
+.icon-btn{display:grid;width:32px;height:32px;place-items:center;border:1px solid var(--line);border-radius:8px;background:#fff;color:#5d7186}.icon-btn:hover{background:#F4F8FC}
+.main{min-width:0}
+.topbar{position:sticky;top:28px;z-index:5;display:flex;align-items:center;gap:12px;height:60px;padding:0 26px;border-bottom:1px solid var(--line);background:#ffffffed;backdrop-filter:blur(10px)}
+.search{position:relative;flex:1;max-width:520px}.search>.icon{position:absolute;left:11px;top:10px;color:#8a9bab}
+.search input{width:100%;height:38px;padding:0 44px 0 34px;border:1px solid #d3dee8;border-radius:9px;background:#fff;color:var(--ink);font-size:12px}
+.kbd{position:absolute;right:9px;top:9px;padding:2px 6px;border:1px solid var(--line);border-radius:5px;color:#8a9bab;font-size:10px}
+.results{position:absolute;top:44px;left:0;right:0;overflow:hidden;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 14px 30px #23384d22}
+.results h3{margin:0;padding:8px 12px 4px;color:#8a9bab;font-size:9px;letter-spacing:.08em;text-transform:uppercase}
+.result{display:flex;align-items:center;gap:10px;width:100%;padding:8px 12px;border:0;background:#fff;text-align:left}.result:hover,.result.active{background:#F4F8FC}
+.result strong{display:block;color:var(--ink);font-size:12px}.result span{display:block;margin-top:2px;color:var(--muted);font-size:10px}.result .chip{margin-left:auto}
+.results .empty-note{padding:14px 12px;color:var(--muted);font-size:11px}
+.top-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:0 12px;border:1px solid #d3dee8;border-radius:8px;background:#fff;color:#3d5268;font-size:11px;font-weight:620}.button:hover{background:#F4F8FC}
+.button.primary{border-color:var(--blue);background:var(--blue);color:#fff}.button.primary:hover{background:var(--blue-dark)}
+.content{max-width:1360px;margin:0 auto;padding:24px 26px 48px}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:18px}
+.eyebrow{margin-bottom:5px;color:#6c8299;font-size:10px;font-weight:750;letter-spacing:.11em;text-transform:uppercase}
+h1{margin:0;font-size:24px;font-weight:680;letter-spacing:-.04em}.page-head p{margin:6px 0 0;color:var(--muted);font-size:11px}
+.metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:11px;margin-bottom:16px}
+.metric{display:block;width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;text-align:left;color:inherit}.metric:hover{border-color:#b9cfe3}
+.metric-label{display:flex;align-items:center;gap:6px;color:#6c8299;font-size:10px;font-weight:620}.metric-value{margin-top:6px;font-size:22px;font-weight:700;letter-spacing:-.035em}
+.metric-foot{margin-top:3px;color:#8a9bab;font-size:10px}.metric.alert-red .metric-value{color:var(--red)}.metric.alert-amber .metric-value{color:var(--amber)}
+.metric.error{border-style:dashed}.metric.error .metric-value{font-size:12px;font-weight:600;color:var(--red)}
+.skeleton{display:block;height:12px;border-radius:5px;background:linear-gradient(90deg,#eaf0f6,#f6f9fc,#eaf0f6);background-size:200% 100%;animation:sk 1.2s infinite}@keyframes sk{to{background-position:-200% 0}}
+.grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px}
+.panel{border:1px solid var(--line);border-radius:12px;background:#fff}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid #eef2f6}
+.panel-head h2{margin:0;font-size:13px;font-weight:680}.panel-head .link{border:0;background:none;color:var(--blue);font-size:11px;font-weight:620}
+.list{margin:0;padding:0;list-style:none}.row{display:flex;align-items:flex-start;gap:11px;padding:12px 15px;border-bottom:1px solid #f0f4f8}.row:last-child{border-bottom:0}
+.sev{display:grid;width:28px;height:28px;flex:0 0 auto;place-items:center;border-radius:8px}.sev.error{background:var(--red-bg);color:var(--red)}.sev.warn{background:var(--amber-bg);color:var(--amber)}.sev.info{background:#e6eff8;color:var(--blue)}
+.row-body{min-width:0;flex:1}.row-title{font-size:12px;font-weight:640}.row-detail{margin-top:3px;color:var(--muted);font-size:11px;line-height:1.45}
+.row .button{min-height:30px;font-size:10px}
+.chip{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:#eef3f8;color:#4d6175;font-size:9px;font-weight:650;white-space:nowrap}.chip.red{background:var(--red-bg);color:var(--red)}.chip.green{background:var(--green-bg);color:var(--green)}.chip.amber{background:var(--amber-bg);color:var(--amber)}
+.audit-row{display:grid;grid-template-columns:62px minmax(0,1fr);gap:10px;padding:11px 15px;border-bottom:1px solid #f0f4f8}.audit-row:last-child{border-bottom:0}
+.audit-time{color:#8a9bab;font-size:10px;font-variant-numeric:tabular-nums}.audit-what{font-size:11px;line-height:1.45}.audit-what strong{font-weight:650}.audit-reason{margin-top:3px;color:var(--muted);font-size:10px;font-style:italic}
+.empty{padding:28px 15px;color:var(--muted);font-size:11px;text-align:center}.empty .icon{width:28px;height:28px;color:#2f8f78}
+.limited{display:flex;align-items:center;gap:9px;margin:12px 15px;padding:10px 11px;border:1px dashed #cfdbe6;border-radius:9px;color:var(--muted);font-size:11px}
+.toast{position:fixed;left:50%;bottom:22px;z-index:30;transform:translateX(-50%);display:flex;align-items:center;gap:9px;max-width:min(560px,92vw);padding:11px 14px;border-radius:10px;background:var(--ink);color:#fff;font-size:11px;box-shadow:0 12px 30px #23384d55}
+.drawer{position:fixed;top:28px;right:0;bottom:0;z-index:12;display:flex;flex-direction:column;width:min(400px,96vw);border-left:1px solid var(--line);background:#fff;box-shadow:-12px 0 35px #23384d1f}
+.drawer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px;border-bottom:1px solid #eef2f6}.drawer-head h2{margin:0;font-size:14px}.drawer-head p{margin:4px 0 0;color:var(--muted);font-size:10px;line-height:1.45}
+.chat{flex:1;overflow:auto;padding:14px 16px;display:grid;align-content:start;gap:10px}
+.msg{max-width:92%;padding:10px 12px;border-radius:10px;font-size:11px;line-height:1.5}.msg.me{justify-self:end;background:var(--blue);color:#fff}.msg.bot{background:#F4F8FC;border:1px solid var(--line)}
+.msg ol{margin:6px 0 0;padding-left:18px}.cite{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.cite a{padding:3px 7px;border:1px solid #cfdbe6;border-radius:6px;background:#fff;color:var(--blue);font-size:9px;font-weight:620}
+.suggest{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 10px}.suggest button{padding:5px 9px;border:1px solid #d3dee8;border-radius:7px;background:#fff;color:#4d6175;font-size:10px}.suggest button:hover{border-color:var(--blue);color:var(--blue)}
+.ask{display:flex;gap:7px;padding:12px 16px;border-top:1px solid #eef2f6}.ask input{flex:1;min-width:0;height:36px;padding:0 10px;border:1px solid #d3dee8;border-radius:8px;font-size:11px}
+.budget{padding:0 16px 10px;color:#8a9bab;font-size:9px}
+.modal-backdrop{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:18px;background:#23384d80}
+.modal{width:min(400px,100%);padding:20px;border-radius:12px;background:#fff;box-shadow:0 20px 50px #0005}.modal h2{margin:0 0 6px;font-size:16px}.modal p{margin:0 0 16px;color:var(--muted);font-size:12px;line-height:1.5}
+.modal .actions{display:flex;justify-content:flex-end;gap:8px}.count{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink)}
+.menu{position:absolute;bottom:56px;left:12px;right:12px;z-index:6;padding:6px;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 12px 28px #23384d26}.menu button,.menu a{display:flex;align-items:center;gap:9px;width:100%;padding:8px 9px;border:0;border-radius:7px;background:none;color:#3d5268;font-size:11px;text-align:left}.menu button:hover,.menu a:hover{background:#F4F8FC}
+/* Prototype review controls — not part of the product UI */
+.review{position:fixed;left:12px;bottom:12px;z-index:50;width:236px;padding:11px;border:1px solid #3b4a6b;border-radius:11px;background:#141e33;color:#c9d2e6;font-size:10px;box-shadow:0 10px 30px #0008}
+.review.collapsed .review-body{display:none}.review-top{display:flex;align-items:center;justify-content:space-between}.review h2{margin:0;color:#fff;font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+.review-top button{border:0;background:none;color:#aab6d1;font-size:10px}.review-label{margin:9px 0 4px;color:#8d99b5;font-size:9px;text-transform:uppercase;letter-spacing:.08em}
+.review-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}.review-grid button{min-height:26px;padding:0 6px;border:1px solid #33415f;border-radius:6px;background:#1c2842;color:#d5dcec;font-size:9px;text-align:left}
+.review-grid button.active{border-color:#8DB5D5;background:#25405a;color:#fff}.review details{margin-top:8px}.review summary{cursor:pointer;color:#aab6d1}.review ul{margin:6px 0 0;padding-left:14px;color:#8d99b5;font-size:9px;line-height:1.5}
+@media (max-width:1000px){.grid{grid-template-columns:1fr}}
+@media (max-width:820px){
+.app{grid-template-columns:minmax(0,1fr)}
+.sidebar{min-width:0;position:relative;top:0;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border-right:0;border-bottom:1px solid var(--line)}
+.logo{margin:0}.nav-spacer,.nav-label,.who{display:none}
+.nav{order:3;display:flex;gap:4px;width:100%;overflow-x:auto;padding-bottom:2px}.nav-item{width:auto;flex:0 0 auto;white-space:nowrap}
+.sidebar-foot{margin-left:auto;padding:0;border:0}
+.menu{top:52px;bottom:auto;left:auto;right:12px;width:220px}
+.topbar{position:static;padding:0 14px}.content{padding:18px 14px 40px}.kbd{display:none}
+.page-head{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<div class="env-bar" id="envBar" role="status"><span id="envLabel">Staging environment</span></div>
+<div class="app">
+  <aside class="sidebar" aria-label="Admin navigation">
+    <div class="logo"><img src="../branding/assets/salesmora-logo.svg" alt="SalesMora.ai" width="142" height="38"><span class="admin-tag">Admin</span></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="nav-spacer"></div>
+    <div class="menu" id="userMenu" hidden>
+      <button type="button" data-goto="My account (screen planned)"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>My account &amp; factors</button>
+      <a href="prototype-screen-37-admin-sign-in.html"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>Sign out</a>
+    </div>
+    <div class="sidebar-foot">
+      <span class="avatar" id="avatar">LK</span>
+      <span class="who"><strong id="staffName">Lukasz K.</strong><span id="staffRole">Super Admin</span></span>
+      <button class="icon-btn" type="button" id="userMenuBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg></button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="search" role="search">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input id="search" type="search" placeholder="Search users, workspaces, emails or IDs" aria-label="Global search" aria-controls="results" aria-expanded="false" autocomplete="off">
+        <span class="kbd" aria-hidden="true">/</span>
+        <div class="results" id="results" role="listbox" hidden></div>
+      </div>
+      <div class="top-actions">
+        <button class="button" type="button" id="assistantBtn" aria-expanded="false" aria-controls="assistant"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"/></svg>Admin assistant</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Platform overview</div>
+          <h1 id="greeting">Good afternoon, Lukasz</h1>
+          <p id="asOf">Live data as of 12:30 PM ET · refreshes every 60 seconds</p>
+        </div>
+        <button class="button" type="button" id="refreshBtn"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>Refresh</button>
+      </div>
+
+      <section class="metrics" id="metrics" aria-label="Key metrics"></section>
+
+      <div class="grid">
+        <section class="panel" aria-labelledby="attnTitle">
+          <div class="panel-head"><h2 id="attnTitle">Needs attention</h2><span class="chip" id="attnCount">0</span></div>
+          <ul class="list" id="attention"></ul>
+        </section>
+        <section class="panel" aria-labelledby="auditTitle">
+          <div class="panel-head"><h2 id="auditTitle">Recent sensitive actions</h2><button class="link" type="button" id="auditLink">Open audit log</button></div>
+          <div id="audit"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+
+<aside class="drawer" id="assistant" aria-label="Admin assistant" hidden>
+  <div class="drawer-head">
+    <div><h2>Admin assistant</h2><p>Answers come from the admin docs only and always cite them. No customer data is sent to the model.</p></div>
+    <button class="icon-btn" type="button" id="assistantClose" aria-label="Close assistant"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+  </div>
+  <div class="chat" id="chat" aria-live="polite"></div>
+  <div class="suggest" id="suggest">
+    <button type="button">How do I suspend a workspace?</button>
+    <button type="button">What happens when a payment fails?</button>
+    <button type="button">How do I process a deletion request?</button>
+  </div>
+  <div class="budget" id="budget">Platform assistant budget: 212K of 1M tokens used this month</div>
+  <form class="ask" id="askForm"><input id="askInput" placeholder="Ask how to administer SalesMora…" aria-label="Ask the admin assistant" autocomplete="off"><button class="button primary" type="submit">Ask</button></form>
+</aside>
+
+<div class="modal-backdrop" id="idleModal" hidden>
+  <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="idleTitle" aria-describedby="idleText">
+    <h2 id="idleTitle">Are you still there?</h2>
+    <p id="idleText">For security, your admin session ends after 30 minutes of inactivity. You'll be signed out in <span class="count" id="idleCount">2:00</span>.</p>
+    <div class="actions"><a class="button" href="prototype-screen-37-admin-sign-in.html">Sign out now</a><button class="button primary" type="button" id="stayBtn">Stay signed in</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<aside class="review" id="review" aria-label="Prototype review controls">
+  <div class="review-top"><h2>Prototype states</h2><button type="button" id="reviewToggle" aria-expanded="true">Hide</button></div>
+  <div class="review-body">
+    <div class="review-label">Staff role</div>
+    <div class="review-grid" id="roleButtons">
+      <button type="button" data-role="super" class="active">Super Admin</button>
+      <button type="button" data-role="support">Support</button>
+      <button type="button" data-role="billing">Billing</button>
+    </div>
+    <div class="review-label">Data state</div>
+    <div class="review-grid" id="stateButtons">
+      <button type="button" data-state="populated" class="active">Populated</button>
+      <button type="button" data-state="quiet">All clear</button>
+      <button type="button" data-state="loading">Loading</button>
+      <button type="button" data-state="partial">Partial error</button>
+      <button type="button" data-state="idle">Idle timeout</button>
+      <button type="button" data-state="budget">AI over budget</button>
+    </div>
+    <div class="review-label">Environment</div>
+    <div class="review-grid"><button type="button" id="envToggle">Switch to production</button></div>
+    <details><summary>Decisions (approved)</summary>
+      <ul>
+        <li>Support and Billing see only their own sensitive actions; Super Admin sees all.</li>
+        <li>Dashboard auto-refreshes every 60 s, plus a manual Refresh button.</li>
+        <li>Nav items the role can't access are hidden, not shown locked.</li>
+      </ul>
+    </details>
+  </div>
+</aside>
+
+<script>
+const $ = id => document.getElementById(id);
+const P = {
+  dash: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z',
+  users: 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z',
+  ws: 'M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z',
+  card: 'M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z',
+  doc: 'M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z',
+  ai: 'M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z',
+  ops: 'M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z',
+  book: 'M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z',
+  flag: 'M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6z',
+  audit: 'M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z',
+  staff: 'M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z',
+  eye: 'M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z',
+  warn: 'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z',
+  error: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z',
+  info: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z',
+  check: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z',
+  lock: 'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z',
+};
+const icon = (k, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${P[k]}"/></svg>`;
+
+const STAFF = {
+  super: { name: 'Lukasz K.', first: 'Lukasz', initials: 'LK', role: 'Super Admin' },
+  support: { name: 'Alex Rivera', first: 'Alex', initials: 'AR', role: 'Support' },
+  billing: { name: 'Jordan Lee', first: 'Jordan', initials: 'JL', role: 'Billing' },
+};
+const ALL = ['super', 'support', 'billing'];
+// Screen numbers point to the planned prototype sequence in docs/admin-console-plan.md.
+const NAV = [
+  { group: 'Overview', items: [{ id: 'dash', label: 'Dashboard', icon: 'dash', roles: ALL }] },
+  { group: 'Customers', items: [
+    { id: 'users', label: 'Users', icon: 'users', roles: ALL, href: 'prototype-screen-39-admin-users.html' },
+    { id: 'ws', label: 'Workspaces', icon: 'ws', roles: ALL, href: 'prototype-screen-40-admin-workspaces.html' },
+    { id: 'billing', label: 'Billing', icon: 'card', roles: ALL, badge: 'payments', screen: 'Billing (planned)' },
+    { id: 'requests', label: 'Data requests', icon: 'doc', roles: ['super', 'support'], badge: 'deletions', screen: 'Data requests (planned)' },
+  ] },
+  { group: 'Platform', items: [
+    { id: 'ai', label: 'AI usage', icon: 'ai', roles: ['super', 'billing'], screen: 'AI usage (planned)' },
+    { id: 'ops', label: 'Operations', icon: 'ops', roles: ['super', 'support'], badge: 'jobs', screen: 'Operations (planned)' },
+    { id: 'knowledge', label: 'Knowledge', icon: 'book', roles: ['super'], screen: 'Knowledge (planned)' },
+    { id: 'flags', label: 'Flags & settings', icon: 'flag', roles: ['super'], screen: 'Flags & settings (planned)' },
+  ] },
+  { group: 'Governance', items: [
+    { id: 'audit', label: 'Audit log', icon: 'audit', roles: ['super'], href: 'prototype-screen-41-admin-audit.html' },
+    { id: 'staff', label: 'Staff', icon: 'staff', roles: ['super'], screen: 'Staff (planned)' },
+    { id: 'docs', label: 'Admin docs', icon: 'book', roles: ALL, screen: 'Admin docs (planned)' },
+  ] },
+];
+
+const METRICS = [
+  { id: 'signups', label: 'New signups · 7 days', icon: 'users', value: '48', foot: '+12% vs previous 7 days', quiet: '0', roles: ALL, screen: 'Users (screen 39)', href: 'prototype-screen-39-admin-users.html' },
+  { id: 'active', label: 'Active workspaces · 30 days', icon: 'ws', value: '312', foot: 'Free 201 · Standard 84 · Premium 27', quiet: '312', roles: ALL, screen: 'Workspaces (screen 40)', href: 'prototype-screen-40-admin-workspaces.html' },
+  { id: 'payments', label: 'Payments in recovery', icon: 'card', value: '3', foot: '$1,284 at risk · oldest 6 days', quiet: '0', tone: 'red', roles: ALL, screen: 'Billing (planned)' },
+  { id: 'jobs', label: 'Failed background jobs · 24 h', icon: 'ops', value: '12', foot: 'estimate-emails queue', quiet: '0', tone: 'red', roles: ['super', 'support'], screen: 'Operations (planned)' },
+  { id: 'deletions', label: 'Pending deletion requests', icon: 'doc', value: '2', foot: 'Next due in 4 days', quiet: '0', tone: 'amber', roles: ['super', 'support'], screen: 'Data requests (planned)' },
+  { id: 'viewas', label: 'Active view-as sessions', icon: 'eye', value: '1', foot: 'Alex Rivera · Northside Plumbing', quiet: '0', roles: ['super', 'support'], screen: 'Impersonation (planned)' },
+  { id: 'tokens', label: 'AI tokens · this month', icon: 'ai', value: '41.2M', foot: '≈ $186 · top: Oakridge Builders', quiet: '41.2M', roles: ['super', 'billing'], screen: 'AI usage (planned)' },
+];
+
+const ATTENTION = [
+  { sev: 'error', title: '3 payments in recovery', detail: 'Brightline Electric and 2 more. Oldest failed 6 days ago; next automatic retry tomorrow 9:00 AM.', action: 'Review', screen: 'Billing (planned)', roles: ALL },
+  { sev: 'error', title: '12 failed jobs in estimate-emails', detail: 'Last failure 14 min ago: SMTP 451 from Resend. Customers may not be receiving estimate emails.', action: 'Open queue', screen: 'Operations (planned)', roles: ['super', 'support'], runbook: 'playbooks/email-outage' },
+  { sev: 'warn', title: 'Deletion request due in 4 days', detail: 'Riverbend Roofing owner requested account deletion on Oct 3. 30-day SLA.', action: 'Process', screen: 'Data requests (planned)', roles: ['super', 'support'] },
+  { sev: 'warn', title: 'Workspace near AI budget', detail: 'Oakridge Builders has used 92% of its 20M monthly tokens. Chat stops at 100%.', action: 'View usage', screen: 'AI usage (planned)', roles: ['super', 'billing'] },
+  { sev: 'info', title: 'Support access granted', detail: 'Northside Plumbing owner granted support access for 24 hours (expires tomorrow 11:52 AM).', action: 'View workspace', screen: 'Workspaces (screen 40)', href: 'prototype-screen-40-admin-workspaces.html#ws_8f21c', roles: ['super', 'support'] },
+];
+
+const AUDIT = [
+  { time: '11:58 AM', by: 'Alex Rivera', role: 'support', text: 'started a <strong>view-as session</strong> on Northside Plumbing (Office role, 30 min)', reason: 'Ticket #4821: estimate PDF missing logo' },
+  { time: '10:12 AM', by: 'Jordan Lee', role: 'billing', text: 'applied a <strong>plan override</strong>: Summit HVAC → Premium until Nov 30', reason: 'Pilot agreement signed Oct 27' },
+  { time: '9:40 AM', by: 'Lukasz K.', role: 'super', text: 'suspended user <strong>d•••••@gmail.com</strong> and revoked 3 sessions', reason: 'Credential-stuffing report from Cloudflare' },
+  { time: 'Yesterday', by: 'Lukasz K.', role: 'super', text: 'changed flag <strong>chat.calendar_tools</strong>: off → 10 pilot workspaces', reason: 'Calendar assistant pilot rollout' },
+  { time: 'Yesterday', by: 'Jordan Lee', role: 'billing', text: 'extended the <strong>payment grace period</strong> for Brightline Electric by 7 days', reason: 'Customer updating card after bank fraud hold' },
+];
+
+const SEARCH = [
+  { type: 'Workspace', id: 'ws_8f21c', name: 'Northside Plumbing', sub: 'ws_8f21c · Standard · owner o•••@northsideplumbing.com', chip: 'Active', tone: 'green' },
+  { type: 'Workspace', id: 'ws_19a77', name: 'Brightline Electric', sub: 'ws_19a77 · Premium · payment in recovery', chip: 'Past due', tone: 'red' },
+  { type: 'Workspace', id: 'ws_4c0d2', name: 'Summit HVAC', sub: 'ws_4c0d2 · Premium (override) · 14 members', chip: 'Override', tone: 'amber' },
+  { type: 'Workspace', id: 'ws_77be0', name: 'Oakridge Builders', sub: 'ws_77be0 · Premium · 92% AI budget', chip: 'Active', tone: 'green' },
+  { type: 'Workspace', id: 'ws_a3f90', name: 'Riverbend Roofing', sub: 'ws_a3f90 · Free · deletion requested', chip: 'Deleting', tone: 'red' },
+  { type: 'User', id: 'usr_2b7e1', name: 'Maria Owens', sub: 'o•••@northsideplumbing.com · Owner, Northside Plumbing', chip: 'Verified', tone: 'green' },
+  { type: 'User', id: 'usr_5c9d3', name: 'Dan Price', sub: 'd•••••@gmail.com · Field, Oakridge Builders', chip: 'Suspended', tone: 'red' },
+  { type: 'User', id: 'usr_7a1f0', name: 'Priya Natarajan', sub: 'p•••@brightlineelectric.com · Owner, Brightline Electric', chip: 'Verified', tone: 'green' },
+  { type: 'User', id: 'usr_9e4b2', name: 'Sam Torres', sub: 's•••@summithvac.com · Office, Summit HVAC', chip: 'Unverified', tone: 'amber' },
+];
+
+const ANSWERS = [
+  { match: /suspend/i, text: '<p>To suspend a workspace:</p><ol><li>Open <strong>Workspaces</strong> and select the workspace.</li><li>Choose <strong>Suspend workspace</strong>, enter a reason and the ticket reference.</li><li>Confirm with your passkey (step-up re-auth).</li></ol><p>Members see a suspension page and the workspace\'s background jobs pause. Billing is not changed automatically.</p>', cites: ['runbooks/suspend-workspace#steps', 'domain/workspaces#suspension'] },
+  { match: /payment|fail/i, text: '<p>When a renewal charge fails, Stripe retries it on its schedule and the workspace enters <strong>payment recovery</strong>. The owner is emailed, features stay available during the grace period, and the workspace moves to the Free plan if recovery fails.</p><p>Billing staff can retry the charge or extend the grace period from <strong>Billing</strong>.</p>', cites: ['domain/billing#payment-recovery', 'runbooks/extend-grace-period'] },
+  { match: /delet/i, text: '<p>Deletion requests have a 30-day SLA:</p><ol><li>Open <strong>Data requests</strong> and verify the requester is the workspace owner.</li><li>Confirm there is no open billing dispute or legal hold.</li><li>Confirm the request. The worker purges data after the grace period and records completion.</li></ol>', cites: ['runbooks/process-deletion-request', 'security/privacy-baseline#deletion'] },
+];
+
+let role = 'super';
+let dataState = 'populated';
+let overBudget = false;
+const can = item => item.roles.includes(role);
+
+function toast(text) {
+  $('toast').innerHTML = icon('info', 'sm') + `<span>${text}</span>`;
+  $('toast').hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => { $('toast').hidden = true; }, 3200);
+}
+const goTo = screen => toast(`${screen} is not prototyped yet. It follows review of this screen.`);
+
+function renderNav() {
+  const badgeCount = { payments: 3, deletions: 2, jobs: 12 };
+  $('nav').innerHTML = NAV.map(g => {
+    const items = g.items.filter(can);
+    if (!items.length) return '';
+    return `<div class="nav-label">${g.group}</div>` + items.map(i => {
+      const n = dataState === 'populated' || dataState === 'partial' ? badgeCount[i.badge] : 0;
+      return `<button class="nav-item${i.id === 'dash' ? ' active' : ''}" type="button" ${i.id === 'dash' ? 'aria-current="page"' : i.href ? `data-href="${i.href}"` : `data-goto="${i.screen}"`}>${icon(i.icon)}<span>${i.label}</span>${n ? `<span class="nav-badge" aria-label="${n} need attention">${n}</span>` : ''}</button>`;
+    }).join('');
+  }).join('');
+}
+
+function renderMetrics() {
+  const list = METRICS.filter(can);
+  $('metrics').innerHTML = list.map(m => {
+    if (dataState === 'loading') return `<div class="metric" aria-busy="true"><span class="skeleton" style="width:60%"></span><span class="skeleton" style="width:40%;height:22px;margin-top:9px"></span><span class="skeleton" style="width:75%;margin-top:7px"></span></div>`;
+    if (dataState === 'partial' && m.id === 'jobs') return `<div class="metric error"><div class="metric-label">${icon(m.icon, 'sm')}${m.label}</div><div class="metric-value">Couldn't load queue stats</div><div class="metric-foot"><button class="button" type="button" data-retry style="min-height:26px;margin-top:4px">Retry</button></div></div>`;
+    const quiet = dataState === 'quiet';
+    const tone = !quiet && m.tone ? ` alert-${m.tone}` : '';
+    return `<button class="metric${tone}" type="button" ${m.href ? `data-href="${m.href}"` : `data-goto="${m.screen}"`}><div class="metric-label">${icon(m.icon, 'sm')}${m.label}</div><div class="metric-value">${quiet ? m.quiet : m.value}</div><div class="metric-foot">${quiet ? (m.quiet === '0' ? 'Nothing to act on' : m.foot) : m.foot}</div></button>`;
+  }).join('');
+}
+
+function renderAttention() {
+  if (dataState === 'loading') {
+    $('attnCount').textContent = '…';
+    $('attention').innerHTML = [1, 2, 3].map(() => `<li class="row"><span class="skeleton" style="width:28px;height:28px"></span><div class="row-body"><span class="skeleton" style="width:50%"></span><span class="skeleton" style="width:85%;margin-top:7px"></span></div></li>`).join('');
+    return;
+  }
+  const items = dataState === 'quiet' ? [] : ATTENTION.filter(can).filter(i => !(dataState === 'partial' && i.screen.startsWith('Operations')));
+  $('attnCount').textContent = items.length;
+  $('attnCount').className = 'chip' + (items.some(i => i.sev === 'error') ? ' red' : '');
+  if (!items.length) {
+    $('attention').innerHTML = `<li class="empty">${icon('check')}<div style="margin-top:6px"><strong>All clear.</strong> Nothing needs staff attention right now.</div></li>`;
+    return;
+  }
+  $('attention').innerHTML = items.map(i => `<li class="row"><span class="sev ${i.sev}">${icon(i.sev, 'sm')}</span><div class="row-body"><div class="row-title">${i.title}</div><div class="row-detail">${i.detail}${i.runbook ? ` <a href="#" data-runbook="${i.runbook}" style="color:var(--blue)">Runbook</a>` : ''}</div></div><button class="button" type="button" ${i.href ? `data-href="${i.href}"` : `data-goto="${i.screen}"`}>${i.action}</button></li>`).join('')
+    + (dataState === 'partial' ? `<li class="limited">${icon('warn', 'sm')}Queue alerts are unavailable until queue stats load.</li>` : '');
+}
+
+function renderAudit() {
+  const mine = role !== 'super';
+  $('auditTitle').textContent = mine ? 'Your recent actions' : 'Recent sensitive actions';
+  $('auditLink').hidden = mine;
+  if (dataState === 'loading') {
+    $('audit').innerHTML = [1, 2, 3].map(() => `<div class="audit-row"><span class="skeleton"></span><div><span class="skeleton" style="width:80%"></span><span class="skeleton" style="width:50%;margin-top:7px"></span></div></div>`).join('');
+    return;
+  }
+  const rows = dataState === 'quiet' ? [] : AUDIT.filter(a => !mine || a.role === role);
+  const body = rows.length
+    ? rows.map(a => `<div class="audit-row"><div class="audit-time">${a.time}</div><div><div class="audit-what"><strong>${mine ? 'You' : a.by}</strong> ${a.text}</div><div class="audit-reason">Reason: “${a.reason}”</div></div></div>`).join('')
+    : `<div class="empty">No sensitive actions in the last 7 days.</div>`;
+  $('audit').innerHTML = body + (mine ? `<div class="limited">${icon('lock', 'sm')}The full staff audit log is available to Super Admins.</div>` : '');
+}
+
+function renderStaff() {
+  const s = STAFF[role];
+  $('staffName').textContent = s.name; $('staffRole').textContent = s.role; $('avatar').textContent = s.initials;
+  $('greeting').textContent = `Good afternoon, ${s.first}`;
+}
+
+function render() { renderStaff(); renderNav(); renderMetrics(); renderAttention(); renderAudit(); }
+
+// Global search
+let active = -1;
+function renderResults() {
+  const q = $('search').value.trim().toLowerCase();
+  if (!q) { $('results').hidden = true; $('search').setAttribute('aria-expanded', 'false'); return; }
+  const hits = SEARCH.filter(r => (r.name + ' ' + r.sub).toLowerCase().includes(q));
+  const groups = ['Workspace', 'User'].map(t => [t, hits.filter(h => h.type === t)]).filter(([, h]) => h.length);
+  let idx = 0;
+  $('results').innerHTML = groups.length
+    ? groups.map(([t, h]) => `<h3>${t}s</h3>` + h.map(r => `<button class="result${idx === active ? ' active' : ''}" type="button" role="option" data-idx="${idx++}" ${t === 'User' ? `data-href="prototype-screen-39-admin-users.html#${r.id}"` : `data-href="prototype-screen-40-admin-workspaces.html#${r.id}"`}>${icon(t === 'User' ? 'users' : 'ws', 'sm')}<div><strong>${r.name}</strong><span>${r.sub}</span></div><span class="chip ${r.tone}">${r.chip}</span></button>`).join('')).join('')
+    : `<div class="empty-note">No users or workspaces match “${$('search').value.trim()}”. Search by name, email, or an ID such as ws_8f21c.</div>`;
+  $('results').hidden = false; $('search').setAttribute('aria-expanded', 'true');
+}
+$('search').addEventListener('input', () => { active = -1; renderResults(); });
+$('search').addEventListener('keydown', e => {
+  const opts = [...$('results').querySelectorAll('.result')];
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault(); if (!opts.length) return;
+    active = (active + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length; renderResults();
+  } else if (e.key === 'Enter' && opts.length) {
+    e.preventDefault(); opts[Math.max(active, 0)].click();
+  } else if (e.key === 'Escape') { $('search').value = ''; renderResults(); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) { e.preventDefault(); $('search').focus(); }
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search')) { $('results').hidden = true; $('search').setAttribute('aria-expanded', 'false'); }
+  if (!e.target.closest('#userMenu, #userMenuBtn')) { $('userMenu').hidden = true; $('userMenuBtn').setAttribute('aria-expanded', 'false'); }
+  const href = e.target.closest('[data-href]'); if (href) { location.href = href.dataset.href; return; }
+  const go = e.target.closest('[data-goto]'); if (go) { goTo(go.dataset.goto); $('results').hidden = true; }
+  const rb = e.target.closest('[data-runbook]'); if (rb) { e.preventDefault(); toast(`Opens admin docs at knowledge/admin/${rb.dataset.runbook}.md (docs screen planned).`); }
+  if (e.target.closest('[data-retry]')) { dataState = 'populated'; setActive('stateButtons', 'populated'); render(); toast('Queue stats loaded.'); }
+});
+
+// Assistant
+function openAssistant(open) {
+  $('assistant').hidden = !open; $('assistantBtn').setAttribute('aria-expanded', String(open));
+  if (open) { if (!$('chat').children.length) addBot('<p>Hi! Ask me how SalesMora works or how to perform an admin task. I only use the admin docs, so I can\'t look up customer records.</p>'); $('askInput').focus(); }
+}
+function addMsg(cls, html) { const d = document.createElement('div'); d.className = 'msg ' + cls; d.innerHTML = html; $('chat').appendChild(d); $('chat').scrollTop = $('chat').scrollHeight; }
+function addBot(html, cites) { addMsg('bot', html + (cites ? `<div class="cite">${cites.map(c => `<a href="#" data-runbook="${c.split('#')[0]}">${c}</a>`).join('')}</div>` : '')); }
+function ask(q) {
+  if (!q.trim()) return;
+  addMsg('me', q.replace(/</g, '&lt;'));
+  if (overBudget) return addBot('<p><strong>The admin assistant has reached its monthly budget</strong> (1M tokens). It resets on Nov 1. A Super Admin can raise it in Flags &amp; settings. Docs search still works.</p>');
+  if (/@|ws_[a-z0-9]+/i.test(q)) return addBot('<p>I can\'t look up customer records. I only answer from the admin docs. Use the global search at the top to find users or workspaces.</p>');
+  const hit = ANSWERS.find(a => a.match.test(q));
+  setTimeout(() => hit ? addBot(hit.text, hit.cites) : addBot('<p>This isn\'t documented yet, so I won\'t guess. Try searching the admin docs, or ask a Super Admin to add a runbook.</p>'), 450);
+}
+$('assistantBtn').addEventListener('click', () => openAssistant($('assistant').hidden));
+$('assistantClose').addEventListener('click', () => { openAssistant(false); $('assistantBtn').focus(); });
+$('askForm').addEventListener('submit', e => { e.preventDefault(); ask($('askInput').value); $('askInput').value = ''; });
+$('suggest').addEventListener('click', e => { const b = e.target.closest('button'); if (b) ask(b.textContent); });
+
+// Account menu
+$('userMenuBtn').addEventListener('click', () => { const open = $('userMenu').hidden; $('userMenu').hidden = !open; $('userMenuBtn').setAttribute('aria-expanded', String(open)); });
+$('refreshBtn').addEventListener('click', () => {
+  const prev = dataState; dataState = 'loading'; render();
+  setTimeout(() => { dataState = prev === 'loading' ? 'populated' : prev; render(); $('asOf').textContent = 'Live data as of 12:31 PM ET · refreshes every 60 seconds'; }, 700);
+});
+$('auditLink').addEventListener('click', () => { location.href = 'prototype-screen-41-admin-audit.html'; });
+
+// Idle timeout
+let idleTimer;
+function startIdle() {
+  let left = 120; $('idleModal').hidden = false; $('stayBtn').focus();
+  clearInterval(idleTimer);
+  idleTimer = setInterval(() => {
+    left -= 1; $('idleCount').textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    if (left <= 0) { clearInterval(idleTimer); location.href = 'prototype-screen-37-admin-sign-in.html'; }
+  }, 1000);
+}
+$('stayBtn').addEventListener('click', () => { clearInterval(idleTimer); $('idleModal').hidden = true; $('idleCount').textContent = '2:00'; toast('Session extended. Idle timer reset to 30 minutes.'); });
+
+// Review controls
+function setActive(group, val) { document.querySelectorAll(`#${group} button`).forEach(b => b.classList.toggle('active', (b.dataset.role || b.dataset.state) === val)); }
+$('roleButtons').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; role = b.dataset.role; setActive('roleButtons', role); render(); });
+$('stateButtons').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const s = b.dataset.state;
+  if (s === 'idle') { startIdle(); return; }
+  if (s === 'budget') {
+    overBudget = !overBudget; b.classList.toggle('active', overBudget);
+    $('budget').textContent = overBudget ? 'Platform assistant budget: 1M of 1M tokens used. Resets Nov 1.' : 'Platform assistant budget: 212K of 1M tokens used this month';
+    openAssistant(true); return;
+  }
+  dataState = s; document.querySelectorAll('#stateButtons button[data-state]:not([data-state="budget"])').forEach(x => x.classList.toggle('active', x === b)); render();
+});
+$('envToggle').addEventListener('click', () => {
+  const prod = !$('envBar').classList.contains('production');
+  $('envBar').classList.toggle('production', prod);
+  $('envLabel').textContent = prod ? 'Production environment' : 'Staging environment';
+  $('envToggle').textContent = prod ? 'Switch to staging' : 'Switch to production';
+});
+$('reviewToggle').addEventListener('click', () => {
+  const c = $('review').classList.toggle('collapsed');
+  $('reviewToggle').textContent = c ? 'Show' : 'Hide'; $('reviewToggle').setAttribute('aria-expanded', String(!c));
+});
+
+if (matchMedia('(max-width: 820px)').matches) $('reviewToggle').click();
+render();
+</script>
+</body>
+</html>

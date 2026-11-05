@@ -48,12 +48,16 @@ export async function up(db: Knex.Transaction) {
     t.timestamp('createdAt', { useTz: true }).notNullable().defaultTo(db.fn.now());
     t.index(['workspaceId', 'createdAt']);
   });
+  // defaults-v1.json grows with later features. Seed only the grants this migration's constraints allow;
+  // later migrations add their own (Office estimate archive/delete arrive with 202610230001).
+  const seed = defaults.filter(grant => (!/\.(export|delete|archive)$/.test(grant.permission) || ['owner', 'admin'].includes(grant.role))
+    && (!['permissions.read', 'permissions.manage', 'billing.manage', 'ownership.transfer'].includes(grant.permission) || grant.role === 'owner'));
   const workspaces = await db('workspaces').select('id', 'ownerId');
   for (const workspace of workspaces) {
     await db('workspacePolicies').insert({ workspaceId: workspace.id });
-    await db('workspaceRolePolicies').insert(defaults.map(grant => ({ ...grant, workspaceId: workspace.id })));
+    await db('workspaceRolePolicies').insert(seed.map(grant => ({ ...grant, workspaceId: workspace.id })));
     await db('authorizationAudit').insert({ workspaceId: workspace.id, actorId: workspace.ownerId, action: 'migration.seeded',
-      beforeRevision: null, afterRevision: 0, afterPolicy: JSON.stringify({ workspaceId: workspace.id, revision: 0, grants: defaults }) });
+      beforeRevision: null, afterRevision: 0, afterPolicy: JSON.stringify({ workspaceId: workspace.id, revision: 0, grants: seed }) });
   }
   // All authority mutations serialize with protected repository reads and policy saves.
   await db.raw(`CREATE FUNCTION authorization_lock_workspace() RETURNS trigger LANGUAGE plpgsql AS $$

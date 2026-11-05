@@ -128,5 +128,23 @@
       "free"
     ],
     "productStatus": "planned"
+  },
+  {
+    "slug": "lead-capture-assistant",
+    "title": "Lead Capture assistant",
+    "roles": [
+      "owner",
+      "admin",
+      "office",
+      "field"
+    ],
+    "capabilities": [
+      "leadCapture.read"
+    ],
+    "plans": [
+      "free",
+      "enterprise"
+    ],
+    "productStatus": "implemented"
   }
 ]

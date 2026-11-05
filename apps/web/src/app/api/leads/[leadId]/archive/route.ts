@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../../server/http/suspension';
 import { NextResponse } from 'next/server';
 import { AuthorizationAccessError, LeadArchiveConflictError } from '@salesmora/data';
 import { leadArchiveSchema } from '@salesmora/contracts';
@@ -13,6 +14,7 @@ async function change(request:Request,params:Promise<{leadId:string}>,archived:b
   if(!input.success || input.data.leadId!==leadId)return NextResponse.json({error:'Invalid archive request.'},{status:400,headers});
   try{return NextResponse.json(await archiveWorkspaceLead(session.user.id,input.data,archived),{headers});}
   catch(error){
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if(error instanceof AuthorizationAccessError)return NextResponse.json({error:'This lead is unavailable or you no longer have permission to archive or restore it.'},{status:404,headers});
     if(error instanceof LeadArchiveConflictError)return NextResponse.json({error:'This lead changed or its archive state already changed. Reload before trying again.'},{status:409,headers});
     return NextResponse.json({error:'The change could not be confirmed. Try again.'},{status:500,headers});

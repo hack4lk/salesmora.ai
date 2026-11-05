@@ -1,3 +1,5 @@
+import { captureSetupTool } from '../lead-capture/tools';
+import { captureQueryTool } from '../lead-capture/tools';
 import { calendarQueryTool, calendarProposeTool } from '../calendar/tools';
 import { customersQueryTool, customersProposeTool } from "../customers/tools";
 import type {
@@ -13,6 +15,7 @@ import { estimatesQueryTool, estimatesProposeTool } from "../estimates/tools";
 
 /** Explicit read-only implementations. Planned tool IDs never become executable automatically. */
 export const readToolRegistry = {
+  lead_capture_query: captureQueryTool,
   calendar_query: calendarQueryTool,
   customers_query: customersQueryTool,
   search_help: searchHelpTool,
@@ -38,6 +41,7 @@ export interface ReadToolResult {
 /** Draft preparation is separate from reads. There is deliberately no commit tool. */
 export const toolRegistry = {
   ...readToolRegistry,
+  lead_capture_propose_action: captureSetupTool,
   calendar_propose_action: calendarProposeTool,
   estimates_propose_action: estimatesProposeTool,
   customers_propose_action: customersProposeTool,
@@ -53,6 +57,9 @@ export function isImplementedTool(name: string): name is ImplementedToolId {
   return Object.hasOwn(toolRegistry, name);
 }
 export interface ToolResult extends ReadToolResult {
+  captureSource?: import("@salesmora/contracts").CaptureAssistantProposalTicket;
+  captureSetup?: import("@salesmora/contracts").CaptureAssistantProposalTicket;
+  captureResult?: import("@salesmora/contracts").CaptureChatTicket;
   calendarProposal?: import("@salesmora/contracts").CalendarProposalTicket;
   calendarResult?: import("@salesmora/contracts").CalendarChatResult;
   estimateDraft?: import("@salesmora/contracts").EstimateDraftChatView;

@@ -1,3 +1,5 @@
+import type { captureProposeOperations } from '@salesmora/contracts';
+type CaptureProposalOperation = typeof captureProposeOperations[number];
 import type {
   CustomerOperationId,
   CustomerChatResult,
@@ -33,6 +35,7 @@ export interface ConversationModel {
     signal: AbortSignal,
     operations?: readonly LeadOperationId[],
     customerOperations?: readonly CustomerOperationId[],
+    captureOperations?: readonly CaptureProposalOperation[],
   ): Promise<RuntimeCall[]>;
   answer(
     messages: RuntimeMessage[],
@@ -41,6 +44,7 @@ export interface ConversationModel {
     tools?: readonly ChatToolId[],
     operations?: readonly LeadOperationId[],
     customerOperations?: readonly CustomerOperationId[],
+    captureOperations?: readonly CaptureProposalOperation[],
   ): AsyncIterable<string>;
 }
 export interface RuntimeDependencies {
@@ -50,6 +54,7 @@ export interface RuntimeDependencies {
     tool?: ChatToolId,
     operation?: LeadOperationId,
   ) => Promise<readonly ChatToolId[]>;
+  captureOperations?: () => Promise<readonly CaptureProposalOperation[]>;
   customerOperations?: () => Promise<readonly CustomerOperationId[]>;
   leadOperations?: () => Promise<readonly LeadOperationId[]>;
   executeTool: (name: ImplementedToolId, args: unknown) => Promise<ToolResult>;
@@ -82,6 +87,9 @@ export async function runConversation(
 ) {
   let customerResult: CustomerChatResult | undefined;
   let calendarProposal: import("@salesmora/contracts").CalendarProposalTicket | undefined;
+  let captureSource: import("@salesmora/contracts").CaptureAssistantProposalTicket | undefined;
+  let captureSetup: import("@salesmora/contracts").CaptureAssistantProposalTicket | undefined;
+  let captureResult: import("@salesmora/contracts").CaptureChatTicket | undefined;
   let calendarResult: import("@salesmora/contracts").CalendarChatResult | undefined;
   let workOrderResult: import("@salesmora/contracts").WorkOrderChatResult | undefined;
   let estimateResult: import("@salesmora/contracts").EstimateChatResult | undefined;
@@ -129,6 +137,7 @@ export async function runConversation(
           input.signal,
           (await deps.leadOperations?.()) ?? [],
           (await deps.customerOperations?.()) ?? [],
+          (await deps.captureOperations?.()) ?? [],
         );
         if (
           calls.length > 2 ||
@@ -178,6 +187,7 @@ export async function runConversation(
             )
               throw Error("Access denied.");
           }
+          if (call.name === 'lead_capture_propose_action' && !((await deps.captureOperations?.()) ?? []).some(operation => operation === (args as { operation: string }).operation)) throw Error('Access denied.');
           if (definition.progress)
             await deps.emit({ type: "status", status: definition.progress });
           const result = await deps.executeTool(call.name, args);
@@ -189,6 +199,9 @@ export async function runConversation(
           workOrderResult = result.workOrderResult ?? workOrderResult;
           calendarProposal = result.calendarProposal ?? calendarProposal;
           calendarResult = result.calendarResult ?? calendarResult;
+          captureSource = result.captureSource ?? captureSource;
+          captureSetup = result.captureSetup ?? captureSetup;
+          captureResult = result.captureResult ?? captureResult;
           estimateResult = result.estimateResult ?? estimateResult;
           estimateDraft = result.estimateDraft ?? estimateDraft;
           estimateSharing = result.estimateSharing ?? estimateSharing;
@@ -220,6 +233,7 @@ export async function runConversation(
           tools,
           (await deps.leadOperations?.()) ?? [],
           (await deps.customerOperations?.()) ?? [],
+          (await deps.captureOperations?.()) ?? [],
         )) {
           assertActive();
           length += text.length;
@@ -259,6 +273,9 @@ export async function runConversation(
     customerResult,
     workOrderResult,
     calendarResult,
+    captureResult,
+    captureSetup,
+    captureSource,
     calendarProposal,
     estimateResult,
     estimateDraft,

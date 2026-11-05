@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { planChangeRequestSchema } from '@salesmora/contracts';
-import { BillingAccessError, sandboxBillingEnabled, previewPlanChange, confirmPlanChange, undoPlanChange } from '@salesmora/data';
+import { CaptureCapacityError, BillingAccessError, sandboxBillingEnabled, previewPlanChange, confirmPlanChange, undoPlanChange } from '@salesmora/data';
 import { getSession } from '../../../../server/auth/session';
 import { database } from '../../../../server/workspaces/store';
 const reply = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -31,6 +31,7 @@ export async function POST(request: Request) {
         return reply(body.action === 'preview' ? await previewPlanChange(db, session.user.id, body.workspaceId, body.plan) : body.action === 'undo' ? await undoPlanChange(db, session.user.id, body.workspaceId, body.quoteId) : await confirmPlanChange(db, session.user.id, body.workspaceId, body.quoteId, body.action === 'refresh'));
     }
     catch (error) {
+        if (error instanceof CaptureCapacityError) return reply({ error: error.message, sources: error.sources.slice(0,100), total: error.sources.length, limit: error.limit, gmail: error.gmail }, 409);
         return reply({ error: error instanceof BillingAccessError ? error.message : 'Plan change could not be completed. Your current plan is preserved; refresh and review again.' }, error instanceof BillingAccessError ? 403 : 409);
     }
 }

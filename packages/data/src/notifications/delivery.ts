@@ -1,7 +1,8 @@
 import type { Knex } from 'knex';
 import type { LeadReadRecord, PermissionId } from '@salesmora/contracts';
 import { resolveAuthorizedCollectionScope } from '@salesmora/domain';
-import { AuthorizationAccessError, withWorkspaceAuthorization } from '../authorization/store';
+import { AuthorizationAccessError, WorkspaceSuspendedError, withWorkspaceAuthorization } from '../authorization/store';
+import { withoutSuspendedWorkspaces } from '../accounts/workspace-hold';
 import { currentAssignmentQuery } from './store';
 export type AssignmentDelivery = { id: string; to: string; workspaceId: string; workspaceName: string; leadId: string; leadNumber: string; leadName: string; service: string; stage: LeadReadRecord['stage']; assignerName: string };
 /** Workspace then outbox lock order matches mutations. Skip-locked claims support multiple workers.
@@ -10,7 +11,7 @@ export type AssignmentDelivery = { id: string; to: string; workspaceId: string; 
 export async function processAssignmentEmails(db: Knex, enabled: readonly PermissionId[], send: (mail: AssignmentDelivery) => Promise<void>, limit = 10) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new RangeError('Invalid delivery batch size');
   const summary = { sent: 0, skipped: 0, retryPending: 0, failed: 0 };
-  const candidates = await db('assignmentEmailOutbox as o').join('assignmentNotifications as n','n.id','o.id').where('o.status','queued').where('o.nextAttemptAt','<=',db.fn.now()).orderBy('o.nextAttemptAt').orderBy('o.id').limit(limit).select('o.id','n.workspaceId','n.userId','n.createdAt');
+  const candidates = await withoutSuspendedWorkspaces(db('assignmentEmailOutbox as o'), 'n.workspaceId').join('assignmentNotifications as n','n.id','o.id').where('o.status','queued').where('o.nextAttemptAt','<=',db.fn.now()).orderBy('o.nextAttemptAt').orderBy('o.id').limit(limit).select('o.id','n.workspaceId','n.userId','n.createdAt');
   for (const candidate of candidates) {
     try {
       await withWorkspaceAuthorization(db,{ workspaceId: candidate.workspaceId, userId: candidate.userId },enabled,false,async (trx,context) => {
@@ -32,6 +33,7 @@ export async function processAssignmentEmails(db: Knex, enabled: readonly Permis
         }
       });
     } catch (error) {
+      if (error instanceof WorkspaceSuspendedError) continue;
       if (!(error instanceof AuthorizationAccessError)) throw error;
       await db('assignmentEmailOutbox').where({id:candidate.id,status:'queued'}).update({status:'skipped'}); summary.skipped++;
     }

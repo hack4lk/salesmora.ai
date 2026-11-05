@@ -1,10 +1,11 @@
 import { z } from 'zod';
+import { canonicalCapturePermission } from './lead-capture/compatibility';
 import { permissionIdSchema, workspaceRoleSchema } from './authorization/schemas';
 export const knowledgeSlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(100);
 export const knowledgeMetadataSchema = z.object({
   slug: knowledgeSlugSchema, title: z.string().trim().min(1).max(160),
   roles: z.array(workspaceRoleSchema).min(1),
-  capabilities: z.array(permissionIdSchema).max(10),
+  capabilities: z.array(z.preprocess(value => typeof value === 'string' ? canonicalCapturePermission(value) : value, permissionIdSchema)).max(10),
   plans: z.array(z.enum(['free', 'enterprise'])).min(1),
   productStatus: z.enum(['implemented', 'planned']),
 }).strict();

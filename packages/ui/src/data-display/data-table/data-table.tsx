@@ -38,7 +38,7 @@ export function DataTable<Row>({caption,columns,rows,getRowId,getRowLabel,sort,o
     :state==='error'?<div className="grid justify-items-start gap-4 p-6"><p role="alert" className="m-0 text-sm text-error">{errorMessage}</p>{onRetry&&<button type="button" className={action} onClick={onRetry}>{copy.retry}</button>}</div>
     :rows.length===0?<p role="status" className="m-0 p-6 text-sm leading-6 text-muted">{emptyMessage}</p>:<>
       {onRowOpen&&<p id={`${id}-keyboard`} className="sr-only">{copy.keyboard}</p>}
-      <div className="hidden max-h-96 overflow-auto md:block">
+      <div tabIndex={0} role="group" aria-label={caption} className="hidden max-h-96 overflow-auto focus-visible:focus-ring md:block">
         <table className="w-full border-collapse text-left text-sm">
           <caption className="sr-only">{caption}</caption>
           <thead className="sticky top-0 z-10 bg-canvas"><tr>

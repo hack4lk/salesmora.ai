@@ -72,6 +72,19 @@ export function testDraftModel(
   message: string,
 ): import("@salesmora/agent").ConversationModel | undefined {
   if (!testChatProviderEnabled()) return;
+  if (message.startsWith('fixture:capture-setup:')) return {
+    async plan() { return [{ name: 'lead_capture_propose_action', args: JSON.parse(message.slice('fixture:capture-setup:'.length)) }]; },
+    async *answer(_messages, evidence) { yield evidence.some(item => !!item && typeof item === 'object' && 'type' in item && item.type === 'capture-setup-clarification') ? 'Please provide the missing setup details. No proposal was prepared and nothing was saved.' : 'Setup proposal prepared for review. Nothing has been saved or published.'; },
+  };
+  if (message.startsWith('fixture:capture:') || message.startsWith('fixture:capture-slow:')) return {
+    async plan() { return [{ name: 'lead_capture_query', args: JSON.parse(message.slice(message.indexOf(':', 8) + 1)) }]; },
+    async *answer(_messages, evidence) {
+      yield 'Authorized Lead Capture snapshot. ';
+      if (message.startsWith('fixture:capture-slow:')) await new Promise(resolve => setTimeout(resolve, 1200));
+      yield JSON.stringify(evidence).slice(0, 6000);
+      yield ' No source was saved or published.';
+    },
+  };
   if (message.startsWith('fixture:calendar-propose:') || message.startsWith('fixture:calendar-propose-slow:')) return {
     async plan() { return [{ name:'calendar_propose_action',args:JSON.parse(message.slice(message.indexOf(':',8)+1)) }]; },
     async *answer(_messages,evidence) {

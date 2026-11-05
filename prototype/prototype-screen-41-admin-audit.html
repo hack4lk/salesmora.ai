@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><meta name="theme-color" content="#f4f8fc"><title>Audit log · SalesMora Admin prototype</title>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#23384D;background:#F4F8FC;--blue:#3B6FA5;--blue-dark:#315C8A;--seafoam:#7CCBB7;--ink:#23384D;--line:#E2EAF1;--muted:#64778A;--red:#b42318;--red-bg:#fef3f2;--amber:#b54708;--amber-bg:#fffaeb;--green:#067647;--green-bg:#ecfdf3}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#F4F8FC}button,input{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #8DB5D5;outline-offset:2px}[hidden]{display:none!important}
+.icon{width:18px;height:18px;flex:0 0 auto;fill:currentColor}.icon.sm{width:15px;height:15px}
+.env-bar{position:sticky;top:0;z-index:9;display:flex;align-items:center;justify-content:center;height:28px;background:#f79009;color:#3d1d00;font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase}.env-bar.production{background:#d92d20;color:#fff}
+.app{display:grid;grid-template-columns:236px 1fr;min-height:calc(100vh - 28px)}
+.sidebar{position:sticky;top:28px;height:calc(100vh - 28px);display:flex;flex-direction:column;padding:20px 12px 14px;background:#fff;border-right:1px solid var(--line)}
+.logo{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 8px 22px}.logo img{display:block;width:142px;height:auto}
+.admin-tag{padding:3px 7px;border-radius:6px;background:var(--ink);color:#fff;font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.nav-label{margin:14px 10px 6px;color:#8a9bab;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.nav{display:grid;gap:2px}.nav-item{display:flex;align-items:center;gap:10px;width:100%;min-height:36px;padding:0 10px;border:0;border-radius:8px;background:none;color:#4d6175;font-size:12px;font-weight:570;text-align:left}
+.nav-item:hover{background:#F4F8FC}.nav-item.active{background:#e6eff8;color:var(--blue-dark);font-weight:650}.nav-item .icon{color:#7d91a5}.nav-item.active .icon{color:var(--blue)}
+.nav-badge{margin-left:auto;min-width:20px;padding:2px 6px;border-radius:999px;background:var(--red-bg);color:var(--red);font-size:9px;font-weight:700;text-align:center}
+.nav-spacer{flex:1}.sidebar-foot{display:flex;align-items:center;gap:9px;padding:12px 6px 0;border-top:1px solid #eef2f6}
+.avatar{display:grid;width:32px;height:32px;flex:0 0 auto;place-items:center;border-radius:50%;background:#dce9f5;color:var(--blue-dark);font-size:10px;font-weight:700}
+.who{min-width:0;flex:1}.who strong,.who span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.who strong{font-size:11px}.who span{margin-top:2px;color:#8a9bab;font-size:9px}
+.icon-btn{display:grid;width:32px;height:32px;place-items:center;border:1px solid var(--line);border-radius:8px;background:#fff;color:#5d7186}.icon-btn:hover{background:#F4F8FC}
+.main{min-width:0}
+.topbar{position:sticky;top:28px;z-index:5;display:flex;align-items:center;gap:12px;height:60px;padding:0 26px;border-bottom:1px solid var(--line);background:#ffffffed;backdrop-filter:blur(10px)}
+.search{position:relative;flex:1;max-width:520px}.search>.icon{position:absolute;left:11px;top:10px;color:#8a9bab}
+.search input{width:100%;height:38px;padding:0 44px 0 34px;border:1px solid #d3dee8;border-radius:9px;background:#fff;color:var(--ink);font-size:12px}
+.kbd{position:absolute;right:9px;top:9px;padding:2px 6px;border:1px solid var(--line);border-radius:5px;color:#8a9bab;font-size:10px}
+.results{position:absolute;top:44px;left:0;right:0;overflow:hidden;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 14px 30px #23384d22}
+.results h3{margin:0;padding:8px 12px 4px;color:#8a9bab;font-size:9px;letter-spacing:.08em;text-transform:uppercase}
+.result{display:flex;align-items:center;gap:10px;width:100%;padding:8px 12px;border:0;background:#fff;text-align:left}.result:hover,.result.active{background:#F4F8FC}
+.result strong{display:block;color:var(--ink);font-size:12px}.result span{display:block;margin-top:2px;color:var(--muted);font-size:10px}.result .chip{margin-left:auto}
+.results .empty-note{padding:14px 12px;color:var(--muted);font-size:11px}
+.top-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:0 12px;border:1px solid #d3dee8;border-radius:8px;background:#fff;color:#3d5268;font-size:11px;font-weight:620}.button:hover{background:#F4F8FC}
+.button.primary{border-color:var(--blue);background:var(--blue);color:#fff}.button.primary:hover{background:var(--blue-dark)}
+.content{max-width:1360px;margin:0 auto;padding:24px 26px 48px}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:18px}
+.eyebrow{margin-bottom:5px;color:#6c8299;font-size:10px;font-weight:750;letter-spacing:.11em;text-transform:uppercase}
+h1{margin:0;font-size:24px;font-weight:680;letter-spacing:-.04em}.page-head p{margin:6px 0 0;color:var(--muted);font-size:11px}
+.metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:11px;margin-bottom:16px}
+.metric{display:block;width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;text-align:left;color:inherit}.metric:hover{border-color:#b9cfe3}
+.metric-label{display:flex;align-items:center;gap:6px;color:#6c8299;font-size:10px;font-weight:620}.metric-value{margin-top:6px;font-size:22px;font-weight:700;letter-spacing:-.035em}
+.metric-foot{margin-top:3px;color:#8a9bab;font-size:10px}.metric.alert-red .metric-value{color:var(--red)}.metric.alert-amber .metric-value{color:var(--amber)}
+.metric.error{border-style:dashed}.metric.error .metric-value{font-size:12px;font-weight:600;color:var(--red)}
+.skeleton{display:block;height:12px;border-radius:5px;background:linear-gradient(90deg,#eaf0f6,#f6f9fc,#eaf0f6);background-size:200% 100%;animation:sk 1.2s infinite}@keyframes sk{to{background-position:-200% 0}}
+.grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px}
+.panel{border:1px solid var(--line);border-radius:12px;background:#fff}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid #eef2f6}
+.panel-head h2{margin:0;font-size:13px;font-weight:680}.panel-head .link{border:0;background:none;color:var(--blue);font-size:11px;font-weight:620}
+.list{margin:0;padding:0;list-style:none}.row{display:flex;align-items:flex-start;gap:11px;padding:12px 15px;border-bottom:1px solid #f0f4f8}.row:last-child{border-bottom:0}
+.sev{display:grid;width:28px;height:28px;flex:0 0 auto;place-items:center;border-radius:8px}.sev.error{background:var(--red-bg);color:var(--red)}.sev.warn{background:var(--amber-bg);color:var(--amber)}.sev.info{background:#e6eff8;color:var(--blue)}
+.row-body{min-width:0;flex:1}.row-title{font-size:12px;font-weight:640}.row-detail{margin-top:3px;color:var(--muted);font-size:11px;line-height:1.45}
+.row .button{min-height:30px;font-size:10px}
+.chip{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:#eef3f8;color:#4d6175;font-size:9px;font-weight:650;white-space:nowrap}.chip.red{background:var(--red-bg);color:var(--red)}.chip.green{background:var(--green-bg);color:var(--green)}.chip.amber{background:var(--amber-bg);color:var(--amber)}
+.audit-row{display:grid;grid-template-columns:62px minmax(0,1fr);gap:10px;padding:11px 15px;border-bottom:1px solid #f0f4f8}.audit-row:last-child{border-bottom:0}
+.audit-time{color:#8a9bab;font-size:10px;font-variant-numeric:tabular-nums}.audit-what{font-size:11px;line-height:1.45}.audit-what strong{font-weight:650}.audit-reason{margin-top:3px;color:var(--muted);font-size:10px;font-style:italic}
+.empty{padding:28px 15px;color:var(--muted);font-size:11px;text-align:center}.empty .icon{width:28px;height:28px;color:#2f8f78}
+.limited{display:flex;align-items:center;gap:9px;margin:12px 15px;padding:10px 11px;border:1px dashed #cfdbe6;border-radius:9px;color:var(--muted);font-size:11px}
+.toast{position:fixed;left:50%;bottom:22px;z-index:30;transform:translateX(-50%);display:flex;align-items:center;gap:9px;max-width:min(560px,92vw);padding:11px 14px;border-radius:10px;background:var(--ink);color:#fff;font-size:11px;box-shadow:0 12px 30px #23384d55}
+.drawer{position:fixed;top:28px;right:0;bottom:0;z-index:12;display:flex;flex-direction:column;width:min(400px,96vw);border-left:1px solid var(--line);background:#fff;box-shadow:-12px 0 35px #23384d1f}
+.drawer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px;border-bottom:1px solid #eef2f6}.drawer-head h2{margin:0;font-size:14px}.drawer-head p{margin:4px 0 0;color:var(--muted);font-size:10px;line-height:1.45}
+.chat{flex:1;overflow:auto;padding:14px 16px;display:grid;align-content:start;gap:10px}
+.msg{max-width:92%;padding:10px 12px;border-radius:10px;font-size:11px;line-height:1.5}.msg.me{justify-self:end;background:var(--blue);color:#fff}.msg.bot{background:#F4F8FC;border:1px solid var(--line)}
+.msg ol{margin:6px 0 0;padding-left:18px}.cite{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.cite a{padding:3px 7px;border:1px solid #cfdbe6;border-radius:6px;background:#fff;color:var(--blue);font-size:9px;font-weight:620}
+.suggest{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 10px}.suggest button{padding:5px 9px;border:1px solid #d3dee8;border-radius:7px;background:#fff;color:#4d6175;font-size:10px}.suggest button:hover{border-color:var(--blue);color:var(--blue)}
+.ask{display:flex;gap:7px;padding:12px 16px;border-top:1px solid #eef2f6}.ask input{flex:1;min-width:0;height:36px;padding:0 10px;border:1px solid #d3dee8;border-radius:8px;font-size:11px}
+.budget{padding:0 16px 10px;color:#8a9bab;font-size:9px}
+.modal-backdrop{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:18px;background:#23384d80}
+.modal{width:min(400px,100%);padding:20px;border-radius:12px;background:#fff;box-shadow:0 20px 50px #0005}.modal h2{margin:0 0 6px;font-size:16px}.modal p{margin:0 0 16px;color:var(--muted);font-size:12px;line-height:1.5}
+.modal .actions{display:flex;justify-content:flex-end;gap:8px}.count{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink)}
+.menu{position:absolute;bottom:56px;left:12px;right:12px;z-index:6;padding:6px;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 12px 28px #23384d26}.menu button,.menu a{display:flex;align-items:center;gap:9px;width:100%;padding:8px 9px;border:0;border-radius:7px;background:none;color:#3d5268;font-size:11px;text-align:left}.menu button:hover,.menu a:hover{background:#F4F8FC}
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px}
+.filter{position:relative;flex:1;min-width:240px;max-width:440px}.filter .icon{position:absolute;left:10px;top:9px;color:#8a9bab}
+.filter input{width:100%;height:36px;padding:0 10px 0 33px;border:1px solid #d3dee8;border-radius:8px;background:#fff;color:var(--ink);font-size:12px}
+.seg{display:flex;flex-wrap:wrap;gap:3px;padding:3px;border:1px solid var(--line);border-radius:9px;background:#fff}
+.seg button{padding:6px 10px;border:0;border-radius:6px;background:none;color:#4d6175;font-size:11px;font-weight:600}.seg button:hover{background:#F4F8FC}.seg button[aria-pressed="true"]{background:#e6eff8;color:var(--blue-dark)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:10px 15px;border-bottom:1px solid var(--line);color:#6c8299;font-size:9px;font-weight:700;letter-spacing:.07em;text-align:left;text-transform:uppercase;white-space:nowrap}
+td{padding:10px 15px;border-bottom:1px solid #f0f4f8;vertical-align:middle}tbody tr[data-open]{cursor:pointer}tbody tr[data-open]:hover{background:#f8fbfd}tbody tr:last-child td{border-bottom:0}
+.u-cell{display:flex;align-items:center;gap:10px}.u-cell a{color:var(--ink);font-weight:640}.u-cell a:hover{color:var(--blue)}
+.sub{display:block;margin-top:2px;color:var(--muted);font-size:10px}.muted{color:var(--muted)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px}
+.ws-line{display:block;font-size:11px}.ws-line+.ws-line{margin-top:3px}.ws-line .muted{font-size:10px}
+.pager{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 15px;border-top:1px solid #eef2f6;color:var(--muted);font-size:11px}.pager div{display:flex;gap:6px}
+.back{display:inline-flex;align-items:center;gap:5px;margin-bottom:12px;color:var(--blue);font-size:11px;font-weight:620}
+.profile-head{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-bottom:14px;padding:16px}
+.avatar.lg{width:48px;height:48px;font-size:15px}
+.ph-main{flex:1;min-width:220px}.ph-main h1{display:flex;flex-wrap:wrap;align-items:center;gap:9px}.ph-main h1:focus{outline:none}.ph-main p{margin:5px 0 0;color:var(--muted);font-size:11px}
+.actions-bar{display:flex;flex-wrap:wrap;gap:7px}
+.button.danger{border-color:#fecdca;color:var(--red)}.button.danger:hover{background:var(--red-bg)}
+.button.danger.solid{border-color:var(--red);background:var(--red);color:#fff}.button.danger.solid:hover{background:#912018}
+.button:disabled{opacity:.5;cursor:not-allowed}.button:disabled:hover{background:#fff}
+.secure{display:inline-flex;margin-left:-2px;color:#8a9bab}
+.banner{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;padding:11px 13px;border-radius:10px;font-size:11px;line-height:1.5}.banner>div{flex:1}
+.banner.red{border:1px solid #fecdca;background:var(--red-bg);color:#7a271a}.banner.amber{border:1px solid #fedf89;background:var(--amber-bg);color:#7a2e0e}.banner.info{border:1px solid #cfe0ef;background:#eef5fb;color:var(--ink)}
+.banner .button{min-height:28px;font-size:10px}
+.stack{display:grid;align-content:start;gap:14px}
+.dl{display:grid;grid-template-columns:150px minmax(0,1fr);margin:0;font-size:12px}
+.dl dt,.dl dd{margin:0;padding:9px 15px;border-bottom:1px solid #f0f4f8}.dl dt{color:var(--muted);font-size:11px}.dl dd{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;word-break:break-word}
+.dl dt:nth-last-child(2),.dl dd:last-child{border-bottom:0}
+.reveal{display:inline-flex;align-items:center;gap:3px;padding:2px 4px;border:0;border-radius:5px;background:none;color:var(--blue);font-size:10px;font-weight:650}.reveal:hover{background:#eef5fb}
+.revealed-note{color:#8a9bab;font-size:9px}
+.modal.wide{width:min(470px,100%)}.modal-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.field{margin-bottom:12px}.field label{display:block;margin-bottom:5px;font-size:11px;font-weight:640}.field label span{color:#8a9bab;font-weight:500}
+.field textarea,.field input{width:100%;padding:8px 10px;border:1px solid #d3dee8;border-radius:8px;color:var(--ink);font:inherit;font-size:12px}.field textarea{resize:vertical}
+.hint{margin-top:5px;color:var(--muted);font-size:10px;line-height:1.45}
+.step-note{display:flex;align-items:flex-start;gap:7px;margin-bottom:12px;padding:9px 10px;border-radius:8px;background:#F4F8FC;color:#4d6175;font-size:11px;line-height:1.45}
+.err{min-height:0;margin-bottom:8px;color:var(--red);font-size:11px}.err:empty{display:none}
+.linkish{margin-bottom:12px;padding:0;border:0;background:none;color:var(--blue);font-size:11px;font-weight:620}
+.totp{display:flex;gap:7px}.totp input{flex:1}
+.block{width:100%;margin-bottom:12px}
+@media (max-width:820px){.hide-sm{display:none}.dl{grid-template-columns:110px minmax(0,1fr)}}
+#detailView .audit-row{grid-template-columns:96px minmax(0,1fr)}
+.field textarea:focus-visible{outline:3px solid #8DB5D5;outline-offset:2px}
+.toolbar select{height:36px;padding:0 28px 0 10px;border:1px solid #d3dee8;border-radius:8px;background:#fff;color:var(--ink);font-size:12px}
+.toolbar .spacer{flex:1}
+.chain{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:14px;padding:13px 15px;border-radius:12px;font-size:11px;line-height:1.5}
+.chain>div{flex:1;min-width:260px}.chain strong{display:block;font-size:13px}
+.chain.ok{border:1px solid #b7e4d6;background:#effaf6}.chain.ok .sev{background:#d6f3ea;color:#2f8f78}
+.chain.bad{border:1px solid #fecdca;background:var(--red-bg);color:#7a271a}.chain.bad strong{color:var(--red)}
+.chain.warn{border:1px solid #fedf89;background:var(--amber-bg);color:#7a2e0e}
+.chain .button{min-height:32px}
+.chain-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+td.time{white-space:nowrap;color:#4d6175}td.time span{display:block;color:#8a9bab;font-size:10px}
+.code{display:inline-block;margin-bottom:2px;padding:1px 5px;border-radius:5px;background:#eef3f8;color:#4d6175;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px}
+.ev-what{font-size:12px}.ev-reason{max-width:280px;color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.expander{display:inline-grid;width:22px;height:22px;place-items:center;border:0;border-radius:6px;background:none;color:#8a9bab}.expander:hover{background:#eef3f8}
+.expander .icon{transition:transform .15s}[aria-expanded="true"] .icon{transform:rotate(90deg)}
+tr.open>td{background:#f8fbfd;border-bottom-color:transparent}
+tr.detail>td{padding:0 15px 15px 52px;background:#f8fbfd}
+.ev-detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.ev-detail .dl{border:1px solid var(--line);border-radius:10px;background:#fff}
+.ev-detail pre{margin:0;padding:10px 12px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;line-height:1.55}
+.ev-detail h3{margin:0 0 6px;color:#6c8299;font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+.ev-detail .links{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.hash-bad{color:var(--red);font-weight:650}
+.denied{max-width:520px;margin:40px auto;padding:28px;text-align:center}.denied .sev{width:44px;height:44px;margin:0 auto 12px;border-radius:12px}
+.denied h1{margin:0 0 6px;font-size:18px}.denied p{margin:0 0 14px;color:var(--muted);font-size:12px;line-height:1.55}
+.progress{height:6px;margin-top:8px;overflow:hidden;border-radius:999px;background:#d6f3ea}.progress i{display:block;height:100%;width:0;background:#2f8f78;transition:width 1.4s linear}
+@media (max-width:1000px){.ev-detail{grid-template-columns:1fr}tr.detail>td{padding-left:15px}.ev-reason{max-width:160px}}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+/* Prototype review controls — not part of the product UI */
+.review{position:fixed;left:12px;bottom:12px;z-index:50;width:236px;padding:11px;border:1px solid #3b4a6b;border-radius:11px;background:#141e33;color:#c9d2e6;font-size:10px;box-shadow:0 10px 30px #0008}
+.review.collapsed .review-body{display:none}.review-top{display:flex;align-items:center;justify-content:space-between}.review h2{margin:0;color:#fff;font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+.review-top button{border:0;background:none;color:#aab6d1;font-size:10px}.review-label{margin:9px 0 4px;color:#8d99b5;font-size:9px;text-transform:uppercase;letter-spacing:.08em}
+.review-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}.review-grid button{min-height:26px;padding:0 6px;border:1px solid #33415f;border-radius:6px;background:#1c2842;color:#d5dcec;font-size:9px;text-align:left}
+.review-grid button.active{border-color:#8DB5D5;background:#25405a;color:#fff}.review details{margin-top:8px}.review summary{cursor:pointer;color:#aab6d1}.review ul{margin:6px 0 0;padding-left:14px;color:#8d99b5;font-size:9px;line-height:1.5}
+@media (max-width:1000px){.grid{grid-template-columns:1fr}}
+@media (max-width:820px){
+.app{grid-template-columns:minmax(0,1fr)}
+.sidebar{min-width:0;position:relative;top:0;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border-right:0;border-bottom:1px solid var(--line)}
+.logo{margin:0}.nav-spacer,.nav-label,.who{display:none}
+.nav{order:3;display:flex;gap:4px;width:100%;overflow-x:auto;padding-bottom:2px}.nav-item{width:auto;flex:0 0 auto;white-space:nowrap}
+.sidebar-foot{margin-left:auto;padding:0;border:0}
+.menu{top:52px;bottom:auto;left:auto;right:12px;width:220px}
+.topbar{position:static;padding:0 14px}.content{padding:18px 14px 40px}.kbd{display:none}
+.page-head{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<div class="env-bar" id="envBar" role="status"><span id="envLabel">Staging environment</span></div>
+<div class="app">
+  <aside class="sidebar" aria-label="Admin navigation">
+    <div class="logo"><img src="../branding/assets/salesmora-logo.svg" alt="SalesMora.ai" width="142" height="38"><span class="admin-tag">Admin</span></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="nav-spacer"></div>
+    <div class="menu" id="userMenu" hidden>
+      <button type="button" data-goto="My account (screen planned)"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>My account &amp; factors</button>
+      <a href="prototype-screen-37-admin-sign-in.html"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>Sign out</a>
+    </div>
+    <div class="sidebar-foot">
+      <span class="avatar" id="avatar">LK</span>
+      <span class="who"><strong id="staffName">Lukasz K.</strong><span id="staffRole">Super Admin</span></span>
+      <button class="icon-btn" type="button" id="userMenuBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg></button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="search" role="search">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input id="search" type="search" placeholder="Search users, workspaces, emails or IDs" aria-label="Global search" aria-controls="results" aria-expanded="false" autocomplete="off">
+        <span class="kbd" aria-hidden="true">/</span>
+        <div class="results" id="results" role="listbox" hidden></div>
+      </div>
+      <div class="top-actions">
+        <button class="button" type="button" id="assistantBtn" aria-expanded="false" aria-controls="assistant"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"/></svg>Admin assistant</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <section id="auditView" aria-labelledby="auditTitle">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Governance</div>
+            <h1 id="auditTitle" tabindex="-1">Audit log</h1>
+            <p>Every staff action, view-as page view, PII reveal and refused sign-in. Events can't be edited or deleted. They're kept for 1 year and copied nightly to locked R2 storage.</p>
+          </div>
+        </div>
+        <div id="chain" aria-live="polite"></div>
+        <div class="toolbar">
+          <div class="filter">
+            <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <input id="auditFilter" type="search" placeholder="User or workspace ID, name, action, request ID" aria-label="Filter events" autocomplete="off">
+          </div>
+          <select id="staffFilter" aria-label="Filter by staff member">
+            <option value="all">All staff</option><option>Lukasz K.</option><option>Alex Rivera</option><option>Jordan Lee</option><option value="System">System</option>
+          </select>
+          <select id="catFilter" aria-label="Filter by action type">
+            <option value="all">All actions</option><option value="access">Sign-in and access</option><option value="users">Users</option><option value="workspaces">Workspaces</option><option value="billing">Billing</option><option value="viewas">View-as</option><option value="pii">PII reveals</option><option value="flags">Flags and settings</option><option value="ops">Operations</option><option value="knowledge">Knowledge</option><option value="staff">Staff and audit</option>
+          </select>
+          <select id="rangeFilter" aria-label="Date range">
+            <option value="0">Today</option><option value="7" selected>Last 7 days</option><option value="30">Last 30 days</option><option value="365">Last 12 months</option>
+          </select>
+          <button class="button" type="button" id="clearFilters" hidden>Clear filters</button>
+          <span class="spacer"></span>
+          <button class="button" type="button" id="exportBtn"></button>
+        </div>
+        <section class="panel">
+          <div class="table-wrap">
+            <table aria-labelledby="auditTitle">
+              <thead><tr><th scope="col"><span class="sr-only">Details</span></th><th scope="col">Time</th><th scope="col">Staff</th><th scope="col">Event</th><th scope="col" class="hide-sm">Reason</th></tr></thead>
+              <tbody id="auditRows"></tbody>
+            </table>
+          </div>
+          <div class="pager" id="pager"></div>
+        </section>
+      </section>
+      <section id="deniedView" hidden></section>
+    </main>
+  </div>
+</div>
+
+<aside class="drawer" id="assistant" aria-label="Admin assistant" hidden>
+  <div class="drawer-head">
+    <div><h2>Admin assistant</h2><p>Answers come from the admin docs only and always cite them. No customer data is sent to the model.</p></div>
+    <button class="icon-btn" type="button" id="assistantClose" aria-label="Close assistant"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+  </div>
+  <div class="chat" id="chat" aria-live="polite"></div>
+  <div class="suggest" id="suggest">
+    <button type="button">What does the audit log record?</button>
+    <button type="button">What do I do if the hash chain breaks?</button>
+    <button type="button">How long are audit events kept?</button>
+  </div>
+  <div class="budget" id="budget">Platform assistant budget: 212K of 1M tokens used this month</div>
+  <form class="ask" id="askForm"><input id="askInput" placeholder="Ask how to administer SalesMora…" aria-label="Ask the admin assistant" autocomplete="off"><button class="button primary" type="submit">Ask</button></form>
+</aside>
+
+<div class="modal-backdrop" id="idleModal" hidden>
+  <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="idleTitle" aria-describedby="idleText">
+    <h2 id="idleTitle">Are you still there?</h2>
+    <p id="idleText">For security, your admin session ends after 30 minutes of inactivity. You'll be signed out in <span class="count" id="idleCount">2:00</span>.</p>
+    <div class="actions"><a class="button" href="prototype-screen-37-admin-sign-in.html">Sign out now</a><button class="button primary" type="button" id="stayBtn">Stay signed in</button></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="actModal" hidden>
+  <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="actTitle" aria-describedby="actDesc">
+    <div id="actStep1">
+      <div class="modal-top"><h2 id="actTitle">Action</h2><span class="chip amber" id="actEnv">Staging</span></div>
+      <p id="actDesc"></p>
+      <div id="actExtra"></div>
+      <div class="field">
+        <label for="actReason">Reason <span>(saved to the audit log)</span></label>
+        <textarea id="actReason" rows="3" placeholder="For example: SOC 2 evidence request from the auditor, ticket #5012"></textarea>
+      </div>
+      <div class="step-note" id="actStepNote" hidden></div>
+      <div class="err" id="actErr" role="alert"></div>
+      <div class="actions"><button class="button" type="button" data-close>Cancel</button><button class="button primary" type="button" id="actConfirm">Confirm</button></div>
+    </div>
+    <div id="actStep2" hidden>
+      <div class="modal-top"><h2 id="stepTitle">Confirm it's you</h2></div>
+      <p>This action needs a fresh check of your second factor. After you confirm, you won't be asked again for 5 minutes.</p>
+      <button class="button primary block" type="button" id="passkeyBtn">Use passkey</button>
+      <div class="err" id="stepErr" role="alert"></div>
+      <button class="linkish" type="button" id="totpLink" hidden>Use an authenticator code instead</button>
+      <div class="field" id="totpWrap" hidden>
+        <label for="totpInput">6-digit code</label>
+        <div class="totp"><input id="totpInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code"><button class="button primary" type="button" id="totpBtn">Verify</button></div>
+      </div>
+      <div class="actions"><button class="button" type="button" data-close>Cancel</button></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<aside class="review" id="review" aria-label="Prototype review controls">
+  <div class="review-top"><h2>Prototype states</h2><button type="button" id="reviewToggle" aria-expanded="true">Hide</button></div>
+  <div class="review-body">
+    <div class="review-label">Staff role</div>
+    <div class="review-grid" id="roleButtons">
+      <button type="button" data-role="super" class="active">Super Admin</button>
+      <button type="button" data-role="support">Support</button>
+      <button type="button" data-role="billing">Billing</button>
+    </div>
+    <div class="review-label">Hash chain</div>
+    <div class="review-grid" id="chainButtons">
+      <button type="button" data-chain="ok" class="active">Intact</button>
+      <button type="button" data-chain="bad">Tamper detected</button>
+      <button type="button" data-chain="r2">R2 export failed</button>
+    </div>
+    <div class="review-label">List data</div>
+    <div class="review-grid" id="stateButtons">
+      <button type="button" data-state="populated" class="active">Populated</button>
+      <button type="button" data-state="empty">No results</button>
+      <button type="button" data-state="loading">Loading</button>
+      <button type="button" data-state="error">Load error</button>
+    </div>
+    <div class="review-label">Step-up (passkey)</div>
+    <div class="review-grid" id="stepButtons">
+      <button type="button" data-step="required" class="active">Required</button>
+      <button type="button" data-step="fresh">Verified &lt; 5 min</button>
+      <button type="button" data-step="fail">Passkey fails</button>
+    </div>
+    <div class="review-label">Session and environment</div>
+    <div class="review-grid">
+      <button type="button" id="idleBtn">Idle timeout</button>
+      <button type="button" id="envToggle">Switch to production</button>
+      <button type="button" id="resetBtn">Reset sample data</button>
+    </div>
+    <details><summary>Decisions (approved)</summary>
+      <ul>
+        <li>CSV export needs a reason and a passkey, downloads right away (up to 50,000 events) and is itself audited.</li>
+        <li>The log opens on the last 7 days.</li>
+        <li>View-as page views are separate events you can filter, not folded into the session.</li>
+        <li>Staff IP addresses and user agents are shown in full; they belong to staff, not customers.</li>
+        <li>A broken chain emails every Super Admin and shows an alert on the dashboard.</li>
+        <li>System events (refused sign-ins, retention purges, R2 exports) appear alongside staff events.</li>
+      </ul>
+    </details>
+  </div>
+</aside>
+
+<script>
+const $ = id => document.getElementById(id);
+const P = {
+  dash: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z',
+  users: 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z',
+  ws: 'M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z',
+  card: 'M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z',
+  doc: 'M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z',
+  ai: 'M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z',
+  ops: 'M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z',
+  book: 'M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z',
+  flag: 'M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6z',
+  audit: 'M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z',
+  staff: 'M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z',
+  eye: 'M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z',
+  warn: 'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z',
+  error: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z',
+  info: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z',
+  check: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z',
+  lock: 'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z',
+  chev: 'M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z',
+  open: 'M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z',
+  download: 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z',
+  key: 'M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z',
+  logout: 'M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z',
+  block: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9C4.63 15.55 4 13.85 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.69L18.31 7.1C19.37 8.45 20 10.15 20 12c0 4.42-3.58 8-8 8z',
+  mail: 'M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z',
+  back: 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z',
+  laptop: 'M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z',
+  phone: 'M17 1.01 7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z',
+  edit: 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z',
+};
+const icon = (k, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${P[k]}"/></svg>`;
+
+const STAFF = {
+  super: { name: 'Lukasz K.', first: 'Lukasz', initials: 'LK', role: 'Super Admin' },
+  support: { name: 'Alex Rivera', first: 'Alex', initials: 'AR', role: 'Support' },
+  billing: { name: 'Jordan Lee', first: 'Jordan', initials: 'JL', role: 'Billing' },
+};
+const ALL = ['super', 'support', 'billing'];
+// Screen numbers point to the planned prototype sequence in docs/admin-console-plan.md.
+const NAV = [
+  { group: 'Overview', items: [{ id: 'dash', label: 'Dashboard', icon: 'dash', roles: ALL, href: 'prototype-screen-38-admin-dashboard.html' }] },
+  { group: 'Customers', items: [
+    { id: 'users', label: 'Users', icon: 'users', roles: ALL, href: 'prototype-screen-39-admin-users.html' },
+    { id: 'ws', label: 'Workspaces', icon: 'ws', roles: ALL, href: 'prototype-screen-40-admin-workspaces.html' },
+    { id: 'billing', label: 'Billing', icon: 'card', roles: ALL, badge: 'payments', screen: 'Billing (planned)' },
+    { id: 'requests', label: 'Data requests', icon: 'doc', roles: ['super', 'support'], badge: 'deletions', screen: 'Data requests (planned)' },
+  ] },
+  { group: 'Platform', items: [
+    { id: 'ai', label: 'AI usage', icon: 'ai', roles: ['super', 'billing'], screen: 'AI usage (planned)' },
+    { id: 'ops', label: 'Operations', icon: 'ops', roles: ['super', 'support'], badge: 'jobs', screen: 'Operations (planned)' },
+    { id: 'knowledge', label: 'Knowledge', icon: 'book', roles: ['super'], screen: 'Knowledge (planned)' },
+    { id: 'flags', label: 'Flags & settings', icon: 'flag', roles: ['super'], screen: 'Flags & settings (planned)' },
+  ] },
+  { group: 'Governance', items: [
+    { id: 'audit', label: 'Audit log', icon: 'audit', roles: ['super'], href: 'prototype-screen-41-admin-audit.html' },
+    { id: 'staff', label: 'Staff', icon: 'staff', roles: ['super'], screen: 'Staff (planned)' },
+    { id: 'docs', label: 'Admin docs', icon: 'book', roles: ALL, screen: 'Admin docs (planned)' },
+  ] },
+];
+
+// Users (screen 39). Sample data matches the dashboard (screen 38).
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const mask = e => e[0] + '•••' + e.slice(e.indexOf('@'));
+const maskIp = ip => ip.split('.').slice(0, 2).join('.') + '.•.•';
+const STATUS = { active: ['Active', 'green'], unverified: ['Unverified', 'amber'], suspended: ['Suspended', 'red'], deleting: ['Deletion pending', 'red'] };
+const initials = n => n.split(' ').map(p => p[0]).join('').slice(0, 2);
+const firstName = u => u.name.split(' ')[0];
+
+const SEED_USERS = [
+  { id: 'usr_2b7e1', name: 'Maria Owens', email: 'owner@northsideplumbing.com', phone: '+1 (612) 555-0148', status: 'active', auth: 'Password, Google', tz: 'America/Chicago', notify: 'Email on, SMS on', created: 'Mar 4, 2026', last: 'Today, 11:41 AM',
+    memberships: [{ ws: 'Northside Plumbing', wsId: 'ws_8f21c', role: 'Owner', plan: 'Standard', since: 'Member since Mar 4, 2026' }],
+    sessions: [
+      { id: 's1', kind: 'laptop', device: 'Chrome on macOS', ip: '73.162.48.201', place: 'Minneapolis, MN', seen: 'Active now' },
+      { id: 's2', kind: 'phone', device: 'Safari on iPhone', ip: '174.204.11.87', place: 'Minneapolis, MN', seen: '2 hours ago' },
+      { id: 's3', kind: 'phone', device: 'Chrome on Android', ip: '98.45.210.14', place: 'St. Paul, MN', seen: 'Oct 21' },
+    ],
+    activity: [
+      { time: 'Today, 11:52 AM', text: 'Granted SalesMora support access for 24 hours' },
+      { time: 'Today, 11:20 AM', text: 'Sent estimate EST-1042 to a customer' },
+      { time: 'Today, 9:05 AM', text: 'Rescheduled job JOB-318' },
+      { time: 'Yesterday', text: 'Moved a lead to Won' },
+    ],
+    history: [{ time: 'Today, 11:58 AM', by: 'Alex Rivera', text: 'started a view-as session on Northside Plumbing (Office role, 30 min)', reason: 'Ticket #4821: estimate PDF missing logo' }] },
+  { id: 'usr_5c9d3', name: 'Dan Price', email: 'dprice.fl@gmail.com', phone: '+1 (813) 555-0192', status: 'suspended', auth: 'Password', tz: 'America/New_York', notify: 'Email on, SMS off', created: 'Jun 18, 2026', last: 'Today, 9:12 AM',
+    suspended: { when: 'today at 9:40 AM', by: 'Lukasz K.', reason: 'Credential-stuffing report from Cloudflare' },
+    memberships: [{ ws: 'Oakridge Builders', wsId: 'ws_77be0', role: 'Field', plan: 'Premium', since: 'Member since Jun 18, 2026' }],
+    sessions: [],
+    activity: [
+      { time: 'Today, 9:12 AM', text: 'Signed in from a new browser (flagged by Cloudflare)' },
+      { time: 'Today, 9:11 AM', text: '14 failed sign-in attempts' },
+      { time: 'Oct 24', text: 'Completed job JOB-297' },
+    ],
+    history: [
+      { time: 'Today, 9:40 AM', by: 'Lukasz K.', text: 'suspended the user and revoked 3 sessions', reason: 'Credential-stuffing report from Cloudflare' },
+      { time: 'Today, 9:36 AM', by: 'Lukasz K.', text: 'revealed the email address', reason: 'Credential-stuffing report from Cloudflare' },
+    ] },
+  { id: 'usr_7a1f0', name: 'Priya Natarajan', email: 'priya@brightlineelectric.com', phone: '+1 (503) 555-0117', status: 'active', auth: 'Password', tz: 'America/Los_Angeles', notify: 'Email on, SMS on', created: 'Jan 12, 2026', last: 'Yesterday, 4:18 PM',
+    memberships: [{ ws: 'Brightline Electric', wsId: 'ws_19a77', role: 'Owner', plan: 'Premium (past due)', since: 'Member since Jan 12, 2026' }],
+    sessions: [{ id: 's1', kind: 'laptop', device: 'Edge on Windows', ip: '24.20.133.9', place: 'Portland, OR', seen: 'Yesterday' }],
+    activity: [{ time: 'Yesterday', text: 'Opened billing settings' }, { time: 'Oct 22', text: 'Card payment failed (bank fraud hold)' }],
+    history: [{ time: 'Yesterday', by: 'Jordan Lee', text: 'extended the payment grace period for Brightline Electric by 7 days', reason: 'Customer updating card after bank fraud hold' }] },
+  { id: 'usr_9e4b2', name: 'Sam Torres', email: 'sam@summithvac.com', phone: '', status: 'unverified', auth: 'Password', tz: 'America/Denver', notify: 'Email on, SMS off', created: 'Oct 26, 2026', last: 'Never',
+    invite: 'Invited to Summit HVAC by Grace Kim on Oct 26. The verification email was sent Oct 26 and has not been opened.',
+    memberships: [{ ws: 'Summit HVAC', wsId: 'ws_4c0d2', role: 'Office', plan: 'Premium (override)', since: 'Invited Oct 26, 2026' }],
+    sessions: [], activity: [{ time: 'Oct 26', text: 'Accepted the invitation and created a password' }], history: [] },
+  { id: 'usr_3d8c6', name: 'Kevin Walsh', email: 'kevin@riverbendroofing.com', phone: '+1 (919) 555-0164', status: 'deleting', auth: 'Google', tz: 'America/New_York', notify: 'Email on, SMS off', created: 'Feb 2, 2026', last: 'Oct 3',
+    memberships: [{ ws: 'Riverbend Roofing', wsId: 'ws_a3f90', role: 'Owner', plan: 'Free', since: 'Member since Feb 2, 2026' }],
+    sessions: [{ id: 's1', kind: 'laptop', device: 'Chrome on Windows', ip: '66.57.201.44', place: 'Raleigh, NC', seen: 'Oct 3' }],
+    activity: [{ time: 'Oct 3', text: 'Requested account and workspace deletion' }, { time: 'Oct 3', text: 'Exported customers to CSV' }], history: [] },
+  { id: 'usr_6f2a9', name: 'Lena Brooks', email: 'lena.brooks@outlook.com', phone: '+1 (612) 555-0175', status: 'active', auth: 'Password', tz: 'America/Chicago', notify: 'Email on, SMS on', created: 'Sep 12, 2026', last: 'Today, 8:02 AM',
+    memberships: [
+      { ws: 'Northside Plumbing', wsId: 'ws_8f21c', role: 'Office', plan: 'Standard', since: 'Member since Sep 12, 2026' },
+      { ws: 'Summit HVAC', wsId: 'ws_4c0d2', role: 'Admin', plan: 'Premium (override)', since: 'Member since Oct 1, 2026' },
+    ],
+    sessions: [{ id: 's1', kind: 'laptop', device: 'Firefox on Windows', ip: '71.33.90.18', place: 'Bloomington, MN', seen: 'Today' }],
+    activity: [{ time: 'Today, 8:02 AM', text: 'Switched workspace to Summit HVAC' }, { time: 'Yesterday', text: 'Created customer record' }], history: [] },
+  { id: 'usr_1c5e7', name: 'Tom Okafor', email: 'tom@oakridgebuilders.com', phone: '+1 (813) 555-0101', status: 'active', auth: 'Password, Google', tz: 'America/New_York', notify: 'Email on, SMS on', created: 'Apr 9, 2026', last: 'Today, 10:15 AM',
+    memberships: [{ ws: 'Oakridge Builders', wsId: 'ws_77be0', role: 'Owner', plan: 'Premium', since: 'Member since Apr 9, 2026' }],
+    sessions: [{ id: 's1', kind: 'laptop', device: 'Chrome on macOS', ip: '97.100.4.62', place: 'Tampa, FL', seen: 'Active now' }],
+    activity: [{ time: 'Today, 10:15 AM', text: 'Used the assistant to draft 6 estimates' }], history: [] },
+  { id: 'usr_8b3d4', name: 'Grace Kim', email: 'grace@summithvac.com', phone: '+1 (303) 555-0139', status: 'active', auth: 'Password', tz: 'America/Denver', notify: 'Email on, SMS off', created: 'May 21, 2026', last: 'Yesterday, 6:40 PM',
+    memberships: [{ ws: 'Summit HVAC', wsId: 'ws_4c0d2', role: 'Owner', plan: 'Premium (override)', since: 'Member since May 21, 2026' }],
+    sessions: [{ id: 's1', kind: 'phone', device: 'Safari on iPhone', ip: '73.229.15.80', place: 'Denver, CO', seen: 'Yesterday' }],
+    activity: [{ time: 'Oct 26', text: 'Invited Sam Torres as Office' }],
+    history: [{ time: 'Today, 10:12 AM', by: 'Jordan Lee', text: 'applied a plan override: Summit HVAC to Premium until Nov 30', reason: 'Pilot agreement signed Oct 27' }] },
+];
+let USERS = structuredClone(SEED_USERS);
+
+// Audit log (screen 41). Events match the history shown on screens 38–40.
+const CATS = { access: 'Sign-in and access', users: 'Users', workspaces: 'Workspaces', billing: 'Billing', viewas: 'View-as', pii: 'PII reveals', flags: 'Flags and settings', ops: 'Operations', knowledge: 'Knowledge', staff: 'Staff and audit' };
+const ROLE_LABEL = { super: 'Super Admin', support: 'Support', billing: 'Billing', system: 'System' };
+const RANGE_TOTAL = { 0: 9, 7: 412, 30: 2318, 365: 48213 };
+const LINKS = { user: 'prototype-screen-39-admin-users.html#', workspace: 'prototype-screen-40-admin-workspaces.html#' };
+const STAFF_UA = { 'Lukasz K.': ['203.0.113.24', 'Chrome 130 on macOS'], 'Alex Rivera': ['198.51.100.71', 'Edge 130 on Windows'], 'Jordan Lee': ['198.51.100.9', 'Safari 18 on macOS'], System: ['—', 'worker (admin-audit)'] };
+
+const SEED_EVENTS = [
+  { id: 'evt_7d21f0', day: 0, time: '12:06 PM', by: 'Lukasz K.', role: 'super', cat: 'access', code: 'staff.session.start', text: 'Signed in to the admin console', step: 'Password and passkey', hash: 'a41c09e2', prev: '3be7d118' },
+  { id: 'evt_7d21e9', day: 0, time: '12:01 PM', by: 'Alex Rivera', role: 'support', cat: 'viewas', code: 'impersonation.page_view', text: 'Viewed Estimates › EST-1042 as Office', target: { type: 'workspace', id: 'ws_8f21c', label: 'Northside Plumbing' }, reason: 'Ticket #4821: estimate PDF missing logo', session: 'imp_51c0a', hash: '3be7d118', prev: 'f0d2a6c4' },
+  { id: 'evt_7d21e2', day: 0, time: '11:58 AM', by: 'Alex Rivera', role: 'support', cat: 'viewas', code: 'impersonation.start', text: 'Started a view-as session (Office role, 30 min)', target: { type: 'workspace', id: 'ws_8f21c', label: 'Northside Plumbing' }, reason: 'Ticket #4821: estimate PDF missing logo', step: 'Passkey', consent: 'Owner grant by Maria Owens, today 11:52 AM, 24 hours', session: 'imp_51c0a', after: { session: 'imp_51c0a', role: 'Office', endsAt: '2026-10-28T17:28:00Z', mode: 'read-only' }, hash: 'f0d2a6c4', prev: '9a7e3b50' },
+  { id: 'evt_7d2184', day: 0, time: '10:12 AM', by: 'Jordan Lee', role: 'billing', cat: 'workspaces', code: 'workspace.plan_override.apply', text: 'Applied a plan override: Premium until Nov 30, 2026', target: { type: 'workspace', id: 'ws_4c0d2', label: 'Summit HVAC' }, reason: 'Pilot agreement signed Oct 27', step: 'Passkey', before: { billedPlan: 'standard', override: null }, after: { billedPlan: 'standard', override: { plan: 'premium', until: '2026-11-30' } }, hash: '9a7e3b50', prev: '62c5d0f7' },
+  { id: 'evt_7d2141', day: 0, time: '9:40 AM', by: 'Lukasz K.', role: 'super', cat: 'users', code: 'user.suspend', text: 'Suspended the user and revoked 3 sessions', target: { type: 'user', id: 'usr_5c9d3', label: 'Dan Price' }, reason: 'Credential-stuffing report from Cloudflare', step: 'Passkey', before: { status: 'active', sessions: 3 }, after: { status: 'suspended', sessions: 0 }, hash: '62c5d0f7', prev: '1e9b44a2' },
+  { id: 'evt_7d213c', day: 0, time: '9:36 AM', by: 'Lukasz K.', role: 'super', cat: 'pii', code: 'user.pii.reveal', text: 'Revealed the email address', target: { type: 'user', id: 'usr_5c9d3', label: 'Dan Price' }, reason: 'Credential-stuffing report from Cloudflare', after: { field: 'email', value: '[not stored]' }, hash: '1e9b44a2', prev: 'c83f7a19' },
+  { id: 'evt_7d2118', day: 0, time: '9:20 AM', by: 'Alex Rivera', role: 'support', cat: 'ops', code: 'queue.jobs.retry', text: 'Retried 4 failed jobs in estimate-emails', reason: 'Resend outage resolved per status page', before: { failed: 16 }, after: { failed: 12, retried: 4 }, hash: 'c83f7a19', prev: '4d0e2b6a' },
+  { id: 'evt_7d20f3', day: 0, time: '8:47 AM', by: 'System', role: 'system', cat: 'access', code: 'staff.signin.refused', text: 'Refused sign-in: the Cloudflare identity j•••@contractor-mail.com has no staff account', after: { reason: 'no_staff_account', accessJwt: 'valid' }, hash: '4d0e2b6a', prev: 'b5a91c3e' },
+  { id: 'evt_7d20c0', day: 0, time: '1:04 AM', by: 'System', role: 'system', cat: 'staff', code: 'audit.export.r2', text: 'Exported 1,212 events from Oct 27 to R2 with a chain checkpoint', after: { object: 'audit/2026/10/27.ndjson', checkpoint: 'b5a91c3e' }, hash: 'b5a91c3e', prev: '07f6e8d2' },
+  { id: 'evt_7d1e77', day: 1, time: '4:30 PM', by: 'Lukasz K.', role: 'super', cat: 'flags', code: 'flag.update', text: 'Changed flag chat.calendar_tools: off → 10 pilot workspaces', reason: 'Calendar assistant pilot rollout', step: 'Passkey', before: { enabled: false }, after: { enabled: true, scope: 'workspaces', count: 10 }, hash: '07f6e8d2', prev: 'e2c4b981' },
+  { id: 'evt_7d1e40', day: 1, time: '3:05 PM', by: 'Jordan Lee', role: 'billing', cat: 'billing', code: 'billing.recovery.extend', text: 'Extended the payment grace period by 7 days', target: { type: 'workspace', id: 'ws_19a77', label: 'Brightline Electric' }, reason: 'Customer updating card after bank fraud hold', step: 'Passkey', before: { recoveryUntil: '2026-10-28' }, after: { recoveryUntil: '2026-11-04' }, hash: 'e2c4b981', prev: '5f81d3a0' },
+  { id: 'evt_7d1d92', day: 1, time: '11:20 AM', by: 'Lukasz K.', role: 'super', cat: 'staff', code: 'staff.invite', text: 'Invited s•••@salesmora.ai to join as Support', reason: 'New support hire starting Nov 3', after: { role: 'support', expiresIn: '24h' }, hash: '5f81d3a0', prev: '8c2e07b4' },
+  { id: 'evt_7d1a05', day: 2, time: '3:14 PM', by: 'Alex Rivera', role: 'support', cat: 'workspaces', code: 'workspace.suspend', text: 'Suspended the workspace', target: { type: 'workspace', id: 'ws_5e612', label: 'Clearwater Pools' }, reason: 'Chargeback fraud: 6 disputed payments (ticket #4790)', step: 'Passkey', before: { status: 'active' }, after: { status: 'suspended', ownerNotified: true }, hash: '8c2e07b4', prev: 'd9b6f215' },
+  { id: 'evt_7d19c2', day: 2, time: '10:02 AM', by: 'Lukasz K.', role: 'super', cat: 'knowledge', code: 'knowledge.publish', text: 'Published runbooks/view-as (version 3) and re-indexed 14 chunks', reason: 'Added break-glass steps from the October 28 review', after: { doc: 'runbooks/view-as', version: 3, chunks: 14 }, hash: 'd9b6f215', prev: '2a7c5e90' },
+  { id: 'evt_7d1622', day: 4, time: '2:40 PM', by: 'Lukasz K.', role: 'super', cat: 'flags', code: 'settings.update', text: 'Changed setting leads.export.maxRows: 5,000 → 10,000', reason: 'Larger customers hitting the export limit (ticket #4702)', step: 'Passkey', before: { maxRows: 5000 }, after: { maxRows: 10000 }, hash: '2a7c5e90', prev: '6e3d1fa8' },
+];
+let EVENTS = structuredClone(SEED_EVENTS);
+const dayLabel = d => d === 0 ? 'Today' : d === 1 ? 'Yesterday' : ['Oct 28', 'Oct 27', 'Oct 26', 'Oct 25', 'Oct 24'][d];
+
+const SEARCH = [
+  { type: 'Workspace', id: 'ws_8f21c', name: 'Northside Plumbing', sub: 'ws_8f21c · Standard · owner o•••@northsideplumbing.com', chip: 'Active', tone: 'green' },
+  { type: 'Workspace', id: 'ws_19a77', name: 'Brightline Electric', sub: 'ws_19a77 · Premium · payment in recovery', chip: 'Past due', tone: 'red' },
+  { type: 'Workspace', id: 'ws_4c0d2', name: 'Summit HVAC', sub: 'ws_4c0d2 · Premium (override) · 14 members', chip: 'Override', tone: 'amber' },
+  { type: 'Workspace', id: 'ws_77be0', name: 'Oakridge Builders', sub: 'ws_77be0 · Premium · 92% AI budget', chip: 'Active', tone: 'green' },
+  { type: 'Workspace', id: 'ws_a3f90', name: 'Riverbend Roofing', sub: 'ws_a3f90 · Free · deletion requested', chip: 'Deleting', tone: 'red' },
+  ...SEED_USERS.map(u => ({ type: 'User', id: u.id, name: u.name, key: u.email + ' ' + u.id, sub: `${mask(u.email)} · ${u.memberships.map(m => `${m.role}, ${m.ws}`).join('; ')}`, chip: STATUS[u.status][0], tone: STATUS[u.status][1] })),
+];
+
+const ANSWERS = [
+  { match: /record|what.*(log|audit)|logged/i, text: '<p>The audit log records every staff action that changes data, every <strong>PII reveal</strong>, every <strong>view-as</strong> session start, end and page view, staff sign-ins, refused sign-ins and exports.</p><p>Each event stores who, when, the reason, the step-up method, the request ID, staff IP and user agent, and redacted before/after values. Customer secrets are never stored.</p>', cites: ['security/audit-log#what-is-recorded', 'security/pii#redaction'] },
+  { match: /chain|tamper|hash|broken/i, text: '<p>If the chain check fails:</p><ol><li><strong>Don\'t change anything else</strong> in the admin console.</li><li>Open the broken event and choose <strong>Compare with R2 copy</strong>; the R2 copy is write-locked.</li><li>Follow the incident runbook: page the on-call Super Admin and rotate staff credentials if the database copy was changed.</li></ol>', cites: ['security/audit-chain-incident', 'security/audit-log#hash-chain'] },
+  { match: /how long|retention|kept|keep|purge/i, text: '<p>Audit events are kept for <strong>1 year</strong> in the admin database. A nightly job copies the previous day to R2 with an object lock, so the copy can\'t be changed or deleted early.</p><p>When old events are purged, a chain anchor is saved so the remaining chain still verifies.</p>', cites: ['security/audit-log#retention'] },
+  { match: /(suspend|block).*user|user.*(suspend|block)/i, text: '<p>To suspend a user:</p><ol><li>Open <strong>Users</strong> and select the user.</li><li>Choose <strong>Suspend</strong> and enter a reason, including the ticket reference.</li><li>Confirm with your passkey (step-up re-auth).</li></ol><p>Sign-in is blocked and every session ends immediately. Workspaces the user owns keep running for other members.</p>', cites: ['runbooks/suspend-user#steps', 'security/staff-rbac#support'] },
+  { match: /reveal|pii|mask/i, text: '<p>Emails, phone numbers and session IPs are masked by default. Reveal one only when the task needs it, for example to confirm a ticket came from the account owner.</p><p>Every reveal needs a reason and is recorded in the audit log with your name. Never copy revealed values into tickets or chat.</p>', cites: ['security/pii-handling#reveal', 'security/audit#pii-events'] },
+  { match: /sign in|sign-in|log ?in|password|locked/i, text: '<p>When a user can\'t sign in, check in this order:</p><ol><li><strong>Status</strong>: suspended or deletion pending blocks sign-in.</li><li><strong>Email verified</strong>: resend the verification email if needed.</li><li><strong>Sign-in methods</strong>: Google-only users have no password.</li><li>Otherwise send a <strong>password reset</strong>. Staff never set passwords.</li></ol>', cites: ['runbooks/user-cannot-sign-in', 'domain/auth#sign-in-methods'] },
+  { match: /suspend/i, text: '<p>To suspend a workspace:</p><ol><li>Open <strong>Workspaces</strong> and select the workspace.</li><li>Choose <strong>Suspend workspace</strong>, enter a reason and the ticket reference.</li><li>Confirm with your passkey (step-up re-auth).</li></ol><p>Members see a suspension page and the workspace\'s background jobs pause. Billing is not changed automatically.</p>', cites: ['runbooks/suspend-workspace#steps', 'domain/workspaces#suspension'] },
+  { match: /payment|fail/i, text: '<p>When a renewal charge fails, Stripe retries it on its schedule and the workspace enters <strong>payment recovery</strong>. The owner is emailed, features stay available during the grace period, and the workspace moves to the Free plan if recovery fails.</p><p>Billing staff can retry the charge or extend the grace period from <strong>Billing</strong>.</p>', cites: ['domain/billing#payment-recovery', 'runbooks/extend-grace-period'] },
+  { match: /delet/i, text: '<p>Deletion requests have a 30-day SLA:</p><ol><li>Open <strong>Data requests</strong> and verify the requester is the workspace owner.</li><li>Confirm there is no open billing dispute or legal hold.</li><li>Confirm the request. The worker purges data after the grace period and records completion.</li></ol>', cites: ['runbooks/process-deletion-request', 'security/privacy-baseline#deletion'] },
+];
+
+let role = 'super';
+let dataState = 'populated';
+let overBudget = false;
+const can = item => item.roles.includes(role);
+
+function toast(text) {
+  $('toast').innerHTML = icon('info', 'sm') + `<span>${text}</span>`;
+  $('toast').hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => { $('toast').hidden = true; }, 3200);
+}
+const goTo = screen => toast(`${screen} is not prototyped yet. It follows review of this screen.`);
+
+function renderNav() {
+  const badgeCount = { payments: 3, deletions: 2, jobs: 12 };
+  $('nav').innerHTML = NAV.map(g => {
+    const items = g.items.filter(can);
+    if (!items.length) return '';
+    return `<div class="nav-label">${g.group}</div>` + items.map(i => {
+      const n = dataState === 'populated' || dataState === 'partial' ? badgeCount[i.badge] : 0;
+      const attrs = i.id === 'audit' ? 'aria-current="page" data-audit-home' : i.href ? `data-href="${i.href}"` : `data-goto="${i.screen}"`;
+      return `<button class="nav-item${i.id === 'audit' ? ' active' : ''}" type="button" ${attrs}>${icon(i.icon)}<span>${i.label}</span>${n ? `<span class="nav-badge" aria-label="${n} need attention">${n}</span>` : ''}</button>`;
+    }).join('');
+  }).join('');
+}
+
+let stepUp = 'required';
+let chainState = 'ok';
+let verifying = false;
+let verifiedNote = 'Last full check today at 6:00 AM (nightly).';
+const expanded = new Set();
+const fmtNum = n => n.toLocaleString('en-US');
+const BROKEN = 'evt_7d1e77';
+const json = o => esc(JSON.stringify(o, null, 2));
+const reqId = e => 'req_' + e.id.slice(4) + 'b';
+const filtersOn = () => $('auditFilter').value.trim() || $('staffFilter').value !== 'all' || $('catFilter').value !== 'all';
+
+function filteredEvents() {
+  const q = $('auditFilter').value.trim().toLowerCase();
+  const st = $('staffFilter').value, cat = $('catFilter').value, range = +$('rangeFilter').value;
+  return EVENTS.filter(e => e.day <= range && (st === 'all' || e.by === st) && (cat === 'all' || e.cat === cat)
+    && (!q || [e.id, e.code, e.text, e.by, e.reason || '', reqId(e), e.target ? e.target.id + ' ' + e.target.label : ''].some(v => v.toLowerCase().includes(q))));
+}
+
+function renderChain() {
+  const total = fmtNum(RANGE_TOTAL[365]);
+  let html;
+  if (verifying) html = `<div class="chain ok"><span class="sev">${icon('lock', 'sm')}</span><div><strong>Verifying ${total} events…</strong>Recomputing every hash and comparing it with the R2 checkpoints. You can keep working.<div class="progress"><i id="verifyBar"></i></div></div></div>`;
+  else if (chainState === 'bad') html = `<div class="chain bad" role="alert"><span class="sev error">${icon('error', 'sm')}</span><div><strong>Hash chain broken at ${BROKEN}</strong>Yesterday at 4:30 PM (flag.update). The stored hash doesn't match the event's contents or the R2 copy, so this event or the one before it may have been changed. Don't change anything else. Follow the incident runbook; every Super Admin has been emailed.</div><button class="button" type="button" data-show="${BROKEN}">Show event</button><button class="button" type="button" data-goto="Compare with the R2 copy (planned)">Compare with R2 copy</button><button class="button danger solid" type="button" data-runbook="security/audit-chain-incident">Incident runbook</button></div>`;
+  else if (chainState === 'r2') html = `<div class="chain warn"><span class="sev warn">${icon('warn', 'sm')}</span><div><strong>Last night's R2 export failed</strong>Events from Oct 27 weren't copied to R2. The database copy is intact and verified. The worker retries every hour (3 attempts so far).</div><button class="button" type="button" data-goto="Operations (planned)">Open Operations</button></div>`;
+  else html = `<div class="chain ok"><span class="sev">${icon('check', 'sm')}</span><div><strong>Hash chain intact</strong>${total} events verified against the R2 checkpoints. ${verifiedNote}
+    <div class="chain-meta"><span class="chip">Kept 1 year (oldest Oct 28, 2025)</span><span class="chip">Last R2 export: Oct 27 events at 1:04 AM</span></div></div><button class="button" type="button" id="verifyBtn">Verify now</button></div>`;
+  $('chain').innerHTML = html;
+}
+
+function targetLink(t) {
+  return t ? ` · <a href="${LINKS[t.type]}${t.id}">${esc(t.label)}</a>` : '';
+}
+
+function detailRow(e) {
+  const [ip, ua] = STAFF_UA[e.by];
+  const prod = $('envBar').classList.contains('production');
+  const bad = chainState === 'bad' && e.id === BROKEN;
+  const rows = [
+    ['Event ID', `<span class="mono">${e.id}</span>`],
+    ['Occurred', `${dayLabel(e.day)}, ${e.time} CT`],
+    ['Staff', e.role === 'system' ? 'System (worker)' : `${esc(e.by)} · ${ROLE_LABEL[e.role]}`],
+    ['Reason', e.reason ? esc(e.reason) : '<span class="muted">Not required for this event</span>'],
+    e.step && ['Step-up', e.step],
+    e.consent && ['Consent', esc(e.consent)],
+    e.session && ['View-as session', `<span class="mono">${e.session}</span>`],
+    ['Request ID', `<span class="mono">${reqId(e)}</span>`],
+    ['IP address', `<span class="mono">${ip}</span>`],
+    ['User agent', ua],
+    ['Environment', prod ? 'Production' : 'Staging'],
+  ].filter(Boolean);
+  const links = [
+    e.target && `<a class="button" href="${LINKS[e.target.type]}${e.target.id}">${icon('open', 'sm')}Open ${e.target.type}</a>`,
+    e.target && `<button class="button" type="button" data-target="${e.target.id}">Only events for ${esc(e.target.label)}</button>`,
+  ].filter(Boolean).join('');
+  return `<tr class="detail" id="d_${e.id}"><td colspan="5"><div class="ev-detail">
+    <div><dl class="dl">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>${links ? `<div class="links">${links}</div>` : ''}</div>
+    <div>
+      ${e.before ? `<h3>Before</h3><pre>${json(e.before)}</pre>` : ''}
+      ${e.after ? `<h3 style="margin-top:${e.before ? 10 : 0}px">${e.before ? 'After' : 'Details'}</h3><pre>${json(e.after)}</pre>` : ''}
+      <h3 style="margin-top:10px">Hash chain</h3>
+      <pre>prev  ${e.prev}…\nhash  ${e.hash}…${bad ? '\n<span class="hash-bad">recomputed 91ab3c07… does not match</span>' : '\n<span style="color:#2f8f78">verified</span>'}</pre>
+    </div></div></td></tr>`;
+}
+
+function renderRows() {
+  $('clearFilters').hidden = !filtersOn();
+  if (dataState === 'loading') {
+    $('auditRows').innerHTML = [1, 2, 3, 4, 5, 6, 7].map(() => `<tr aria-busy="true"><td></td><td><span class="skeleton" style="width:60px"></span></td><td><span class="skeleton" style="width:80%"></span></td><td><span class="skeleton" style="width:40%"></span><span class="skeleton" style="width:85%;margin-top:6px"></span></td><td class="hide-sm"><span class="skeleton" style="width:70%"></span></td></tr>`).join('');
+    $('pager').hidden = true; return;
+  }
+  if (dataState === 'error') {
+    $('auditRows').innerHTML = `<tr><td colspan="5"><div class="empty"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" style="color:var(--red)"><path d="${P.error}"/></svg><div style="margin-top:6px">Couldn't load audit events. The admin database didn't respond in time. Nothing was lost; events are still being written.</div><button class="button" type="button" data-retry style="margin-top:10px">Retry</button></div></td></tr>`;
+    $('pager').hidden = true; return;
+  }
+  const list = filteredEvents();
+  const range = +$('rangeFilter').value;
+  $('pager').hidden = false;
+  $('exportBtn').innerHTML = `${icon('download', 'sm')}Export CSV<span class="secure">${icon('lock', 'sm')}</span>`;
+  $('exportBtn').disabled = !list.length;
+  if (!list.length) {
+    $('auditRows').innerHTML = `<tr><td colspan="5"><div class="empty">No events match these filters.<br>Try a longer date range, or search by a full ID such as usr_5c9d3, ws_8f21c or a request ID.</div></td></tr>`;
+    $('pager').innerHTML = '<span>0 matches</span>'; return;
+  }
+  $('auditRows').innerHTML = list.map(e => {
+    const open = expanded.has(e.id); const bad = chainState === 'bad' && e.id === BROKEN;
+    return `<tr data-ev="${e.id}"${open ? ' class="open"' : ''}>
+      <td><button class="expander" type="button" aria-expanded="${open}" aria-controls="d_${e.id}" aria-label="Details for ${e.code} at ${e.time}">${icon('chev', 'sm')}</button></td>
+      <td class="time">${e.time}<span>${dayLabel(e.day)}</span></td>
+      <td>${e.role === 'system' ? '<span class="muted">System</span>' : esc(e.by)}<span class="sub">${ROLE_LABEL[e.role]}</span></td>
+      <td><span class="code">${e.code}</span>${bad ? ' <span class="chip red">Hash mismatch</span>' : ''}<div class="ev-what">${esc(e.text)}${targetLink(e.target)}</div></td>
+      <td class="hide-sm"><div class="ev-reason" title="${esc(e.reason || '')}">${e.reason ? esc(e.reason) : '<span class="muted">—</span>'}</div></td>
+    </tr>${open ? detailRow(e) : ''}`;
+  }).join('');
+  $('pager').innerHTML = filtersOn()
+    ? `<span>${list.length} match${list.length === 1 ? '' : 'es'}</span>`
+    : range === 0 ? `<span>${list.length} events today</span>`
+    : `<span>Showing 1–${list.length} of ${fmtNum(RANGE_TOTAL[range])}</span><div><button class="button" type="button" disabled>Previous</button><button class="button" type="button" data-goto="Older audit events">Next</button></div>`;
+}
+
+function renderDenied() {
+  $('deniedView').innerHTML = `<section class="panel denied"><span class="sev error">${icon('lock')}</span>
+    <h1 id="deniedTitle" tabindex="-1">The audit log is for Super Admins</h1>
+    <p>Your role (${STAFF[role].role}) doesn't include audit access. This attempt was recorded. To see staff actions on a user or workspace, open its page; the history panel there lists them.</p>
+    <button class="button primary" type="button" data-href="prototype-screen-38-admin-dashboard.html">Go to the dashboard</button></section>`;
+}
+function renderStaff() {
+  const s = STAFF[role];
+  $('staffName').textContent = s.name; $('staffRole').textContent = s.role; $('avatar').textContent = s.initials;
+}
+
+function render() {
+  renderStaff(); renderNav();
+  const ok = role === 'super';
+  $('auditView').hidden = !ok; $('deniedView').hidden = ok;
+  if (ok) { renderChain(); renderRows(); } else renderDenied();
+}
+
+// Global search
+let active = -1;
+function renderResults() {
+  const q = $('search').value.trim().toLowerCase();
+  if (!q) { $('results').hidden = true; $('search').setAttribute('aria-expanded', 'false'); return; }
+  const hits = SEARCH.filter(r => (r.name + ' ' + r.sub + ' ' + (r.key || '')).toLowerCase().includes(q));
+  const groups = ['Workspace', 'User'].map(t => [t, hits.filter(h => h.type === t)]).filter(([, h]) => h.length);
+  let idx = 0;
+  $('results').innerHTML = groups.length
+    ? groups.map(([t, h]) => `<h3>${t}s</h3>` + h.map(r => `<button class="result${idx === active ? ' active' : ''}" type="button" role="option" data-idx="${idx++}" data-href="prototype-screen-${t === 'User' ? '39-admin-users' : '40-admin-workspaces'}.html#${r.id}">${icon(t === 'User' ? 'users' : 'ws', 'sm')}<div><strong>${r.name}</strong><span>${r.sub}</span></div><span class="chip ${r.tone}">${r.chip}</span></button>`).join('')).join('')
+    : `<div class="empty-note">No users or workspaces match “${$('search').value.trim()}”. Search by name, email, or an ID such as ws_8f21c.</div>`;
+  $('results').hidden = false; $('search').setAttribute('aria-expanded', 'true');
+}
+$('search').addEventListener('input', () => { active = -1; renderResults(); });
+$('search').addEventListener('keydown', e => {
+  const opts = [...$('results').querySelectorAll('.result')];
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault(); if (!opts.length) return;
+    active = (active + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length; renderResults();
+  } else if (e.key === 'Enter' && opts.length) {
+    e.preventDefault(); opts[Math.max(active, 0)].click();
+  } else if (e.key === 'Escape') { $('search').value = ''; renderResults(); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) { e.preventDefault(); $('search').focus(); }
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search')) { $('results').hidden = true; $('search').setAttribute('aria-expanded', 'false'); }
+  if (!e.target.closest('#userMenu, #userMenuBtn')) { $('userMenu').hidden = true; $('userMenuBtn').setAttribute('aria-expanded', 'false'); }
+  const go = e.target.closest('[data-goto]'); if (go) { goTo(go.dataset.goto); $('results').hidden = true; }
+  const rb = e.target.closest('[data-runbook]'); if (rb) { e.preventDefault(); toast(`Opens admin docs at knowledge/admin/${rb.dataset.runbook}.md (docs screen planned).`); }
+  if (e.target.closest('[data-retry]')) { dataState = 'populated'; setActive('stateButtons', 'populated'); render(); toast('Audit events loaded.'); }
+});
+
+// Assistant
+function openAssistant(open) {
+  $('assistant').hidden = !open; $('assistantBtn').setAttribute('aria-expanded', String(open));
+  if (open) { if (!$('chat').children.length) addBot('<p>Hi! Ask me how SalesMora works or how to perform an admin task. I only use the admin docs, so I can\'t look up customer records.</p>'); $('askInput').focus(); }
+}
+function addMsg(cls, html) { const d = document.createElement('div'); d.className = 'msg ' + cls; d.innerHTML = html; $('chat').appendChild(d); $('chat').scrollTop = $('chat').scrollHeight; }
+function addBot(html, cites) { addMsg('bot', html + (cites ? `<div class="cite">${cites.map(c => `<a href="#" data-runbook="${c.split('#')[0]}">${c}</a>`).join('')}</div>` : '')); }
+function ask(q) {
+  if (!q.trim()) return;
+  addMsg('me', q.replace(/</g, '&lt;'));
+  if (overBudget) return addBot('<p><strong>The admin assistant has reached its monthly budget</strong> (1M tokens). It resets on Nov 1. A Super Admin can raise it in Flags &amp; settings. Docs search still works.</p>');
+  if (/@|ws_[a-z0-9]+/i.test(q)) return addBot('<p>I can\'t look up customer records. I only answer from the admin docs. Use the global search at the top to find users or workspaces.</p>');
+  const hit = ANSWERS.find(a => a.match.test(q));
+  setTimeout(() => hit ? addBot(hit.text, hit.cites) : addBot('<p>This isn\'t documented yet, so I won\'t guess. Try searching the admin docs, or ask a Super Admin to add a runbook.</p>'), 450);
+}
+$('assistantBtn').addEventListener('click', () => openAssistant($('assistant').hidden));
+$('assistantClose').addEventListener('click', () => { openAssistant(false); $('assistantBtn').focus(); });
+$('askForm').addEventListener('submit', e => { e.preventDefault(); ask($('askInput').value); $('askInput').value = ''; });
+$('suggest').addEventListener('click', e => { const b = e.target.closest('button'); if (b) ask(b.textContent); });
+
+// Account menu
+$('userMenuBtn').addEventListener('click', () => { const open = $('userMenu').hidden; $('userMenu').hidden = !open; $('userMenuBtn').setAttribute('aria-expanded', String(open)); });
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+let nextId = 0x7d2200;
+const hex = () => Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
+function addEvent(e) {
+  const id = 'evt_' + (nextId++).toString(16);
+  EVENTS.unshift({ id, day: 0, time: 'Just now', hash: hex(), prev: EVENTS[0].hash, ...e });
+  RANGE_TOTAL[0]++; RANGE_TOTAL[7]++; RANGE_TOTAL[30]++; RANGE_TOTAL[365]++;
+  return id;
+}
+
+// Export (Super Admin only, reason + passkey, audited)
+let pending = null;
+let lastFocus = null;
+function openExport() {
+  const list = filteredEvents();
+  pending = { list }; lastFocus = document.activeElement;
+  const range = $('rangeFilter').selectedOptions[0].textContent.toLowerCase();
+  $('actTitle').textContent = 'Export audit events';
+  $('actDesc').textContent = `Downloads ${plural(list.length, 'event')} (${range}${filtersOn() ? ', with your filters' : ''}) as a CSV file. Exports are capped at 50,000 events and the export itself is recorded in this log.`;
+  $('actExtra').innerHTML = `<div class="banner info">${icon('info', 'sm')}<div>The file contains staff IP addresses and redacted before/after values. Store it only in the compliance folder.</div></div>`;
+  $('actReason').value = ''; $('actErr').textContent = '';
+  const prod = $('envBar').classList.contains('production');
+  $('actEnv').textContent = prod ? 'Production' : 'Staging'; $('actEnv').className = 'chip ' + (prod ? 'red' : 'amber');
+  $('actStepNote').hidden = false;
+  $('actStepNote').innerHTML = stepUp === 'fresh'
+    ? `${icon('check', 'sm')}<span>You confirmed your passkey in the last 5 minutes, so you won't be asked again.</span>`
+    : `${icon('lock', 'sm')}<span>You'll confirm with your passkey before the download starts.</span>`;
+  $('actConfirm').textContent = 'Export CSV'; $('actConfirm').className = 'button primary';
+  $('actStep1').hidden = false; $('actStep2').hidden = true; $('actModal').hidden = false;
+  $('actReason').focus();
+}
+function closeAction() {
+  $('actModal').hidden = true; pending = null;
+  if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+}
+$('actConfirm').addEventListener('click', () => {
+  const reason = $('actReason').value.trim();
+  if (reason.length < 10) { $('actErr').textContent = 'Enter a reason of at least 10 characters. It is saved to the audit log.'; $('actReason').focus(); return; }
+  pending.reason = reason;
+  if (stepUp !== 'fresh') {
+    $('actStep1').hidden = true; $('actStep2').hidden = false; $('stepErr').textContent = '';
+    $('totpLink').hidden = true; $('totpWrap').hidden = true; $('totpInput').value = '';
+    $('passkeyBtn').disabled = false; $('passkeyBtn').textContent = 'Use passkey'; $('passkeyBtn').focus();
+    return;
+  }
+  finish();
+});
+$('passkeyBtn').addEventListener('click', () => {
+  $('passkeyBtn').disabled = true; $('passkeyBtn').textContent = 'Waiting for your passkey…'; $('stepErr').textContent = '';
+  setTimeout(() => {
+    if (!pending) return;
+    if (stepUp === 'fail') {
+      $('passkeyBtn').disabled = false; $('passkeyBtn').textContent = 'Try passkey again';
+      $('stepErr').textContent = 'Passkey check failed or was cancelled. Nothing was exported.'; $('totpLink').hidden = false; return;
+    }
+    stepVerified();
+  }, 900);
+});
+$('totpLink').addEventListener('click', () => { $('totpWrap').hidden = false; $('totpInput').focus(); });
+$('totpBtn').addEventListener('click', () => {
+  if (!/^\d{6}$/.test($('totpInput').value.trim())) { $('stepErr').textContent = 'Enter the 6-digit code from your authenticator app.'; return; }
+  stepVerified();
+});
+$('totpInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('totpBtn').click(); });
+function stepVerified() { stepUp = 'fresh'; setActive('stepButtons', 'fresh'); finish(); }
+const csvCell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+function finish() {
+  const { list, reason } = pending;
+  const head = ['event_id', 'occurred', 'staff', 'role', 'action', 'target_id', 'description', 'reason', 'request_id', 'ip', 'hash'];
+  const rows = list.map(e => [e.id, `${dayLabel(e.day)} ${e.time}`, e.by, ROLE_LABEL[e.role], e.code, e.target ? e.target.id : '', e.text, e.reason || '', reqId(e), STAFF_UA[e.by][0], e.hash]);
+  const csv = [head, ...rows].map(r => r.map(csvCell).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'salesmora-audit-2026-10-28.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  addEvent({ by: STAFF[role].name, role, cat: 'staff', code: 'staff.audit_export', text: `Exported ${plural(list.length, 'event')} as CSV`, reason, step: 'Passkey', after: { rows: list.length, filters: { q: $('auditFilter').value.trim() || null, staff: $('staffFilter').value, category: $('catFilter').value, rangeDays: +$('rangeFilter').value } } });
+  $('actModal').hidden = true; pending = null;
+  renderRows(); toast(`Exported ${plural(list.length, 'event')}. The export was added to the log.`);
+  if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+}
+$('actModal').addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === $('actModal')) closeAction(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('actModal').hidden) closeAction(); });
+
+function verifyNow() {
+  verifying = true; renderChain();
+  requestAnimationFrame(() => requestAnimationFrame(() => { $('verifyBar').style.width = '100%'; }));
+  setTimeout(() => {
+    verifying = false; verifiedNote = `You checked it just now (${STAFF[role].name}).`;
+    renderChain(); $('verifyBtn').focus(); toast(`Hash chain intact. ${fmtNum(RANGE_TOTAL[365])} events verified.`);
+  }, 1500);
+}
+
+// Routing: #q=<id> pre-fills the filter (used by "Open audit log" on screens 39 and 40).
+function route() {
+  const m = location.hash.match(/^#q=(.+)$/);
+  if (m) { $('auditFilter').value = decodeURIComponent(m[1]); $('staffFilter').value = 'all'; $('catFilter').value = 'all'; $('rangeFilter').value = '365'; }
+  render();
+}
+window.addEventListener('hashchange', route);
+['auditFilter', 'staffFilter', 'catFilter', 'rangeFilter'].forEach(id => $(id).addEventListener(id === 'auditFilter' ? 'input' : 'change', () => renderRows()));
+$('clearFilters').addEventListener('click', () => {
+  $('auditFilter').value = ''; $('staffFilter').value = 'all'; $('catFilter').value = 'all';
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  renderRows(); $('auditFilter').focus();
+});
+$('exportBtn').addEventListener('click', openExport);
+document.addEventListener('click', e => {
+  const ex = e.target.closest('.expander');
+  if (ex) {
+    const id = ex.closest('tr').dataset.ev;
+    expanded.has(id) ? expanded.delete(id) : expanded.add(id);
+    renderRows(); document.querySelector(`tr[data-ev="${id}"] .expander`).focus();
+  }
+  const sh = e.target.closest('[data-show]');
+  if (sh) {
+    const id = sh.dataset.show;
+    $('auditFilter').value = id; $('staffFilter').value = 'all'; $('catFilter').value = 'all'; $('rangeFilter').value = '365';
+    expanded.add(id); renderRows(); document.querySelector(`tr[data-ev="${id}"] .expander`).focus();
+  }
+  const tg = e.target.closest('[data-target]');
+  if (tg) { $('auditFilter').value = tg.dataset.target; $('rangeFilter').value = '365'; renderRows(); $('auditFilter').focus(); }
+  if (e.target.closest('#verifyBtn')) verifyNow();
+  const nav = e.target.closest('[data-href]'); if (nav) location.href = nav.dataset.href;
+  if (e.target.closest('[data-audit-home]')) { $('clearFilters').click(); $('rangeFilter').value = '7'; renderRows(); }
+});
+
+// Idle timeout
+let idleTimer;
+function startIdle() {
+  let left = 120; $('idleModal').hidden = false; $('stayBtn').focus();
+  clearInterval(idleTimer);
+  idleTimer = setInterval(() => {
+    left -= 1; $('idleCount').textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    if (left <= 0) { clearInterval(idleTimer); location.href = 'prototype-screen-37-admin-sign-in.html'; }
+  }, 1000);
+}
+$('stayBtn').addEventListener('click', () => { clearInterval(idleTimer); $('idleModal').hidden = true; $('idleCount').textContent = '2:00'; toast('Session extended. Idle timer reset to 30 minutes.'); });
+
+// Review controls
+function setActive(group, val) { document.querySelectorAll(`#${group} button`).forEach(b => b.classList.toggle('active', (b.dataset.role || b.dataset.state || b.dataset.chain || b.dataset.step) === val)); }
+$('roleButtons').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  role = b.dataset.role; setActive('roleButtons', role);
+  if (role !== 'super') addEvent({ by: STAFF[role].name, role, cat: 'access', code: 'staff.access.denied', text: 'Tried to open the audit log without the Super Admin role', after: { route: '/audit', role } });
+  render(); if (role !== 'super') $('deniedTitle').focus();
+});
+$('chainButtons').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; chainState = b.dataset.chain; verifying = false; setActive('chainButtons', chainState); render(); });
+$('stateButtons').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const st = b.dataset.state;
+  $('staffFilter').value = 'all'; $('catFilter').value = 'all'; $('auditFilter').value = st === 'empty' ? 'usr_000000' : '';
+  dataState = st === 'empty' ? 'populated' : st; setActive('stateButtons', st); render();
+});
+$('stepButtons').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; stepUp = b.dataset.step; setActive('stepButtons', stepUp); });
+$('idleBtn').addEventListener('click', startIdle);
+$('envToggle').addEventListener('click', () => {
+  const prod = !$('envBar').classList.contains('production');
+  $('envBar').classList.toggle('production', prod);
+  $('envLabel').textContent = prod ? 'Production environment' : 'Staging environment';
+  $('envToggle').textContent = prod ? 'Switch to staging' : 'Switch to production';
+  render();
+});
+$('resetBtn').addEventListener('click', () => {
+  EVENTS = structuredClone(SEED_EVENTS); Object.assign(RANGE_TOTAL, { 0: 9, 7: 412, 30: 2318, 365: 48213 });
+  expanded.clear(); verifiedNote = 'Last full check today at 6:00 AM (nightly).';
+  stepUp = 'required'; setActive('stepButtons', 'required');
+  render(); toast('Sample data reset.');
+});
+$('reviewToggle').addEventListener('click', () => {
+  const c = $('review').classList.toggle('collapsed');
+  $('reviewToggle').textContent = c ? 'Show' : 'Hide'; $('reviewToggle').setAttribute('aria-expanded', String(!c));
+});
+
+if (matchMedia('(max-width: 820px)').matches) $('reviewToggle').click();
+route();
+</script>
+</body>
+</html>

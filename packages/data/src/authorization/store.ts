@@ -6,6 +6,11 @@ import { authorizePolicyChange, resolveAuthorizedCollectionScope, validateWorksp
 export class AuthorizationAccessError extends Error {
   constructor() { super('Access denied.'); }
 }
+/** A staff-suspended workspace. Extends the access error so every existing caller fails closed;
+ * callers that can do better (page redirect, API 423, worker hold) check for it first. */
+export class WorkspaceSuspendedError extends AuthorizationAccessError {
+  constructor() { super(); this.message = 'This workspace is unavailable. Contact support.'; }
+}
 export class AuthorizationConflictError extends Error {
   constructor() { super('Permissions changed. Reload before saving.'); }
 }
@@ -14,7 +19,7 @@ export interface WorkspaceIdentity { userId: string; workspaceId: string }
 
 async function loadContext(trx: Knex.Transaction, identity: WorkspaceIdentity, enabledPermissions: readonly PermissionId[]): Promise<AuthorizationContext> {
   const workspace = await trx('workspaces').where({ id: identity.workspaceId }).whereNull('deletionRequestedAt').first('ownerId');
-  const user = await trx('users').where({ id: identity.userId }).whereNull('deletionRequestedAt').first('id');
+  const user = await trx('users').where({ id: identity.userId }).whereNull('deletionRequestedAt').whereNull('suspendedAt').first('id');
   const membership = await trx('workspaceMemberships').where(identity).first('userId', 'workspaceId', 'role');
   const head = await trx('workspacePolicies').where({ workspaceId: identity.workspaceId }).first('revision');
   if (!user || !workspace || !membership || !head) throw new AuthorizationAccessError();
@@ -28,8 +33,9 @@ async function loadContext(trx: Knex.Transaction, identity: WorkspaceIdentity, e
 
 async function lockedWorkspace(trx: Knex.Transaction, workspaceId: string, write: boolean) {
   const query = trx('workspaces').where({ id: workspaceId }).whereNull('deletionRequestedAt');
-  const row = await (write ? query.forUpdate() : query.forShare()).first('id');
+  const row = await (write ? query.forUpdate() : query.forShare()).first('id', 'suspendedAt');
   if (!row) throw new AuthorizationAccessError();
+  if (row.suspendedAt) throw new WorkspaceSuspendedError();
 }
 
 /** Server adapter boundary. The callback must finish protected work before the transaction resolves. */
@@ -52,6 +58,7 @@ export async function initializeWorkspacePolicy(trx: Knex.Transaction, identity:
   const owner = await trx('workspaceMemberships').where({ ...identity, role: 'owner' }).first('userId');
   if (!workspace || !owner || await trx('workspacePolicies').where({ workspaceId: identity.workspaceId }).first()) throw new AuthorizationAccessError();
   const result = validateWorkspacePolicy({ workspaceId: identity.workspaceId, revision: 0, grants: [...defaults,
+    {role: "office", permission: "leadCapture.archive", scope: "workspace"},
     {role: "field", permission: "jobs.schedule.update", scope: "assigned"},
     ...(["owner", "admin", "office"] as const).map(role => ({role, permission: "workorders.schedule.update" as const, scope: "workspace" as const})),
     {role: "field", permission: "workorders.schedule.update", scope: "assigned_job"}, {role: 'owner', permission: 'billing.read', scope: 'enabled'}, {role: 'admin', permission: 'billing.read', scope: 'enabled'}] });

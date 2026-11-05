@@ -1,0 +1,20 @@
+export const captureSourceToolbarData = {
+  title: 'Find capture sources',
+  search: 'Search capture sources',
+  placeholder: 'Search by name',
+  source: 'Source type',
+  status: 'Status',
+  views: 'Capture source view',
+  current: 'Current sources',
+  archived: 'Archived',
+  sources: { all: 'All sources', website: 'Website or shareable link', gmail: 'Gmail' },
+  statuses: { all: 'All statuses', draft: 'Draft', scheduled: 'Scheduled', active: 'Active', paused: 'Paused' },
+  archivedHelp: 'Archived sources retain their history. Restoring a source returns it to a paused state and requires review before relaunch.',
+  chip: (label: string, value: string) => `${label}: ${value}`,
+  stories: {
+    title: 'Lead Capture',
+    description: 'Find current or archived capture sources. These controls update preview filters only.',
+    query: 'Kitchen requests',
+    longQuery: 'Residential kitchen remodeling and whole-home improvement inquiries from our service area',
+  },
+} as const;

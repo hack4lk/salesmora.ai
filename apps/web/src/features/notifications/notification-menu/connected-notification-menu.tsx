@@ -1,4 +1,5 @@
 'use client';
+import { captureNotificationItem } from './capture-notification-item';
 import { jobNotificationItem } from './job-notification-item';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { NotificationResult } from '@salesmora/contracts';
@@ -37,7 +38,9 @@ export function ConnectedNotificationMenu({workspaceId,workspaceName}:{workspace
     } catch {if(token===generation.current){setState('error');setResult({items:[],unreadCount:0,page:1,hasMore:false});}}finally{if(token===generation.current)setLoadingMore(false);}
   }
   return <NotificationMenu workspaceName={workspaceName} state={state} unreadCount={state==='ready'?result.unreadCount:null}
-    items={result.items.map(item=>item.kind==='job'
+    items={result.items.map(item=>item.kind==='capture'
+      ?captureNotificationItem(item,workspaceId)
+      :item.kind==='job'
       ?jobNotificationItem(item,workspaceId,workspaceName)
       :item.kind==='deadline'
       ?{id:item.id,title:copy.deadlineTitles[item.event],description:copy.deadlineDescription(item.jobNumber,item.jobTitle),createdAt:item.createdAt,read:item.read,

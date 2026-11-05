@@ -9,7 +9,7 @@ export const workspaceNavigationData = {
   open: 'Open navigation', close: 'Close navigation',
   navigation: 'Workspace navigation', management: 'Management navigation',
   ganttChart: 'Gantt chart', billing: 'Billing', permissions: 'Permissions', aiUsage: 'AI usage',
-  estimateSettings: 'Estimates',
+  estimateSettings: 'Estimates', leadSettings: 'Lead settings',
   workspace: 'Workspace', manage: 'Manage',
   unavailable: 'Coming soon', signingOut: 'Signing out…',
   account: 'Account options', accountSettings: 'Account settings', signOut: 'Sign out',
@@ -25,7 +25,7 @@ export const workspaceNavigationData = {
     { id: 'work-orders', label: 'Work Orders', href: '/work-orders', management: false },
     { id: 'materials', label: 'Materials', href: '/materials', management: false },
     { id: 'reports', label: 'Reports', href: '/reports', management: true },
-    { id: 'campaigns', label: 'Campaigns', href: '/campaigns', management: true },
+    { id: 'campaigns', label: 'Lead Capture', href: '/lead-capture', management: true },
     { id: 'settings', label: 'Settings', href: '/settings', management: true },
   ],
   stories: {

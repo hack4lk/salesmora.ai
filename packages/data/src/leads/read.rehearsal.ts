@@ -7,26 +7,13 @@ import { leadListQuerySchema, leadEditableFields, type UpdateLeadInput, type Per
 import { resolveLeadChatContext, leadChatEvidenceAllowed, leadChatPipelineCounts } from './chat-context';
 import { loadWorkspaceAuthorization } from '../authorization/store';
 import { createLeadCSVExport, previewLeadExport, LeadExportLimitError, LeadExportEmptyError } from './export';
-import { up as exportsAudit } from '../migrations/202610150004_lead_exports';
 import { deleteLead, LeadDeleteConflictError, LeadDeleteConfirmationError, LeadDeleteWonError } from './delete';
-import { up as deletionAudit } from '../migrations/202610150003_lead_deletion_audit';
-import { up as chatContextMigration } from '../migrations/202610150005_chat_page_context';
-import { up as chat } from '../migrations/202610120002_chat';
-import { up as chatActions } from '../migrations/202610120006_chat_actions';
-import { up as admissions } from '../migrations/202610140005_plan_admissions';
-import { up as admissionTracking } from '../migrations/202610140006_lead_admission_tracking';
-import { up as auth } from '../migrations/202610090001_auth';
-import { up as workspaces } from '../migrations/202610110001_workspaces';
-import { up as invitations } from '../migrations/202610110002_invitation_delivery';
-import { up as leads } from '../migrations/202610110003_leads';
-import { up as authorization } from '../migrations/202610120001_authorization';
-import { up as deletion } from '../migrations/202610140001_account_deletion';
-import { up as notificationsMigration } from '../migrations/202610150002_assignment_notifications';
 import { setLeadArchived, LeadArchiveConflictError } from './archive';
 import { assignLead, LeadAssignmentConflictError } from './assign';
 import { readNotifications, markNotificationRead, readNotificationPreferences, saveNotificationPreferences } from '../notifications/store';
 import { processAssignmentEmails } from '../notifications/delivery';
 import { up as readModel } from '../migrations/202610150001_leads_read_model';
+import { replayMigrations } from '../migration-replay';
 import { AuthorizationAccessError } from '../authorization/store';
 import { readLeads, readLead } from './read';
 import { moveLeadStage, LeadStageConflictError } from './stage';
@@ -45,21 +32,19 @@ let checks = 0;
 async function check(name: string, run: () => Promise<void>) { await run(); checks++; console.log(`PASS ${name}`); }
 try {
   await admin.raw('CREATE SCHEMA ??', [schema]);
-  await db.transaction(async trx => { await auth(trx); await workspaces(trx); await invitations(trx); await leads(trx); });
+  // Legacy leads are seeded before the authorization and read-model migrations; every later migration then runs on top.
+  await replayMigrations(db, { through: '202610110003_leads' });
   await db('users').insert(['owner', 'admin', 'office', 'field', 'outsider', 'other-owner'].map(id => ({ id, name: id, email: `${id}@example.test`, createdAt: new Date(), updatedAt: new Date(), termsVersion: 'test', termsAcceptedAt: new Date() })));
   await db('workspaces').insert([{ id: a, ownerId: 'owner' }, { id: b, ownerId: 'other-owner' }].map(row => ({ ...row, businessName: 'Test business', businessType: 'test', postalCode: '', serviceRange: '' })));
   await db('workspaceMemberships').insert([{ workspaceId: a, userId: 'owner', role: 'owner', profile: 'office' }, { workspaceId: a, userId: 'admin', role: 'admin', profile: 'office' }, { workspaceId: a, userId: 'office', role: 'member', profile: 'office' }, { workspaceId: a, userId: 'field', role: 'member', profile: 'field' }, { workspaceId: b, userId: 'other-owner', role: 'owner', profile: 'office' }]);
   const base = { createdBy: 'owner', submissionHash: 'test', name: 'Example customer', email: 'customer@example.test', phone: '(212) 555-0134', service: 'Repair', address: 'Willow Street', details: 'secret-unsearchable', notes: 'secret-unsearchable', source: 'website' };
   await db('leads').insert(ids.map((id, index) => ({ ...base, id, submissionId: randomUUID(), workspaceId: index === 62 ? b : a, createdBy: index === 62 ? 'other-owner' : 'owner', ownerId: index === 62 ? null : index % 3 === 0 ? 'field' : index % 3 === 1 ? 'office' : null, stage: index === 0 ? 'in-progress' : 'new', createdAt: new Date('2026-10-10T12:00:00Z') })));
-  await db.transaction(authorization); await db.transaction(deletion);
+  await replayMigrations(db, { after: '202610110003_leads', through: '202610140006_lead_admission_tracking' });
   await check('failed migration transaction restores legacy stages and columns', async () => {
     const abort = new Error('rollback'); await assert.rejects(db.transaction(async trx => { await readModel(trx); throw abort; }), error => error === abort);
     assert.equal(await db.schema.hasColumn('leads', 'leadNumber'), false); assert.equal((await db('leads').where({ id: ids[0] }).first()).stage, 'in-progress');
   });
-  await db.transaction(readModel);
-  await db.transaction(notificationsMigration);
-  await db.schema.alterTable('notificationPreferences', t => { t.boolean('visitChangedEmail').notNullable().defaultTo(true); });
-  await db.transaction(async trx => { await chat(trx); await chatActions(trx); await chatContextMigration(trx); await admissions(trx); await admissionTracking(trx); await deletionAudit(trx); await exportsAudit(trx); });
+  await replayMigrations(db, { after: '202610140006_lead_admission_tracking' });
   await check('migration preserves records, numbers, dates, versions and creation history', async () => {
     const rows = await db('leads').where({ workspaceId: a }); assert.equal(rows.length, 62); assert.equal(new Set(rows.map(row => row.leadNumber)).size, 62);
     assert(rows.every(row => row.version === 1 && +row.updatedAt === +row.createdAt && +row.lastActivityAt === +row.createdAt));

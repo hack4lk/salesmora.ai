@@ -30,7 +30,7 @@ import { EstimateDraftPreviewPage } from "../../features/estimates/estimate-draf
 import { estimateDraftPaperSource } from "../../features/estimates/estimate-draft-preview-page/estimate-draft-preview-page.preview";
 import { WorkspaceShell } from "../../features/workspace/workspace-shell/workspace-shell";
 import { staffEstimatePaper } from "./sharing";
-import { chatRuntimeAvailable } from "../chat/config";
+import { workspaceChatAvailable } from "../chat/config";
 import type { AssistantPageContext } from "../../features/assistant/workspace-assistant/workspace-assistant";
 import { EstimateDraftProposalEditor } from "../../features/assistant/estimate-result/estimate-draft-editor";
 
@@ -67,7 +67,7 @@ async function authorizedPage(params: EstimateEditorSearchParams) {
   return { session, workspace, context, capabilities };
 }
 
-function shell(
+async function shell(
   page: Awaited<ReturnType<typeof authorizedPage>>,
   children: ReactNode,
   printChromeHidden = false,
@@ -89,7 +89,7 @@ function shell(
       description={printChromeHidden ? undefined : "Review scope, pricing and customer decisions across your leads and jobs."}
       authorizedPages={workspaceNavigationPages(context)}
       assistantAvailable={capabilities.assistant && !printChromeHidden}
-      chatEnabled={chatRuntimeAvailable()}
+      chatEnabled={await workspaceChatAvailable(workspace.id)}
       chatSurface={chatSurface}
       chatContext={chatContext}
       jobNotificationsAvailable={capabilities.jobNotifications}

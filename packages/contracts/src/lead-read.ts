@@ -20,7 +20,7 @@ export const leadCreatedActivitySchema = z.object({ source: z.enum(leadSources) 
 export type LeadReadRecord = {
   id: string; leadNumber: string; version: number; name: string; service: string; email: string; phone: string; address: string; details: string; notes: string;
   stage: typeof leadStages[number]; source: typeof leadSources[number]; owner: { id: string; name: string; former: boolean } | null;
-  createdAt: string; updatedAt: string; lastActivityAt: string; archived: boolean; needsAttention: boolean; canMove: boolean; canEdit: boolean; canAssign: boolean; canArchive: boolean; canRestore: boolean; canDelete: boolean; origin: 'manual' | 'gmail' | 'campaign';
+  createdAt: string; updatedAt: string; lastActivityAt: string; archived: boolean; needsAttention: boolean; canMove: boolean; canEdit: boolean; canAssign: boolean; canArchive: boolean; canRestore: boolean; canDelete: boolean; origin: 'manual' | 'gmail' | 'campaign' | 'lead_capture';
 };
 export type LeadListResult = {
   rows: LeadReadRecord[]; total: number; page: number; pageSize: number; timezone: string;
@@ -43,7 +43,7 @@ export const leadNotesQuerySchema = z.object({ workspaceId: z.uuid(), leadId: z.
 export type AddLeadNoteInput = z.infer<typeof addLeadNoteSchema>;
 export type LeadReadNote = { id: string; body: string; authorName: string; createdAt: string; viaAssistant: boolean };
 
-export const leadCreationProvenanceSchema = leadCreatedActivitySchema.extend({ origin: z.enum(['manual', 'gmail', 'campaign']).optional() });
+export const leadCreationProvenanceSchema = leadCreatedActivitySchema.extend({ origin: z.enum(['manual', 'gmail', 'campaign', 'lead_capture']).optional() });
 export const leadEditableFields = ['name', 'email', 'phone', 'service', 'address', 'details', 'notes', 'source'] as const;
 export const leadEditableFieldSchema = z.enum(leadEditableFields);
 export const leadEditValuesSchema = leadSchema.pick({ name: true, email: true, phone: true, service: true, address: true, details: true, notes: true, source: true }).extend({ source: leadSchema.shape.source.optional() }).strict();

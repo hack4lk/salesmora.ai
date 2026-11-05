@@ -1,0 +1,1019 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><meta name="theme-color" content="#f4f8fc"><title>Workspaces · SalesMora Admin prototype</title>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#23384D;background:#F4F8FC;--blue:#3B6FA5;--blue-dark:#315C8A;--seafoam:#7CCBB7;--ink:#23384D;--line:#E2EAF1;--muted:#64778A;--red:#b42318;--red-bg:#fef3f2;--amber:#b54708;--amber-bg:#fffaeb;--green:#067647;--green-bg:#ecfdf3}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#F4F8FC}button,input{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #8DB5D5;outline-offset:2px}[hidden]{display:none!important}
+.icon{width:18px;height:18px;flex:0 0 auto;fill:currentColor}.icon.sm{width:15px;height:15px}
+.env-bar{position:sticky;top:0;z-index:9;display:flex;align-items:center;justify-content:center;height:28px;background:#f79009;color:#3d1d00;font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase}.env-bar.production{background:#d92d20;color:#fff}
+.app{display:grid;grid-template-columns:236px 1fr;min-height:calc(100vh - 28px)}
+.sidebar{position:sticky;top:28px;height:calc(100vh - 28px);display:flex;flex-direction:column;padding:20px 12px 14px;background:#fff;border-right:1px solid var(--line)}
+.logo{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 8px 22px}.logo img{display:block;width:142px;height:auto}
+.admin-tag{padding:3px 7px;border-radius:6px;background:var(--ink);color:#fff;font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.nav-label{margin:14px 10px 6px;color:#8a9bab;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.nav{display:grid;gap:2px}.nav-item{display:flex;align-items:center;gap:10px;width:100%;min-height:36px;padding:0 10px;border:0;border-radius:8px;background:none;color:#4d6175;font-size:12px;font-weight:570;text-align:left}
+.nav-item:hover{background:#F4F8FC}.nav-item.active{background:#e6eff8;color:var(--blue-dark);font-weight:650}.nav-item .icon{color:#7d91a5}.nav-item.active .icon{color:var(--blue)}
+.nav-badge{margin-left:auto;min-width:20px;padding:2px 6px;border-radius:999px;background:var(--red-bg);color:var(--red);font-size:9px;font-weight:700;text-align:center}
+.nav-spacer{flex:1}.sidebar-foot{display:flex;align-items:center;gap:9px;padding:12px 6px 0;border-top:1px solid #eef2f6}
+.avatar{display:grid;width:32px;height:32px;flex:0 0 auto;place-items:center;border-radius:50%;background:#dce9f5;color:var(--blue-dark);font-size:10px;font-weight:700}
+.who{min-width:0;flex:1}.who strong,.who span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.who strong{font-size:11px}.who span{margin-top:2px;color:#8a9bab;font-size:9px}
+.icon-btn{display:grid;width:32px;height:32px;place-items:center;border:1px solid var(--line);border-radius:8px;background:#fff;color:#5d7186}.icon-btn:hover{background:#F4F8FC}
+.main{min-width:0}
+.topbar{position:sticky;top:28px;z-index:5;display:flex;align-items:center;gap:12px;height:60px;padding:0 26px;border-bottom:1px solid var(--line);background:#ffffffed;backdrop-filter:blur(10px)}
+.search{position:relative;flex:1;max-width:520px}.search>.icon{position:absolute;left:11px;top:10px;color:#8a9bab}
+.search input{width:100%;height:38px;padding:0 44px 0 34px;border:1px solid #d3dee8;border-radius:9px;background:#fff;color:var(--ink);font-size:12px}
+.kbd{position:absolute;right:9px;top:9px;padding:2px 6px;border:1px solid var(--line);border-radius:5px;color:#8a9bab;font-size:10px}
+.results{position:absolute;top:44px;left:0;right:0;overflow:hidden;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 14px 30px #23384d22}
+.results h3{margin:0;padding:8px 12px 4px;color:#8a9bab;font-size:9px;letter-spacing:.08em;text-transform:uppercase}
+.result{display:flex;align-items:center;gap:10px;width:100%;padding:8px 12px;border:0;background:#fff;text-align:left}.result:hover,.result.active{background:#F4F8FC}
+.result strong{display:block;color:var(--ink);font-size:12px}.result span{display:block;margin-top:2px;color:var(--muted);font-size:10px}.result .chip{margin-left:auto}
+.results .empty-note{padding:14px 12px;color:var(--muted);font-size:11px}
+.top-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:0 12px;border:1px solid #d3dee8;border-radius:8px;background:#fff;color:#3d5268;font-size:11px;font-weight:620}.button:hover{background:#F4F8FC}
+.button.primary{border-color:var(--blue);background:var(--blue);color:#fff}.button.primary:hover{background:var(--blue-dark)}
+.content{max-width:1360px;margin:0 auto;padding:24px 26px 48px}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:18px}
+.eyebrow{margin-bottom:5px;color:#6c8299;font-size:10px;font-weight:750;letter-spacing:.11em;text-transform:uppercase}
+h1{margin:0;font-size:24px;font-weight:680;letter-spacing:-.04em}.page-head p{margin:6px 0 0;color:var(--muted);font-size:11px}
+.metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:11px;margin-bottom:16px}
+.metric{display:block;width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;text-align:left;color:inherit}.metric:hover{border-color:#b9cfe3}
+.metric-label{display:flex;align-items:center;gap:6px;color:#6c8299;font-size:10px;font-weight:620}.metric-value{margin-top:6px;font-size:22px;font-weight:700;letter-spacing:-.035em}
+.metric-foot{margin-top:3px;color:#8a9bab;font-size:10px}.metric.alert-red .metric-value{color:var(--red)}.metric.alert-amber .metric-value{color:var(--amber)}
+.metric.error{border-style:dashed}.metric.error .metric-value{font-size:12px;font-weight:600;color:var(--red)}
+.skeleton{display:block;height:12px;border-radius:5px;background:linear-gradient(90deg,#eaf0f6,#f6f9fc,#eaf0f6);background-size:200% 100%;animation:sk 1.2s infinite}@keyframes sk{to{background-position:-200% 0}}
+.grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px}
+.panel{border:1px solid var(--line);border-radius:12px;background:#fff}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid #eef2f6}
+.panel-head h2{margin:0;font-size:13px;font-weight:680}.panel-head .link{border:0;background:none;color:var(--blue);font-size:11px;font-weight:620}
+.list{margin:0;padding:0;list-style:none}.row{display:flex;align-items:flex-start;gap:11px;padding:12px 15px;border-bottom:1px solid #f0f4f8}.row:last-child{border-bottom:0}
+.sev{display:grid;width:28px;height:28px;flex:0 0 auto;place-items:center;border-radius:8px}.sev.error{background:var(--red-bg);color:var(--red)}.sev.warn{background:var(--amber-bg);color:var(--amber)}.sev.info{background:#e6eff8;color:var(--blue)}
+.row-body{min-width:0;flex:1}.row-title{font-size:12px;font-weight:640}.row-detail{margin-top:3px;color:var(--muted);font-size:11px;line-height:1.45}
+.row .button{min-height:30px;font-size:10px}
+.chip{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:#eef3f8;color:#4d6175;font-size:9px;font-weight:650;white-space:nowrap}.chip.red{background:var(--red-bg);color:var(--red)}.chip.green{background:var(--green-bg);color:var(--green)}.chip.amber{background:var(--amber-bg);color:var(--amber)}
+.audit-row{display:grid;grid-template-columns:62px minmax(0,1fr);gap:10px;padding:11px 15px;border-bottom:1px solid #f0f4f8}.audit-row:last-child{border-bottom:0}
+.audit-time{color:#8a9bab;font-size:10px;font-variant-numeric:tabular-nums}.audit-what{font-size:11px;line-height:1.45}.audit-what strong{font-weight:650}.audit-reason{margin-top:3px;color:var(--muted);font-size:10px;font-style:italic}
+.empty{padding:28px 15px;color:var(--muted);font-size:11px;text-align:center}.empty .icon{width:28px;height:28px;color:#2f8f78}
+.limited{display:flex;align-items:center;gap:9px;margin:12px 15px;padding:10px 11px;border:1px dashed #cfdbe6;border-radius:9px;color:var(--muted);font-size:11px}
+.toast{position:fixed;left:50%;bottom:22px;z-index:30;transform:translateX(-50%);display:flex;align-items:center;gap:9px;max-width:min(560px,92vw);padding:11px 14px;border-radius:10px;background:var(--ink);color:#fff;font-size:11px;box-shadow:0 12px 30px #23384d55}
+.drawer{position:fixed;top:28px;right:0;bottom:0;z-index:12;display:flex;flex-direction:column;width:min(400px,96vw);border-left:1px solid var(--line);background:#fff;box-shadow:-12px 0 35px #23384d1f}
+.drawer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px;border-bottom:1px solid #eef2f6}.drawer-head h2{margin:0;font-size:14px}.drawer-head p{margin:4px 0 0;color:var(--muted);font-size:10px;line-height:1.45}
+.chat{flex:1;overflow:auto;padding:14px 16px;display:grid;align-content:start;gap:10px}
+.msg{max-width:92%;padding:10px 12px;border-radius:10px;font-size:11px;line-height:1.5}.msg.me{justify-self:end;background:var(--blue);color:#fff}.msg.bot{background:#F4F8FC;border:1px solid var(--line)}
+.msg ol{margin:6px 0 0;padding-left:18px}.cite{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.cite a{padding:3px 7px;border:1px solid #cfdbe6;border-radius:6px;background:#fff;color:var(--blue);font-size:9px;font-weight:620}
+.suggest{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 10px}.suggest button{padding:5px 9px;border:1px solid #d3dee8;border-radius:7px;background:#fff;color:#4d6175;font-size:10px}.suggest button:hover{border-color:var(--blue);color:var(--blue)}
+.ask{display:flex;gap:7px;padding:12px 16px;border-top:1px solid #eef2f6}.ask input{flex:1;min-width:0;height:36px;padding:0 10px;border:1px solid #d3dee8;border-radius:8px;font-size:11px}
+.budget{padding:0 16px 10px;color:#8a9bab;font-size:9px}
+.modal-backdrop{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:18px;background:#23384d80}
+.modal{width:min(400px,100%);padding:20px;border-radius:12px;background:#fff;box-shadow:0 20px 50px #0005}.modal h2{margin:0 0 6px;font-size:16px}.modal p{margin:0 0 16px;color:var(--muted);font-size:12px;line-height:1.5}
+.modal .actions{display:flex;justify-content:flex-end;gap:8px}.count{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink)}
+.menu{position:absolute;bottom:56px;left:12px;right:12px;z-index:6;padding:6px;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 12px 28px #23384d26}.menu button,.menu a{display:flex;align-items:center;gap:9px;width:100%;padding:8px 9px;border:0;border-radius:7px;background:none;color:#3d5268;font-size:11px;text-align:left}.menu button:hover,.menu a:hover{background:#F4F8FC}
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px}
+.filter{position:relative;flex:1;min-width:240px;max-width:440px}.filter .icon{position:absolute;left:10px;top:9px;color:#8a9bab}
+.filter input{width:100%;height:36px;padding:0 10px 0 33px;border:1px solid #d3dee8;border-radius:8px;background:#fff;color:var(--ink);font-size:12px}
+.seg{display:flex;flex-wrap:wrap;gap:3px;padding:3px;border:1px solid var(--line);border-radius:9px;background:#fff}
+.seg button{padding:6px 10px;border:0;border-radius:6px;background:none;color:#4d6175;font-size:11px;font-weight:600}.seg button:hover{background:#F4F8FC}.seg button[aria-pressed="true"]{background:#e6eff8;color:var(--blue-dark)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:10px 15px;border-bottom:1px solid var(--line);color:#6c8299;font-size:9px;font-weight:700;letter-spacing:.07em;text-align:left;text-transform:uppercase;white-space:nowrap}
+td{padding:10px 15px;border-bottom:1px solid #f0f4f8;vertical-align:middle}tbody tr[data-open]{cursor:pointer}tbody tr[data-open]:hover{background:#f8fbfd}tbody tr:last-child td{border-bottom:0}
+.u-cell{display:flex;align-items:center;gap:10px}.u-cell a{color:var(--ink);font-weight:640}.u-cell a:hover{color:var(--blue)}
+.sub{display:block;margin-top:2px;color:var(--muted);font-size:10px}.muted{color:var(--muted)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px}
+.ws-line{display:block;font-size:11px}.ws-line+.ws-line{margin-top:3px}.ws-line .muted{font-size:10px}
+.pager{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 15px;border-top:1px solid #eef2f6;color:var(--muted);font-size:11px}.pager div{display:flex;gap:6px}
+.back{display:inline-flex;align-items:center;gap:5px;margin-bottom:12px;color:var(--blue);font-size:11px;font-weight:620}
+.profile-head{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-bottom:14px;padding:16px}
+.avatar.lg{width:48px;height:48px;font-size:15px}
+.ph-main{flex:1;min-width:220px}.ph-main h1{display:flex;flex-wrap:wrap;align-items:center;gap:9px}.ph-main h1:focus{outline:none}.ph-main p{margin:5px 0 0;color:var(--muted);font-size:11px}
+.actions-bar{display:flex;flex-wrap:wrap;gap:7px}
+.button.danger{border-color:#fecdca;color:var(--red)}.button.danger:hover{background:var(--red-bg)}
+.button.danger.solid{border-color:var(--red);background:var(--red);color:#fff}.button.danger.solid:hover{background:#912018}
+.button:disabled{opacity:.5;cursor:not-allowed}.button:disabled:hover{background:#fff}
+.secure{display:inline-flex;margin-left:-2px;color:#8a9bab}
+.banner{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;padding:11px 13px;border-radius:10px;font-size:11px;line-height:1.5}.banner>div{flex:1}
+.banner.red{border:1px solid #fecdca;background:var(--red-bg);color:#7a271a}.banner.amber{border:1px solid #fedf89;background:var(--amber-bg);color:#7a2e0e}.banner.info{border:1px solid #cfe0ef;background:#eef5fb;color:var(--ink)}
+.banner .button{min-height:28px;font-size:10px}
+.stack{display:grid;align-content:start;gap:14px}
+.dl{display:grid;grid-template-columns:150px minmax(0,1fr);margin:0;font-size:12px}
+.dl dt,.dl dd{margin:0;padding:9px 15px;border-bottom:1px solid #f0f4f8}.dl dt{color:var(--muted);font-size:11px}.dl dd{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;word-break:break-word}
+.dl dt:nth-last-child(2),.dl dd:last-child{border-bottom:0}
+.reveal{display:inline-flex;align-items:center;gap:3px;padding:2px 4px;border:0;border-radius:5px;background:none;color:var(--blue);font-size:10px;font-weight:650}.reveal:hover{background:#eef5fb}
+.revealed-note{color:#8a9bab;font-size:9px}
+.modal.wide{width:min(470px,100%)}.modal-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.field{margin-bottom:12px}.field label{display:block;margin-bottom:5px;font-size:11px;font-weight:640}.field label span{color:#8a9bab;font-weight:500}
+.field textarea,.field input{width:100%;padding:8px 10px;border:1px solid #d3dee8;border-radius:8px;color:var(--ink);font:inherit;font-size:12px}.field textarea{resize:vertical}
+.hint{margin-top:5px;color:var(--muted);font-size:10px;line-height:1.45}
+.step-note{display:flex;align-items:flex-start;gap:7px;margin-bottom:12px;padding:9px 10px;border-radius:8px;background:#F4F8FC;color:#4d6175;font-size:11px;line-height:1.45}
+.err{min-height:0;margin-bottom:8px;color:var(--red);font-size:11px}.err:empty{display:none}
+.linkish{margin-bottom:12px;padding:0;border:0;background:none;color:var(--blue);font-size:11px;font-weight:620}
+.totp{display:flex;gap:7px}.totp input{flex:1}
+.block{width:100%;margin-bottom:12px}
+@media (max-width:820px){.hide-sm{display:none}.dl{grid-template-columns:110px minmax(0,1fr)}}
+#detailView .audit-row{grid-template-columns:96px minmax(0,1fr)}
+.field textarea:focus-visible{outline:3px solid #8DB5D5;outline-offset:2px}
+.toolbar select{height:36px;padding:0 28px 0 10px;border:1px solid #d3dee8;border-radius:8px;background:#fff;color:var(--ink);font-size:12px}
+.ws-mark{display:grid;width:32px;height:32px;flex:0 0 auto;place-items:center;border-radius:8px;background:#e6eff8;color:var(--blue)}.ws-mark.lg{width:48px;height:48px;border-radius:11px}.ws-mark.lg .icon{width:24px;height:24px}
+.chips{display:inline-flex;flex-wrap:wrap;gap:4px}
+.usage{padding:6px 15px 12px}.meter{padding:8px 0}.meter+.meter{border-top:1px solid #f0f4f8}
+.meter-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:11px}.meter-top strong{font-size:12px}.meter-top span{color:var(--muted)}
+.bar{height:7px;margin-top:6px;overflow:hidden;border-radius:999px;background:#edf2f7}.bar i{display:block;height:100%;border-radius:inherit;background:var(--blue)}.bar.amber i{background:#dc6803}.bar.red i{background:var(--red)}
+.meter-foot{margin-top:4px;color:#8a9bab;font-size:10px}
+.counts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:#f0f4f8;border-bottom:1px solid #f0f4f8}.counts div{padding:11px 12px;background:#fff}.counts strong{display:block;font-size:15px}.counts span{color:var(--muted);font-size:10px}
+.m-actions{display:flex;flex-wrap:wrap;gap:5px;margin-left:auto}.m-actions .button{min-height:28px;font-size:10px}
+.row-title a{color:var(--ink)}.row-title a:hover{color:var(--blue)}
+.grant{margin:12px 15px;padding:11px 12px;border-radius:9px;font-size:11px;line-height:1.5}.grant.on{border:1px solid #b7e4d6;background:#effaf6}.grant.off{border:1px dashed #d3dee8;background:#fafcfe;color:#4d6175}
+.grant strong{display:block;margin-bottom:2px;color:var(--ink);font-size:12px}
+.va-actions{display:flex;flex-wrap:wrap;gap:7px;padding:0 15px 13px}
+.field select{width:100%;height:36px;padding:0 10px;border:1px solid #d3dee8;border-radius:8px;background:#fff;color:var(--ink);font:inherit;font-size:12px}
+.field select:focus-visible,.field input:focus-visible{outline:3px solid #8DB5D5;outline-offset:2px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.warn-note{display:flex;align-items:flex-start;gap:7px;margin-bottom:12px;padding:9px 10px;border:1px solid #fedf89;border-radius:8px;background:var(--amber-bg);color:#7a2e0e;font-size:11px;line-height:1.45}
+@media (max-width:820px){.counts{grid-template-columns:repeat(3,minmax(0,1fr))}.field-row{grid-template-columns:1fr}}
+/* Prototype review controls — not part of the product UI */
+.review{position:fixed;left:12px;bottom:12px;z-index:50;width:236px;padding:11px;border:1px solid #3b4a6b;border-radius:11px;background:#141e33;color:#c9d2e6;font-size:10px;box-shadow:0 10px 30px #0008}
+.review.collapsed .review-body{display:none}.review-top{display:flex;align-items:center;justify-content:space-between}.review h2{margin:0;color:#fff;font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+.review-top button{border:0;background:none;color:#aab6d1;font-size:10px}.review-label{margin:9px 0 4px;color:#8d99b5;font-size:9px;text-transform:uppercase;letter-spacing:.08em}
+.review-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}.review-grid button{min-height:26px;padding:0 6px;border:1px solid #33415f;border-radius:6px;background:#1c2842;color:#d5dcec;font-size:9px;text-align:left}
+.review-grid button.active{border-color:#8DB5D5;background:#25405a;color:#fff}.review details{margin-top:8px}.review summary{cursor:pointer;color:#aab6d1}.review ul{margin:6px 0 0;padding-left:14px;color:#8d99b5;font-size:9px;line-height:1.5}
+@media (max-width:1000px){.grid{grid-template-columns:1fr}}
+@media (max-width:820px){
+.app{grid-template-columns:minmax(0,1fr)}
+.sidebar{min-width:0;position:relative;top:0;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border-right:0;border-bottom:1px solid var(--line)}
+.logo{margin:0}.nav-spacer,.nav-label,.who{display:none}
+.nav{order:3;display:flex;gap:4px;width:100%;overflow-x:auto;padding-bottom:2px}.nav-item{width:auto;flex:0 0 auto;white-space:nowrap}
+.sidebar-foot{margin-left:auto;padding:0;border:0}
+.menu{top:52px;bottom:auto;left:auto;right:12px;width:220px}
+.topbar{position:static;padding:0 14px}.content{padding:18px 14px 40px}.kbd{display:none}
+.page-head{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<div class="env-bar" id="envBar" role="status"><span id="envLabel">Staging environment</span></div>
+<div class="app">
+  <aside class="sidebar" aria-label="Admin navigation">
+    <div class="logo"><img src="../branding/assets/salesmora-logo.svg" alt="SalesMora.ai" width="142" height="38"><span class="admin-tag">Admin</span></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="nav-spacer"></div>
+    <div class="menu" id="userMenu" hidden>
+      <button type="button" data-goto="My account (screen planned)"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>My account &amp; factors</button>
+      <a href="prototype-screen-37-admin-sign-in.html"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>Sign out</a>
+    </div>
+    <div class="sidebar-foot">
+      <span class="avatar" id="avatar">LK</span>
+      <span class="who"><strong id="staffName">Lukasz K.</strong><span id="staffRole">Super Admin</span></span>
+      <button class="icon-btn" type="button" id="userMenuBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg></button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="search" role="search">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input id="search" type="search" placeholder="Search users, workspaces, emails or IDs" aria-label="Global search" aria-controls="results" aria-expanded="false" autocomplete="off">
+        <span class="kbd" aria-hidden="true">/</span>
+        <div class="results" id="results" role="listbox" hidden></div>
+      </div>
+      <div class="top-actions">
+        <button class="button" type="button" id="assistantBtn" aria-expanded="false" aria-controls="assistant"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"/></svg>Admin assistant</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <section id="listView" aria-labelledby="wsTitle">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Customers</div>
+            <h1 id="wsTitle">Workspaces</h1>
+            <p>486 workspaces, 312 active in the last 30 days. Owner emails are masked; reveal them from the owner's user page.</p>
+          </div>
+        </div>
+        <div class="toolbar">
+          <div class="filter">
+            <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <input id="wsFilter" type="search" placeholder="Name, workspace ID, owner name or full owner email" aria-label="Filter workspaces" autocomplete="off">
+          </div>
+          <select id="planFilter" aria-label="Filter by plan">
+            <option value="all">All plans</option><option value="free">Free</option><option value="standard">Standard</option><option value="premium">Premium</option><option value="override">Has plan override</option>
+          </select>
+          <div class="seg" id="statusSeg" role="group" aria-label="Filter by status">
+            <button type="button" data-status="all" aria-pressed="true">All</button>
+            <button type="button" data-status="active" aria-pressed="false">Active</button>
+            <button type="button" data-status="past_due" aria-pressed="false">Past due</button>
+            <button type="button" data-status="suspended" aria-pressed="false">Suspended</button>
+            <button type="button" data-status="deleting" aria-pressed="false">Deletion pending</button>
+          </div>
+        </div>
+        <section class="panel">
+          <div class="table-wrap">
+            <table aria-labelledby="wsTitle">
+              <thead><tr><th scope="col">Workspace</th><th scope="col">Owner</th><th scope="col">Plan</th><th scope="col">Status</th><th scope="col">Members</th><th scope="col" class="hide-sm">Created</th></tr></thead>
+              <tbody id="wsRows"></tbody>
+            </table>
+          </div>
+          <div class="pager" id="pager"></div>
+        </section>
+      </section>
+      <section id="detailView" hidden></section>
+    </main>
+  </div>
+</div>
+
+<aside class="drawer" id="assistant" aria-label="Admin assistant" hidden>
+  <div class="drawer-head">
+    <div><h2>Admin assistant</h2><p>Answers come from the admin docs only and always cite them. No customer data is sent to the model.</p></div>
+    <button class="icon-btn" type="button" id="assistantClose" aria-label="Close assistant"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+  </div>
+  <div class="chat" id="chat" aria-live="polite"></div>
+  <div class="suggest" id="suggest">
+    <button type="button">How do I suspend a workspace?</button>
+    <button type="button">When can I use view-as?</button>
+    <button type="button">Plan override or plan change?</button>
+  </div>
+  <div class="budget" id="budget">Platform assistant budget: 212K of 1M tokens used this month</div>
+  <form class="ask" id="askForm"><input id="askInput" placeholder="Ask how to administer SalesMora…" aria-label="Ask the admin assistant" autocomplete="off"><button class="button primary" type="submit">Ask</button></form>
+</aside>
+
+<div class="modal-backdrop" id="idleModal" hidden>
+  <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="idleTitle" aria-describedby="idleText">
+    <h2 id="idleTitle">Are you still there?</h2>
+    <p id="idleText">For security, your admin session ends after 30 minutes of inactivity. You'll be signed out in <span class="count" id="idleCount">2:00</span>.</p>
+    <div class="actions"><a class="button" href="prototype-screen-37-admin-sign-in.html">Sign out now</a><button class="button primary" type="button" id="stayBtn">Stay signed in</button></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="actModal" hidden>
+  <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="actTitle" aria-describedby="actDesc">
+    <div id="actStep1">
+      <div class="modal-top"><h2 id="actTitle">Action</h2><span class="chip amber" id="actEnv">Staging</span></div>
+      <p id="actDesc"></p>
+      <div id="actExtra"></div>
+      <div class="field">
+        <label for="actReason">Reason <span>(saved to the audit log)</span></label>
+        <textarea id="actReason" rows="3" placeholder="For example: Ticket #4821, estimate PDF missing logo"></textarea>
+      </div>
+      <div class="step-note" id="actStepNote" hidden></div>
+      <div class="err" id="actErr" role="alert"></div>
+      <div class="actions"><button class="button" type="button" data-close>Cancel</button><button class="button primary" type="button" id="actConfirm">Confirm</button></div>
+    </div>
+    <div id="actStep2" hidden>
+      <div class="modal-top"><h2 id="stepTitle">Confirm it's you</h2></div>
+      <p>This action needs a fresh check of your second factor. After you confirm, you won't be asked again for 5 minutes.</p>
+      <button class="button primary block" type="button" id="passkeyBtn">Use passkey</button>
+      <div class="err" id="stepErr" role="alert"></div>
+      <button class="linkish" type="button" id="totpLink" hidden>Use an authenticator code instead</button>
+      <div class="field" id="totpWrap" hidden>
+        <label for="totpInput">6-digit code</label>
+        <div class="totp"><input id="totpInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code"><button class="button primary" type="button" id="totpBtn">Verify</button></div>
+      </div>
+      <div class="actions"><button class="button" type="button" data-close>Cancel</button></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<aside class="review" id="review" aria-label="Prototype review controls">
+  <div class="review-top"><h2>Prototype states</h2><button type="button" id="reviewToggle" aria-expanded="true">Hide</button></div>
+  <div class="review-body">
+    <div class="review-label">Staff role</div>
+    <div class="review-grid" id="roleButtons">
+      <button type="button" data-role="super" class="active">Super Admin</button>
+      <button type="button" data-role="support">Support</button>
+      <button type="button" data-role="billing">Billing</button>
+    </div>
+    <div class="review-label">Open</div>
+    <div class="review-grid" id="viewButtons">
+      <button type="button" data-view="list" class="active">Workspaces list</button>
+      <button type="button" data-view="ws_8f21c">Access granted</button>
+      <button type="button" data-view="ws_19a77">Past due</button>
+      <button type="button" data-view="ws_4c0d2">Plan override</button>
+      <button type="button" data-view="ws_77be0">AI at 92%</button>
+      <button type="button" data-view="ws_5e612">Suspended</button>
+      <button type="button" data-view="ws_a3f90">Deletion pending</button>
+    </div>
+    <div class="review-label">List data</div>
+    <div class="review-grid" id="stateButtons">
+      <button type="button" data-state="populated" class="active">Populated</button>
+      <button type="button" data-state="empty">No results</button>
+      <button type="button" data-state="loading">Loading</button>
+      <button type="button" data-state="error">Load error</button>
+    </div>
+    <div class="review-label">Step-up (passkey)</div>
+    <div class="review-grid" id="stepButtons">
+      <button type="button" data-step="required" class="active">Required</button>
+      <button type="button" data-step="fresh">Verified &lt; 5 min</button>
+      <button type="button" data-step="fail">Passkey fails</button>
+    </div>
+    <div class="review-label">Session and environment</div>
+    <div class="review-grid">
+      <button type="button" id="idleBtn">Idle timeout</button>
+      <button type="button" id="envToggle">Switch to production</button>
+      <button type="button" id="resetBtn">Reset sample data</button>
+    </div>
+    <details><summary>Decisions (approved)</summary>
+      <ul>
+        <li>Suspending a workspace emails the Owner a generic notice. The staff reason stays internal.</li>
+        <li>Plan overrides need an end date, at most 12 months away.</li>
+        <li>After an ownership transfer, the previous Owner becomes an Admin.</li>
+        <li>View-as has no default role; staff must pick one. Duration defaults to 30 minutes (2 hours maximum).</li>
+        <li>Billing staff don't see the Support access panel.</li>
+        <li>Staff can end their own view-as sessions; a Super Admin can end anyone's.</li>
+      </ul>
+    </details>
+  </div>
+</aside>
+
+<script>
+const $ = id => document.getElementById(id);
+const P = {
+  dash: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z',
+  users: 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z',
+  ws: 'M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z',
+  card: 'M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z',
+  doc: 'M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z',
+  ai: 'M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z',
+  ops: 'M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z',
+  book: 'M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z',
+  flag: 'M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6z',
+  audit: 'M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z',
+  staff: 'M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z',
+  eye: 'M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z',
+  warn: 'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z',
+  error: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z',
+  info: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z',
+  check: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z',
+  lock: 'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z',
+  tune: 'M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z',
+  bolt: 'M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z',
+  swap: 'M6.99 11 3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z',
+  open: 'M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z',
+  key: 'M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z',
+  logout: 'M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z',
+  block: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9C4.63 15.55 4 13.85 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.69L18.31 7.1C19.37 8.45 20 10.15 20 12c0 4.42-3.58 8-8 8z',
+  mail: 'M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z',
+  back: 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z',
+  laptop: 'M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z',
+  phone: 'M17 1.01 7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z',
+  edit: 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z',
+};
+const icon = (k, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${P[k]}"/></svg>`;
+
+const STAFF = {
+  super: { name: 'Lukasz K.', first: 'Lukasz', initials: 'LK', role: 'Super Admin' },
+  support: { name: 'Alex Rivera', first: 'Alex', initials: 'AR', role: 'Support' },
+  billing: { name: 'Jordan Lee', first: 'Jordan', initials: 'JL', role: 'Billing' },
+};
+const ALL = ['super', 'support', 'billing'];
+// Screen numbers point to the planned prototype sequence in docs/admin-console-plan.md.
+const NAV = [
+  { group: 'Overview', items: [{ id: 'dash', label: 'Dashboard', icon: 'dash', roles: ALL, href: 'prototype-screen-38-admin-dashboard.html' }] },
+  { group: 'Customers', items: [
+    { id: 'users', label: 'Users', icon: 'users', roles: ALL, href: 'prototype-screen-39-admin-users.html' },
+    { id: 'ws', label: 'Workspaces', icon: 'ws', roles: ALL, screen: 'Workspaces (screen 40)' },
+    { id: 'billing', label: 'Billing', icon: 'card', roles: ALL, badge: 'payments', screen: 'Billing (planned)' },
+    { id: 'requests', label: 'Data requests', icon: 'doc', roles: ['super', 'support'], badge: 'deletions', screen: 'Data requests (planned)' },
+  ] },
+  { group: 'Platform', items: [
+    { id: 'ai', label: 'AI usage', icon: 'ai', roles: ['super', 'billing'], screen: 'AI usage (planned)' },
+    { id: 'ops', label: 'Operations', icon: 'ops', roles: ['super', 'support'], badge: 'jobs', screen: 'Operations (planned)' },
+    { id: 'knowledge', label: 'Knowledge', icon: 'book', roles: ['super'], screen: 'Knowledge (planned)' },
+    { id: 'flags', label: 'Flags & settings', icon: 'flag', roles: ['super'], screen: 'Flags & settings (planned)' },
+  ] },
+  { group: 'Governance', items: [
+    { id: 'audit', label: 'Audit log', icon: 'audit', roles: ['super'], href: 'prototype-screen-41-admin-audit.html' },
+    { id: 'staff', label: 'Staff', icon: 'staff', roles: ['super'], screen: 'Staff (planned)' },
+    { id: 'docs', label: 'Admin docs', icon: 'book', roles: ALL, screen: 'Admin docs (planned)' },
+  ] },
+];
+
+// Users (screen 39). Sample data matches the dashboard (screen 38).
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const mask = e => e[0] + '•••' + e.slice(e.indexOf('@'));
+const maskIp = ip => ip.split('.').slice(0, 2).join('.') + '.•.•';
+const STATUS = { active: ['Active', 'green'], unverified: ['Unverified', 'amber'], suspended: ['Suspended', 'red'], deleting: ['Deletion pending', 'red'] };
+const initials = n => n.split(' ').map(p => p[0]).join('').slice(0, 2);
+const firstName = u => u.name.split(' ')[0];
+
+const SEED_USERS = [
+  { id: 'usr_2b7e1', name: 'Maria Owens', email: 'owner@northsideplumbing.com', phone: '+1 (612) 555-0148', status: 'active', auth: 'Password, Google', tz: 'America/Chicago', notify: 'Email on, SMS on', created: 'Mar 4, 2026', last: 'Today, 11:41 AM',
+    memberships: [{ ws: 'Northside Plumbing', wsId: 'ws_8f21c', role: 'Owner', plan: 'Standard', since: 'Member since Mar 4, 2026' }],
+    sessions: [
+      { id: 's1', kind: 'laptop', device: 'Chrome on macOS', ip: '73.162.48.201', place: 'Minneapolis, MN', seen: 'Active now' },
+      { id: 's2', kind: 'phone', device: 'Safari on iPhone', ip: '174.204.11.87', place: 'Minneapolis, MN', seen: '2 hours ago' },
+      { id: 's3', kind: 'phone', device: 'Chrome on Android', ip: '98.45.210.14', place: 'St. Paul, MN', seen: 'Oct 21' },
+    ],
+    activity: [
+      { time: 'Today, 11:52 AM', text: 'Granted SalesMora support access for 24 hours' },
+      { time: 'Today, 11:20 AM', text: 'Sent estimate EST-1042 to a customer' },
+      { time: 'Today, 9:05 AM', text: 'Rescheduled job JOB-318' },
+      { time: 'Yesterday', text: 'Moved a lead to Won' },
+    ],
+    history: [{ time: 'Today, 11:58 AM', by: 'Alex Rivera', text: 'started a view-as session on Northside Plumbing (Office role, 30 min)', reason: 'Ticket #4821: estimate PDF missing logo' }] },
+  { id: 'usr_5c9d3', name: 'Dan Price', email: 'dprice.fl@gmail.com', phone: '+1 (813) 555-0192', status: 'suspended', auth: 'Password', tz: 'America/New_York', notify: 'Email on, SMS off', created: 'Jun 18, 2026', last: 'Today, 9:12 AM',
+    suspended: { when: 'today at 9:40 AM', by: 'Lukasz K.', reason: 'Credential-stuffing report from Cloudflare' },
+    memberships: [{ ws: 'Oakridge Builders', wsId: 'ws_77be0', role: 'Field', plan: 'Premium', since: 'Member since Jun 18, 2026' }],
+    sessions: [],
+    activity: [
+      { time: 'Today, 9:12 AM', text: 'Signed in from a new browser (flagged by Cloudflare)' },
+      { time: 'Today, 9:11 AM', text: '14 failed sign-in attempts' },
+      { time: 'Oct 24', text: 'Completed job JOB-297' },
+    ],
+    history: [
+      { time: 'Today, 9:40 AM', by: 'Lukasz K.', text: 'suspended the user and revoked 3 sessions', reason: 'Credential-stuffing report from Cloudflare' },
+      { time: 'Today, 9:36 AM', by: 'Lukasz K.', text: 'revealed the email address', reason: 'Credential-stuffing report from Cloudflare' },
+    ] },
+  { id: 'usr_7a1f0', name: 'Priya Natarajan', email: 'priya@brightlineelectric.com', phone: '+1 (503) 555-0117', status: 'active', auth: 'Password', tz: 'America/Los_Angeles', notify: 'Email on, SMS on', created: 'Jan 12, 2026', last: 'Yesterday, 4:18 PM',
+    memberships: [{ ws: 'Brightline Electric', wsId: 'ws_19a77', role: 'Owner', plan: 'Premium (past due)', since: 'Member since Jan 12, 2026' }],
+    sessions: [{ id: 's1', kind: 'laptop', device: 'Edge on Windows', ip: '24.20.133.9', place: 'Portland, OR', seen: 'Yesterday' }],
+    activity: [{ time: 'Yesterday', text: 'Opened billing settings' }, { time: 'Oct 22', text: 'Card payment failed (bank fraud hold)' }],
+    history: [{ time: 'Yesterday', by: 'Jordan Lee', text: 'extended the payment grace period for Brightline Electric by 7 days', reason: 'Customer updating card after bank fraud hold' }] },
+  { id: 'usr_9e4b2', name: 'Sam Torres', email: 'sam@summithvac.com', phone: '', status: 'unverified', auth: 'Password', tz: 'America/Denver', notify: 'Email on, SMS off', created: 'Oct 26, 2026', last: 'Never',
+    invite: 'Invited to Summit HVAC by Grace Kim on Oct 26. The verification email was sent Oct 26 and has not been opened.',
+    memberships: [{ ws: 'Summit HVAC', wsId: 'ws_4c0d2', role: 'Office', plan: 'Premium (override)', since: 'Invited Oct 26, 2026' }],
+    sessions: [], activity: [{ time: 'Oct 26', text: 'Accepted the invitation and created a password' }], history: [] },
+  { id: 'usr_3d8c6', name: 'Kevin Walsh', email: 'kevin@riverbendroofing.com', phone: '+1 (919) 555-0164', status: 'deleting', auth: 'Google', tz: 'America/New_York', notify: 'Email on, SMS off', created: 'Feb 2, 2026', last: 'Oct 3',
+    memberships: [{ ws: 'Riverbend Roofing', wsId: 'ws_a3f90', role: 'Owner', plan: 'Free', since: 'Member since Feb 2, 2026' }],
+    sessions: [{ id: 's1', kind: 'laptop', device: 'Chrome on Windows', ip: '66.57.201.44', place: 'Raleigh, NC', seen: 'Oct 3' }],
+    activity: [{ time: 'Oct 3', text: 'Requested account and workspace deletion' }, { time: 'Oct 3', text: 'Exported customers to CSV' }], history: [] },
+  { id: 'usr_6f2a9', name: 'Lena Brooks', email: 'lena.brooks@outlook.com', phone: '+1 (612) 555-0175', status: 'active', auth: 'Password', tz: 'America/Chicago', notify: 'Email on, SMS on', created: 'Sep 12, 2026', last: 'Today, 8:02 AM',
+    memberships: [
+      { ws: 'Northside Plumbing', wsId: 'ws_8f21c', role: 'Office', plan: 'Standard', since: 'Member since Sep 12, 2026' },
+      { ws: 'Summit HVAC', wsId: 'ws_4c0d2', role: 'Admin', plan: 'Premium (override)', since: 'Member since Oct 1, 2026' },
+    ],
+    sessions: [{ id: 's1', kind: 'laptop', device: 'Firefox on Windows', ip: '71.33.90.18', place: 'Bloomington, MN', seen: 'Today' }],
+    activity: [{ time: 'Today, 8:02 AM', text: 'Switched workspace to Summit HVAC' }, { time: 'Yesterday', text: 'Created customer record' }], history: [] },
+  { id: 'usr_1c5e7', name: 'Tom Okafor', email: 'tom@oakridgebuilders.com', phone: '+1 (813) 555-0101', status: 'active', auth: 'Password, Google', tz: 'America/New_York', notify: 'Email on, SMS on', created: 'Apr 9, 2026', last: 'Today, 10:15 AM',
+    memberships: [{ ws: 'Oakridge Builders', wsId: 'ws_77be0', role: 'Owner', plan: 'Premium', since: 'Member since Apr 9, 2026' }],
+    sessions: [{ id: 's1', kind: 'laptop', device: 'Chrome on macOS', ip: '97.100.4.62', place: 'Tampa, FL', seen: 'Active now' }],
+    activity: [{ time: 'Today, 10:15 AM', text: 'Used the assistant to draft 6 estimates' }], history: [] },
+  { id: 'usr_8b3d4', name: 'Grace Kim', email: 'grace@summithvac.com', phone: '+1 (303) 555-0139', status: 'active', auth: 'Password', tz: 'America/Denver', notify: 'Email on, SMS off', created: 'May 21, 2026', last: 'Yesterday, 6:40 PM',
+    memberships: [{ ws: 'Summit HVAC', wsId: 'ws_4c0d2', role: 'Owner', plan: 'Premium (override)', since: 'Member since May 21, 2026' }],
+    sessions: [{ id: 's1', kind: 'phone', device: 'Safari on iPhone', ip: '73.229.15.80', place: 'Denver, CO', seen: 'Yesterday' }],
+    activity: [{ time: 'Oct 26', text: 'Invited Sam Torres as Office' }],
+    history: [{ time: 'Today, 10:12 AM', by: 'Jordan Lee', text: 'applied a plan override: Summit HVAC to Premium until Nov 30', reason: 'Pilot agreement signed Oct 27' }] },
+];
+let USERS = structuredClone(SEED_USERS);
+
+// Workspaces (screen 40). Limits mirror packages/domain/src/billing/plans.ts; usage resets on the 1st (UTC).
+const WS_STATUS = { active: ['Active', 'green'], past_due: ['Past due', 'red'], suspended: ['Suspended', 'red'], deleting: ['Deletion pending', 'red'] };
+const PLANS = {
+  free: { label: 'Free', price: '$0', teammates: 1, leads: 100, ai: 1_000_000 },
+  standard: { label: 'Standard', price: '$29 / month', teammates: 5, leads: 1000, ai: 5_000_000 },
+  premium: { label: 'Premium', price: '$49 / month', teammates: 20, leads: 5000, ai: 20_000_000 },
+};
+const MEMBER_STATUS = { invited: ['Invited', 'amber'], suspended: ['User suspended', 'red'], unverified: ['Unverified', 'amber'] };
+const NOW_MIN = 12 * 60 + 10; // The prototype clock reads 12:10 PM on Oct 28, 2026.
+const fmtTokens = n => n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1e3)}K`;
+const fmtNum = n => n.toLocaleString('en-US');
+const clock = m => { const h = Math.floor(m / 60) % 24, mm = String(m % 60).padStart(2, '0'); return `${h % 12 || 12}:${mm} ${h < 12 ? 'AM' : 'PM'}`; };
+
+const SEED_WS = [
+  { id: 'ws_8f21c', name: 'Northside Plumbing', status: 'active', plan: 'standard', created: 'Mar 4, 2026', onboarding: 'Complete',
+    members: [
+      { userId: 'usr_2b7e1', name: 'Maria Owens', email: 'owner@northsideplumbing.com', role: 'Owner', status: 'active', last: 'Today, 11:41 AM' },
+      { userId: 'usr_6f2a9', name: 'Lena Brooks', email: 'lena.brooks@outlook.com', role: 'Office', status: 'active', last: 'Today, 8:02 AM' },
+      { name: 'Chris Doyle', email: 'chris@northsideplumbing.com', role: 'Field', status: 'invited', last: 'Invited Oct 25 by Maria Owens' },
+    ],
+    usage: { leads: 412, ai: 1_800_000 }, counts: { leads: 1906, customers: 268, jobs: 331, estimates: 190, workOrders: 144 },
+    flags: ['Estimate PDF v2 (beta)'],
+    billing: { status: 'Active', renews: 'Renews Nov 4, 2026', card: 'Visa ending 4242' },
+    grant: { by: 'Maria Owens', when: 'today at 11:52 AM', length: '24 hours', expires: 'tomorrow at 11:52 AM' },
+    viewAs: [{ id: 'va1', by: 'Alex Rivera', role: 'Office', end: 12 * 60 + 28, consent: 'Owner grant', reason: 'Ticket #4821: estimate PDF missing logo' }],
+    history: [{ time: 'Today, 11:58 AM', by: 'Alex Rivera', text: 'started a view-as session (Office role, 30 min)', reason: 'Ticket #4821: estimate PDF missing logo' }] },
+  { id: 'ws_19a77', name: 'Brightline Electric', status: 'past_due', plan: 'premium', created: 'Jan 12, 2026', onboarding: 'Complete',
+    members: [
+      { userId: 'usr_7a1f0', name: 'Priya Natarajan', email: 'priya@brightlineelectric.com', role: 'Owner', status: 'active', last: 'Yesterday, 4:18 PM' },
+      { name: 'Marcus Hale', email: 'marcus@brightlineelectric.com', role: 'Admin', status: 'active', last: 'Today, 7:30 AM' },
+      { name: 'Ana Ruiz', email: 'ana@brightlineelectric.com', role: 'Office', status: 'active', last: 'Today, 9:02 AM' },
+      { name: 'Jo Alvarez', email: 'jo.alvarez@gmail.com', role: 'Field', status: 'active', last: 'Yesterday' },
+      { name: 'Ben Carter', email: 'ben@brightlineelectric.com', role: 'Field', status: 'active', last: 'Oct 25' },
+    ],
+    usage: { leads: 1240, ai: 6_200_000 }, counts: { leads: 8410, customers: 1932, jobs: 2210, estimates: 1388, workOrders: 1015 },
+    flags: [],
+    billing: { status: 'Past due, in recovery', renews: 'Grace period until Nov 4 (extended by Jordan Lee)', card: 'Mastercard ending 0019, declined Oct 22' },
+    history: [{ time: 'Yesterday, 3:05 PM', by: 'Jordan Lee', text: 'extended the payment grace period by 7 days', reason: 'Customer updating card after bank fraud hold' }] },
+  { id: 'ws_4c0d2', name: 'Summit HVAC', status: 'active', plan: 'standard', created: 'May 21, 2026', onboarding: 'Complete', moreMembers: 8,
+    override: { plan: 'premium', until: '2026-11-30', by: 'Jordan Lee', when: 'today at 10:12 AM' },
+    members: [
+      { userId: 'usr_8b3d4', name: 'Grace Kim', email: 'grace@summithvac.com', role: 'Owner', status: 'active', last: 'Yesterday, 6:40 PM' },
+      { userId: 'usr_6f2a9', name: 'Lena Brooks', email: 'lena.brooks@outlook.com', role: 'Admin', status: 'active', last: 'Today, 8:02 AM' },
+      { userId: 'usr_9e4b2', name: 'Sam Torres', email: 'sam@summithvac.com', role: 'Office', status: 'unverified', last: 'Never signed in' },
+      { name: 'Hector Ruiz', email: 'hector@summithvac.com', role: 'Field', status: 'active', last: 'Today, 10:44 AM' },
+      { name: 'Mei Chen', email: 'mei@summithvac.com', role: 'Field', status: 'active', last: 'Today, 9:15 AM' },
+      { name: 'Paul Novak', email: 'paul.novak@summithvac.com', role: 'Field', status: 'invited', last: 'Invited Oct 27 by Grace Kim' },
+    ],
+    usage: { leads: 2650, ai: 9_400_000 }, counts: { leads: 5120, customers: 1406, jobs: 1877, estimates: 960, workOrders: 802 },
+    flags: ['Campaigns v2 (pilot)'],
+    billing: { status: 'Active (Standard in Stripe)', renews: 'Renews Nov 21, 2026', card: 'Amex ending 1005' },
+    lastGrant: 'The last grant expired Oct 20.',
+    history: [{ time: 'Today, 10:12 AM', by: 'Jordan Lee', text: 'applied a plan override: Premium until Nov 30, 2026', reason: 'Pilot agreement signed Oct 27' }] },
+  { id: 'ws_77be0', name: 'Oakridge Builders', status: 'active', plan: 'premium', created: 'Apr 9, 2026', onboarding: 'Complete',
+    members: [
+      { userId: 'usr_1c5e7', name: 'Tom Okafor', email: 'tom@oakridgebuilders.com', role: 'Owner', status: 'active', last: 'Today, 10:15 AM' },
+      { name: 'Rosa Mendez', email: 'rosa@oakridgebuilders.com', role: 'Office', status: 'active', last: 'Today, 11:20 AM' },
+      { userId: 'usr_5c9d3', name: 'Dan Price', email: 'dprice.fl@gmail.com', role: 'Field', status: 'suspended', last: 'Today, 9:12 AM' },
+      { name: 'Will Grant', email: 'will@oakridgebuilders.com', role: 'Field', status: 'active', last: 'Yesterday' },
+    ],
+    usage: { leads: 2870, ai: 18_400_000 }, counts: { leads: 6230, customers: 2104, jobs: 2560, estimates: 3011, workOrders: 1470 },
+    flags: [],
+    billing: { status: 'Active', renews: 'Renews Nov 9, 2026', card: 'Visa ending 8812' },
+    history: [] },
+  { id: 'ws_5e612', name: 'Clearwater Pools', status: 'suspended', plan: 'standard', created: 'Aug 30, 2026', onboarding: 'Complete',
+    suspended: { when: 'Oct 26 at 3:14 PM', by: 'Alex Rivera', reason: 'Chargeback fraud: 6 disputed payments (ticket #4790)' },
+    members: [
+      { name: 'Rita Gomez', email: 'rita@clearwaterpools.co', role: 'Owner', status: 'active', last: 'Oct 26' },
+      { name: 'Jake Moss', email: 'jake@clearwaterpools.co', role: 'Field', status: 'active', last: 'Oct 25' },
+    ],
+    usage: { leads: 88, ai: 300_000 }, counts: { leads: 311, customers: 97, jobs: 40, estimates: 61, workOrders: 22 },
+    flags: [],
+    billing: { status: 'Active', renews: 'Renews Nov 30, 2026', card: 'Visa ending 3321' },
+    history: [{ time: 'Oct 26, 3:14 PM', by: 'Alex Rivera', text: 'suspended the workspace', reason: 'Chargeback fraud: 6 disputed payments (ticket #4790)' }] },
+  { id: 'ws_a3f90', name: 'Riverbend Roofing', status: 'deleting', plan: 'free', created: 'Feb 2, 2026', onboarding: 'Complete',
+    members: [{ userId: 'usr_3d8c6', name: 'Kevin Walsh', email: 'kevin@riverbendroofing.com', role: 'Owner', status: 'active', last: 'Oct 3' }],
+    usage: { leads: 12, ai: 40_000 }, counts: { leads: 214, customers: 120, jobs: 96, estimates: 80, workOrders: 51 },
+    flags: [],
+    billing: { status: 'No subscription (Free)', renews: '—', card: 'None on file' },
+    history: [] },
+  { id: 'ws_0b7d1', name: 'Greenway Landscaping', status: 'active', plan: 'free', created: 'Oct 27, 2026', onboarding: 'In progress (3 of 5 steps)',
+    members: [{ name: 'Omar Haddad', email: 'omar@greenwaylandscaping.com', role: 'Owner', status: 'active', last: 'Yesterday, 5:12 PM' }],
+    usage: { leads: 3, ai: 12_000 }, counts: { leads: 3, customers: 0, jobs: 0, estimates: 1, workOrders: 0 },
+    flags: [],
+    billing: { status: 'No subscription (Free)', renews: '—', card: 'None on file' },
+    history: [] },
+];
+let WORKSPACES = structuredClone(SEED_WS);
+const owner = w => w.members.find(m => m.role === 'Owner');
+const effPlan = w => w.override ? w.override.plan : w.plan;
+const memberTotal = w => w.members.length + (w.moreMembers || 0);
+const fmtDate = iso => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+
+const SEARCH = [
+  ...SEED_WS.map(w => ({ type: 'Workspace', id: w.id, name: w.name, key: w.members.find(m => m.role === 'Owner').email, sub: `${w.id} · ${PLANS[w.override ? w.override.plan : w.plan].label}${w.override ? ' (override)' : ''} · owner ${mask(w.members.find(m => m.role === 'Owner').email)}`, chip: WS_STATUS[w.status][0], tone: WS_STATUS[w.status][1] })),
+  ...SEED_USERS.map(u => ({ type: 'User', id: u.id, name: u.name, key: u.email + ' ' + u.id, sub: `${mask(u.email)} · ${u.memberships.map(m => `${m.role}, ${m.ws}`).join('; ')}`, chip: STATUS[u.status][0], tone: STATUS[u.status][1] })),
+];
+
+const ANSWERS = [
+  { match: /view.?as|impersonat|support access|break.?glass/i, text: '<p>View-as opens a workspace in the customer app in <strong>read-only</strong> mode.</p><ol><li>The Owner must first grant access in <strong>Settings → Support access</strong> (1 hour, 24 hours or 7 days).</li><li>Open the workspace, choose <strong>Start view-as</strong>, and enter the ticket, a role, a duration (30 min by default, 2 hours max) and a reason.</li><li>Confirm with your passkey.</li></ol><p>Without a grant, only a Super Admin can use <strong>break-glass</strong> access, and only for fraud, abuse, security or legal incidents.</p>', cites: ['runbooks/view-as#steps', 'security/impersonation#break-glass'] },
+  { match: /override|comp|plan change|change plan/i, text: '<p>A <strong>plan override</strong> gives a workspace another plan\'s limits until an end date (12 months max). Stripe keeps billing the original plan, so use it for pilots and goodwill.</p><p>To change what the customer actually pays, use <strong>Change plan</strong> in Billing instead. That goes through Stripe and prorates.</p>', cites: ['runbooks/plan-override', 'domain/billing#plans'] },
+  { match: /transfer|owner/i, text: '<p>To transfer ownership:</p><ol><li>Confirm the request came from the current Owner, or follow the ownership dispute runbook.</li><li>Open the workspace and choose <strong>Transfer ownership</strong>.</li><li>Pick an active, verified member and confirm with your passkey.</li></ol><p>The previous Owner becomes an Admin and both are emailed.</p>', cites: ['runbooks/transfer-ownership', 'domain/workspaces#roles'] },
+  { match: /(suspend|block).*user|user.*(suspend|block)/i, text: '<p>To suspend a user:</p><ol><li>Open <strong>Users</strong> and select the user.</li><li>Choose <strong>Suspend</strong> and enter a reason, including the ticket reference.</li><li>Confirm with your passkey (step-up re-auth).</li></ol><p>Sign-in is blocked and every session ends immediately. Workspaces the user owns keep running for other members.</p>', cites: ['runbooks/suspend-user#steps', 'security/staff-rbac#support'] },
+  { match: /reveal|pii|mask/i, text: '<p>Emails, phone numbers and session IPs are masked by default. Reveal one only when the task needs it, for example to confirm a ticket came from the account owner.</p><p>Every reveal needs a reason and is recorded in the audit log with your name. Never copy revealed values into tickets or chat.</p>', cites: ['security/pii-handling#reveal', 'security/audit#pii-events'] },
+  { match: /sign in|sign-in|log ?in|password|locked/i, text: '<p>When a user can\'t sign in, check in this order:</p><ol><li><strong>Status</strong>: suspended or deletion pending blocks sign-in.</li><li><strong>Email verified</strong>: resend the verification email if needed.</li><li><strong>Sign-in methods</strong>: Google-only users have no password.</li><li>Otherwise send a <strong>password reset</strong>. Staff never set passwords.</li></ol>', cites: ['runbooks/user-cannot-sign-in', 'domain/auth#sign-in-methods'] },
+  { match: /suspend/i, text: '<p>To suspend a workspace:</p><ol><li>Open <strong>Workspaces</strong> and select the workspace.</li><li>Choose <strong>Suspend workspace</strong>, enter a reason and the ticket reference.</li><li>Confirm with your passkey (step-up re-auth).</li></ol><p>Members see a suspension page and the workspace\'s background jobs pause. Billing is not changed automatically.</p>', cites: ['runbooks/suspend-workspace#steps', 'domain/workspaces#suspension'] },
+  { match: /payment|fail/i, text: '<p>When a renewal charge fails, Stripe retries it on its schedule and the workspace enters <strong>payment recovery</strong>. The owner is emailed, features stay available during the grace period, and the workspace moves to the Free plan if recovery fails.</p><p>Billing staff can retry the charge or extend the grace period from <strong>Billing</strong>.</p>', cites: ['domain/billing#payment-recovery', 'runbooks/extend-grace-period'] },
+  { match: /delet/i, text: '<p>Deletion requests have a 30-day SLA:</p><ol><li>Open <strong>Data requests</strong> and verify the requester is the workspace owner.</li><li>Confirm there is no open billing dispute or legal hold.</li><li>Confirm the request. The worker purges data after the grace period and records completion.</li></ol>', cites: ['runbooks/process-deletion-request', 'security/privacy-baseline#deletion'] },
+];
+
+let role = 'super';
+let dataState = 'populated';
+let overBudget = false;
+const can = item => item.roles.includes(role);
+
+function toast(text) {
+  $('toast').innerHTML = icon('info', 'sm') + `<span>${text}</span>`;
+  $('toast').hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => { $('toast').hidden = true; }, 3200);
+}
+const goTo = screen => toast(`${screen} is not prototyped yet. It follows review of this screen.`);
+
+function renderNav() {
+  const badgeCount = { payments: 3, deletions: 2, jobs: 12 };
+  $('nav').innerHTML = NAV.map(g => {
+    const items = g.items.filter(can);
+    if (!items.length) return '';
+    return `<div class="nav-label">${g.group}</div>` + items.map(i => {
+      const n = dataState === 'populated' || dataState === 'partial' ? badgeCount[i.badge] : 0;
+      const attrs = i.id === 'ws' ? 'aria-current="page" data-ws-home' : i.href ? `data-href="${i.href}"` : `data-goto="${i.screen}"`;
+      return `<button class="nav-item${i.id === 'ws' ? ' active' : ''}" type="button" ${attrs}>${icon(i.icon)}<span>${i.label}</span>${n ? `<span class="nav-badge" aria-label="${n} need attention">${n}</span>` : ''}</button>`;
+    }).join('');
+  }).join('');
+}
+
+let view = 'list';
+let statusFilter = 'all';
+let stepUp = 'required';
+const current = () => WORKSPACES.find(w => w.id === view);
+const wsChip = w => `<span class="chip ${WS_STATUS[w.status][1]}">${WS_STATUS[w.status][0]}</span>`;
+const planChips = w => `<span class="chips"><span class="chip">${PLANS[effPlan(w)].label}</span>${w.override ? '<span class="chip amber">Override</span>' : ''}</span>`;
+const userLink = m => m.userId ? `<a href="prototype-screen-39-admin-users.html#${m.userId}">${esc(m.name)}</a>` : esc(m.name);
+const canDo = { suspend: ['super', 'support'], transfer: ['super'], override: ['super', 'billing'], budget: ['super', 'billing'], members: ['super', 'support'], viewAs: ['super', 'support'] };
+const allowed = k => canDo[k].includes(role);
+
+function filteredWs() {
+  const q = $('wsFilter').value.trim().toLowerCase(); const pf = $('planFilter').value;
+  return WORKSPACES.filter(w => (statusFilter === 'all' || w.status === statusFilter)
+    && (pf === 'all' || (pf === 'override' ? !!w.override : effPlan(w) === pf))
+    && (!q || [w.name, w.id, owner(w).name].some(v => v.toLowerCase().includes(q)) || owner(w).email === q));
+}
+
+function renderList() {
+  document.querySelectorAll('#statusSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.status === statusFilter)));
+  if (dataState === 'loading') {
+    $('wsRows').innerHTML = [1, 2, 3, 4, 5, 6].map(() => `<tr aria-busy="true"><td><div class="u-cell"><span class="skeleton" style="width:32px;height:32px;border-radius:8px"></span><div style="flex:1"><span class="skeleton" style="width:60%"></span><span class="skeleton" style="width:40%;margin-top:6px"></span></div></div></td><td><span class="skeleton" style="width:70%"></span></td><td><span class="skeleton" style="width:56px"></span></td><td><span class="skeleton" style="width:56px"></span></td><td><span class="skeleton" style="width:24px"></span></td><td class="hide-sm"><span class="skeleton" style="width:60%"></span></td></tr>`).join('');
+    $('pager').hidden = true; return;
+  }
+  if (dataState === 'error') {
+    $('wsRows').innerHTML = `<tr><td colspan="6"><div class="empty"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" style="color:var(--red)"><path d="${P.error}"/></svg><div style="margin-top:6px">Couldn't load workspaces. The admin database didn't respond in time.</div><button class="button" type="button" data-retry style="margin-top:10px">Retry</button></div></td></tr>`;
+    $('pager').hidden = true; return;
+  }
+  const q = $('wsFilter').value.trim();
+  const list = filteredWs();
+  $('pager').hidden = false;
+  if (!list.length) {
+    $('wsRows').innerHTML = `<tr><td colspan="6"><div class="empty">No workspaces match${q ? ` “${esc(q)}”` : ' these filters'}.<br>Try the workspace ID (ws_…) from the ticket, the owner's full email address, or clear the plan filter.</div></td></tr>`;
+    $('pager').innerHTML = '<span>0 matches</span>'; return;
+  }
+  $('wsRows').innerHTML = list.map(w => { const o = owner(w); return `<tr data-open="${w.id}">
+    <td><div class="u-cell"><span class="ws-mark">${icon('ws', 'sm')}</span><div><a href="#${w.id}">${esc(w.name)}</a><span class="sub mono">${w.id}</span></div></div></td>
+    <td>${esc(o.name)}<span class="sub">${mask(o.email)}</span></td>
+    <td>${planChips(w)}</td><td>${wsChip(w)}</td>
+    <td>${memberTotal(w)}</td><td class="hide-sm">${w.created}</td></tr>`; }).join('');
+  const filtered = q || statusFilter !== 'all' || $('planFilter').value !== 'all';
+  $('pager').innerHTML = filtered
+    ? `<span>${list.length} match${list.length === 1 ? '' : 'es'}</span>`
+    : `<span>Showing 1–7 of 486</span><div><button class="button" type="button" disabled>Previous</button><button class="button" type="button" data-goto="Page 2 of the workspaces list">Next</button></div>`;
+}
+
+function meter(label, used, limit, fmt, foot, seats) {
+  const pct = Math.min(100, Math.round(used / limit * 100));
+  const tone = pct >= 100 && !seats ? ' red' : pct >= 90 ? ' amber' : '';
+  return `<div class="meter"><div class="meter-top"><strong>${label}</strong><span>${fmt(used)} of ${fmt(limit)} · ${pct}%</span></div>
+    <div class="bar${tone}" role="progressbar" aria-label="${label}" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>${foot ? `<div class="meter-foot">${foot}</div>` : ''}</div>`;
+}
+
+function actionButtons(w) {
+  const lock = `<span class="secure" title="Needs your passkey">${icon('lock', 'sm')}</span>`;
+  const btn = (key, label, ic, why) => `<button class="button${ACTIONS[key].danger ? ' danger' : ''}" type="button" data-action="${key}"${why ? ` disabled title="${why}"` : ''}>${icon(ic, 'sm')}${label}${ACTIONS[key].secure ? lock : ''}</button>`;
+  const del = w.status === 'deleting' ? 'Disabled while deletion is pending' : '';
+  const out = [];
+  if (allowed('override')) out.push(w.override ? btn('removeOverride', 'End plan override', 'tune', del) : btn('override', 'Plan override', 'tune', del));
+  if (allowed('budget')) out.push(btn('budget', 'AI token budget', 'bolt', del));
+  if (allowed('transfer')) out.push(btn('transfer', 'Transfer ownership', 'swap', del || (eligibleOwners(w).length ? '' : 'No other active, verified members')));
+  if (allowed('suspend')) out.push(w.status === 'suspended' ? btn('unsuspend', 'Unsuspend', 'check') : btn('suspend', 'Suspend', 'block', del));
+  return out.length ? `<div class="actions-bar">${out.join('')}</div>` : '';
+}
+const eligibleOwners = w => w.members.filter(m => m.role !== 'Owner' && m.status === 'active');
+
+function supportAccess(w) {
+  if (role === 'billing') return '';
+  const me = STAFF[role].name;
+  const live = w.viewAs || [];
+  const grant = w.grant
+    ? `<div class="grant on"><strong>Owner granted support access</strong>${esc(w.grant.by)} granted ${w.grant.length} of access ${w.grant.when}. It expires ${w.grant.expires} unless the Owner revokes it.</div>`
+    : `<div class="grant off"><strong>No active grant</strong>Ask the Owner to grant access in the customer app under Settings → Support access. ${w.lastGrant || 'This workspace has never granted access.'}</div>`;
+  const rows = live.map(s => `<li class="row"><span class="sev info">${icon('eye', 'sm')}</span><div class="row-body"><div class="row-title">${s.by === me ? 'You' : esc(s.by)} · ${s.role} role ${s.consent === 'Break-glass' ? '<span class="chip red">Break-glass</span>' : ''}</div><div class="row-detail">Read-only until ${clock(s.end)} · ${esc(s.reason)}</div></div>${s.by === me || role === 'super' ? `<button class="button" type="button" data-end="${s.id}">End</button>` : ''}</li>`).join('');
+  const del = w.status === 'deleting';
+  const start = w.grant
+    ? `<button class="button primary" type="button" data-action="viewAs"${del ? ' disabled title="Disabled while deletion is pending"' : ''}>${icon('eye', 'sm')}Start view-as<span class="secure">${icon('lock', 'sm')}</span></button>`
+    : role === 'super' ? `<button class="button danger" type="button" data-action="breakGlass">${icon('warn', 'sm')}Break-glass access<span class="secure">${icon('lock', 'sm')}</span></button>` : '<span class="muted" style="font-size:11px">View-as needs an active Owner grant. Break-glass is Super Admin only.</span>';
+  return `<section class="panel" aria-labelledby="saTitle"><div class="panel-head"><h2 id="saTitle">Support access</h2><span class="chip">${live.length ? `${live.length} live` : 'No live sessions'}</span></div>
+    ${grant}${live.length ? `<ul class="list">${rows}</ul>` : ''}<div class="va-actions">${start}</div></section>`;
+}
+
+function renderDetail() {
+  const w = current(); const o = owner(w); const me = STAFF[role].name; const pl = PLANS[effPlan(w)];
+  const banners = [];
+  if (w.status === 'suspended') banners.push(`<div class="banner red">${icon('error', 'sm')}<div><strong>Suspended ${w.suspended.when} by ${w.suspended.by === me ? 'you' : esc(w.suspended.by)}.</strong> Members see a suspension page and background jobs are paused. Reason: “${esc(w.suspended.reason)}”</div></div>`);
+  if (w.status === 'past_due') banners.push(`<div class="banner red">${icon('error', 'sm')}<div><strong>Payment past due.</strong> ${esc(w.billing.renews)}. Premium features stay on until the grace period ends.</div>${['super', 'billing'].includes(role) ? '<button class="button" type="button" data-goto="Billing detail (planned)">Billing details</button>' : ''}</div>`);
+  if (w.status === 'deleting') banners.push(`<div class="banner amber">${icon('warn', 'sm')}<div><strong>Workspace deletion requested Oct 3 by the Owner.</strong> Due Nov 1 under the 30-day SLA. Changes are disabled until the request is resolved.</div>${role !== 'billing' ? '<button class="button" type="button" data-goto="Data requests (planned)">Open request</button>' : ''}</div>`);
+  if (w.override) banners.push(`<div class="banner info">${icon('info', 'sm')}<div><strong>Plan override: ${PLANS[w.override.plan].label} until ${fmtDate(w.override.until)}.</strong> Applied ${w.override.when} by ${w.override.by === me ? 'you' : esc(w.override.by)}. Stripe still bills ${PLANS[w.plan].label}; the override ends automatically.</div></div>`);
+  (w.viewAs || []).forEach(s => banners.push(`<div class="banner info">${icon('eye', 'sm')}<div><strong>${s.by === me ? 'You are' : esc(s.by) + ' is'} viewing this workspace as ${s.role}</strong> (read-only) until ${clock(s.end)}. Every page view is audited.</div></div>`));
+  if (role === 'support') banners.push(`<div class="limited" style="margin:0 0 12px">${icon('lock', 'sm')}Plan overrides, AI budgets and ownership transfers are handled by Billing or a Super Admin.</div>`);
+  if (role === 'billing') banners.push(`<div class="limited" style="margin:0 0 12px">${icon('lock', 'sm')}Billing staff can change plan overrides and AI budgets. Members, suspension and support access are handled by Support or a Super Admin.</div>`);
+  const custom = w.aiBudget != null;
+  const aiLimit = custom ? w.aiBudget : pl.ai;
+  const memberRows = w.members.map(m => {
+    const st = MEMBER_STATUS[m.status];
+    const acts = allowed('members') && w.status !== 'deleting'
+      ? [m.status === 'invited' ? `<button class="button" type="button" data-resend="${esc(m.email)}">Resend invite</button>` : '', m.role !== 'Owner' ? `<button class="button danger" type="button" data-remove="${esc(m.email)}">Remove</button>` : ''].join('') : '';
+    return `<li class="row"><span class="avatar">${initials(m.name)}</span><div class="row-body"><div class="row-title">${userLink(m)} <span class="chip">${m.role}</span>${st ? ` <span class="chip ${st[1]}">${st[0]}</span>` : ''}</div><div class="row-detail">${mask(m.email)} · ${esc(m.last)}</div></div>${acts ? `<div class="m-actions">${acts}</div>` : ''}</li>`;
+  }).join('');
+  const stripe = ['super', 'billing'].includes(role) && w.plan !== 'free' && w.billing.card !== 'None on file';
+  $('detailView').innerHTML = `
+    <a class="back" href="#">${icon('back', 'sm')}All workspaces</a>
+    ${banners.join('')}
+    <section class="panel profile-head">
+      <span class="ws-mark lg">${icon('ws')}</span>
+      <div class="ph-main"><h1 id="detailTitle" tabindex="-1">${esc(w.name)} ${wsChip(w)} ${planChips(w)}</h1><p><span class="mono">${w.id}</span> · Created ${w.created} · Owner ${userLink(o)}</p></div>
+      ${actionButtons(w)}
+    </section>
+    <div class="grid">
+      <div class="stack">
+        <section class="panel" aria-labelledby="useTitle"><div class="panel-head"><h2 id="useTitle">Usage this month</h2><span class="chip">Resets Nov 1</span></div>
+          <div class="usage">
+            ${meter('New leads', w.usage.leads, pl.leads, fmtNum)}
+            ${meter('Teammates', memberTotal(w), pl.teammates, fmtNum, memberTotal(w) >= pl.teammates ? 'At the plan limit, so new invitations are blocked. Includes pending invitations.' : 'Includes pending invitations.', true)}
+            ${meter('AI tokens', w.usage.ai, aiLimit, fmtTokens, custom ? `Custom budget (set by ${esc(w.aiBudgetBy)}). The ${pl.label} plan includes ${fmtTokens(pl.ai)}.` : `${pl.label} plan default.`)}
+          </div>
+        </section>
+        <section class="panel" aria-labelledby="memTitle"><div class="panel-head"><h2 id="memTitle">Members</h2><span class="chip">${memberTotal(w)} of ${pl.teammates}</span></div>
+          <ul class="list">${memberRows}</ul>
+          ${w.moreMembers ? `<div class="pager"><span>Showing ${w.members.length} of ${memberTotal(w)}</span><div><button class="button" type="button" data-goto="The full member list">Show all</button></div></div>` : ''}
+        </section>
+        <section class="panel" aria-labelledby="recTitle"><div class="panel-head"><h2 id="recTitle">Records</h2><span class="chip">Counts only</span></div>
+          <div class="counts">${[['Leads', 'leads'], ['Customers', 'customers'], ['Jobs', 'jobs'], ['Estimates', 'estimates'], ['Work orders', 'workOrders']].map(([l, k]) => `<div><strong>${fmtNum(w.counts[k])}</strong><span>${l}</span></div>`).join('')}</div>
+          <dl class="dl"><dt>Onboarding</dt><dd>${w.onboarding}</dd><dt>Feature flags</dt><dd>${w.flags.length ? w.flags.map(f => `<span class="chip">${esc(f)}</span>`).join('') : '<span class="muted">Defaults only</span>'}</dd></dl>
+        </section>
+      </div>
+      <div class="stack">
+        ${supportAccess(w)}
+        <section class="panel" aria-labelledby="billTitle"><div class="panel-head"><h2 id="billTitle">Plan and billing</h2>${role === 'support' ? '<span class="chip">Read-only</span>' : ''}</div>
+          <dl class="dl">
+            <dt>Plan</dt><dd>${pl.label}${w.override ? ` <span class="muted">(override; Stripe bills ${PLANS[w.plan].label})</span>` : ''}</dd>
+            <dt>Price</dt><dd>${PLANS[w.plan].price}</dd>
+            <dt>Subscription</dt><dd>${esc(w.billing.status)}</dd>
+            <dt>Period</dt><dd>${esc(w.billing.renews)}</dd>
+            <dt>Payment method</dt><dd>${esc(w.billing.card)}</dd>
+          </dl>
+          ${stripe ? `<div class="va-actions" style="padding-top:12px"><button class="button" type="button" data-stripe="customer">${icon('open', 'sm')}Customer in Stripe</button><button class="button" type="button" data-stripe="subscription">${icon('open', 'sm')}Subscription in Stripe</button></div>` : ''}
+        </section>
+        <section class="panel" aria-labelledby="histTitle"><div class="panel-head"><h2 id="histTitle">Staff actions on this workspace</h2>${role === 'super' ? `<button class="link" type="button" data-href="prototype-screen-41-admin-audit.html#q=${w.id}">Open audit log</button>` : ''}</div>
+          ${w.history.length ? w.history.map(h => `<div class="audit-row"><div class="audit-time">${h.time}</div><div><div class="audit-what"><strong>${h.by === me ? 'You' : esc(h.by)}</strong> ${esc(h.text)}</div><div class="audit-reason">Reason: “${esc(h.reason)}”</div></div></div>`).join('') : '<div class="empty">No staff actions on this workspace yet.</div>'}
+        </section>
+      </div>
+    </div>`;
+}
+function renderStaff() {
+  const s = STAFF[role];
+  $('staffName').textContent = s.name; $('staffRole').textContent = s.role; $('avatar').textContent = s.initials;
+}
+
+function render() {
+  renderStaff(); renderNav();
+  $('listView').hidden = view !== 'list'; $('detailView').hidden = view === 'list';
+  if (view === 'list') renderList(); else renderDetail();
+  document.title = (view === 'list' ? 'Workspaces' : current().name) + ' · SalesMora Admin prototype';
+  setActive('viewButtons', view);
+}
+
+// Global search
+let active = -1;
+function renderResults() {
+  const q = $('search').value.trim().toLowerCase();
+  if (!q) { $('results').hidden = true; $('search').setAttribute('aria-expanded', 'false'); return; }
+  const hits = SEARCH.filter(r => (r.name + ' ' + r.sub + ' ' + (r.key || '')).toLowerCase().includes(q));
+  const groups = ['Workspace', 'User'].map(t => [t, hits.filter(h => h.type === t)]).filter(([, h]) => h.length);
+  let idx = 0;
+  $('results').innerHTML = groups.length
+    ? groups.map(([t, h]) => `<h3>${t}s</h3>` + h.map(r => `<button class="result${idx === active ? ' active' : ''}" type="button" role="option" data-idx="${idx++}" ${t === 'User' ? `data-href="prototype-screen-39-admin-users.html#${r.id}"` : `data-ws="${r.id}"`}>${icon(t === 'User' ? 'users' : 'ws', 'sm')}<div><strong>${r.name}</strong><span>${r.sub}</span></div><span class="chip ${r.tone}">${r.chip}</span></button>`).join('')).join('')
+    : `<div class="empty-note">No users or workspaces match “${$('search').value.trim()}”. Search by name, email, or an ID such as ws_8f21c.</div>`;
+  $('results').hidden = false; $('search').setAttribute('aria-expanded', 'true');
+}
+$('search').addEventListener('input', () => { active = -1; renderResults(); });
+$('search').addEventListener('keydown', e => {
+  const opts = [...$('results').querySelectorAll('.result')];
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault(); if (!opts.length) return;
+    active = (active + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length; renderResults();
+  } else if (e.key === 'Enter' && opts.length) {
+    e.preventDefault(); opts[Math.max(active, 0)].click();
+  } else if (e.key === 'Escape') { $('search').value = ''; renderResults(); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) { e.preventDefault(); $('search').focus(); }
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search')) { $('results').hidden = true; $('search').setAttribute('aria-expanded', 'false'); }
+  if (!e.target.closest('#userMenu, #userMenuBtn')) { $('userMenu').hidden = true; $('userMenuBtn').setAttribute('aria-expanded', 'false'); }
+  const go = e.target.closest('[data-goto]'); if (go) { goTo(go.dataset.goto); $('results').hidden = true; }
+  const rb = e.target.closest('[data-runbook]'); if (rb) { e.preventDefault(); toast(`Opens admin docs at knowledge/admin/${rb.dataset.runbook}.md (docs screen planned).`); }
+  if (e.target.closest('[data-retry]')) { dataState = 'populated'; setActive('stateButtons', 'populated'); render(); toast('Workspaces loaded.'); }
+});
+
+// Assistant
+function openAssistant(open) {
+  $('assistant').hidden = !open; $('assistantBtn').setAttribute('aria-expanded', String(open));
+  if (open) { if (!$('chat').children.length) addBot('<p>Hi! Ask me how SalesMora works or how to perform an admin task. I only use the admin docs, so I can\'t look up customer records.</p>'); $('askInput').focus(); }
+}
+function addMsg(cls, html) { const d = document.createElement('div'); d.className = 'msg ' + cls; d.innerHTML = html; $('chat').appendChild(d); $('chat').scrollTop = $('chat').scrollHeight; }
+function addBot(html, cites) { addMsg('bot', html + (cites ? `<div class="cite">${cites.map(c => `<a href="#" data-runbook="${c.split('#')[0]}">${c}</a>`).join('')}</div>` : '')); }
+function ask(q) {
+  if (!q.trim()) return;
+  addMsg('me', q.replace(/</g, '&lt;'));
+  if (overBudget) return addBot('<p><strong>The admin assistant has reached its monthly budget</strong> (1M tokens). It resets on Nov 1. A Super Admin can raise it in Flags &amp; settings. Docs search still works.</p>');
+  if (/@|ws_[a-z0-9]+/i.test(q)) return addBot('<p>I can\'t look up customer records. I only answer from the admin docs. Use the global search at the top to find users or workspaces.</p>');
+  const hit = ANSWERS.find(a => a.match.test(q));
+  setTimeout(() => hit ? addBot(hit.text, hit.cites) : addBot('<p>This isn\'t documented yet, so I won\'t guess. Try searching the admin docs, or ask a Super Admin to add a runbook.</p>'), 450);
+}
+$('assistantBtn').addEventListener('click', () => openAssistant($('assistant').hidden));
+$('assistantClose').addEventListener('click', () => { openAssistant(false); $('assistantBtn').focus(); });
+$('askForm').addEventListener('submit', e => { e.preventDefault(); ask($('askInput').value); $('askInput').value = ''; });
+$('suggest').addEventListener('click', e => { const b = e.target.closest('button'); if (b) ask(b.textContent); });
+
+// Account menu
+$('userMenuBtn').addEventListener('click', () => { const open = $('userMenu').hidden; $('userMenu').hidden = !open; $('userMenuBtn').setAttribute('aria-expanded', String(open)); });
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const ROLE_OPTS = '<option value="">Choose a role</option><option>Owner</option><option>Admin</option><option>Office</option><option>Field</option>';
+const viewAsFields = extra => `${extra || ''}<div class="field-row">
+    <div class="field"><label for="fTicket">Ticket reference</label><input id="fTicket" autocomplete="off" placeholder="#4821"></div>
+    <div class="field"><label for="fDur">Duration</label><select id="fDur"><option value="15">15 minutes</option><option value="30" selected>30 minutes</option><option value="60">1 hour</option><option value="120">2 hours (maximum)</option></select></div>
+  </div>
+  <div class="field"><label for="fRole">View as role</label><select id="fRole">${ROLE_OPTS}</select><div class="hint">You see what a member with this role sees. Nothing can be changed.</div></div>`;
+function readViewAs(c) {
+  c.ticket = $('fTicket').value.trim(); c.role = $('fRole').value; c.dur = +$('fDur').value;
+  if (!/^#?\d{3,}$/.test(c.ticket)) return ['Enter the support ticket number, for example #4821.', 'fTicket'];
+  if (!c.role) return ['Choose the role to view as.', 'fRole'];
+}
+function startSession(w, c, reason, consent) {
+  w.viewAs = w.viewAs || [];
+  w.viewAs.push({ id: 'va' + Date.now(), by: STAFF[role].name, role: c.role, end: NOW_MIN + c.dur, consent, reason: `Ticket ${c.ticket.replace(/^#?/, '#')}: ${reason}` });
+}
+const minLabel = m => m >= 60 ? plural(m / 60, 'hour') : `${m} min`;
+
+const ACTIONS = {
+  suspend: { secure: true, danger: true, title: 'Suspend this workspace', confirm: 'Suspend workspace',
+    desc: w => `All ${plural(memberTotal(w), 'member')} see a suspension page and can't use ${w.name}. Reminders, campaigns and other background jobs pause. Billing doesn't change. The Owner gets an email saying the workspace is suspended and how to contact support.`,
+    apply: (w, c, reason) => { w.prevStatus = w.status; w.status = 'suspended'; w.suspended = { when: 'just now', by: STAFF[role].name, reason }; w.viewAs = []; return { text: 'suspended the workspace', toast: `${w.name} is suspended. Members now see the suspension page.` }; } },
+  unsuspend: { secure: true, title: 'Unsuspend this workspace', confirm: 'Unsuspend workspace',
+    desc: w => `Members can use ${w.name} again and paused background jobs resume. The Owner is emailed.`,
+    apply: w => { w.status = w.prevStatus || 'active'; w.suspended = null; return { text: 'unsuspended the workspace', toast: `${w.name} is active again.` }; } },
+  transfer: { secure: true, title: 'Transfer ownership', confirm: 'Transfer ownership',
+    desc: w => `The new Owner gets full control, including billing and deleting the workspace. ${owner(w).name} becomes an Admin. Both are notified by email.`,
+    fields: w => `<div class="field"><label for="fMember">New Owner</label><select id="fMember"><option value="">Choose an active member</option>${eligibleOwners(w).map(m => `<option value="${esc(m.email)}">${esc(m.name)} (${m.role})</option>`).join('')}</select><div class="hint">Only active, verified members can become the Owner.</div></div>`,
+    validate: (w, c) => { c.email = $('fMember').value; if (!c.email) return ['Choose the new Owner.', 'fMember']; },
+    apply: (w, c) => { const old = owner(w), n = w.members.find(m => m.email === c.email); old.role = 'Admin'; n.role = 'Owner'; w.members.sort((a, b) => (b.role === 'Owner') - (a.role === 'Owner')); return { text: `transferred ownership from ${old.name} to ${n.name}`, toast: `${n.name} is now the Owner. ${old.name} is an Admin.` }; } },
+  override: { secure: true, title: 'Apply a plan override', confirm: 'Apply override',
+    desc: w => `Gives ${w.name} a different plan's limits without changing Stripe. Stripe keeps billing ${PLANS[w.plan].label}. The override ends automatically on its end date.`,
+    fields: w => `<div class="field-row">
+      <div class="field"><label for="fPlan">Plan</label><select id="fPlan">${['standard', 'premium'].filter(p => p !== w.plan).map(p => `<option value="${p}">${PLANS[p].label}</option>`).join('')}</select></div>
+      <div class="field"><label for="fUntil">Ends on</label><input id="fUntil" type="date" min="2026-10-29" max="2027-10-28"></div></div>
+      <div class="hint" style="margin:-6px 0 12px">Up to 12 months from today. To change what the customer pays, use Change plan in Billing.</div>`,
+    validate: (w, c) => {
+      c.plan = $('fPlan').value; c.until = $('fUntil').value;
+      if (!c.until) return ['Choose an end date.', 'fUntil'];
+      if (c.until <= '2026-10-28' || c.until > '2027-10-28') return ['The end date must be after today and within 12 months.', 'fUntil'];
+    },
+    apply: (w, c) => { w.override = { plan: c.plan, until: c.until, by: STAFF[role].name, when: 'just now' }; return { text: `applied a plan override: ${PLANS[c.plan].label} until ${fmtDate(c.until)}`, toast: `${w.name} has ${PLANS[c.plan].label} until ${fmtDate(c.until)}.` }; } },
+  removeOverride: { secure: true, title: 'End the plan override', confirm: 'End override',
+    desc: w => `${w.name} goes back to ${PLANS[w.plan].label} limits now, instead of on ${fmtDate(w.override.until)}. Usage above the ${PLANS[w.plan].label} limits is kept, but new usage is blocked until next month.`,
+    apply: w => { const p = PLANS[w.override.plan].label; w.override = null; return { text: `ended the ${p} plan override early`, toast: `Override ended. ${w.name} is on ${PLANS[w.plan].label} limits.` }; } },
+  budget: { title: 'Set the AI token budget', confirm: 'Save budget',
+    desc: w => `Sets this workspace's monthly AI token limit. It applies right away and stays until you change it. Used this month: ${fmtTokens(w.usage.ai)}.`,
+    fields: w => `<div class="field"><label for="fBudget">Monthly tokens, in millions</label><input id="fBudget" type="number" min="0.1" max="100" step="0.1" value="${w.aiBudget != null ? w.aiBudget / 1e6 : ''}" placeholder="${PLANS[effPlan(w)].ai / 1e6} (plan default)"><div class="hint">The ${PLANS[effPlan(w)].label} plan includes ${fmtTokens(PLANS[effPlan(w)].ai)}. Leave blank to use the plan default. Maximum 100M.</div></div>`,
+    validate: (w, c) => {
+      const v = $('fBudget').value.trim(); c.budget = v === '' ? null : Math.round(+v * 1e6);
+      if (c.budget != null && !(c.budget >= 100_000 && c.budget <= 100_000_000)) return ['Enter a number between 0.1 and 100, or leave it blank.', 'fBudget'];
+    },
+    apply: (w, c) => { w.aiBudget = c.budget; w.aiBudgetBy = STAFF[role].name; const t = c.budget == null ? 'the plan default' : fmtTokens(c.budget); return { text: `set the AI token budget to ${t}`, toast: `AI token budget set to ${t}.` }; } },
+  removeMember: { danger: true, title: 'Remove member', confirm: 'Remove member',
+    desc: (w, c) => { const m = w.members.find(x => x.email === c.email); return `${m.name} (${m.role}) loses access to ${w.name} right away. Records they created stay in the workspace. The Owner is notified.`; },
+    apply: (w, c) => { const m = w.members.find(x => x.email === c.email); w.members = w.members.filter(x => x !== m); return { text: `removed ${m.name} (${m.role}) on behalf of the Owner`, toast: `${m.name} was removed.` }; } },
+  resendInvite: { title: 'Resend invitation', confirm: 'Resend invitation',
+    desc: (w, c) => `Sends a new invitation to ${mask(c.email)} for ${w.name}. Earlier invitation links stop working.`,
+    apply: (w, c) => { const m = w.members.find(x => x.email === c.email); m.last = 'Invitation resent just now'; return { text: `resent the invitation to ${mask(c.email)}`, toast: 'Invitation sent.' }; } },
+  viewAs: { secure: true, title: 'Start a view-as session', confirm: 'Start session',
+    desc: w => `Opens ${w.name} in the customer app in read-only mode. ${w.grant.by} is notified in-app and by email. Every page you view is recorded.`,
+    fields: () => viewAsFields(), validate: (w, c) => readViewAs(c),
+    apply: (w, c, reason) => { startSession(w, c, reason, 'Owner grant'); return { text: `started a view-as session (${c.role} role, ${minLabel(c.dur)})`, toast: 'View-as started. The customer app opens in a new tab in read-only mode (not part of this prototype).' }; } },
+  breakGlass: { secure: true, danger: true, title: 'Break-glass access', confirm: 'Start break-glass session',
+    desc: w => `${w.name} hasn't granted support access. Use this only for an incident that can't wait for the Owner.`,
+    fields: () => viewAsFields(`<div class="warn-note">${icon('warn', 'sm')}<span>The Owner isn't notified, but this session always appears in their Support access log. Super Admins review every break-glass session.</span></div>
+      <div class="field"><label for="fIncident">Incident type</label><select id="fIncident"><option value="">Choose an incident type</option><option>Fraud</option><option>Abuse</option><option>Security</option><option>Legal</option></select></div>`),
+    validate: (w, c) => { c.incident = $('fIncident').value; if (!c.incident) return ['Choose the incident type.', 'fIncident']; return readViewAs(c); },
+    apply: (w, c, reason) => { startSession(w, c, `${c.incident} incident. ${reason}`, 'Break-glass'); return { text: `started a break-glass session (${c.incident}, ${c.role} role, ${minLabel(c.dur)})`, toast: 'Break-glass session started. It is flagged for Super Admin review.' }; } },
+};
+
+let pending = null;
+let lastFocus = null;
+function openAction(key, ctx = {}) {
+  const w = current(); const a = ACTIONS[key];
+  pending = { key, ctx, w }; lastFocus = document.activeElement;
+  $('actTitle').textContent = a.title;
+  $('actDesc').textContent = a.desc(w, ctx);
+  $('actExtra').innerHTML = a.fields ? a.fields(w, ctx) : '';
+  $('actReason').value = ''; $('actErr').textContent = '';
+  const prod = $('envBar').classList.contains('production');
+  $('actEnv').textContent = prod ? 'Production' : 'Staging'; $('actEnv').className = 'chip ' + (prod ? 'red' : 'amber');
+  $('actStepNote').hidden = !a.secure;
+  $('actStepNote').innerHTML = stepUp === 'fresh'
+    ? `${icon('check', 'sm')}<span>You confirmed your passkey in the last 5 minutes, so you won't be asked again.</span>`
+    : `${icon('lock', 'sm')}<span>You'll confirm with your passkey before this runs.</span>`;
+  $('actConfirm').textContent = a.confirm; $('actConfirm').className = 'button ' + (a.danger ? 'danger solid' : 'primary');
+  $('actStep1').hidden = false; $('actStep2').hidden = true; $('actModal').hidden = false;
+  ($('actExtra').querySelector('input, select') || $('actReason')).focus();
+}
+function closeAction() {
+  $('actModal').hidden = true; pending = null;
+  if (lastFocus && document.contains(lastFocus)) lastFocus.focus(); else if ($('detailTitle')) $('detailTitle').focus();
+}
+function fail(msg, field) { $('actErr').textContent = msg; $(field).focus(); }
+$('actConfirm').addEventListener('click', () => {
+  const a = ACTIONS[pending.key]; const reason = $('actReason').value.trim();
+  const bad = a.validate && a.validate(pending.w, pending.ctx);
+  if (bad) return fail(...bad);
+  if (reason.length < 10) return fail('Enter a reason of at least 10 characters. It is saved to the audit log.', 'actReason');
+  pending.reason = reason;
+  if (a.secure && stepUp !== 'fresh') {
+    $('actStep1').hidden = true; $('actStep2').hidden = false; $('stepErr').textContent = '';
+    $('totpLink').hidden = true; $('totpWrap').hidden = true; $('totpInput').value = '';
+    $('passkeyBtn').disabled = false; $('passkeyBtn').textContent = 'Use passkey'; $('passkeyBtn').focus();
+    return;
+  }
+  finish();
+});
+$('passkeyBtn').addEventListener('click', () => {
+  $('passkeyBtn').disabled = true; $('passkeyBtn').textContent = 'Waiting for your passkey…'; $('stepErr').textContent = '';
+  setTimeout(() => {
+    if (!pending) return;
+    if (stepUp === 'fail') {
+      $('passkeyBtn').disabled = false; $('passkeyBtn').textContent = 'Try passkey again';
+      $('stepErr').textContent = 'Passkey check failed or was cancelled. Nothing was changed.'; $('totpLink').hidden = false; return;
+    }
+    stepVerified();
+  }, 900);
+});
+$('totpLink').addEventListener('click', () => { $('totpWrap').hidden = false; $('totpInput').focus(); });
+$('totpBtn').addEventListener('click', () => {
+  if (!/^\d{6}$/.test($('totpInput').value.trim())) { $('stepErr').textContent = 'Enter the 6-digit code from your authenticator app.'; return; }
+  stepVerified();
+});
+$('totpInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('totpBtn').click(); });
+function stepVerified() { stepUp = 'fresh'; setActive('stepButtons', 'fresh'); finish(); }
+function finish() {
+  const { key, ctx, w, reason } = pending;
+  const r = ACTIONS[key].apply(w, ctx, reason);
+  w.history.unshift({ time: 'Just now', by: STAFF[role].name, text: r.text, reason });
+  $('actModal').hidden = true; pending = null;
+  render(); toast(esc(r.toast));
+  if ($('detailTitle')) $('detailTitle').focus();
+}
+function endSession(id) {
+  const w = current(); const s = w.viewAs.find(x => x.id === id);
+  w.viewAs = w.viewAs.filter(x => x !== s);
+  const mine = s.by === STAFF[role].name;
+  w.history.unshift({ time: 'Just now', by: STAFF[role].name, text: mine ? `ended a view-as session (${s.role} role)` : `ended ${s.by}'s view-as session (${s.role} role)`, reason: s.reason });
+  render(); toast(mine ? 'View-as session ended.' : `${esc(s.by)}'s view-as session ended. They were signed out of it.`);
+  $('detailTitle').focus();
+}
+$('actModal').addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target === $('actModal')) closeAction(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('actModal').hidden) closeAction(); });
+
+// Routing: #ws_… opens a workspace; anything else shows the list.
+function route() {
+  const id = location.hash.slice(1);
+  view = WORKSPACES.some(w => w.id === id) ? id : 'list';
+  render(); window.scrollTo(0, 0);
+  if (view !== 'list') $('detailTitle').focus();
+}
+window.addEventListener('hashchange', route);
+$('wsFilter').addEventListener('input', () => renderList());
+$('planFilter').addEventListener('change', () => renderList());
+$('statusSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; statusFilter = b.dataset.status; renderList(); });
+document.addEventListener('click', e => {
+  const row = e.target.closest('tr[data-open]'); if (row && !e.target.closest('a')) location.hash = row.dataset.open;
+  const act = e.target.closest('[data-action]'); if (act && !act.disabled) openAction(act.dataset.action);
+  const rm = e.target.closest('[data-remove]'); if (rm) openAction('removeMember', { email: rm.dataset.remove });
+  const rs = e.target.closest('[data-resend]'); if (rs) openAction('resendInvite', { email: rs.dataset.resend });
+  const en = e.target.closest('[data-end]'); if (en) endSession(en.dataset.end);
+  const st = e.target.closest('[data-stripe]'); if (st) toast(`Opens the Stripe ${st.dataset.stripe} in a new tab. Refunds and credits are done in Stripe.`);
+  const ws = e.target.closest('[data-ws]'); if (ws) { $('results').hidden = true; $('search').value = ''; location.hash = ws.dataset.ws; }
+  const nav = e.target.closest('[data-href]'); if (nav) location.href = nav.dataset.href;
+  if (e.target.closest('[data-ws-home]')) location.hash = '';
+});
+
+// Idle timeout
+let idleTimer;
+function startIdle() {
+  let left = 120; $('idleModal').hidden = false; $('stayBtn').focus();
+  clearInterval(idleTimer);
+  idleTimer = setInterval(() => {
+    left -= 1; $('idleCount').textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    if (left <= 0) { clearInterval(idleTimer); location.href = 'prototype-screen-37-admin-sign-in.html'; }
+  }, 1000);
+}
+$('stayBtn').addEventListener('click', () => { clearInterval(idleTimer); $('idleModal').hidden = true; $('idleCount').textContent = '2:00'; toast('Session extended. Idle timer reset to 30 minutes.'); });
+
+// Review controls
+function setActive(group, val) { document.querySelectorAll(`#${group} button`).forEach(b => b.classList.toggle('active', (b.dataset.role || b.dataset.state || b.dataset.view || b.dataset.step) === val)); }
+$('roleButtons').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; role = b.dataset.role; setActive('roleButtons', role); render(); });
+$('viewButtons').addEventListener('click', e => { const b = e.target.closest('button'); if (b) location.hash = b.dataset.view === 'list' ? '' : b.dataset.view; });
+$('stateButtons').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const st = b.dataset.state;
+  statusFilter = 'all'; $('planFilter').value = 'all'; $('wsFilter').value = st === 'empty' ? 'acme roofing' : '';
+  dataState = st === 'empty' ? 'populated' : st; setActive('stateButtons', st);
+  if (view !== 'list') location.hash = ''; else render();
+});
+$('stepButtons').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; stepUp = b.dataset.step; setActive('stepButtons', stepUp); });
+$('idleBtn').addEventListener('click', startIdle);
+$('envToggle').addEventListener('click', () => {
+  const prod = !$('envBar').classList.contains('production');
+  $('envBar').classList.toggle('production', prod);
+  $('envLabel').textContent = prod ? 'Production environment' : 'Staging environment';
+  $('envToggle').textContent = prod ? 'Switch to staging' : 'Switch to production';
+});
+$('resetBtn').addEventListener('click', () => {
+  WORKSPACES = structuredClone(SEED_WS); stepUp = 'required'; setActive('stepButtons', 'required');
+  render(); toast('Sample data reset.');
+});
+$('reviewToggle').addEventListener('click', () => {
+  const c = $('review').classList.toggle('collapsed');
+  $('reviewToggle').textContent = c ? 'Show' : 'Hide'; $('reviewToggle').setAttribute('aria-expanded', String(!c));
+});
+
+if (matchMedia('(max-width: 820px)').matches) $('reviewToggle').click();
+route();
+</script>
+</body>
+</html>

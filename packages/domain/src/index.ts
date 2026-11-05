@@ -1,6 +1,7 @@
 export { createDefaultWorkspacePolicy, validateWorkspacePolicy } from './authorization/policy';
 export { authorize, authorizePolicyChange, resolveAuthorizedCollectionScope, type AuthorizationDecision, type AuthorizedScope, type PolicyChangeDecision } from './authorization/authorize';
 export { workspacePlanCatalogVersion, workspacePlanCatalog, getWorkspacePlan, workspaceUsagePeriod, remainingPlanAllowance } from './billing/plans';
+export * from './billing/plan-override';
 export * from './jobs/lifecycle';
 export * from './work-orders/lifecycle';
 export * from './calendar/schedule';
@@ -15,3 +16,6 @@ export * from './estimates/lead-stage';
 export * from './jobs/deadline';
 export { reminderClock, reminderDeadlineForDate } from './jobs/reminders';
 export * from './calendar/availability';
+export * from './accounts/suspension';
+export * from './accounts/staff-reason';
+export * from './admin/authorize';

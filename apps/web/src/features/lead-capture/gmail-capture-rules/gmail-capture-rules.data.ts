@@ -1,0 +1,16 @@
+export const gmailCaptureRulesData = {
+  title: 'Email matching rules', description: 'Choose which incoming emails from the connected account should enter Intake Review.',
+  location: 'Look for phrases in', locations: { subject: 'Subject', body: 'Body', both: 'Subject or body' },
+  mode: 'An email must contain', modes: { all: 'All phrases (AND)', any: 'Any phrase (OR)' },
+  phrases: 'Matching phrases', phrase: (index: number) => `Phrase ${index}`, placeholder: 'For example, request a quote',
+  hint: 'Phrases are matched literally, ignoring capitalization and surrounding spaces. Punctuation and spaces within a phrase must match.',
+  bothHint: 'Each phrase can appear in either the subject or the body. All phrases may be spread across both.',
+  add: 'Add phrase', remove: (index: number) => `Remove phrase ${index}`, limit: 'You can add up to 20 phrases.',
+  summary: 'Rule summary', summaryStart: (mode: string, location: string) => `An incoming email must contain ${mode} in ${location}.`,
+  summaryModes: { all: 'every phrase below', any: 'at least one phrase below' }, summaryLocations: { subject: 'the subject', body: 'the body', both: 'the subject or body' },
+  incomplete: 'Complete the matching rule before continuing. Empty or invalid rules do not match emails.',
+  draft: 'Changes stay in this draft. Testing a sample comes later; matching an email never approves or creates a lead automatically.',
+  denied: 'You do not have permission to view these matching rules.', readOnly: 'You can view these rules but do not have permission to change them.',
+  errors: { title: 'Review the matching rule', count: 'Use between 1 and 20 phrases.', text: 'Enter a phrase of no more than 200 characters.', duplicate: 'Use distinct phrases, ignoring capitalization and surrounding spaces.', identity: 'Each phrase needs a unique identity. Reload the draft before continuing.', location: 'Choose where to look for phrases.', mode: 'Choose whether all or any phrases must match.' },
+  stories: { title: 'Gmail matching rules', description: 'Draft settings only. No email is read and no leads are created.', first: 'request a quote', second: 'water heater', changed: 'kitchen plumbing', long: 'Residential plumbing maintenance and whole-home improvement inquiries for scheduled service visits' },
+} as const;

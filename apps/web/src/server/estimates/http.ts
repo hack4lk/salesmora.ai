@@ -1,4 +1,5 @@
 import "server-only";
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from "../http/suspension";
 import { NextResponse } from "next/server";
 import {
   EstimateContractError,
@@ -83,6 +84,7 @@ export async function estimateRequest(
   try {
     return await run({ userId: session.user.id, workspaceId: parsedWorkspaceId.data }, body);
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) {
       return NextResponse.json(
         { error: "This estimate or workspace is unavailable." },

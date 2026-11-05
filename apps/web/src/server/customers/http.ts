@@ -1,4 +1,5 @@
 import "server-only";
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from "../http/suspension";
 import { NextResponse } from "next/server";
 import { CustomerContractError, customerIdSchema } from "@salesmora/contracts";
 import {
@@ -67,6 +68,7 @@ export async function customerRequest(
       body,
     );
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof CustomerDuplicateError)
       return NextResponse.json(
         { error: error.message, code: "duplicate", matches: error.matches },

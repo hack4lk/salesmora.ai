@@ -1,4 +1,9 @@
 "use client";
+import { ConnectedCaptureSource } from '../capture-result/connected-capture-source';
+import { ConnectedCaptureSetup } from '../capture-result/connected-capture-setup';
+import type { CaptureAssistantProposalTicket } from '@salesmora/contracts';
+import { ConnectedCaptureRead } from '../capture-result/connected-capture-read';
+import type { CaptureChatTicket } from '@salesmora/contracts';
 import { ConnectedCalendarSchedule } from '../calendar-schedule-draft-card/connected-calendar-schedule';
 import { ConnectedCalendarResult } from "../calendar-results-card/connected-calendar-result";
 import { ConnectedCustomerResult } from "../customer-result/customer-result";
@@ -67,12 +72,16 @@ export function ConnectedAssistant({
 }) {
   const router = useRouter();
   const workspaceAssistant = useWorkspaceAssistant();
+  const captureSaved = useCallback(() => { router.refresh(); }, [router]);
   const setAssistantStatus = workspaceAssistant?.setStatus;
   const [pendingContextLabel, setPendingContextLabel] = useState<string>();
   const [messages, setMessages] = useState<
     (AssistantMessage & {
       customerResult?: CustomerChatResult;
       calendarResult?: CalendarChatResult;
+      captureSource?: CaptureAssistantProposalTicket;
+      captureSetup?: CaptureAssistantProposalTicket;
+      captureResult?: CaptureChatTicket;
       calendarProposal?: CalendarProposalTicket;
       calendarTurnId?: string;
       workOrderResult?: WorkOrderChatResult;
@@ -130,6 +139,9 @@ export function ConnectedAssistant({
             role: message.role,
             text: message.text,
             calendarProposal: message.role === "assistant" ? state?.calendarProposal : undefined,
+            captureSource: message.role === "assistant" ? state?.captureSource : undefined,
+            captureSetup: message.role === "assistant" ? state?.captureSetup : undefined,
+            captureResult: message.role === "assistant" ? state?.captureResult : undefined,
             calendarResult: message.role === "assistant" ? state?.calendarResult : undefined,
             calendarTurnId: message.role === "assistant" ? message.turnId : undefined,
             customerResult:
@@ -290,6 +302,8 @@ export function ConnectedAssistant({
       ...(workspaceAssistant?.pageContext?.customerFilters
         ? { customerFilters: workspaceAssistant.pageContext.customerFilters }
         : {}),
+      ...(workspaceAssistant?.readCaptureSetup() ? { captureSetup: workspaceAssistant.readCaptureSetup() } : {}),
+      ...(workspaceAssistant?.pageContext?.captureContext ? { captureContext: workspaceAssistant.pageContext.captureContext } : {}),
       ...(workspaceAssistant?.pageContext?.calendarVisit ? { calendarVisit:workspaceAssistant.pageContext.calendarVisit } : {}),
       ...(workspaceAssistant?.pageContext?.calendarFilters ? { calendarFilters: workspaceAssistant.pageContext.calendarFilters } : {}),
       ...(workspaceAssistant?.pageContext?.estimateFilters
@@ -297,9 +311,15 @@ export function ConnectedAssistant({
         : {}),
       message,
     };
+    if (new TextEncoder().encode(JSON.stringify(request)).byteLength > 16000) {
+      pending.current = false;
+      return { ok: false as const, message: 'This request and setup are too large. Shorten the message or pasted sample, or save other draft changes first.' };
+    }
     const selected = workspaceAssistant?.pageContext;
     const sameContext =
       JSON.stringify({
+        captureSetup: request.captureSetup,
+        captureContext: request.captureContext,
         recordRefs: request.recordRefs,
         uiState: request.uiState,
         customerFilters: request.customerFilters,
@@ -308,6 +328,8 @@ export function ConnectedAssistant({
         calendarVisit: request.calendarVisit,
       }) ===
       JSON.stringify({
+        captureSetup: workspaceAssistant?.readCaptureSetup(),
+        captureContext: selected?.captureContext,
         recordRefs: selected?.recordRefs,
         uiState: selected?.uiState,
         customerFilters: selected?.customerFilters,
@@ -418,6 +440,15 @@ export function ConnectedAssistant({
                   : item,
               ),
             );
+            break;
+          case "capture.source":
+            setMessages(items => items.map(item => item.id === localAssistant ? { ...item, captureSource: event.result } : item));
+            break;
+          case "capture.setup":
+            setMessages(items => items.map(item => item.id === localAssistant ? { ...item, captureSetup: event.result } : item));
+            break;
+          case "capture.result":
+            setMessages(items => items.map(item => item.id === localAssistant ? { ...item, captureResult: event.result } : item));
             break;
           case "calendar.proposal":
             setMessages(items => items.map(item => item.id === localAssistant ? { ...item,calendarProposal:event.result } : item));
@@ -688,6 +719,9 @@ export function ConnectedAssistant({
         const workOrder = messages.find(
           (item) => item.id === message.id,
         )?.workOrderResult;
+        const captureSource = messages.find(item => item.id === message.id)?.captureSource;
+        const captureSetup = messages.find(item => item.id === message.id)?.captureSetup;
+        const capture = messages.find(item => item.id === message.id)?.captureResult;
         const estimate = messages.find(item => item.id === message.id)?.estimateResult;
         const estimateDraft = messages.find(item => item.id === message.id)?.estimateDraft;
         const estimateSharing = messages.find(item => item.id === message.id)?.estimateSharing;
@@ -697,8 +731,11 @@ export function ConnectedAssistant({
         const estimateArchive = messages.find(item => item.id === message.id)?.estimateArchive;
         const estimateDraftDelete = messages.find(item => item.id === message.id)?.estimateDraftDelete;
         const estimateConversion = messages.find(item => item.id === message.id)?.estimateConversion;
-        if (!calendar?.calendarProposal && !calendar?.calendarResult && !customer && !workOrder && !estimate && !estimateDraft && !estimateSharing && !estimateDecision && !estimateDraftAction && !estimateVoid && !estimateArchive && !estimateDraftDelete && !estimateConversion) return null;
+        if (!captureSource && !captureSetup && !capture && !calendar?.calendarProposal && !calendar?.calendarResult && !customer && !workOrder && !estimate && !estimateDraft && !estimateSharing && !estimateDecision && !estimateDraftAction && !estimateVoid && !estimateArchive && !estimateDraftDelete && !estimateConversion) return null;
         return <div className="grid min-w-0 gap-4">
+          {captureSource && <ConnectedCaptureSource ticket={captureSource} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} onSaved={captureSaved} />}
+          {captureSetup && <ConnectedCaptureSetup ticket={captureSetup} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} apply={workspaceAssistant?.applyCaptureSetup} onSaved={captureSaved} />}
+          {capture && <ConnectedCaptureRead ticket={capture} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} onNavigate={href => { workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href); }} />}
           {calendar?.calendarProposal && <ConnectedCalendarSchedule ticket={calendar.calendarProposal} workspaceId={workspaceId} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} onRefresh={async () => { if (thread.current) await restore(thread.current);router.refresh(); }}/>}
           {calendar?.calendarResult && calendar.calendarTurnId && <ConnectedCalendarResult key={`${workspaceId}:${calendar.calendarTurnId}:${calendar.calendarResult.id}`} result={calendar.calendarResult} workspaceId={workspaceId} turnId={calendar.calendarTurnId} disabled={blocked || runStatus === 'thinking' || runStatus === 'streaming'} onNavigate={href => { workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href); }}/>}
 

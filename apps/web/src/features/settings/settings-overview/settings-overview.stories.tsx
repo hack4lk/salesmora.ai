@@ -32,6 +32,7 @@ export const PermissionsOnly: Story = { args: { profile: null, aiUsageHref: unde
 export const MissingOptionalDetails: Story = { args: { profile: { ...meta.args.profile, postalCode: '', serviceRange: '', services: [] } } };
 export const LongContent: Story = { args: { workspaceName: copy.stories.longWorkspace, profile: { ...meta.args.profile, businessName: copy.stories.longWorkspace } } };
 export const Mobile: Story = { globals: { viewport: { value: 'phone', isRotated: false } } };
+export const Leads: Story = { args: { leadsSettingsHref: '/settings/leads?workspace=fictional-workspace' }, play: async ({ canvasElement }) => { await expect(within(canvasElement).getByRole('link', { name: copy.viewLeads })).toHaveAttribute('href', '/settings/leads?workspace=fictional-workspace'); } };
 export const JobNotifications: Story = { args: { jobNotificationsHref: '/settings/job-notifications?workspace=fictional-workspace' }, play: async ({ canvasElement }) => { await expect(within(canvasElement).getByRole('link', { name: copy.viewJobNotifications })).toHaveAttribute('href', '/settings/job-notifications?workspace=fictional-workspace'); } };
 
 function EstimatesPreview(args: SettingsOverviewProps) {

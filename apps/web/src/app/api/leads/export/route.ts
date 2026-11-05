@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../server/http/suspension';
 import { NextResponse } from 'next/server';
 import { AuthorizationAccessError, LeadExportLimitError, LeadExportEmptyError } from '@salesmora/data';
 import { leadExportSchema } from '@salesmora/contracts';
@@ -8,6 +9,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 40;
 const headers = { 'Cache-Control': 'private, no-store', Vary: 'Cookie', 'X-Content-Type-Options': 'nosniff' };
 function failure(error: unknown) {
+  if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
   if (error instanceof AuthorizationAccessError) return NextResponse.json({ error: 'Export is unavailable or you no longer have permission.' }, { status: 404, headers });
   if (error instanceof LeadExportLimitError) return NextResponse.json({ error: 'This export exceeds the row limit. Narrow your filters; no rows were omitted.' }, { status: 422, headers });
   if (error instanceof LeadExportEmptyError) return NextResponse.json({ error: 'No leads match these filters.' }, { status: 422, headers });

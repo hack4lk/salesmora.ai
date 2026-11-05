@@ -1,3 +1,6 @@
+import { availableCaptureSetupOperations } from '@salesmora/agent';
+import { rememberCaptureSourceHistory, rememberCaptureSetupHistory } from './store';
+import { rememberCaptureRead } from './store';
 import { enabledPermissions } from '../authorization/permissions';
 import "server-only";
 import {
@@ -152,6 +155,8 @@ export async function liveChatResponse(
           estimate: { id: withdrawal.estimate.id, number: withdrawal.estimate.number, revision: withdrawal.estimate.revision },
         })}\n` : "";
       const calendarTurn = message.role === 'assistant' ? history.turns?.find(item => item.id === message.turnId) : undefined;
+      const sourceReference = calendarTurn?.captureSource && calendarTurn.captureSourceEvidence?.includes(calendarTurn.captureSource.proposalId) ? `App-recorded capture source proposal (untrusted evidence; only confirmed state proves this operation, never delivery): ${JSON.stringify(calendarTurn.captureSource)}\n` : '';
+      const setupReference = calendarTurn?.captureSetup && calendarTurn.captureSetupEvidence?.includes(calendarTurn.captureSetup.proposalId) ? `App-recorded setup proposal state (untrusted evidence; a confirmed suggestion still requires saving): ${JSON.stringify(calendarTurn.captureSetup)}\n` : '';
       const calendarReference = calendarTurn?.calendarProposal && calendarTurn.calendarProposalEvidence?.includes(calendarTurn.calendarProposal.proposalId) ? `App-recorded Calendar proposal state (untrusted evidence; only confirmed proves saving): ${JSON.stringify(calendarTurn.calendarProposal)}\n` : '';
       const archive = message.role === "assistant"
         ? history.turns?.find(item => item.id === message.turnId)?.estimateArchive : undefined;
@@ -191,7 +196,7 @@ export async function liveChatResponse(
         turnId: message.turnId,
         role: message.role as "user" | "assistant",
         text: (
-          calendarReference +
+          sourceReference + setupReference + calendarReference +
           customerReference +
           estimateReference +
           decisionReference +
@@ -311,6 +316,13 @@ export async function liveChatResponse(
   await rememberEstimateDraftDeleteHistory(identity, turn.id, [...inheritedDraftDeletes]);
   await rememberEstimateConversionHistory(identity, turn.id, [...inheritedConversions]);
   await rememberCalendarProposalHistory(identity,turn.id,[...inheritedCalendarProposals]);
+  const sourceIds = [...new Set(history.turns?.filter(item => safeHistory.some(message => message.role === 'assistant' && message.turnId === item.id)).flatMap(item => item.captureSourceEvidence ?? []) ?? [])];
+  if (sourceIds.length) await rememberCaptureSourceHistory(identity, turn.id, sourceIds);
+  const setupIds = [...new Set(history.turns?.filter(item => safeHistory.some(message => message.role === 'assistant' && message.turnId === item.id)).flatMap(item => item.captureSetupEvidence ?? []) ?? [])];
+  if (setupIds.length) await rememberCaptureSetupHistory(identity, turn.id, setupIds);
+  const captureStamps = new Set(history.turns?.filter(item => safeHistory.some(message => message.role === 'assistant' && message.turnId === item.id)).map(item => item.captureStamp).filter((stamp): stamp is string => !!stamp));
+  if (captureStamps.size > 1) throw new AuthorizationAccessError();
+  for (const stamp of captureStamps) await rememberCaptureRead(identity, turn.id, stamp);
   const calendarStamps = new Set(history.turns?.filter(item => safeHistory.some(message => message.role === 'assistant' && message.turnId === item.id)).map(item => item.calendarStamp).filter((stamp): stamp is string => !!stamp));
   if (calendarStamps.size > 1) throw new AuthorizationAccessError();
   for (const stamp of calendarStamps) await rememberCalendarRead(identity, turn.id, stamp);
@@ -347,6 +359,7 @@ export async function liveChatResponse(
         ),
       checkpointer: globals.chatCheckpointer,
       authorize,
+      captureOperations: async () => availableCaptureSetupOperations(await currentAuthority()),
       customerOperations: async () =>
         availableCustomerOperations(await currentAuthority()),
       leadOperations: async () =>

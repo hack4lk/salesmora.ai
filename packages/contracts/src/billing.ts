@@ -19,8 +19,8 @@ export interface WorkspacePlanDefinition {
   readonly limits: {
     readonly teammates: number;
     readonly newLeadsPerMonth: number;
-    /** Null represents unlimited concurrent published campaigns. */
-    readonly publishedCampaigns: number | null;
+    /** Null represents unlimited concurrent published capture sources. */
+    readonly publishedCaptureSources: number | null;
     readonly aiTokensPerMonth: number;
     readonly storageBytes: number;
   };
@@ -73,6 +73,12 @@ export const workspaceBillingSnapshotSchema = z
     transitionUntil: z.iso.datetime().nullable(),
     change: planChangeQuoteSchema
       .extend({ status: z.enum(["applying", "payment", "scheduled"]) })
+      .nullable()
+      .optional(),
+    /** A staff-granted plan, present only while it raises the limits above `plan` (the billed plan). Never includes the reason. */
+    override: z
+      .object({ plan: z.enum(["standard", "premium"]), endsAt: z.iso.datetime() })
+      .strict()
       .nullable()
       .optional(),
     resetAt: z.iso.datetime(),

@@ -17,3 +17,6 @@ export { default as HomeOutlined } from '@mui/icons-material/HomeOutlined';
 export { default as NotificationsNoneOutlined } from '@mui/icons-material/NotificationsNoneOutlined';
 
 export { default as CloseOutlined } from '@mui/icons-material/CloseOutlined';
+export { default as ArrowUpwardOutlined } from '@mui/icons-material/ArrowUpwardOutlined';
+export { default as ArrowDownwardOutlined } from '@mui/icons-material/ArrowDownwardOutlined';
+export { default as DeleteOutlineOutlined } from '@mui/icons-material/DeleteOutlineOutlined';

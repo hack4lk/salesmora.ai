@@ -1,0 +1,17 @@
+export const gmailEmailExampleData = {
+  title: 'Paste an example email', description: 'Use a typical inquiry you would like to turn into a lead. The assistant will find details for you to review.',
+  mailboxTitle: 'Review or paste an example email', mailboxHelpLabel: 'About reviewing or pasting an example email',
+  mailboxDescription: 'Review the selected message text, or paste a different example. Choose Extract fields when you are ready for the assistant to review it.',
+  subject: 'Subject', body: 'Email body', subjectHint: 'Optional. Include the subject if it helps explain the inquiry.',
+  bodyHint: 'Paste the email as you received it. Include labels and line breaks when available. Up to 20,000 characters.',
+  extract: 'Extract fields', extracting: 'Finding lead details…', working: 'The assistant is looking for contact details, services and other useful fields in your example. You’ll review its findings before approving anything.',
+  next: 'Next, review the findings with the assistant. You can correct values, exclude details or add a field with guidance.',
+  failure: 'The assistant could not extract fields. Your example is still here. Try again.',
+  assistantUnavailable: 'The assistant is unavailable. You can choose or edit an example and extract its fields when the assistant is ready.',
+  denied: 'You do not have permission to view this email example.', readOnly: 'You can view this example but do not have permission to extract or change its fields.',
+  errors: { subject: 'Use a subject of no more than 500 characters.', body: 'Paste the email body.', length: 'Use an email body of no more than 20,000 characters.' },
+  stories: { description: 'Screen 1 of the assistant-guided flow. Extraction is simulated; no assistant call, Gmail read or lead creation occurs.',
+    subject: 'Water heater installation inquiry', body: 'Hi Northstar team,\n\nMy name is Alex Morgan. I would like a quote to replace our water heater.\nYou can reach me at alex@example.com or +1 212 555 0100.\n\nOur budget is about $2,500.\nThank you!',
+    completed: 'Extraction completed in this preview. The findings screen is the next review checkpoint.',
+  },
+} as const;

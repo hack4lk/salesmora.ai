@@ -53,7 +53,9 @@ export type JobAssignmentRemovalRecord = {
   kind: 'job'; event: 'assignment'; access: 'ended'; change: 'removed'; id: string;
   jobNumber: string; createdAt: string; read: boolean;
 };
-export type NotificationRecord = JobAssignmentRemovalRecord | JobNotificationRecord | DeadlineNotificationRecord | VisitNotificationRecord | LeadNotificationRecord | WorkOrderNotificationRecord | MaterialNotificationRecord | EstimateNotificationRecord;
+export const captureNoticeReasonSchema = z.enum(['entitlement','source_capacity','workspace','connection','publication']);
+export type CaptureNotificationRecord = { kind: 'capture'; id: string; sourceId: string; sourceName: string; reason: z.infer<typeof captureNoticeReasonSchema>; createdAt: string; read: boolean };
+export type NotificationRecord = CaptureNotificationRecord | JobAssignmentRemovalRecord | JobNotificationRecord | DeadlineNotificationRecord | VisitNotificationRecord | LeadNotificationRecord | WorkOrderNotificationRecord | MaterialNotificationRecord | EstimateNotificationRecord;
 export type NotificationResult = { items: NotificationRecord[]; unreadCount: number; hasMore: boolean; page: number };
 export const saveNotificationPreferencesSchema = notificationPreferencesSchema.extend({
   workspaceId: z.uuid(),

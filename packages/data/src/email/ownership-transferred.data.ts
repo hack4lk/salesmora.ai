@@ -1,0 +1,30 @@
+export const ownershipTransferredEmailData = {
+  brand: 'SalesMora.ai',
+  newOwner: {
+    heading: 'You are now the Owner',
+    subject: (workspace: string) => `You are now the Owner of ${workspace}`,
+    preheader: 'SalesMora support transferred workspace ownership to you.',
+    introduction: (workspace: string, previousOwner: string) => `SalesMora support transferred ownership of ${workspace} from ${previousOwner} to you.`,
+    detail: 'You now manage billing, permissions and the workspace itself. Workspace deletion is also yours to decide.',
+    reason: 'You received this email because you are the new Owner of this workspace.',
+  },
+  previousOwner: {
+    heading: 'Workspace ownership has changed',
+    subject: (workspace: string) => `Ownership of ${workspace} has changed`,
+    preheader: 'SalesMora support transferred ownership of your workspace.',
+    introduction: (workspace: string, newOwner: string) => `SalesMora support transferred ownership of ${workspace} to ${newOwner}.`,
+    detail: 'You remain a member as an Admin. Billing, permissions and workspace deletion are now managed by the new Owner.',
+    reason: 'You received this email because you were the Owner of this workspace.',
+  },
+  contact: 'If you did not expect this change, contact SalesMora support.',
+  logoCid: 'cid:salesmora-logo',
+  stories: {
+    title: 'Ownership transferred email', notice: 'Preview only. No email is sent; the workspace and people are fictional.', subject: 'Subject',
+    frame: 'Ownership transferred email HTML preview', textHeading: 'Plain-text ownership transferred email',
+    workspace: 'Northstar Plumbing', newOwnerName: 'Priya Patel', previousOwnerName: 'Marcus Reed',
+    longWorkspace: 'Northstar Property Maintenance, Construction and Professional Services',
+    longName: 'Alexandra Catherine Montgomery-Fairweather',
+    escapedWorkspace: 'Northstar <script>fictional</script> & Partners',
+    logoSrc: '/branding/salesmora-email-logo.png',
+  },
+} as const;

@@ -93,7 +93,7 @@ test('Owner sees permitted upcoming sections; saved revocation hides them withou
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
     await page.screenshot({ caret: 'initial', path: `/private/tmp/salesmora-owner-menu-${width}.png` });
   }
-  await revoke(ownerId, workspaceId, 'owner', 'campaigns.');
+  await revoke(ownerId, workspaceId, 'owner', 'leadCapture.');
   await page.goto(`/home?workspace=${workspaceId}`);
   await page.getByRole('button', { name: 'Open navigation' }).click();
   await expect(page.getByRole('button', { name: 'Campaigns Coming soon', exact: true })).toHaveCount(0);

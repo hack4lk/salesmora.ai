@@ -1,0 +1,33 @@
+export const captureSourceDetailsData = {
+  syncStates: {
+    idle: 'Gmail capture is idle.',
+    syncing: 'Gmail capture is checking for new messages.',
+    'waiting-for-worker': 'Gmail capture is waiting for its worker or connection.',
+    retrying: 'Gmail capture will retry after a sync error.',
+    'recovery-required': 'Gmail capture needs recovery. Pause and resume this source to begin a new capture window for future messages.',
+  },
+  syncCounts: (queued: number, failed: number) => `${queued} queued · ${failed} failed`,
+
+  title: 'Source details', configuration: 'Approved configuration', draftConfiguration: 'Draft configuration',
+  configurationDescription: 'The configuration approved for this source.', draftDescription: 'This setup has not been published.',
+  version: 'Version', edit: 'Edit setup', continueDraft: 'Continue editing draft', draftTitle: 'Unpublished changes',
+  draftNotice: 'Your draft revision has not replaced the approved configuration.',
+  editNotice: 'Changes are saved as a draft revision for review before publication.',
+  publication: 'Publication', connection: 'Gmail connection', account: 'Email account',
+  publicationStates: { published: 'Published', unpublished: 'Not published', unavailable: 'Publication status unavailable' },
+  connectionStates: { connected: 'Connected', 'reconnect-required': 'Reconnect required', 'not-connected': 'Not connected' },
+  publicationAction: 'View publication details', connectionAction: 'Manage connection',
+  gmailDescription: 'Incoming emails in this account are checked against your capture rules.',
+  reconnectDescription: 'Reconnect this account to continue checking incoming emails.',
+  disconnectedDescription: 'Connect one Gmail account to this source.',
+  readonly: 'You have view-only access to this setup.', archived: 'Restore this source before editing its setup.',
+  loading: 'Loading source details…', error: 'Source details could not be loaded. Try again.', retry: 'Try again',
+  denied: 'You do not have access to these source details.', invalid: 'The source configuration is unavailable. Reload the source before making changes.',
+  stories: {
+    description: 'Source settings preview. Configuration, connection status and actions are mocked.',
+    name: 'Website enquiries', gmailName: 'Gmail enquiries', email: 'leads@example.com',
+    rows: [{ label: 'Form heading', value: 'Tell us about your project' }, { label: 'Fields', value: 'Name, email, phone and project details' }, { label: 'Lead assignment', value: 'Business default' }, { label: 'Destination', value: 'SalesMora leads' }],
+    gmailRows: [{ label: 'Capture rules', value: 'Subject contains “Project enquiry”' }, { label: 'Included fields', value: 'Name, email and project details' }, { label: 'Review', value: 'Intake Review before creating a lead' }, { label: 'Lead assignment', value: 'Business default' }],
+    attention: 'Intake is blocked until the source is reviewed.', long: 'A detailed configuration value with enough context to wrap across narrow screens. ',
+  },
+} as const;

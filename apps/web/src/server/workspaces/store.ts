@@ -35,8 +35,11 @@ interface WorkspaceRow {
   businessType: string;
   postalCode: string;
   serviceRange: string;
+  suspendedAt: Date | null;
 }
-export async function findWorkspace(userId: string, workspaceId?: string) {
+export const workspaceSuspendedPath = "/workspace-suspended";
+/** Lookup without page behaviour, for API routes. With no workspace requested, active workspaces win. */
+export async function findWorkspaceRecord(userId: string, workspaceId?: string) {
   const query = database()<WorkspaceRow & { membershipRole: WorkspaceRole }>(
     "workspaces",
   )
@@ -49,7 +52,17 @@ export async function findWorkspace(userId: string, workspaceId?: string) {
     .whereNull("workspaces.deletionRequestedAt")
     .select("workspaces.*", "workspaceMemberships.role as membershipRole");
   if (workspaceId) query.where("workspaces.id", workspaceId);
-  return query.orderBy("workspaces.createdAt").orderBy("workspaces.id").first();
+  return query.orderByRaw('"workspaces"."suspendedAt" IS NOT NULL').orderBy("workspaces.createdAt").orderBy("workspaces.id").first();
+}
+/** Page lookup: members of a staff-suspended workspace are sent to the suspension page. */
+export async function findWorkspace(userId: string, workspaceId?: string) {
+  const workspace = await findWorkspaceRecord(userId, workspaceId);
+  if (workspace?.suspendedAt) {
+    // Loaded here so plain Node scripts (such as e2e helpers) can import this store outside Next.
+    const { redirect } = await import("next/navigation");
+    redirect(workspaceSuspendedPath);
+  }
+  return workspace;
 }
 export async function createWorkspace(userId: string, input: WorkspaceInput) {
   return database().transaction(async (trx) => {
