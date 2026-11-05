@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -99,6 +100,17 @@ async function rehearsal() {
     console.log(`  - Name: ${fileRecord.name}`);
     console.log(`  - Size: ${fileRecord.sizeBytes} bytes`);
     console.log(`  - Status: ${fileRecord.status}`);
+
+    assert.equal((await fileStore.getFileForProcessing(fileRecord.id))?.id, fileRecord.id);
+    await db('workspaces').where({ id: testWorkspaceId }).update({
+      suspendedAt: new Date(),
+      suspendedReason: 'Hold file processing',
+    });
+    try {
+      assert.equal(await fileStore.getFileForProcessing(fileRecord.id), null);
+    } finally {
+      await db('workspaces').where({ id: testWorkspaceId }).update({ suspendedAt: null, suspendedReason: null });
+    }
 
     // Test 2: Mark file as ready (simulating worker scanning)
     console.log('\nTest 2: Marking file as ready...');

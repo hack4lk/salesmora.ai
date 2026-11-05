@@ -1,5 +1,5 @@
 import type { Knex } from '@salesmora/data';
-import { createFileStore, createStorageAdapter, generateThumbnail, convertHeicToJpeg, isHeic, isProcessableImage, decryptFile, deserializeFileCiphertext, deserializeDekEnvelope } from '@salesmora/data';
+import { createFileStore, createStorageAdapter, withoutSuspendedWorkspaces, generateThumbnail, convertHeicToJpeg, isHeic, isProcessableImage, decryptFile, deserializeFileCiphertext, deserializeDekEnvelope } from '@salesmora/data';
 import type { StorageAdapter } from '@salesmora/data';
 
 export interface FileProcessingJob {
@@ -10,6 +10,7 @@ export interface FileProcessingJob {
 export interface FileProcessingResult {
   fileId: string;
   success: boolean;
+  held: boolean;
   thumbnailCreated: boolean;
   heicConverted: boolean;
   error?: string;
@@ -28,6 +29,7 @@ export async function processFileForStorage(
   const result: FileProcessingResult = {
     fileId,
     success: false,
+    held: false,
     thumbnailCreated: false,
     heicConverted: false,
   };
@@ -36,6 +38,15 @@ export async function processFileForStorage(
     // Get file record
     const fileRow = await store.getFileForProcessing(fileId);
     if (!fileRow) {
+      const heldFile = await db('files as f')
+        .join('workspaces as w', 'w.id', 'f.workspaceId')
+        .where('f.id', fileId)
+        .whereNotNull('w.suspendedAt')
+        .first('f.id');
+      if (heldFile) {
+        result.held = true;
+        return result;
+      }
       result.error = 'File not found';
       return result;
     }
@@ -130,7 +141,8 @@ export async function sweepOrphanedFiles(
     const uploading24hAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     // Find orphaned files in uploading state
-    const orphans = await db('files')
+    // Uploads for a suspended workspace are held, not swept, until it is unsuspended.
+    const orphans = await withoutSuspendedWorkspaces(db('files'), 'files.workspaceId')
       .where('status', 'uploading')
       .andWhere('createdAt', '<', uploading24hAgo)
       .limit(100);

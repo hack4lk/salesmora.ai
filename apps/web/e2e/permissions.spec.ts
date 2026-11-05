@@ -141,7 +141,7 @@ test('forged, protected, unavailable and invalid dependency edits are rejected w
   expect((await api.post('/api/permissions', { headers, data: { ...change(before), role: 'owner' } })).status()).toBe(422);
   expect((await api.post('/api/permissions', { headers, data: change(before, 'owner', 'permissions.manage') })).status()).toBe(422);
   expect((await api.post('/api/permissions', { headers, data: change(before, 'office', 'leads.read') })).status()).toBe(422);
-  expect((await api.post('/api/permissions', { headers, data: change(before, 'office', 'campaigns.create') })).status()).toBe(403);
+  expect((await api.post('/api/permissions', { headers, data: change(before, 'office', 'leadCapture.create') })).status()).toBe(403);
   const duplicate = change(before);
   duplicate.policy.grants.push(duplicate.policy.grants[0]);
   expect((await api.post('/api/permissions', { headers, data: duplicate })).status()).toBe(422);

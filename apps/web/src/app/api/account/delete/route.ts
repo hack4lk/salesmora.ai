@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../server/http/suspension';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { verifyPassword } from 'better-auth/crypto';
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
     await requestAccountDeletion(db, session.user.id, body.workspaceId, body.confirmation, hash => verifyPassword({ hash, password: body.password }));
     return reply({ accepted: true }, 202);
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     return reply({ error: error instanceof AccountDeletionError ? error.message : error instanceof AuthorizationAccessError ? 'Account deletion access denied.' : 'Deletion could not be started. Try again.' }, error instanceof AuthorizationAccessError ? 403 : 409);
   }
 }

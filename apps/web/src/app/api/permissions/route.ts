@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../server/http/suspension';
 import { NextResponse } from 'next/server';
 import { policyChangeSchema } from '@salesmora/contracts';
 import { validateWorkspacePolicy } from '@salesmora/domain';
@@ -15,6 +16,7 @@ export async function GET(request: Request) {
   if (!workspaceId || !identifier.test(workspaceId)) return reply({ error: 'Invalid workspace.' }, 400);
   try { return reply({ policy: await readPermissions(session.user.id, workspaceId) }); }
   catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) return reply({ error: 'Permissions are unavailable.' }, 403);
     return reply({ error: 'Permissions could not be loaded.' }, 500);
   }
@@ -41,6 +43,7 @@ export async function POST(request: Request) {
     if (!validateWorkspacePolicy(parsed.data.policy).ok) return reply({ error: 'Invalid permission dependencies or protected permissions.' }, 422);
     return reply({ policy: await savePermissions(session.user.id, parsed.data) });
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationConflictError) return reply({ error: 'Permissions changed elsewhere.', reason: 'conflict' }, 409);
     if (error instanceof AuthorizationAccessError) return reply({ error: 'This permission change is unavailable.' }, 403);
     return reply({ error: 'Permissions could not be saved.' }, 500);

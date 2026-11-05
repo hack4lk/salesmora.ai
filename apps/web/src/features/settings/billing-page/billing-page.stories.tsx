@@ -73,6 +73,30 @@ export const ConnectedPreview: Story = {args:{snapshot:{...liveSnapshot,invoices
   await userEvent.click(c.getByRole('button',{name:copy.closeInvoice}));
   await expect(c.queryByRole('heading',{name:'Invoice · SM-001'})).not.toBeInTheDocument();
 }};
+const complimentarySnapshot = {
+  ...liveSnapshot,plan:'free' as const,status:'free',paidThrough:null,payment:null,billingEmail:null,invoices:[],
+  usage:{teammates:7,newLeads:1320,aiTokens:'2500000',monthlyAITokens:20000000},
+  override:{plan:'premium' as const,endsAt:'2026-12-31T00:00:00.000Z'},
+};
+export const ComplimentaryPlan: Story = {args:{snapshot:complimentarySnapshot},play:async({canvasElement})=>{
+  const c=within(canvasElement);
+  await expect(c.getByText('Premium',{exact:true})).toBeVisible();
+  await expect(c.getByText(copy.complimentary,{exact:true})).toBeVisible();
+  await expect(c.getByText(copy.overrideNote('December 31, 2026','Free'))).toBeVisible();
+  await expect(c.getByText('$0.00')).toBeVisible();
+  await expect(c.getByText('7 of 20')).toBeVisible();
+  await expect(c.getByText('1,320 of 5,000')).toBeVisible();
+  await expect(c.getByText(copy.noSavedCard)).toBeVisible();
+  await expect(c.queryByRole('button',{name:copy.cancel})).not.toBeInTheDocument();
+}};
+export const ComplimentaryAbovePaidPlan: Story = {args:{snapshot:{...liveSnapshot,plan:'standard',invoices:[],usage:{teammates:7,newLeads:1320,aiTokens:'2500000',monthlyAITokens:20000000},override:{plan:'premium',endsAt:'2026-12-31T00:00:00.000Z'}}},play:async({canvasElement})=>{
+  const c=within(canvasElement);
+  await expect(c.getByText('Premium',{exact:true})).toBeVisible();
+  await expect(c.getByText(copy.overrideNote('December 31, 2026','Standard'))).toBeVisible();
+  await expect(c.getByText('$29.00')).toBeVisible();
+  await expect(c.getByText('7 of 20')).toBeVisible();
+  await expect(c.getByRole('button',{name:copy.cancel})).toBeEnabled();
+}};
 export const ProviderUnavailable: Story = {args:{snapshot:{...liveSnapshot,payment:null,billingEmail:null,providerAvailable:false,invoices:[]}}};
 
 export const CancelSubscription: Story = {play:async({canvasElement,args})=>{

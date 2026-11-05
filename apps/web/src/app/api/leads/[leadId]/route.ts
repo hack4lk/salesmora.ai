@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../server/http/suspension';
 import { NextResponse } from 'next/server';
 import { AuthorizationAccessError, LeadEditConflictError, LeadSourceLockedError, LeadDeleteConflictError, LeadDeleteConfirmationError, LeadDeleteWonError } from '@salesmora/data';
 import { leadDetailQuerySchema, updateLeadSchema, deleteLeadSchema } from '@salesmora/contracts';
@@ -14,6 +15,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ lead
   if (!input.success) return NextResponse.json({ error: 'This lead is unavailable.' }, { status: 404, headers });
   try { return NextResponse.json(await workspaceLead(session.user.id, input.data.workspaceId, leadId, input.data.activityPage), { headers }); }
   catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) return NextResponse.json({ error: 'This lead is unavailable.' }, { status: 404, headers });
     return NextResponse.json({ error: 'This lead could not be loaded. Try again.' }, { status: 500, headers });
   }
@@ -34,6 +36,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ le
     await updateWorkspaceLead(session.user.id, input.data);
     return NextResponse.json(await workspaceLead(session.user.id, input.data.workspaceId, leadId), { headers });
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) return NextResponse.json({ error: 'This lead is unavailable or you no longer have permission to edit it.' }, { status: 404, headers });
     if (error instanceof LeadEditConflictError) return NextResponse.json({ error: error.message, changedFields: error.changedFields }, { status: 409, headers });
     if (error instanceof LeadSourceLockedError) return NextResponse.json({ error: 'The source of this Gmail or campaign lead cannot be changed.' }, { status: 422, headers });
@@ -57,6 +60,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ l
   if (!input.success || input.data.leadId !== leadId) return NextResponse.json({ error: 'Invalid deletion request.' }, { status: 400, headers });
   try { return NextResponse.json(await deleteWorkspaceLead(session.user.id, input.data), { headers }); }
   catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) return NextResponse.json({ error: 'This lead is unavailable or you no longer have permission to delete it.' }, { status: 404, headers });
     if (error instanceof LeadDeleteConflictError) return NextResponse.json({ error: 'This lead changed. Reload before deleting it.' }, { status: 409, headers });
     if (error instanceof LeadDeleteWonError) return NextResponse.json({ error: 'Won leads cannot be deleted. Archive this lead instead.' }, { status: 422, headers });

@@ -1,0 +1,15 @@
+export const capturePublicationInstructionsData = {
+  title: 'Share your capture form', description: 'Share the hosted link or add the published form to your website.',
+  availability: 'Form availability', statuses: { active: 'Active', paused: 'Paused', scheduled: 'Scheduled', archived: 'Archived', blocked: 'Unavailable' },
+  statusHelp: { active: 'The hosted link and embedded form are accepting submissions.', paused: 'The hosted link and embedded form show your paused message and do not accept submissions.', scheduled: 'The form is not accepting submissions yet. It starts at the scheduled launch time.', archived: 'This source is archived and is not accepting submissions.', blocked: 'This form is not accepting submissions. Resolve the source’s access or readiness issue before relaunching.' },
+  url: 'Hosted form link', copyLink: 'Copy link', open: 'Open hosted form', code: 'Embed code', copyCode: 'Copy code', copying: 'Copying…', copiedLink: 'Link copied.', copiedCode: 'Embed code copied.', copyFailed: 'Could not copy. Select the link or code and copy it manually.',
+  method: 'Embedding method', methods: { iframe: 'iFrame', javascript: 'JavaScript' }, platform: 'Website platform', platforms: { website: 'Regular website', wordpress: 'WordPress' },
+  instructions: 'Installation guidance', websiteSteps: ['Open the page where you want the form to appear.', 'Add an HTML or embed block and paste the embed code.', 'Publish the page, then check the form on desktop and mobile.'],
+  wordpressSteps: ['Edit the page in WordPress.', 'Add a Custom HTML block and paste the embed code.', 'Update the page and check the published page. Your site permissions or security plugins may restrict embedded code.'],
+  scriptHint: 'If your site removes scripts, use the iFrame option or ask your website administrator to install the code.',
+  sameForm: 'The hosted link and embed show the same published form. Publishing a revised form updates both.',
+  test: 'Test with sample details after installation. Submitting the live form sends a real request.',
+  draft: 'Review and launch this capture source to receive its hosted link and embed code.',
+  invalid: 'Publication details are incomplete or unavailable. Reload this source before copying installation details.', denied: 'You do not have permission to view these publication details.',
+  stories: { description: 'Example publication details on a reserved example domain. Copying is mocked; no live form or embed loader is published.', name: 'Water heater inquiries', url: 'https://forms.salesmora.example/f/water-heater', code: '<iframe src="https://forms.salesmora.example/f/water-heater" title="Water heater inquiry" width="100%" height="640" loading="lazy"></iframe>', script: '<div data-salesmora-form="water-heater"></div>\n<script src="https://forms.salesmora.example/embed.js" data-form-id="water-heater" async></script>', scheduled: '2026-10-30T13:00:00.000Z', timezone: 'America/New_York', changed: 'Use updated publication details', updatedUrl: 'https://forms.salesmora.example/f/updated-water-heater', long: 'Residential plumbing maintenance and whole-home improvement inquiries ' },
+};

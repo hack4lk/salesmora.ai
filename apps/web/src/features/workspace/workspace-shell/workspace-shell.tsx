@@ -61,14 +61,17 @@ export function WorkspaceShell({currentPage = 'home',currentSettingsPage,current
       homeHref={`/home?workspace=${encodeURIComponent(workspaceId)}`}
       calendarHref={`/calendar?workspace=${encodeURIComponent(workspaceId)}`}
       estimatesHref={`/estimates?workspace=${encodeURIComponent(workspaceId)}`}
+      leadSettingsHref={authorizedPages.includes('lead-settings') ? `/settings/leads?workspace=${encodeURIComponent(workspaceId)}` : undefined}
       estimateSettingsHref={authorizedPages.includes('estimate-settings') ? `/settings/estimates?workspace=${encodeURIComponent(workspaceId)}` : undefined}
       jobsHref={`/jobs?workspace=${encodeURIComponent(workspaceId)}`}
       workOrdersHref={`/work-orders?workspace=${encodeURIComponent(workspaceId)}`}
       materialsHref={`/materials?workspace=${encodeURIComponent(workspaceId)}`}
       customersHref={`/customers?workspace=${encodeURIComponent(workspaceId)}`}
+      leadCaptureHref={`/lead-capture?workspace=${encodeURIComponent(workspaceId)}`}
       leadsHref={`/leads?workspace=${encodeURIComponent(workspaceId)}`}
       settingsHref={`/settings?workspace=${encodeURIComponent(workspaceId)}`}
-      availablePages={['home', 'leads', 'customers', 'jobs', 'work-orders', 'materials', 'calendar', 'estimates', 'settings']}
+      intakeHref={`/intake?workspace=${encodeURIComponent(workspaceId)}`}
+      availablePages={['intake', 'campaigns', 'home', 'leads', 'customers', 'jobs', 'work-orders', 'materials', 'calendar', 'estimates', 'settings']}
       authorizedPages={[...authorizedPages.filter(page => page !== 'settings'), 'settings']}
       accountSettingsAvailable
       signingOut={pending}

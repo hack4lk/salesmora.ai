@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><meta name="theme-color" content="#0f1c2b"><title>Admin sign-in · SalesMora Admin prototype</title>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#23384D;background:#0f1c2b;--blue:#3B6FA5;--blue-dark:#315C8A;--seafoam:#7CCBB7;--ink:#23384D;--line:#e3e7ed;--muted:#667085;--amber:#b54708;--amber-bg:#fffaeb;--red:#b42318;--red-bg:#fef3f2;--green:#067647;--green-bg:#ecfdf3}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#0f1c2b}button,input{font:inherit}button{cursor:pointer}a{color:inherit}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #8DB5D5;outline-offset:2px}[hidden]{display:none!important}
+.env-bar{display:flex;align-items:center;justify-content:center;gap:8px;height:30px;background:#f79009;color:#3d1d00;font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase}
+.env-bar.production{background:#d92d20;color:#fff}
+.page{min-height:calc(100vh - 30px);display:grid;place-items:center;padding:40px 18px;background:radial-gradient(900px 500px at 50% -10%,#1d3550,#0f1c2b 70%)}
+.shell{width:min(420px,100%)}
+.brand{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-6px -4px 18px;padding-bottom:16px;border-bottom:1px solid #E2EAF1}
+.brand img{display:block;width:168px;height:auto}
+.admin-tag{padding:4px 8px;border-radius:6px;background:var(--ink);color:#fff;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.icon{width:16px;height:16px;flex:0 0 auto;fill:currentColor}.icon.lg{width:28px;height:28px}
+.card{padding:26px 26px 22px;border:1px solid #23384D;border-radius:14px;background:#fff;box-shadow:0 18px 50px #0008}
+.gate{display:flex;align-items:flex-start;gap:9px;margin-bottom:18px;padding:10px 11px;border:1px solid #cfe0ee;border-radius:9px;background:#F4F8FC;color:#3d5268;font-size:10px;line-height:1.5}
+.gate strong{color:var(--ink)}.gate .icon{color:#2f8f78}
+h1{margin:0 0 5px;color:var(--ink);font-size:20px;font-weight:680;letter-spacing:-.035em}
+.lead{margin:0 0 18px;color:#667085;font-size:11px;line-height:1.5}
+.steps{display:flex;gap:6px;margin-bottom:16px}.step{flex:1;height:4px;border-radius:4px;background:#e4e7ec}.step.done{background:var(--blue)}
+.field{margin-bottom:13px}.field label{display:block;margin-bottom:5px;color:#344054;font-size:10px;font-weight:650}
+.field input{width:100%;height:40px;padding:0 11px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#1d2939;font-size:12px}
+.field input[readonly]{background:#f2f4f7;color:#475467}
+.field input[aria-invalid="true"]{border-color:#f04438;box-shadow:0 0 0 3px #fee4e2}
+.hint{margin-top:5px;color:#8a94a3;font-size:9px;line-height:1.4}.error-text{margin-top:5px;color:var(--red);font-size:10px}
+.code-input{letter-spacing:.5em;text-align:center;font-variant-numeric:tabular-nums;font-size:16px!important}
+.button{display:inline-flex;width:100%;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 14px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;font-size:11px;font-weight:650}
+.button:hover{background:#f8f9fb}.button.primary{border-color:var(--blue);background:var(--blue);color:#fff}.button.primary:hover{background:var(--blue-dark)}
+.button[disabled]{opacity:.6;cursor:not-allowed}
+.links{display:flex;flex-direction:column;gap:7px;margin-top:14px;text-align:center}
+.link{border:0;background:none;color:var(--blue);font-size:10px;font-weight:620}.link:hover{text-decoration:underline}
+.alert{display:flex;gap:9px;margin-bottom:14px;padding:10px 11px;border-radius:9px;font-size:10px;line-height:1.5}
+.alert.error{border:1px solid #fecdca;background:var(--red-bg);color:#912018}
+.alert.warn{border:1px solid #fedf89;background:var(--amber-bg);color:#93370d}
+.alert.ok{border:1px solid #abefc6;background:var(--green-bg);color:#05603a}
+.passkey-box{display:grid;place-items:center;gap:9px;margin:4px 0 16px;padding:22px 14px;border:1px dashed #b9cfe3;border-radius:11px;background:#F4F8FC;text-align:center}
+.passkey-icon{display:grid;width:52px;height:52px;place-items:center;border-radius:14px;background:#e3eef8;color:var(--blue)}
+.passkey-box p{margin:0;color:#526079;font-size:10px;line-height:1.5}
+.spinner{width:14px;height:14px;border:2px solid #ffffff80;border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.foot{margin-top:16px;color:#7f8aa3;font-size:9px;line-height:1.6;text-align:center}
+.foot a{color:#b9c4dc}
+.summary{margin:0 0 14px;padding:0;list-style:none;border:1px solid var(--line);border-radius:9px}
+.summary li{display:flex;justify-content:space-between;gap:10px;padding:9px 11px;border-bottom:1px solid #eff1f4;color:#475467;font-size:10px}.summary li:last-child{border-bottom:0}.summary span:last-child{color:#1d2939;font-weight:620;text-align:right}
+/* Prototype review controls — not part of the product UI */
+.review{position:fixed;right:14px;bottom:14px;z-index:20;width:250px;padding:12px;border:1px solid #3b4a6b;border-radius:11px;background:#141e33;color:#c9d2e6;font-size:10px;box-shadow:0 10px 30px #0009}
+.review h2{margin:0 0 4px;color:#fff;font-size:10px;letter-spacing:.1em;text-transform:uppercase}.review p{margin:0 0 8px;color:#8d99b5;font-size:9px;line-height:1.4}
+.review-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}.review button{min-height:27px;padding:0 6px;border:1px solid #33415f;border-radius:6px;background:#1c2842;color:#d5dcec;font-size:9px;text-align:left}
+.review button:hover{border-color:#5b6f9a}.review button.active{border-color:#8DB5D5;background:#25405a;color:#fff}
+.review-toggle{margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.review details{margin-top:8px}.review summary{cursor:pointer;color:#aab6d1}
+.review ul{margin:6px 0 0;padding-left:14px;color:#8d99b5;font-size:9px;line-height:1.5}
+@media (max-width:1100px){.review{position:static;width:auto;max-width:420px;margin:0 auto 24px}}
+</style>
+</head>
+<body>
+<div class="env-bar" id="envBar" role="status"><span id="envLabel">Staging environment</span></div>
+<main class="page">
+  <div class="shell">
+    <section class="card" aria-labelledby="title">
+      <div class="brand"><img src="../branding/assets/salesmora-logo.svg" alt="SalesMora.ai" width="168" height="45"><span class="admin-tag">Admin</span></div>
+      <div class="gate" id="gateNote"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg><span>Verified by Cloudflare Access as <strong id="gateEmail">lukasz@salesmora.ai</strong> (Google Workspace, security key). You still need your SalesMora Admin password and a second factor.</span></div>
+
+      <div class="steps" aria-hidden="true"><span class="step" id="step1"></span><span class="step" id="step2"></span></div>
+      <div id="alert" role="alert" aria-live="assertive"></div>
+
+      <!-- Step 1: password -->
+      <form id="viewPassword" novalidate>
+        <h1 id="title">Sign in to Admin</h1>
+        <p class="lead">For SalesMora staff only. Customer accounts cannot sign in here.</p>
+        <div class="field">
+          <label for="email">Staff email</label>
+          <input id="email" type="email" value="lukasz@salesmora.ai" readonly aria-describedby="emailHint">
+          <div class="hint" id="emailHint">Locked to the identity verified by Cloudflare Access.</div>
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password" aria-describedby="passwordError">
+          <div class="error-text" id="passwordError" hidden></div>
+        </div>
+        <button class="button primary" id="passwordSubmit" type="submit">Continue</button>
+        <div class="links"><button type="button" class="link" data-open="forgot">Forgot password?</button></div>
+      </form>
+
+      <!-- Step 2a: passkey -->
+      <section id="viewPasskey" hidden>
+        <h1>Confirm with your passkey</h1>
+        <p class="lead">Use the passkey or security key registered to <strong>lukasz@salesmora.ai</strong>.</p>
+        <div class="passkey-box">
+          <div class="passkey-icon"><svg class="icon lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.81 4.47c-.08 0-.16-.02-.23-.06C15.66 3.42 14 3 12.01 3c-1.98 0-3.86.47-5.57 1.41-.24.13-.54.04-.68-.2-.13-.24-.04-.55.2-.68C7.82 2.52 9.86 2 12.01 2c2.13 0 3.99.47 6.03 1.52.25.13.34.43.21.67-.09.18-.26.28-.44.28zM3.5 9.72c-.1 0-.2-.03-.29-.09-.23-.16-.28-.47-.12-.7.99-1.4 2.25-2.5 3.75-3.27C9.98 4.04 14 4.03 17.15 5.65c1.5.77 2.76 1.86 3.75 3.25.16.22.11.54-.12.7-.23.16-.54.11-.7-.12-.9-1.26-2.04-2.25-3.39-2.94-2.87-1.47-6.54-1.47-9.4.01-1.36.7-2.5 1.7-3.4 2.96-.08.14-.23.21-.39.21zm6.25 12.07c-.13 0-.26-.05-.35-.15-.87-.87-1.34-1.43-2.01-2.64-.69-1.23-1.05-2.73-1.05-4.34 0-2.97 2.54-5.39 5.66-5.39s5.66 2.42 5.66 5.39c0 .28-.22.5-.5.5s-.5-.22-.5-.5c0-2.42-2.09-4.39-4.66-4.39-2.57 0-4.66 1.97-4.66 4.39 0 1.44.32 2.77.93 3.85.64 1.15 1.08 1.64 1.85 2.42.19.2.19.51 0 .71-.11.1-.24.15-.37.15zm7.17-1.85c-1.19 0-2.24-.3-3.1-.89-1.49-1.01-2.38-2.65-2.38-4.39 0-.28.22-.5.5-.5s.5.22.5.5c0 1.41.72 2.74 1.94 3.56.71.48 1.54.71 2.54.71.24 0 .64-.03 1.04-.1.27-.05.53.13.58.41.05.27-.13.53-.41.58-.57.11-1.07.12-1.21.12zM14.91 22c-.04 0-.09-.01-.13-.02-1.59-.44-2.63-1.03-3.72-2.1-1.4-1.39-2.17-3.24-2.17-5.22 0-1.62 1.38-2.94 3.08-2.94 1.7 0 3.08 1.32 3.08 2.94 0 1.07.93 1.94 2.08 1.94s2.08-.87 2.08-1.94c0-3.77-3.25-6.83-7.25-6.83-2.84 0-5.44 1.58-6.61 4.03-.39.81-.59 1.76-.59 2.8 0 .78.07 2.01.67 3.61.1.26-.03.55-.29.64-.26.1-.55-.04-.64-.29-.49-1.31-.73-2.61-.73-3.96 0-1.2.23-2.29.68-3.24 1.33-2.79 4.28-4.6 7.51-4.6 4.55 0 8.25 3.51 8.25 7.83 0 1.62-1.38 2.94-3.08 2.94s-3.08-1.32-3.08-2.94c0-1.07-.93-1.94-2.08-1.94s-2.08.87-2.08 1.94c0 1.71.66 3.31 1.87 4.51.95.94 1.86 1.46 3.27 1.85.27.07.42.35.35.61-.05.23-.26.38-.47.38z"/></svg></div>
+          <p id="passkeyStatus">Your browser will ask you to touch your security key or use Touch ID.</p>
+        </div>
+        <button class="button primary" id="passkeyButton" type="button">Use passkey</button>
+        <div class="links">
+          <button type="button" class="link" data-open="totp">Use authenticator app code instead</button>
+          <button type="button" class="link" data-open="recovery">Use a recovery code</button>
+          <button type="button" class="link" data-open="password">Back</button>
+        </div>
+      </section>
+
+      <!-- Step 2b: TOTP -->
+      <form id="viewTotp" novalidate hidden>
+        <h1>Enter authenticator code</h1>
+        <p class="lead">Open your authenticator app and enter the 6-digit code for SalesMora Admin.</p>
+        <div class="field">
+          <label for="totp">6-digit code</label>
+          <input id="totp" class="code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-describedby="totpError">
+          <div class="error-text" id="totpError" hidden></div>
+        </div>
+        <button class="button primary" type="submit">Verify</button>
+        <div class="links">
+          <button type="button" class="link" data-open="passkey">Use passkey instead</button>
+          <button type="button" class="link" data-open="recovery">Use a recovery code</button>
+        </div>
+      </form>
+
+      <!-- Step 2c: recovery code -->
+      <form id="viewRecovery" novalidate hidden>
+        <h1>Use a recovery code</h1>
+        <p class="lead">Each recovery code works once. After signing in, register a new passkey and generate new codes.</p>
+        <div class="field">
+          <label for="recovery">Recovery code</label>
+          <input id="recovery" autocomplete="off" placeholder="xxxxx-xxxxx" aria-describedby="recoveryError">
+          <div class="error-text" id="recoveryError" hidden></div>
+        </div>
+        <button class="button primary" type="submit">Verify recovery code</button>
+        <div class="links"><button type="button" class="link" data-open="passkey">Back to passkey</button></div>
+      </form>
+
+      <!-- Forgot password -->
+      <section id="viewForgot" hidden>
+        <h1>Reset your admin password</h1>
+        <p class="lead">Admin passwords are not reset by email. Ask another Super Admin to issue a reset from <strong>Staff</strong>. You will need your passkey or authenticator to complete it.</p>
+        <div class="alert warn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg><span>If you are the only Super Admin and lost all factors, use the bootstrap recovery runbook (Railway shell access required).</span></div>
+        <button class="button" type="button" data-open="password">Back to sign-in</button>
+      </section>
+
+      <!-- Success -->
+      <section id="viewSuccess" hidden>
+        <h1>You're signed in</h1>
+        <p class="lead">Session details for this sign-in:</p>
+        <ul class="summary">
+          <li><span>Staff role</span><span>Super Admin</span></li>
+          <li><span>Second factor</span><span id="factorUsed">Passkey</span></li>
+          <li><span>Session ends</span><span>8 hours, or after 30 min idle</span></li>
+          <li><span>Recorded in audit log</span><span>staff.sign_in</span></li>
+        </ul>
+        <div class="alert warn" id="recoveryUsedNote" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg><span>You used a recovery code. 7 codes remain. Review your factors under <strong>My account</strong>.</span></div>
+        <button class="button primary" type="button" id="goDashboard">Continue to dashboard</button>
+        <div class="links"><button type="button" class="link" data-open="password">Sign out</button></div>
+      </section>
+
+      <!-- Blocked: Access identity mismatch / no staff account -->
+      <section id="viewBlocked" hidden>
+        <h1>No admin access</h1>
+        <p class="lead" id="blockedText">Cloudflare Access verified <strong>alex@salesmora.ai</strong>, but there is no active SalesMora Admin account for that email.</p>
+        <div class="alert error"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/></svg><span>Ask a Super Admin to send you an invitation. This attempt has been logged.</span></div>
+        <button class="button" type="button" data-state="normal">Back</button>
+      </section>
+    </section>
+
+    <p class="foot">Every sign-in and action is recorded in the staff audit log.<br>Need help? See <a href="#" data-open="forgot">Admin runbook: signing in</a></p>
+  </div>
+</main>
+
+<aside class="review" aria-label="Prototype review controls">
+  <h2>Prototype states</h2>
+  <p>Review-only controls. Hint: password <code>admin-pass</code>, code <code>123456</code>, recovery <code>abcde-12345</code>.</p>
+  <div class="review-grid" id="stateButtons">
+    <button type="button" data-state="normal" class="active">Normal</button>
+    <button type="button" data-state="wrong">Wrong password</button>
+    <button type="button" data-state="locked">Locked out</button>
+    <button type="button" data-state="expired">Session expired</button>
+    <button type="button" data-state="stepup">Step-up re-auth</button>
+    <button type="button" data-state="nostaff">No staff account</button>
+    <button type="button" data-state="disabled">Account disabled</button>
+    <button type="button" data-state="passkeyfail">Passkey fails</button>
+  </div>
+  <div class="review-toggle"><span>Environment</span><button type="button" id="envToggle">Switch to production</button></div>
+  <details><summary>Decisions (Oct 28)</summary>
+    <ul>
+      <li>Decided: password + second factor; passkey does not replace the password.</li>
+      <li>Decided: email locked to the Cloudflare Access identity.</li>
+      <li>Decided: show remaining attempts before the 15-minute lock.</li>
+    </ul>
+  </details>
+</aside>
+
+<script>
+const $ = id => document.getElementById(id);
+const ICONS = { ok: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>', warn: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>', error: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/></svg>' };
+const views = { password: 'viewPassword', passkey: 'viewPasskey', totp: 'viewTotp', recovery: 'viewRecovery', forgot: 'viewForgot', success: 'viewSuccess', blocked: 'viewBlocked' };
+let failures = 0;
+let forcePasskeyFail = false;
+
+function show(name) {
+  Object.values(views).forEach(id => { $(id).hidden = true; });
+  $(views[name]).hidden = false;
+  $('step1').classList.toggle('done', name !== 'password' && name !== 'forgot' && name !== 'blocked');
+  $('step2').classList.toggle('done', name === 'success');
+  const first = $(views[name]).querySelector('input:not([readonly]), button.primary, button');
+  if (first) first.focus();
+}
+function alertBox(kind, text) {
+  $('alert').innerHTML = text ? `<div class="alert ${kind}">${ICONS[kind]}<span>${text}</span></div>` : '';
+}
+function fieldError(inputId, errorId, text) {
+  $(inputId).setAttribute('aria-invalid', text ? 'true' : 'false');
+  $(errorId).hidden = !text; $(errorId).textContent = text || '';
+}
+function reset() {
+  failures = 0; forcePasskeyFail = false;
+  ['password', 'totp', 'recovery'].forEach(id => { $(id).value = ''; });
+  fieldError('password', 'passwordError'); fieldError('totp', 'totpError'); fieldError('recovery', 'recoveryError');
+  $('passwordSubmit').disabled = false; $('gateNote').hidden = false;
+  $('title').textContent = 'Sign in to Admin';
+  alertBox();
+}
+function wrongText() {
+  const left = 5 - failures;
+  return `Email or password is incorrect. ${left} ${left === 1 ? 'attempt' : 'attempts'} left before sign-in is paused for 15 minutes.`;
+}
+function lock() {
+  $('passwordSubmit').disabled = true;
+  alertBox('error', 'Too many failed attempts. Sign-in is paused for 15 minutes. Super Admins have been alerted.');
+}
+
+$('viewPassword').addEventListener('submit', e => {
+  e.preventDefault();
+  if ($('passwordSubmit').disabled) return;
+  const value = $('password').value;
+  if (!value) return fieldError('password', 'passwordError', 'Enter your password.');
+  if (value !== 'admin-pass') {
+    failures += 1; fieldError('password', 'passwordError');
+    if (failures >= 5) return lock();
+    return alertBox('error', wrongText());
+  }
+  fieldError('password', 'passwordError'); alertBox(); show('passkey');
+});
+
+$('passkeyButton').addEventListener('click', () => {
+  const btn = $('passkeyButton');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner" aria-hidden="true"></span> Waiting for passkey…';
+  $('passkeyStatus').textContent = 'Touch your security key or confirm with Touch ID.';
+  setTimeout(() => {
+    btn.disabled = false; btn.textContent = 'Use passkey';
+    if (forcePasskeyFail) {
+      $('passkeyStatus').textContent = 'Your browser did not return a passkey.';
+      return alertBox('error', 'Passkey verification was cancelled or timed out. Try again or use your authenticator app.');
+    }
+    $('factorUsed').textContent = 'Passkey'; $('recoveryUsedNote').hidden = true; alertBox(); show('success');
+  }, 1100);
+});
+
+$('viewTotp').addEventListener('submit', e => {
+  e.preventDefault();
+  const value = $('totp').value.trim();
+  if (!/^\d{6}$/.test(value)) return fieldError('totp', 'totpError', 'Enter the 6-digit code from your authenticator app.');
+  if (value !== '123456') return fieldError('totp', 'totpError', 'That code is not valid. Codes change every 30 seconds.');
+  fieldError('totp', 'totpError'); $('factorUsed').textContent = 'Authenticator app'; $('recoveryUsedNote').hidden = true; alertBox(); show('success');
+});
+
+$('viewRecovery').addEventListener('submit', e => {
+  e.preventDefault();
+  const value = $('recovery').value.trim().toLowerCase();
+  if (!value) return fieldError('recovery', 'recoveryError', 'Enter a recovery code.');
+  if (value !== 'abcde-12345') return fieldError('recovery', 'recoveryError', 'That recovery code is not valid or was already used.');
+  fieldError('recovery', 'recoveryError'); $('factorUsed').textContent = 'Recovery code'; $('recoveryUsedNote').hidden = false; alertBox(); show('success');
+});
+
+$('totp').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); });
+
+document.addEventListener('click', e => {
+  const open = e.target.closest('[data-open]');
+  if (open) { e.preventDefault(); alertBox(); show(open.dataset.open); }
+});
+
+$('goDashboard').addEventListener('click', () => { location.href = 'prototype-screen-38-admin-dashboard.html'; });
+
+const states = {
+  normal() { reset(); show('password'); },
+  wrong() { reset(); show('password'); $('password').value = 'wrong'; failures = 1; alertBox('error', wrongText()); },
+  locked() { reset(); show('password'); failures = 5; lock(); },
+  expired() { reset(); show('password'); alertBox('warn', 'Your admin session ended after 30 minutes of inactivity. Sign in again to continue.'); },
+  stepup() {
+    reset(); show('passkey');
+    alertBox('warn', '<strong>Confirm it\'s you.</strong> “Suspend workspace: Northside Plumbing” requires re-authentication within the last 5 minutes.');
+  },
+  nostaff() { reset(); show('blocked'); $('gateEmail').textContent = 'alex@salesmora.ai'; },
+  disabled() {
+    reset(); show('password');
+    alertBox('error', 'This admin account is disabled. Contact a Super Admin. This attempt has been logged.'); $('passwordSubmit').disabled = true;
+  },
+  passkeyfail() { reset(); show('passkey'); forcePasskeyFail = true; },
+};
+$('stateButtons').addEventListener('click', e => {
+  const b = e.target.closest('button[data-state]'); if (!b) return;
+  document.querySelectorAll('#stateButtons button').forEach(x => x.classList.toggle('active', x === b));
+  $('gateEmail').textContent = 'lukasz@salesmora.ai';
+  states[b.dataset.state]();
+});
+document.querySelector('#viewBlocked [data-state]').addEventListener('click', () => { $('gateEmail').textContent = 'lukasz@salesmora.ai'; states.normal(); });
+
+$('envToggle').addEventListener('click', () => {
+  const prod = !$('envBar').classList.contains('production');
+  $('envBar').classList.toggle('production', prod);
+  $('envLabel').textContent = prod ? 'Production environment' : 'Staging environment';
+  $('envToggle').textContent = prod ? 'Switch to staging' : 'Switch to production';
+});
+</script>
+</body>
+</html>

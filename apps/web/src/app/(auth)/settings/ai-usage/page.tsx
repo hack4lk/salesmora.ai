@@ -1,4 +1,4 @@
-import { chatRuntimeAvailable } from '../../../../server/chat/config';
+import { workspaceChatAvailable } from '../../../../server/chat/config';
 import { AuthorizationAccessError } from '@salesmora/data';
 import { redirect, notFound } from 'next/navigation';
 import { headers } from 'next/headers';
@@ -26,7 +26,7 @@ export default async function AIUsageSettingsPage({ searchParams }: { searchPara
   if (!workspace) { if (workspaceId) notFound(); redirect('/setup'); }
   const { context, usage } = await readWorkspaceAIUsage(session.user.id, workspace.id).catch(error => { if (error instanceof AuthorizationAccessError) notFound(); throw error; });
   const capabilities = workspaceCapabilities(context);
-  return <WorkspaceShell chatEnabled={chatRuntimeAvailable()} chatSurface="settings.overview" currentPage="settings" currentSettingsPage="ai-usage" billingAvailable={capabilities.billing} jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} authorizedPages={workspaceNavigationPages(context)} assistantAvailable={capabilities.assistant} contentWidth="full" workspaceId={workspace.id} workspaceName={workspace.businessName} user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} onSignOut={signOut}>
+  return <WorkspaceShell chatEnabled={await workspaceChatAvailable(workspace.id)} chatSurface="settings.overview" currentPage="settings" currentSettingsPage="ai-usage" billingAvailable={capabilities.billing} jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} authorizedPages={workspaceNavigationPages(context)} assistantAvailable={capabilities.assistant} contentWidth="full" workspaceId={workspace.id} workspaceName={workspace.businessName} user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} onSignOut={signOut}>
     <AIUsageRoute key={`${workspace.id}:${usage.usedOrReservedTokens}:${usage.monthlyTokens}:${usage.resetAt}`} workspaceId={workspace.id} workspaceName={workspace.businessName} initialUsage={usage}/>
   </WorkspaceShell>;
 }

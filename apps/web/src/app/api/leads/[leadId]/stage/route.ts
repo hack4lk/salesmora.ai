@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../../server/http/suspension';
 import { NextResponse } from 'next/server';
 import { AuthorizationAccessError, LeadStageConflictError } from '@salesmora/data';
 import { moveLeadStageSchema } from '@salesmora/contracts';
@@ -15,6 +16,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ lea
   if (!input.success || input.data.leadId !== leadId) return NextResponse.json({ error: 'Check the stage and optional Lost reason.' }, { status: 422, headers });
   try { return NextResponse.json(await moveWorkspaceLeadStage(session.user.id, input.data), { headers }); }
   catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) return NextResponse.json({ error: 'This lead is unavailable or you no longer have permission to move it.' }, { status: 404, headers });
     if (error instanceof LeadStageConflictError) return NextResponse.json({ error: error.message }, { status: 409, headers });
     return NextResponse.json({ error: 'The stage change could not be confirmed. Reload the lead before trying again.' }, { status: 500, headers });

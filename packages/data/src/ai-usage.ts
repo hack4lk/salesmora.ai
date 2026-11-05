@@ -1,6 +1,5 @@
 import { sandboxBillingEnabled } from './billing/stripe';
-import { getWorkspacePlan } from '@salesmora/domain';
-import { workspacePlanIdSchema } from '@salesmora/contracts';
+import { effectiveWorkspacePlan, getWorkspacePlan } from '@salesmora/domain';
 import { randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
 import { AIBudgetExceededError, validAITokenUsage, type AIUsageRecorder, type AIUsageResult } from '@salesmora/contracts';
@@ -9,6 +8,15 @@ export function defaultMonthlyAITokens(value = process.env.CHAT_MONTHLY_WORKSPAC
   if (value === undefined) return 5_000_000;
   if (!/^(0|[1-9]\d*)$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) > 1_000_000_000_000) throw Error('Invalid monthly AI allowance configuration');
   return Number(value);
+}
+async function effectiveDefaultMonthlyAITokens(db: Knex) {
+  const result = await db.raw<{ rows: { monthlyTokens: string | null }[] }>(
+    'SELECT public.get_default_monthly_ai_tokens()::text AS "monthlyTokens"',
+  );
+  const configured = result.rows[0]?.monthlyTokens;
+  return configured === null || configured === undefined
+    ? defaultMonthlyAITokens()
+    : defaultMonthlyAITokens(configured);
 }
 async function lockBudget(trx: Knex.Transaction, workspaceId: string) {
   await trx.raw('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', [`ai-budget:${workspaceId}`]);
@@ -19,22 +27,27 @@ export async function workspaceAIAllowance(db: Knex, workspaceId: string, at?: D
     .whereRaw(`"startedAt" >= (date_trunc('month', coalesce(?::timestamptz, statement_timestamp()) AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')`, [at ?? null])
     .select(db.raw('coalesce(sum(coalesce("totalTokens", "reservationTokens")), 0)::text AS used')).first();
   const billing = await db('workspaceSubscriptions').where({workspaceId}).first();
-  let monthlyTokens = override ? Number(override.monthlyTokens) : defaultMonthlyAITokens();
+  let monthlyTokens = override ? Number(override.monthlyTokens) : await effectiveDefaultMonthlyAITokens(db);
   if (sandboxBillingEnabled() && !override && billing && (!billing.transitionUntil || new Date(billing.transitionUntil).getTime() <= (at ?? new Date()).getTime())) {
-    const now = (at ?? new Date()).getTime();
-    const paid = billing.status === 'active' && billing.paidThrough && new Date(billing.paidThrough).getTime() > now;
-    const grace = billing.status === 'past_due' && billing.recoveryUntil && new Date(billing.recoveryUntil).getTime() > now;
-    monthlyTokens = getWorkspacePlan(paid || grace ? workspacePlanIdSchema.parse(billing.plan) : 'free').limits.aiTokensPerMonth;
+    const workspace = await db('workspaces').where({ id: workspaceId }).first('planOverride', 'planOverrideEndsAt');
+    monthlyTokens = getWorkspacePlan(effectiveWorkspacePlan(billing, workspace, at ?? new Date()).plan).limits.aiTokensPerMonth;
   }
   return { monthlyTokens, usedTokens: BigInt(result.used) };
 }
 /** Trusted operator service, not exposed to prompts or a browser mutation endpoint. */
+export async function configureWorkspaceAIBudgetInTransaction(
+  trx: Knex.Transaction,
+  workspaceId: string,
+  monthlyTokens: number,
+) {
+  defaultMonthlyAITokens(String(monthlyTokens));
+  await lockBudget(trx, workspaceId);
+  await trx('workspaceAITokenBudgets').insert({ workspaceId, monthlyTokens }).onConflict('workspaceId')
+    .merge({ monthlyTokens, updatedAt: trx.fn.now() });
+}
 export async function configureWorkspaceAIBudget(db: Knex, workspaceId: string, monthlyTokens: number) {
   defaultMonthlyAITokens(String(monthlyTokens));
-  await db.transaction(async trx => {
-    await lockBudget(trx, workspaceId);
-    await trx('workspaceAITokenBudgets').insert({ workspaceId, monthlyTokens }).onConflict('workspaceId').merge({ monthlyTokens, updatedAt: trx.fn.now() });
-  });
+  await db.transaction(trx => configureWorkspaceAIBudgetInTransaction(trx, workspaceId, monthlyTokens));
 }
 /** Server-owned identity only. Reservations and finalization serialize across all teammates. */
 export function createAIUsageRecorder(db: Knex, identity: AIUsageIdentity = {}): AIUsageRecorder {

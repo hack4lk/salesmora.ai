@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../../../server/http/suspension';
 import { NextResponse } from "next/server";
 import { estimateIdSchema } from "@salesmora/contracts";
 import {
@@ -49,6 +50,7 @@ export async function GET(
       },
     });
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) {
       return NextResponse.json({ error: "This logo is unavailable." }, { status: 404, headers });
     }

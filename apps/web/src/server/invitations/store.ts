@@ -1,13 +1,12 @@
 import 'server-only';
-import { createHash, randomBytes } from 'node:crypto';
-import { PlanCapacityError, assertSeatCapacity, AuthorizationAccessError, loadWorkspaceAuthorization } from '@salesmora/data';
+import { randomBytes } from 'node:crypto';
+import { PlanCapacityError, assertSeatCapacity, AuthorizationAccessError, loadWorkspaceAuthorization, invitationLifetimeMs, invitationTokenHash as hash, invitationURL, newInvitationToken } from '@salesmora/data';
 import { authorize } from '@salesmora/domain';
 import { authorizedWorkspace, enabledPermissions } from '../authorization/permissions';
 import { database } from '../workspaces/store';
 import { sendInvitationEmail } from '../email/send-invitation';
 import type { InvitationSummary, InvitationUnavailable } from '../../features/auth/invitation-acceptance/invitation-acceptance';
 export const validInvitationToken = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
-const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 interface InvitationRow {
   id: string; workspaceId: string; email: string; role: 'admin' | 'office' | 'field'; inviterId: string | null; status: string;
   tokenHash: string | null; expiresAt: Date | null; acceptedBy: string | null;
@@ -33,17 +32,16 @@ export async function deliverOwnerInvitations(ownerId: string, sendEmail = sendI
       try { inviter = await loadWorkspaceAuthorization(trx, { userId: invite.inviterId, workspaceId }, enabledPermissions); }
       catch (error) { if (error instanceof AuthorizationAccessError) return false; throw error; }
       if (!authorize(inviter, { permission: 'team.invite', targetRole: invite.role }).allowed) return false;
-      const token = randomBytes(32).toString('hex');
+      const { token, tokenHash } = newInvitationToken();
       const baseURL = process.env.BETTER_AUTH_URL!;
-      const url = new URL('/accept-invitation',baseURL); url.searchParams.set('token',token);
       try {
-        await sendEmail(invite.email,{url:url.href,inviterName:owner.name,workspaceName:workspace.businessName,role:invite.role},baseURL);
+        await sendEmail(invite.email,{url:invitationURL(baseURL,token),inviterName:owner.name,workspaceName:workspace.businessName,role:invite.role},baseURL);
       } catch {
         // Keep the invitation queued for an explicit owner retry. Never log the link or recipient.
         console.error('Invitation email delivery failed. Check the configured email service.');
         return false;
       }
-      await trx('workspaceInvitations').where({id}).update({status:'sent',tokenHash:hash(token),expiresAt:new Date(Date.now()+7*86400000),sentAt:new Date()});
+      await trx('workspaceInvitations').where({id}).update({status:'sent',tokenHash,expiresAt:new Date(Date.now()+invitationLifetimeMs),sentAt:new Date()});
       return true;
     });
     if (delivered) sent++;

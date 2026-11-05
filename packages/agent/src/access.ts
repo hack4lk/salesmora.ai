@@ -1,3 +1,4 @@
+import { availableCaptureSetupOperations } from './lead-capture/authorization';
 import { canProposeCalendarSchedule } from './calendar/tools';
 import { availableCustomerOperations } from "./customers/tools";
 import { canProposeEstimateAction } from "./estimates/tools";
@@ -29,6 +30,8 @@ export const chatSurfaceRegistry = Object.fromEntries(
     surface,
     [
       "search_help",
+      "lead_capture_query",
+      "lead_capture_propose_action",
       "calendar_query",
       "calendar_propose_action",
       "customers_query",
@@ -91,6 +94,10 @@ export function authorizeChatTool(
   const assistant = authorize(context, { permission: "assistant.use" });
   if (!assistant.allowed) return denied();
   switch (id) {
+    case "lead_capture_propose_action":
+      return availableCaptureSetupOperations(context).length ? assistant : denied();
+    case "lead_capture_query":
+      return resolveAuthorizedCollectionScope(context, "leadCapture.read");
     case "calendar_propose_action":
       return canProposeCalendarSchedule(context) ? assistant : denied();
     case "calendar_query":

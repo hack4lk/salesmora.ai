@@ -1,6 +1,7 @@
 import { Queue } from 'bullmq';
 import { createDatabase } from '@salesmora/data';
 import { workerConfiguration } from './config.js';
+import { captureSchedulerConfiguration } from './capture-delivery.js';
 async function status() {
   const config = workerConfiguration();
   const db = createDatabase(config.databaseURL);
@@ -17,7 +18,8 @@ async function status() {
     const deadlineDelivery = await db('deadlineNotifications').select('emailStatus').count({count:'*'}).groupBy('emailStatus');
     const jobDelivery = await db('jobNotifications').select('emailStatus').count({count:'*'}).groupBy('emailStatus');
     const ready = !!scheduler && reports.every(report => report.workers > 0);
-    console.log(JSON.stringify({ event: 'worker.status', ready, retentionScheduled: !!scheduler, assignmentDelivery, visitDelivery, deadlineDelivery, jobDelivery, queues: reports }));
+    const capture = captureSchedulerConfiguration();
+    console.log(JSON.stringify({ event: 'worker.status', ready, retentionScheduled: !!scheduler, captureSchedulerConfigured: !!capture, captureWorkspaceCount: capture?.workspaces.length ?? 0, assignmentDelivery, visitDelivery, deadlineDelivery, jobDelivery, queues: reports }));
     if (!ready) process.exitCode = 1;
   } finally { await Promise.allSettled(queues.map(queue => queue.close())); await db.destroy(); }
 }

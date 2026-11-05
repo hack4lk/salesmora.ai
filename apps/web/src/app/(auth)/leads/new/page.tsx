@@ -1,4 +1,4 @@
-import { chatRuntimeAvailable } from '../../../../server/chat/config';
+import { workspaceChatAvailable } from '../../../../server/chat/config';
 import { AuthorizationAccessError } from '@salesmora/data';
 import { authorize } from '@salesmora/domain';
 import { workspaceAuthorization, workspaceCapabilities, workspaceNavigationPages } from '../../../../server/authorization/permissions';
@@ -28,7 +28,7 @@ export default async function CreateLeadPage({ searchParams }: { searchParams: P
   if (!authorize(context, { permission: 'leads.create' }).allowed) notFound();
   const capabilities = workspaceCapabilities(context);
   const owners = await leadOwners(session.user.id, workspace.id).catch(error => { if (error instanceof AuthorizationAccessError || error instanceof LeadAccessError) notFound(); throw error; });
-  return <WorkspaceShell chatEnabled={chatRuntimeAvailable()} chatSurface="leads.create" billingAvailable={capabilities.billing} jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} authorizedPages={workspaceNavigationPages(context)} assistantAvailable={capabilities.assistant} currentPage="leads" workspaceId={workspace.id} workspaceName={workspace.businessName} user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} title={copy.title} description={copy.description} onSignOut={signOut}>
+  return <WorkspaceShell chatEnabled={await workspaceChatAvailable(workspace.id)} chatSurface="leads.create" billingAvailable={capabilities.billing} jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} authorizedPages={workspaceNavigationPages(context)} assistantAvailable={capabilities.assistant} currentPage="leads" workspaceId={workspace.id} workspaceName={workspace.businessName} user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} title={copy.title} description={copy.description} onSignOut={signOut}>
     <CreateLeadRoute workspaceId={workspace.id} owners={owners} />
   </WorkspaceShell>;
 }

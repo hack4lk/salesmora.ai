@@ -10,7 +10,8 @@ import {
   type PermissionId,
 } from "@salesmora/contracts";
 import { resolveAuthorizedCollectionScope } from "@salesmora/domain";
-import { AuthorizationAccessError, withWorkspaceAuthorization } from "../authorization/store";
+import { AuthorizationAccessError, WorkspaceSuspendedError, withWorkspaceAuthorization } from "../authorization/store";
+import { withoutSuspendedWorkspaces } from "../accounts/workspace-hold";
 
 type EstimateNotificationRow = {
   id: string;
@@ -204,7 +205,7 @@ export async function processEstimateNotificationEmails(
     throw new RangeError("Invalid Estimate notification delivery batch size.");
   }
   const summary = { sent: 0, skipped: 0, retryPending: 0, failed: 0 };
-  const candidates = await db("estimateNotifications")
+  const candidates = await withoutSuspendedWorkspaces(db("estimateNotifications"), "estimateNotifications.workspaceId")
     .where({ emailStatus: "queued" })
     .where("nextAttemptAt", "<=", db.fn.now())
     .orderBy("nextAttemptAt").orderBy("id").limit(limit)
@@ -275,6 +276,7 @@ export async function processEstimateNotificationEmails(
         },
       );
     } catch (error) {
+      if (error instanceof WorkspaceSuspendedError) continue;
       if (!(error instanceof AuthorizationAccessError)) throw error;
       await db.transaction(async trx => {
         await trx("workspaces").where({ id: candidate.workspaceId }).forShare().first("id");

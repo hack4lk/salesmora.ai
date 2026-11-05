@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../server/http/suspension';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { billingPaymentMethodRequestSchema } from '@salesmora/contracts';
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
     const result = body.action==='prepare' ? await prepareWorkspaceCard(db,session.user.id,body.workspaceId) : await saveWorkspaceCard(db,session.user.id,body.workspaceId,body.attemptId);
     return result ? reply(result) : reply({error:'Card verification expired. Reopen payment details.'},409);
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     return reply({error:error instanceof BillingAccessError || error instanceof AuthorizationAccessError ? 'Owner billing access required.' : 'The card update could not be confirmed. Refresh Billing before trying again.'},error instanceof BillingAccessError || error instanceof AuthorizationAccessError ? 403 : 409);
   }
 }

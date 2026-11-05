@@ -8,6 +8,9 @@ const estimateStatuses = {
 
 export const notificationMenuData = {
   title: 'Notifications',
+  captureTitle: 'Lead Capture needs attention',
+  captureOpen: 'Review capture source',
+  captureReasons: { publication: 'A scheduled publication needs attention. Review its readiness and explicitly approve another launch.', entitlement: 'Gmail access has ended. Review the workspace plan before relaunching.', source_capacity: 'The workspace has too many published sources for its plan. Archive excess sources, then explicitly relaunch the sources you retain.', workspace: 'Capture has stopped while this workspace is unavailable.', connection: 'Capture delivery is unavailable. Resolve the connection before relaunching.' },
   jobDeadlineTitles: { added: 'A Job completion deadline was set', changed: 'A Job’s completion deadline changed', removed: 'A Job completion deadline was removed' },
   jobDeadlineTitle: (before: string | null, after: string | null) => after === null ? 'A Job completion deadline was removed' : before === null ? 'A Job completion deadline was set' : 'A Job’s completion deadline changed',
   jobPreviousDeadline: 'Previous completion deadline', jobNewDeadline: 'New completion deadline',

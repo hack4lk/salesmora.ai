@@ -21,12 +21,14 @@ export { FilterChip, type FilterChipProps } from './forms/filter-chip/filter-chi
 export { FilterBar, type FilterBarProps, type ActiveFilter } from './forms/filter-bar/filter-bar';
 export { Pagination, type PaginationProps } from './data-display/pagination/pagination';
 export { Toast, type ToastProps } from './feedback/toast/toast';
+export { HelpTooltip, type HelpTooltipProps } from './feedback/help-tooltip/help-tooltip';
 
 export { DragIndicatorOutlined } from './icons';
 
 export { HomeOutlined } from './icons';
 export { NotificationsNoneOutlined } from './icons';
 export { CloseOutlined } from './icons';
+export { ArrowUpwardOutlined, ArrowDownwardOutlined, DeleteOutlineOutlined } from './icons';
 export { CheckCircleOutlined } from './icons';
 export { ErrorOutlined } from './icons';
 

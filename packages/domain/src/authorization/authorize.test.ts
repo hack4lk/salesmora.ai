@@ -29,7 +29,7 @@ describe('all default role/action combinations', () => {
           lead: lead(c.userId), job: job(c.userId, []), estimate: estimate(job(c.userId, [])), work_order: { ...workOrder(job(c.userId, []), [c.userId]), primaryAssigneeId: c.userId },
           customer: { kind: 'customer', id: 'customer-1', workspaceId: 'workspace-a', related: [lead(c.userId)] },
           calendar: { kind: 'calendar', id: 'event', workspaceId: 'workspace-a', userId: c.userId, job: null },
-          campaign: { kind: 'campaign', id: 'campaign-1', workspaceId: 'workspace-a' },
+          capture_source: { kind: 'capture_source', id: 'campaign-1', workspaceId: 'workspace-a' },
           intake: { kind: 'intake', id: 'intake-1', workspaceId: 'workspace-a' },
           workspace: undefined, report: undefined, activity: undefined,
         }[spec.resource];
@@ -74,8 +74,8 @@ describe('code-owned catalog and policy validation', () => {
   });
   for (const role of ['office', 'field'] as const) {
     for (const id of permissionIds.filter(id => /\.(export|delete|archive)$/.test(id))) {
-      // Estimate archive and never-shared Draft deletion are approved Office powers.
-      if (role === 'office' && (id === 'estimates.archive' || id === 'estimates.delete')) continue;
+      // Estimate archive/draft deletion and capture-source archive are approved Office powers.
+      if (role === 'office' && (id === 'estimates.archive' || id === 'estimates.delete' || id === 'leadCapture.archive')) continue;
       it(`permanently rejects ${role} grant for ${id}`, () => {
         const policy = defaultPolicy(); setGrant(policy, role, id, permissionCatalog[id].scopes[0]);
         expect(validateWorkspacePolicy(policy)).toEqual({ ok: false, reason: 'role-ceiling' });
@@ -105,7 +105,7 @@ describe('code-owned catalog and policy validation', () => {
     expect(validateWorkspacePolicy(policy).ok).toBe(false);
     const noJob = defaultPolicy(); remove(noJob, 'field', 'jobs.read');
     expect(validateWorkspacePolicy(noJob).ok).toBe(false);
-    const noRead = defaultPolicy(); remove(noRead, 'office', 'campaigns.read');
+    const noRead = defaultPolicy(); remove(noRead, 'office', 'leadCapture.read');
     expect(validateWorkspacePolicy(noRead).ok).toBe(false);
   });
 });
@@ -121,7 +121,7 @@ describe('fail-closed identity, feature and policy boundaries', () => {
     ]) { const c = context(); mutate(c); expect(authorize(c, { permission: 'leads.read', resource: lead() }).allowed).toBe(false); }
     expect(authorize(null, { permission: 'leads.read' }).allowed).toBe(false);
     expect(authorize(context(), { permission: 'unknown' }).allowed).toBe(false);
-    expect(authorize({ ...context(), browserTools: ['campaigns.create'] }, { permission: 'leads.read', resource: lead() }).allowed).toBe(false);
+    expect(authorize({ ...context(), browserTools: ['leadCapture.create'] }, { permission: 'leads.read', resource: lead() }).allowed).toBe(false);
   });
   it('requires explicitly enabled actions and dependencies, including for Owner', () => {
     const c = context('owner'); c.enabledPermissions = [];
@@ -137,7 +137,7 @@ describe('fail-closed identity, feature and policy boundaries', () => {
   });
   it('protects catalog restrictions from accidental runtime mutation', () => {
     expect(Object.isFrozen(permissionCatalog)).toBe(true);
-    expect(Object.isFrozen(permissionCatalog['campaigns.archive'].eligibleRoles)).toBe(true);
+    expect(Object.isFrozen(permissionCatalog['leadCapture.archive'].eligibleRoles)).toBe(true);
     expect(Object.isFrozen(permissionCatalog['permissions.manage'].defaults)).toBe(true);
   });
   it('keeps Owner-only deletion protected and reviewed job edits executable', () => {
@@ -263,13 +263,13 @@ describe('record scopes and action separation', () => {
     remove(admin.policy, 'admin', 'activity.export');
     expect(resolveAuthorizedCollectionScope(admin, 'reports.read')).toMatchObject({ allowed: true, scope: 'workspace', sourceScopes: { lead: 'assigned', job: 'workspace' } });
   });
-  it('Office campaign access never implies archive or integration administration', () => {
-    const resource = { kind: 'campaign', workspaceId: 'workspace-a', id: 'campaign-1' };
-    for (const permission of ['campaigns.read', 'campaigns.update', 'campaigns.activate', 'campaigns.pause'] as const) {
+  it('Office capture-source archive is independent of integration administration', () => {
+    const resource = { kind: 'capture_source', workspaceId: 'workspace-a', id: 'campaign-1' };
+    for (const permission of ['leadCapture.read', 'leadCapture.update', 'leadCapture.activate', 'leadCapture.pause', 'leadCapture.archive'] as const) {
       expect(authorize(context('office'), { permission, resource }).allowed).toBe(true);
       expect(authorize(context(), { permission, resource }).allowed).toBe(false);
     }
-    for (const permission of ['campaigns.archive', 'integrations.read', 'integrations.manage'] as const) expect(authorize(context('office'), { permission, resource: permission === 'campaigns.archive' ? resource : undefined }).allowed).toBe(false);
+    for (const permission of ['integrations.read', 'integrations.manage'] as const) expect(authorize(context('office'), { permission, resource: undefined }).allowed).toBe(false);
   });
 });
 
@@ -299,13 +299,13 @@ describe('membership administration and Owner-only policy saves', () => {
   });
   it('only current Owner can save the next policy revision with invariants intact', () => {
     const policy = defaultPolicy(); policy.revision = 5;
-    remove(policy, 'office', 'campaigns.pause');
+    remove(policy, 'office', 'leadCapture.pause');
     const change = { expectedRevision: 4, policy };
     expect(authorizePolicyChange(context('owner'), change).allowed).toBe(true);
     for (const role of ['admin', 'office', 'field'] as const) expect(authorizePolicyChange(context(role), change).allowed).toBe(false);
     expect(authorizePolicyChange(context('owner'), { ...change, expectedRevision: 3 }).allowed).toBe(false);
     expect(authorizePolicyChange(context('owner'), { ...change, policy: { ...policy, workspaceId: 'workspace-b' } }).allowed).toBe(false);
-    const escalated = structuredClone(policy); setGrant(escalated, 'office', 'campaigns.archive', 'workspace');
+    const escalated = structuredClone(policy); setGrant(escalated, 'field', 'leadCapture.archive', 'workspace');
     expect(authorizePolicyChange(context('owner'), { ...change, policy: escalated }).allowed).toBe(false);
     const revoked = context('owner'); revoked.ownerUserId = 'new-owner';
     expect(authorizePolicyChange(revoked, change).allowed).toBe(false);

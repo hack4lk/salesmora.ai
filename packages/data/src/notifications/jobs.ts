@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
 import { jobDateSchema, jobStatusSchema, type JobStatus, type AuthorizationContext, type JobNotificationRecord, type JobAssignmentRemovalRecord, type PermissionId } from '@salesmora/contracts';
-import { withWorkspaceAuthorization, AuthorizationAccessError } from '../authorization/store';
+import { withWorkspaceAuthorization, AuthorizationAccessError, WorkspaceSuspendedError } from '../authorization/store';
+import { withoutSuspendedWorkspaces } from '../accounts/workspace-hold';
 import { effectiveJobNotificationPolicy } from '../job-notification-settings/policy';
 import { readableNotificationJobs } from './job-access';
 
@@ -113,7 +114,7 @@ export type JobMail = (JobCreatedMail & (JobEvent | { event: 'assignment'; acces
 export async function processJobEmails(db: Knex, enabled: readonly PermissionId[], send: (mail: JobMail) => Promise<void>, limit = 10) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new RangeError('Invalid delivery batch size');
   const summary = { sent: 0, skipped: 0, retryPending: 0, failed: 0 };
-  const candidates = await db('jobNotifications').where({ emailStatus: 'queued' }).where('nextAttemptAt', '<=', db.fn.now())
+  const candidates = await withoutSuspendedWorkspaces(db('jobNotifications'), 'jobNotifications.workspaceId').where({ emailStatus: 'queued' }).where('nextAttemptAt', '<=', db.fn.now())
     .orderBy('nextAttemptAt').orderBy('id').limit(limit).select('id', 'workspaceId', 'userId');
   for (const candidate of candidates) try {
     await withWorkspaceAuthorization(db, { workspaceId: candidate.workspaceId, userId: candidate.userId }, enabled, false, async (trx, context) => {
@@ -150,6 +151,7 @@ export async function processJobEmails(db: Knex, enabled: readonly PermissionId[
       }
     });
   } catch (error) {
+    if (error instanceof WorkspaceSuspendedError) continue;
     if (!(error instanceof AuthorizationAccessError)) throw error;
     await db('jobNotifications').where({ id: candidate.id, emailStatus: 'queued' }).update({ emailStatus: 'skipped' }); summary.skipped++;
   }

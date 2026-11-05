@@ -26,7 +26,9 @@ Configure these in Railway's Variables UI or a secure secret manager; do not pas
 | Variable | Web | Worker |
 | --- | --- | --- |
 | `NODE_ENV` | `production` (image default) | `production` (image default) |
-| `DATABASE_URL` | Reference private staging PostgreSQL URL | Same staging reference |
+| `DATABASE_URL` | Private staging URL for the `salesmora_web` role ([database roles](database-roles.md)) | Same host with the `salesmora_worker` role |
+| `MIGRATION_DATABASE_URL` | Owner reference URL used only by the pre-deploy migration and `db-roles.ts` | Unneeded |
+| `DATABASE_ROLE_ENFORCED` | `true` after the role rollout | `true` after the role rollout |
 | `BETTER_AUTH_URL` | Exact generated HTTPS web origin, no wildcard | Unneeded |
 | `BETTER_AUTH_SECRET` | New random secret, at least 32 characters | Unneeded |
 | `TERMS_VERSION` | Explicit reviewed staging terms identifier | Unneeded |
@@ -45,7 +47,7 @@ Never configure `SALESMORA_TEST_SERVER`, `CHAT_TEST_PROVIDER`, `SALESMORA_PROXY_
 
 1. Create the dedicated project/environment and set a Railway spending limit/alert appropriate to the account. Confirm region, private networking and persistent database/Redis volumes before starting applications. Configure backups and rehearse restoration into a separate disposable service.
 2. Deploy PostgreSQL and Redis, configure their private URLs, and check connectivity and Redis persistence. The database must support `CREATE EXTENSION vector`; use the custom image above.
-3. Add the web service and generate its HTTPS domain. Set all required runtime variables with chat disabled. Its pre-deploy command directly executes `node --import /app/packages/data/node_modules/tsx/dist/loader.mjs /app/packages/data/src/migrate.ts`. A shell-dependent `cd ... && ...` command failed on Railway; the absolute loader/script command passed. A failed migration stops deployment; it is not automatically retried. Inspect the failure safely, resolve it and redeploy. No test reset/rollback/seed commands run. Migrations must remain backward compatible with the old application during rollout.
+3. Add the web service and generate its HTTPS domain. Set all required runtime variables with chat disabled. Its pre-deploy command directly executes `node --import /app/packages/data/node_modules/tsx/dist/loader.mjs /app/packages/data/src/migrate.ts`. A shell-dependent `cd ... && ...` command failed on Railway; the absolute loader/script command passed. A failed migration stops deployment; it is not automatically retried. Inspect the failure safely, resolve it and redeploy. No test reset/rollback/seed commands run. Migrations must remain backward compatible with the old application during rollout. Runtime services connect with least-privilege roles; follow the [database roles rollout](database-roles.md#railway-rollout-staging-then-production) once per environment.
 4. Verify `/api/health` returns a no-store `200 {"status":"ok"}` and `/login` renders. Health is **process liveness**, not database readiness or a continuous uptime monitor. Verify registration/login and workspace creation separately to establish database/auth readiness. Keep credentials and session cookies out of evidence logs.
 5. Deploy the retention-only worker after web migrations succeed. Check its structured ready log, then run `cd /app/apps/worker && node --import tsx src/status.ts` in a Railway service shell. Confirm scheduler and worker counts. Worker shutdown grace is 40 seconds; web grace is 100 seconds to accommodate a 90-second turn. Rehearse an actual restart; config alone does not prove draining behavior.
 6. Configure external failure/retention-backlog alerts and test delivery. Railway deployment health checks are not a substitute for queue/retention monitoring. See [worker operations](worker-deployment.md).
@@ -191,7 +193,7 @@ The user approved and requested this staging batch: Customers list/profile and m
 
 ## File storage buckets (manual setup, planned — see `file-storage-plan.md`)
 
-Railway buckets are created by hand; `.railway/railway.ts` does not manage them.
+Railway buckets are created by hand. As of November 1, `.railway/railway.ts` explicitly retains the already-created files bucket so an infrastructure plan cannot delete it by omission; its region and credentials are unchanged.
 
 1. In the staging environment, create two Storage Buckets in the same region as the web service: one for files and one for disaster-recovery copies. The region cannot be changed later.
 2. Add variable references on `web` and `worker` for the files bucket, mapped to the app names: `OBJECT_STORAGE_ENDPOINT` ← `ENDPOINT`, `OBJECT_STORAGE_BUCKET` ← `BUCKET`, `OBJECT_STORAGE_REGION` ← `REGION`, `OBJECT_STORAGE_ACCESS_KEY_ID` ← `ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY` ← `SECRET_ACCESS_KEY`. Use `BUCKET`, not `RAILWAY_BUCKET_NAME`. Try `OBJECT_STORAGE_URL_STYLE=virtual`; use `path` if the bucket is older.
@@ -214,3 +216,8 @@ Public health, Calendar/Gantt rendering, shared scheduling/clear/idempotency, Fi
 The user requested enabling staging email for testing. Web `589ba322-c154-4466-9c37-2d0af6b884b0` and worker `05fba878-ff4b-4164-b4f3-498a386c7865` are SUCCESS. `ESTIMATE_EMAIL_ENABLED=true` is configured on both; code additionally requires Railway staging identity and HTTPS. Existing Resend/sender/auth-origin/encryption settings are reused. Local Mailpit is unchanged and external production activation remains blocked.
 
 [Estimate staging email](estimate-staging-email.md) records the 1,978-file frozen source, local checks, provider retry boundary and actual live test. A reviewed fictional estimate to Resend's delivery-test address reached Sent on the first attempt; replay did not duplicate delivery, and its signed-out customer page/API worked without staff-only notes. The fixture was queued for deletion through the normal API. No new schema, database/Redis/bucket change or production deployment. Earlier local-only Estimate limitations in this deployment history are superseded on staging by this explicit rollout. Human inbox/rendering review and bounce/complaint webhook processing are separate from the verified provider acceptance.
+
+
+## Public Lead Capture hosting preparation — November 1, 2026
+
+The user selected `forms-staging.salesmora.ai` first, reserving `forms.salesmora.ai` for production. The [4f rollout proposal](lead-capture-integration-step-4f-rollout.md) prepares a small forms gateway, trusted-edge handling, additive variables, migration review and live verification. Read-only Railway plans show no baseline changes and only gateway creation in the candidate; nothing has been applied. Existing web/worker deployments, domains, variables, database and storage remain unchanged. Publication remains disabled.

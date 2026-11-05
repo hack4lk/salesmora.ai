@@ -58,6 +58,14 @@ export const ServerError: Story = {
     await expect(canvas.getByRole('textbox')).toHaveValue(form.stories.email);
   },
 };
+export const AccountUnavailable: Story = {
+  args: { onSubmit: fn<LoginFormProps['onSubmit']>(async () => ({ ok: false, message: copy.errors.accountUnavailable })) },
+  play: async ({ canvasElement }) => {
+    const canvas = await fill(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: form.submit }));
+    await expect(canvas.getByRole('alert')).toHaveAccessibleDescription(copy.errors.accountUnavailable);
+  },
+};
 export const Success: Story = {
   play: async ({ canvasElement }) => {
     const canvas = await fill(canvasElement);

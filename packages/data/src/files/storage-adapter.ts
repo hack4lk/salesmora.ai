@@ -1,4 +1,6 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
+import { Readable } from 'node:stream';
 
 export interface StorageObject {
   data: Buffer | Uint8Array | string;
@@ -48,6 +50,27 @@ export class StorageAdapter {
     await this.client.send(command);
   }
 
+  async putStream(
+    key: string,
+    stream: Readable,
+    options: { contentType?: string; metadata?: Record<string, string> } = {},
+  ): Promise<void> {
+    const upload = new Upload({
+      client: this.client,
+      params: {
+        Bucket: this.bucket,
+        Key: key,
+        Body: stream,
+        ContentType: options.contentType,
+        Metadata: options.metadata,
+      },
+      partSize: 5 * 1024 * 1024,
+      queueSize: 2,
+      leavePartsOnError: false,
+    });
+    await upload.done();
+  }
+
   async get(key: string): Promise<Buffer> {
     const command = new GetObjectCommand({
       Bucket: this.bucket,
@@ -66,6 +89,15 @@ export class StorageAdapter {
     }
 
     return Buffer.concat(chunks);
+  }
+
+  async getStream(key: string): Promise<Readable> {
+    const response = await this.client.send(new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    }));
+    if (!response.Body) throw new Error(`No body in response for key ${key}`);
+    return Readable.from(response.Body as AsyncIterable<Uint8Array>);
   }
 
   async head(key: string): Promise<StorageObjectMetadata> {

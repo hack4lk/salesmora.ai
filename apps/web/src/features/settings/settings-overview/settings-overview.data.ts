@@ -16,6 +16,7 @@ export const settingsOverviewData = {
   businessTypes, serviceCatalog,
   aiUsageTitle: 'AI usage', aiUsageDescription: 'View your shared monthly assistant allowance, usage and reset date.', viewAIUsage: 'View AI usage',
   workOrdersTitle: 'Work orders', workOrdersDescription: 'Require customer sign-off and set the business phone shown on printed crew sheets.', viewWorkOrders: 'Work order settings',
+  leadsTitle: 'Leads', leadsDescription: 'Choose the business default assignment for new captured leads.', viewLeads: 'Lead settings',
   estimatesTitle: 'Estimates',
   estimatesDescription: 'Manage the business identity and logo shown on customer estimates, payment-term presets and defaults for new Drafts. Previously shared estimates keep their captured details.',
   viewEstimates: 'Estimate settings',

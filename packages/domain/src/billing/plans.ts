@@ -7,9 +7,9 @@ function plan(id: WorkspacePlanId, monthlyPriceCents: number, limits: WorkspaceP
   return Object.freeze({ id, monthlyPriceCents, currency: 'usd', limits: Object.freeze(limits) });
 }
 export const workspacePlanCatalog: Readonly<Record<WorkspacePlanId, WorkspacePlanDefinition>> = Object.freeze({
-  free: plan('free', 0, { teammates: 1, newLeadsPerMonth: 100, publishedCampaigns: 1, aiTokensPerMonth: 1_000_000, storageBytes: GB }),
-  standard: plan('standard', 2900, { teammates: 5, newLeadsPerMonth: 1000, publishedCampaigns: 5, aiTokensPerMonth: 5_000_000, storageBytes: 10 * GB }),
-  premium: plan('premium', 4900, { teammates: 20, newLeadsPerMonth: 5000, publishedCampaigns: null, aiTokensPerMonth: 20_000_000, storageBytes: 25 * GB }),
+  free: plan('free', 0, { teammates: 1, newLeadsPerMonth: 100, publishedCaptureSources: 1, aiTokensPerMonth: 1_000_000, storageBytes: GB }),
+  standard: plan('standard', 2900, { teammates: 5, newLeadsPerMonth: 1000, publishedCaptureSources: 5, aiTokensPerMonth: 5_000_000, storageBytes: 10 * GB }),
+  premium: plan('premium', 4900, { teammates: 20, newLeadsPerMonth: 5000, publishedCaptureSources: null, aiTokensPerMonth: 20_000_000, storageBytes: 25 * GB }),
 });
 
 /** Roles, provider state and record scope are enforced separately. This lookup grants no access. */

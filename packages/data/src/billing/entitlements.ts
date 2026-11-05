@@ -1,6 +1,5 @@
 import type {Knex} from 'knex';
-import {getWorkspacePlan,workspaceUsagePeriod} from '@salesmora/domain';
-import {workspacePlanIdSchema} from '@salesmora/contracts';
+import {effectiveWorkspacePlan,getWorkspacePlan,workspaceUsagePeriod} from '@salesmora/domain';
 import {sandboxBillingEnabled} from './stripe';
 
 export class PlanCapacityError extends Error {
@@ -16,17 +15,19 @@ export async function workspaceEntitlements(db:Knex,workspaceId:string){
   const row=await db('workspaceSubscriptions').where({workspaceId}).first();
   const {rows}=await db.raw('SELECT statement_timestamp() AS now');
   const now=new Date(rows[0].now);
-  const paid=row?.status==='active'&&row.paidThrough&&new Date(row.paidThrough)>now;
-  const grace=row?.status==='past_due'&&row.recoveryUntil&&new Date(row.recoveryUntil)>now;
-  const plan=getWorkspacePlan(paid||grace?workspacePlanIdSchema.parse(row.plan):'free');
+  const workspace=await db('workspaces').where({id:workspaceId}).first('planOverride','planOverrideEndsAt');
+  const effective=effectiveWorkspacePlan(row,workspace,now);
+  const plan=getWorkspacePlan(effective.plan);
   const transition=!!row?.transitionUntil&&new Date(row.transitionUntil)>now;
-  return{plan,now,enforced:sandboxBillingEnabled()&&!transition,period:workspaceUsagePeriod(now)};
+  return{plan,billedPlan:effective.billedPlan,override:effective.override,now,transition,enforced:sandboxBillingEnabled()&&!transition,period:workspaceUsagePeriod(now)};
 }
 /** Call inside the authorized workspace write transaction, before inserting a new lead. */
-export async function assertLeadCapacity(trx:Knex.Transaction,workspaceId:string){
+export async function assertLeadCapacity(trx:Knex.Transaction,workspaceId:string,options:{enforce?:boolean}={}){
   await lockAdmissionWorkspace(trx,workspaceId);
   const entitlement=await workspaceEntitlements(trx,workspaceId);
-  if(!entitlement.enforced)return entitlement.now;
+  // Public service admission cannot inherit the private billing UI's feature flag.
+  // The explicitly approved existing-workspace transition still defers enforcement.
+  if(!entitlement.enforced&&(!options.enforce||entitlement.transition))return entitlement.now;
   const count=await trx('workspaceLeadAdmissions').where({workspaceId}).where('createdAt','>=',entitlement.period.start).where('createdAt','<',entitlement.period.end).count('* as count').first();
   if(Number(count?.count??0)>=entitlement.plan.limits.newLeadsPerMonth)throw new PlanCapacityError('leads',entitlement.plan.limits.newLeadsPerMonth,entitlement.period.end.toISOString());
   return entitlement.now;

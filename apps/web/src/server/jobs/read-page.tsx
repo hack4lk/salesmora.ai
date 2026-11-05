@@ -10,7 +10,7 @@ import { database, findWorkspace } from "../workspaces/store";
 import { enabledPermissions, workspaceAuthorization, workspaceCapabilities, workspaceNavigationPages } from "../authorization/permissions";
 import { WorkspaceShell } from "../../features/workspace/workspace-shell/workspace-shell";
 import { JobsRoute } from "../../features/jobs/jobs-page/jobs-route";
-import { chatRuntimeAvailable } from "../chat/config";
+import { workspaceChatAvailable } from "../chat/config";
 async function signOut() {
   "use server";
   await auth.api.signOut({ headers: await headers() });
@@ -42,7 +42,7 @@ export async function renderJobsPage(params: Record<string, string | string[] | 
     return <WorkspaceShell currentPage="jobs" workspaceId={workspace.id} workspaceName={workspace.businessName}
       user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} authorizedPages={workspaceNavigationPages(context)}
       jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} billingAvailable={capabilities.billing} assistantAvailable={capabilities.assistant}
-      chatEnabled={chatRuntimeAvailable()} contentWidth="full" onSignOut={signOut}>
+      chatEnabled={await workspaceChatAvailable(workspace.id)} contentWidth="full" onSignOut={signOut}>
       <JobsRoute key={`${workspace.id}:${jobId ?? "list"}`} workspaceId={workspace.id} userId={session.user.id} field={context.membership.role === "field"}
         initial={initial} initialQuery={query} initialDetail={detail}
         workOrders={jobWorkOrders && { rows: jobWorkOrders.rows.map(w => ({ id: w.id, number: w.number, title: w.title, status: w.status, assigneeName: w.assigneeName, scheduledDate: w.scheduledDate, tasksDone: w.tasksDone, tasksTotal: w.tasksTotal, overdue: w.overdue })), canCreate: jobWorkOrders.canCreate }}

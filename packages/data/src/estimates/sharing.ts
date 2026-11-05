@@ -30,6 +30,7 @@ import { decryptFile, deserializeDekEnvelope, deserializeFileCiphertext } from "
 import type { StorageAdapter } from "../files/storage-adapter";
 import { estimateDeliveryFailureMessage, stopEstimateDeliveries } from "./delivery";
 import { notifyEstimateRecipients } from "../notifications/estimates";
+import { isFeatureFlagEnabled } from "../feature-flags";
 
 export { estimateDraftPaperContent, estimateEmailSubject } from "./sharing-paper";
 
@@ -215,6 +216,7 @@ export async function shareEstimateInTransaction(
 ): Promise<EstimateShareReceipt> {
     const input = shareEstimateSchema.parse(raw);
     if (input.workspaceId !== context.workspaceId) throw new AuthorizationAccessError();
+    if (!await isFeatureFlagEnabled(trx, "estimate.sharing.enabled", context.workspaceId)) throw new AuthorizationAccessError();
     const identity = context;
     const { seed, canSend } = await loadEstimateSharingContext(trx, context, input.estimateId);
     const estimate = seed.estimate;
@@ -404,6 +406,7 @@ export async function readEstimateCustomerLink(
 ) {
   estimateIdSchema.parse(estimateId);
   return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
+    if (!await isFeatureFlagEnabled(trx, "estimate.sharing.enabled", context.workspaceId)) throw new AuthorizationAccessError();
     const { seed } = await loadEstimateSharingContext(trx, context, estimateId);
     const estimate = seed.estimate;
     if (!estimate || estimate.archived) throw new AuthorizationAccessError();
@@ -428,6 +431,7 @@ export async function readPublicEstimate(
   db: Knex,
   token: string,
   requesterKey: string,
+  allowed: (trx: Knex.Transaction, workspaceId: string) => Promise<boolean> = async () => true,
 ): Promise<PublicEstimateRead> {
   const result = await withPublicEstimate(db, token, requesterKey, async (trx, row, link, now) => {
     await trx("estimate_share_tokens").where({ id: link.id }).update({
@@ -446,7 +450,7 @@ export async function readPublicEstimate(
       }, permissionIds);
     }
     return sharedPaper(row);
-  });
+  }, allowed);
   return result.state === "ready" ? { state: "ready", snapshot: result.value } : result;
 }
 
@@ -455,9 +459,14 @@ export async function readPublicEstimateLogo(
   storage: StorageAdapter,
   token: string,
   requesterKey: string,
+  allowed: (trx: Knex.Transaction, workspaceId: string) => Promise<boolean> = async () => true,
 ): Promise<{ state: "ready"; image: Buffer } | PublicEstimateInactive> {
-  const result = await withPublicEstimate(db, token, requesterKey, async (trx, row) =>
-    snapshotLogo(trx, storage, row.workspaceId, checkedSnapshot(row)),
+  const result = await withPublicEstimate(
+    db,
+    token,
+    requesterKey,
+    async (trx, row) => snapshotLogo(trx, storage, row.workspaceId, checkedSnapshot(row)),
+    allowed,
   );
   return result.state === "ready" ? { state: "ready", image: result.value } : result;
 }
@@ -468,6 +477,7 @@ async function withPublicEstimate<T>(
   token: string,
   requesterKey: string,
   use: (trx: Knex.Transaction, row: SnapshotRow, link: TokenRow, now: Date) => Promise<T>,
+  allowed: (trx: Knex.Transaction, workspaceId: string) => Promise<boolean> = async () => true,
 ): Promise<{ state: "ready"; value: T } | PublicEstimateInactive> {
   if (!requesterKey || requesterKey.length > 200) throw new RangeError("A bounded public requester key is required.");
   if (!await consumePublicRead(db, requesterKey)) return { state: "rate-limited" };
@@ -497,6 +507,7 @@ async function withPublicEstimate<T>(
     if (!row) return { state: "unavailable" };
     const snapshot = verifiedEstimateFrozenSnapshot(row.content, row.contentHash);
     if (!snapshot) return { state: "unavailable" };
+    if (!await allowed(trx, workspace.id)) return { state: "unavailable" };
     return { state: "ready", value: await use(trx, row, link, now) };
   });
 }

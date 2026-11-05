@@ -18,5 +18,6 @@ COPY --from=build --chown=node:node /app /app
 USER node
 WORKDIR /app/apps/web
 EXPOSE 3000
+# Dual-stack listening also supports Railway private DNS in IPv6-only environments.
 # Exec Node directly so Railway's SIGTERM reaches Next.js.
-CMD ["sh", "-c", "exec node node_modules/next/dist/bin/next start --hostname 0.0.0.0 --port \"${PORT:-3000}\""]
+CMD ["sh", "-c", "exec node node_modules/next/dist/bin/next start --hostname :: --port \"${PORT:-3000}\""]

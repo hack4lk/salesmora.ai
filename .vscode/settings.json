@@ -1,0 +1,13 @@
+{
+  "chat.tools.terminal.autoApprove": {
+    "/^cd /Users/lukasz/dev/salesmora\\.ai/docs && python3 - <<'EOF'\np='admin-console-plan\\.md'\ns=open\\(p\\)\\.read\\(\\)\na=\"read flags through a cached `@salesmora/data` helper \\(short TTL\\)\\.\"\nassert a in s\ns=s\\.replace\\(a,\"read flags through a cached `@salesmora/data` helper \\(60 s in-process TTL to keep database reads low; a change takes up to 1 minute to apply\\)\\.\"\\)\na=\"\\| Q5 \\| Should env-based flags \\(`CHAT_ENABLED`, `ESTIMATE_EMAIL_ENABLED`\\) migrate to DB flags, or stay as hard ceilings\\? \\| Keep the environment variables as ceilings and use DB flags for gradual and per-workspace rollout \\|\"\nassert a in s\ns=s\\.replace\\(a,\"\\| Q5 \\| Should env-based flags \\(`CHAT_ENABLED`, `ESTIMATE_EMAIL_ENABLED`\\) migrate to DB flags, or stay as hard ceilings\\? \\| \\*\\*Decided October 28:\\*\\* environment variables stay as hard ceilings that no console change can override, and DB flags control rollout within enabled features \\(global, per plan, per workspace\\)\\. The cache TTL is 60 s, favoring fewer DB reads over instant propagation\\. \\|\"\\)\nopen\\(p,'w'\\)\\.write\\(s\\)\nEOF$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^pnpm test 2>&1 \\| grep -E \"Test Files\\|Tests \\|FAIL\" \\| head$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "pnpm": true
+  }
+}

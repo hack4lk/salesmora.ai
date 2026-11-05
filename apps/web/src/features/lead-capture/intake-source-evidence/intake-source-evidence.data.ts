@@ -1,0 +1,20 @@
+export const intakeSourceEvidenceData = {
+  title: 'Source evidence', email: 'Original email', form: 'Original form submission', source: 'Capture source', received: 'Received',
+  from: 'From', subject: 'Subject', body: 'Email content', noSubject: 'No subject', noSender: 'Sender unavailable', noBody: 'No email content available',
+  noAnswers: 'No submitted answers available', noValue: 'No answer provided', unavailableDate: 'Received time unavailable',
+  fields: 'Field evidence', found: 'Found in source', uncertain: 'Needs checking', missing: 'Not found in source',
+  noEvidence: 'No field evidence is available for this item.', unsupported: 'Source text could not be verified against this original record.',
+  missingHelp: 'No supporting source text was found for this field.', locations: { from: 'Sender', subject: 'Subject', body: 'Email content' },
+  loading: 'Loading source evidence…', error: 'Source evidence could not be loaded. Try again.', retry: 'Try again',
+  denied: 'You do not have permission to view this source evidence.', invalid: 'The original source record is unavailable. Reload the item before reviewing its evidence.',
+  stories: {
+    description: 'Read-only evidence preview using fictional records. No email provider, extraction agent or submission service is connected.',
+    source: 'Gmail enquiries', formSource: 'Website project requests', sender: 'Jamie Carter <jamie.carter@example.com>',
+    subject: 'Kitchen cabinet replacement estimate', body: 'Hello, I would like an estimate.\nName: Jamie Carter\nPhone: (555) 014-2280\nProject: Kitchen cabinet replacement\nPreferred timing: March or April',
+    name: 'Full name', phone: 'Phone', project: 'Project details', timing: 'Preferred timing', address: 'Service address',
+    nameQuote: 'Name: Jamie Carter', timingQuote: 'Preferred timing: March or April',
+    formName: 'Jamie Carter', formProject: 'Kitchen cabinet replacement',
+    untrusted: '<img src=x onerror=alert(1)> https://untrusted.example',
+    long: 'A detailed request about residential remodeling and the customer’s preferred service arrangements. ',
+  },
+} as const;

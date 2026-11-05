@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../server/http/suspension';
 import { PlanCapacityError, AuthorizationAccessError } from '@salesmora/data';
 import { NextResponse } from 'next/server';
 import { createLeadSchema } from '@salesmora/contracts';
@@ -13,6 +14,7 @@ export async function GET(request: Request) {
   if (!workspaceId || !leadDetailQuerySchema.shape.workspaceId.safeParse(workspaceId).success) return NextResponse.json({ error: 'This workspace is unavailable.' }, { status: 404, headers });
   try { return NextResponse.json(await workspaceLeads(session.user.id, leadQueryFromURL(workspaceId, params)), { headers }); }
   catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) return NextResponse.json({ error: 'This workspace is unavailable.' }, { status: 404, headers });
     return NextResponse.json({ error: 'Leads could not be loaded. Try again.' }, { status: 500, headers });
   }
@@ -34,6 +36,7 @@ export async function POST(request: Request) {
     const result = await createLead(session.user.id, workspaceId, submissionId, lead);
     return NextResponse.json({ leadId: result.id }, { status: result.created ? 201 : 200 });
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof PlanCapacityError) return NextResponse.json({error:'Your workspace has reached its monthly new-lead limit. Ask the Owner to change plans or wait for the next monthly reset.',code:'plan_limit',resource:error.resource,limit:error.limit,resetAt:error.resetAt},{status:409,headers:{'Cache-Control':'no-store'}});
     if (error instanceof LeadAccessError || error instanceof AuthorizationAccessError) return NextResponse.json({ error: 'This workspace is unavailable.' }, { status: 403 });
     if (error instanceof LeadOwnerError) return NextResponse.json({ error: 'Choose a current workspace member as lead owner.' }, { status: 422 });

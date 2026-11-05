@@ -19,6 +19,7 @@ import {
   withWorkspaceAuthorization,
   type WorkspaceIdentity,
 } from "../authorization/store";
+import { withoutSuspendedWorkspaces } from "../accounts/workspace-hold";
 import { createFileStore, type FileRecord } from "../files/store";
 import type { StorageAdapter } from "../files/storage-adapter";
 
@@ -448,7 +449,7 @@ export async function cleanupStagedEstimateBusinessLogos(
   now = new Date(),
 ) {
   const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const candidates = await db("files as f")
+  const candidates = await withoutSuspendedWorkspaces(db("files as f"), "f.workspaceId")
     .leftJoin("workspaceEstimateSettings as s", function () {
       this.on("s.workspaceId", "=", "f.workspaceId")
         .andOn("s.logoFileId", "=", db.raw('"f"."id"::text'));
@@ -473,10 +474,11 @@ export async function cleanupStagedEstimateBusinessLogos(
   let removed = 0;
   for (const candidate of candidates) {
     const storageKey = await db.transaction(async (trx) => {
-      await trx("workspaces")
+      const workspace = await trx("workspaces")
         .where({ id: candidate.workspaceId })
         .forUpdate()
-        .first("id");
+        .first<{ id: string; suspendedAt: Date | null }>("id", "suspendedAt");
+      if (!workspace || workspace.suspendedAt) return null;
       const settings = await trx("workspaceEstimateSettings")
         .where({ workspaceId: candidate.workspaceId })
         .forUpdate()

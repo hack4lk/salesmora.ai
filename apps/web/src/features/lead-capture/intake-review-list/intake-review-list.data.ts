@@ -1,0 +1,22 @@
+export const intakeReviewListData = {
+  caption: 'Intake items', lead: 'Proposed lead', source: 'Capture source', status: 'Review status', received: 'Received', actions: 'Actions',
+  unnamed: 'Name not found', noContact: 'Contact details not found', noSummary: 'No summary available', unknownDate: 'Received time unavailable',
+  sources: { website: 'Embedded form', gmail: 'Gmail' },
+  statuses: { awaiting: 'Awaiting review', approved: 'Approved', dismissed: 'Dismissed' },
+  flags: { duplicate: 'Possible duplicate', missing: 'Missing details', uncertain: 'Uncertain fields', capacity: 'Lead capacity reached' },
+  clear: 'No review flags', review: 'Review', view: 'View details', restricted: 'Details access unavailable', pending: 'Waiting for the current action…',
+  actionLabel: (action: string, name: string) => `${action} · ${name}`,
+  denied: 'You do not have permission to view Intake Review.',
+  empty: 'No intake items to review. Eligible submissions and matching emails that need review will appear here.',
+  noMatches: 'No intake items match these filters. Try another search or filter.',
+  error: 'Intake items could not be loaded. Your current filters are preserved.',
+  stories: {
+    title: 'Intake Review', description: 'Fictional intake items using the shared app table. Actions open mocked review flows; no lead is created or changed.',
+    names: ['Jamie Carter', 'Morgan Lee', 'Chris Alvarez', 'Sam Parker'],
+    contacts: ['jamie.carter@example.com', 'morgan.lee@example.com', '(555) 014-2280', 'sam.parker@example.com'],
+    summaries: ['Kitchen cabinet replacement estimate', 'Bathroom renovation request', 'Furnace tune-up enquiry', 'Whole-home renovation estimate'],
+    sourceNames: ['Gmail enquiries', 'Website project requests', 'Previous season enquiries (archived)'],
+    long: 'Residential kitchen remodeling and whole-home improvement requests across our extended service area. ',
+    untrusted: '<img src=x onerror=alert(1)>',
+  },
+} as const;

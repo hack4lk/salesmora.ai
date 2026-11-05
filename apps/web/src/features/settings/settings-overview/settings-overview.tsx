@@ -7,12 +7,13 @@ export interface SettingsOverviewProps {
   aiUsageHref?: string;
   workOrdersHref?: string;
   estimatesHref?: string;
+  leadsSettingsHref?: string;
   jobNotificationsHref?: string;
   billingHref?: string;
   accountHref?: string;
 }
 
-export function SettingsOverview({ workspaceName, profile, jobNotificationsHref, workOrdersHref, estimatesHref, permissionsHref, aiUsageHref, billingHref, accountHref }: SettingsOverviewProps) {
+export function SettingsOverview({ workspaceName, profile, jobNotificationsHref, workOrdersHref, estimatesHref, leadsSettingsHref, permissionsHref, aiUsageHref, billingHref, accountHref }: SettingsOverviewProps) {
   const details = profile ? [
     [copy.fields.businessName, profile.businessName],
     [copy.fields.businessType, copy.businessTypes.find(type => type.value === profile.businessType)?.label ?? profile.businessType],
@@ -25,6 +26,7 @@ export function SettingsOverview({ workspaceName, profile, jobNotificationsHref,
     { id: 'billing', href: billingHref, title: copy.billingTitle, description: copy.billingDescription, link: copy.viewBilling },
     { id: 'ai-usage', href: aiUsageHref, title: copy.aiUsageTitle, description: copy.aiUsageDescription, link: copy.viewAIUsage, ownerOnly: true },
     { id: 'job-notifications', href: jobNotificationsHref, title: copy.jobNotificationsTitle, description: copy.jobNotificationsDescription, link: copy.viewJobNotifications },
+    { id: 'leads', href: leadsSettingsHref, title: copy.leadsTitle, description: copy.leadsDescription, link: copy.viewLeads },
     { id: 'estimates', href: estimatesHref, title: copy.estimatesTitle, description: copy.estimatesDescription, link: copy.viewEstimates },
     { id: 'work-orders', href: workOrdersHref, title: copy.workOrdersTitle, description: copy.workOrdersDescription, link: copy.viewWorkOrders },
     { id: 'permissions', href: permissionsHref, title: copy.permissionsTitle, description: copy.permissionsDescription, link: copy.managePermissions, ownerOnly: true },

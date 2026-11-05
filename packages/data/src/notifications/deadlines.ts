@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
 import type { AuthorizationContext, DeadlineNotificationRecord, PermissionId } from '@salesmora/contracts';
 import { reminderClock, reminderDeadlineForDate } from '@salesmora/domain';
-import { AuthorizationAccessError, withWorkspaceAuthorization } from '../authorization/store';
+import { AuthorizationAccessError, WorkspaceSuspendedError, withWorkspaceAuthorization } from '../authorization/store';
+import { withoutSuspendedWorkspaces } from '../accounts/workspace-hold';
 import { effectiveJobNotificationPolicy } from '../job-notification-settings/policy';
 
 const jobDates = `to_char(j."completionDeadline",'YYYY-MM-DD') AS "completionDeadline"`;
@@ -37,7 +38,7 @@ async function databaseNow(trx: Knex.Transaction) {
  * Unique recipient/Job generation/semantic offset keys survive restarts and offset-ID edits. */
 export async function scheduleDeadlineReminders(db: Knex, enabled: readonly PermissionId[]) {
   let created = 0, failed = 0;
-  const workspaces = await db('workspaces').whereNull('deletionRequestedAt').select('id', 'ownerId');
+  const workspaces = await db('workspaces').whereNull('deletionRequestedAt').whereNull('suspendedAt').select('id', 'ownerId');
   for (const workspace of workspaces) {
     try {
       const count = await withWorkspaceAuthorization(db, { workspaceId: workspace.id, userId: workspace.ownerId }, enabled, true, async (trx, owner) => {
@@ -82,7 +83,7 @@ export type DeadlineReminderMail = {
 export async function processDeadlineEmails(db: Knex, enabled: readonly PermissionId[], send: (mail: DeadlineReminderMail) => Promise<void>, limit = 10) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new RangeError('Invalid delivery batch size');
   const summary = { sent: 0, skipped: 0, retryPending: 0, failed: 0 };
-  const candidates = await db('deadlineNotifications').where({ emailStatus: 'queued' }).where('nextAttemptAt', '<=', db.fn.now())
+  const candidates = await withoutSuspendedWorkspaces(db('deadlineNotifications'), 'deadlineNotifications.workspaceId').where({ emailStatus: 'queued' }).where('nextAttemptAt', '<=', db.fn.now())
     .orderBy('nextAttemptAt').orderBy('id').limit(limit).select('id', 'workspaceId', 'userId');
   for (const candidate of candidates) try {
     await withWorkspaceAuthorization(db, { workspaceId: candidate.workspaceId, userId: candidate.userId }, enabled, false, async (trx, context) => {
@@ -118,6 +119,7 @@ export async function processDeadlineEmails(db: Knex, enabled: readonly Permissi
       }
     });
   } catch (error) {
+    if (error instanceof WorkspaceSuspendedError) continue;
     if (!(error instanceof AuthorizationAccessError)) throw error;
     await db('deadlineNotifications').where({ id: candidate.id, emailStatus: 'queued' }).update({ emailStatus: 'skipped' }); summary.skipped++;
   }

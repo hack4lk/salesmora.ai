@@ -15,6 +15,7 @@ export const loginScreenData = {
   errors: {
     unavailable: 'Sign-in is temporarily unavailable. Please try again.',
     rateLimited: 'Too many sign-in attempts. Wait a moment and try again.',
+    accountUnavailable: 'This account is unavailable. Contact SalesMora support.',
   },
   stories: { success: 'Demo sign-in complete. No session was created.' },
 } as const;

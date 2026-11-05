@@ -1,0 +1,15 @@
+export const captureSourceSelectionData = {
+  name: 'Capture source name', nameHint: 'Use a name your team will recognize. Up to 80 characters.', placeholder: 'e.g. Kitchen remodel requests',
+  choose: 'Where do these leads come from?',
+  website: { title: 'Website or shareable link', description: 'Capture requests from your website or a link you share with customers.', benefits: ['One form with both an embed and a hosted link.', 'Valid submissions create leads; possible duplicates and items needing corrections go to Intake Review.', 'Review your form and lead settings before publishing.'], note: 'Included on every plan. No external account required.' },
+  gmail: { title: 'Gmail inbox', description: 'Find quote and service requests in a Gmail account you authorize.', benefits: ['Connect one Gmail account per capture source.', 'Choose inbox-wide or selected-label monitoring, phrase rules and field mappings.', 'Review matching messages in Intake Review before creating leads.'], note: 'Available on Standard and Premium.' },
+  upgrade: 'Gmail intake requires Standard or Premium. You can choose website capture on your current plan.',
+  unavailable: 'Gmail intake is currently unavailable. Your existing selection is preserved; resolve access before continuing with Gmail.',
+  loading: 'Checking Gmail intake access…',
+  stale: 'Gmail is selected, but your current plan does not include Gmail intake. Upgrade or choose website capture before continuing.',
+  plans: 'Review plans',
+  readOnly: 'You can view this selection but do not have permission to change it.',
+  forbidden: 'You do not have permission to view capture-source setup.',
+  draft: 'This stays a draft. No form is published and no Gmail account is connected at this step.',
+  stories: { title: 'Choose a lead source', description: 'Source-selection preview. Changes update local draft state only.', name: 'Kitchen remodel requests', longName: 'Residential kitchen remodeling requests across the Northstar service area', nameError: 'Enter a capture source name.', sourceError: 'Choose a lead source before continuing.' },
+} as const;

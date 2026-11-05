@@ -1,4 +1,5 @@
 import "server-only";
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from "../http/suspension";
 import { NextResponse } from "next/server";
 
 import { MaterialContractError, workOrderIdSchema } from "@salesmora/contracts";
@@ -23,6 +24,7 @@ export async function materialRequest(request: Request, run: (identity: { userId
     if (!workOrderIdSchema.safeParse(workspaceId).success) throw new AuthorizationAccessError();
     return await run({ userId: session.user.id, workspaceId: workspaceId! }, body);
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     const known = error instanceof MaterialValidationError;
     const status = error instanceof AuthorizationAccessError ? 404 : error instanceof MaterialConflictError ? 409 : error instanceof MaterialContractError || known ? 422 : 500;
     const message = status === 404 ? "This material or workspace is unavailable." : error instanceof MaterialConflictError || known ? (error as Error).message : status === 422 ? "Check the material details and try again." : "Materials could not be updated. Try again.";

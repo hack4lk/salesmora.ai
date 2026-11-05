@@ -4,7 +4,7 @@ export const leadEditFormData = {
   title: 'Edit lead', formLabel: 'Edit lead details', labels: createLeadFormData.labels, sources: createLeadFormData.sources,
   sections: createLeadFormData.sections, save: 'Save changes', pending: 'Saving changes…', cancel: 'Cancel',
   clean: 'No unsaved changes.', dirty: 'You have unsaved changes.', denied: 'You do not have permission to edit this lead.',
-  sourceLocked: 'Source is fixed for leads created through Gmail or campaigns.', changed: 'Changed by another teammate. Your unsaved text is preserved.',
+  sourceLocked: 'Source is fixed for leads created through Gmail or Lead Capture.', changed: 'Changed by another teammate. Your unsaved text is preserved.',
   conflictTitle: 'This lead changed', reload: 'Reload latest details',
   discardTitle: 'Discard unsaved changes?', discardDescription: 'Your edits will be lost. You can cancel and copy them before continuing.',
   discard: 'Discard changes', reloadConfirm: 'Reload and discard edits',

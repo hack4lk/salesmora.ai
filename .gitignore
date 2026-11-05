@@ -13,3 +13,4 @@ test-results/
 debug-storybook.log
 
 .local/backups/
+.local/releases/

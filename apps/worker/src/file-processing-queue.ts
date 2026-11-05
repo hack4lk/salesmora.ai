@@ -30,7 +30,9 @@ export async function startFileProcessing(db: Knex) {
 
     for (const file of files) {
       const result = await processFileForStorage(db, storage, file.id);
-      if (result.success) {
+      if (result.held) {
+        console.log(JSON.stringify({ event: 'worker.file_processing_held', fileId: file.id }));
+      } else if (result.success) {
         console.log(JSON.stringify({ event: 'worker.file_processed', fileId: file.id, thumbnailCreated: result.thumbnailCreated, heicConverted: result.heicConverted }));
       } else {
         console.error(JSON.stringify({ event: 'worker.file_processing_error', fileId: file.id, error: result.error }));

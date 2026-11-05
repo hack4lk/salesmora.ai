@@ -10,7 +10,7 @@ import { database, findWorkspace } from "../workspaces/store";
 import { enabledPermissions, workspaceAuthorization, workspaceCapabilities, workspaceNavigationPages } from "../authorization/permissions";
 import { WorkspaceShell } from "../../features/workspace/workspace-shell/workspace-shell";
 import { MaterialsRoute } from "../../features/materials/materials-route/materials-route";
-import { chatRuntimeAvailable } from "../chat/config";
+import { workspaceChatAvailable } from "../chat/config";
 async function signOut() {
   "use server";
   await auth.api.signOut({ headers: await headers() });
@@ -34,7 +34,7 @@ export async function renderMaterialsPage(params: Record<string, string | string
     return <WorkspaceShell currentPage="materials" workspaceId={workspace.id} workspaceName={workspace.businessName}
       user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} authorizedPages={workspaceNavigationPages(context)}
       jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} billingAvailable={capabilities.billing} assistantAvailable={capabilities.assistant}
-      chatEnabled={chatRuntimeAvailable()} chatSurface="materials.list" contentWidth="full" onSignOut={signOut}>
+      chatEnabled={await workspaceChatAvailable(workspace.id)} chatSurface="materials.list" contentWidth="full" onSignOut={signOut}>
       <MaterialsRoute key={workspace.id} workspaceId={workspace.id} initial={initial} initialQuery={query} />
     </WorkspaceShell>;
   } catch (error) {

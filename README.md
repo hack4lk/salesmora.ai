@@ -33,6 +33,18 @@ The pnpm workspace, Next.js app, separate worker scaffold, and Storybook are boo
 
 ## Documentation
 
+- [Website activation implementation](docs/lead-capture-activation-qa.md) — scoped authority, private scheduler readiness and verified local browser flows; hosted activation remains off
+- [Lead Capture hosted rendering](docs/lead-capture-integration-step-4c-qa.md) — safe public/iFrame pages, origin isolation and signed contexts
+- [Lead Capture staging rollout proposal](docs/lead-capture-integration-step-4f-rollout.md) — gateway, DNS/TLS, secrets, migration review and live checks; not deployed
+- [Connected lifecycle dialogs](docs/lead-capture-lifecycle-ui.md) — real list/dashboard confirmations, safe retries, conflict reload and permission-denial handling; local review checkpoint
+- [Lead Capture lifecycle API](docs/lead-capture-lifecycle-api.md) — confirmed, authorized pause/resume/archive handlers with retained history; implemented and connected locally; deployment pending
+- [Lead Capture embed delivery](docs/lead-capture-integration-step-4e-qa.md) — isolated loader, validated resizing and persisted installation details; production rollout remains gated
+- [Lead Capture durable submissions](docs/lead-capture-integration-step-4d-qa.md) — opt-in admission, Turnstile and safe retries; production publication remains disabled
+- [Lead Capture assignment settings integration](docs/lead-capture-integration-step-4b-qa.md) — persisted business defaults, Settings → Leads and publication/scheduler readiness
+- [Lead Capture hosting component previews](docs/lead-capture-integration-step-4a-qa.md) — default assignment, visitor challenges and safe retries; public delivery remains pending
+- [Lead Capture publication and capacity](docs/lead-capture-integration-step-3-qa.md) — reviewed approval, scheduling, source limits and downgrade checks; real delivery remains pending
+- [Lead Capture persisted drafts](docs/lead-capture-integration-step-2-qa.md) — connected pages, draft saves, access and concurrency verification
+- [Lead Capture integration foundation](docs/lead-capture-integration-step-1-qa.md) — contracts, persistence, compatibility and disposable local verification commands
 - [Component conventions](docs/component-conventions.md) — per-component copy data, Tailwind styling, and review rules
 
 - [Auth and onboarding build tracker](docs/auth-onboarding-build-tracker.md) — current implementation step, package checklist, registration/login/onboarding screens, and verification results
@@ -50,6 +62,7 @@ The pnpm workspace, Next.js app, separate worker scaffold, and Storybook are boo
 - [Job module plan](docs/job-module-plan.md) — proposed job creation, monitoring, assignment, status, deadline, and notification workflows
 - [Diagram plan](docs/diagram-plan.md) — ordered inventory for the user-flow, workflow, architecture, and data diagrams
 - [End-to-end user flow diagram](docs/diagrams/01-end-to-end-user-flow.md) — first high-level map from campaign setup through lead and job outcomes
+- [Admin console plan](docs/admin-console-plan.md) — isolated staff console: hosting, separate admin auth with MFA, staff roles, user/workspace/billing management, audit, and admin documentation with an assistant
 - [Local development setup](docs/local-development.md) — proposed Docker Compose services, local environment variables, testing approach, and Knex migration/rollback workflow
 
 ## Domain
@@ -66,7 +79,7 @@ corepack pnpm db:setup
 corepack pnpm dev
 ```
 
-In a second terminal, run `corepack pnpm storybook`. The app runs at http://127.0.0.1:3000 and Storybook at http://127.0.0.1:6006. See [Local testing and approval](docs/local-testing.md) for the review checklist and restart/check commands. Docker must be running for registration. `db:setup` creates an ignored `.env.local` with random credentials and an isolated PostgreSQL service on port 55432 plus Mailpit on SMTP 11025/inbox 18025. It does not change other projects’ databases. No email/provider credentials are required yet.
+In a second terminal, run `corepack pnpm storybook`. The app runs at http://127.0.0.1:3000 and Storybook at http://127.0.0.1:6006. See [Local testing and approval](docs/local-testing.md) for the review checklist and restart/check commands. Docker must be running for registration. `db:setup` creates an ignored `.env.local` with random credentials and an isolated PostgreSQL service on port 55432 plus Mailpit on SMTP 11025/inbox 18025. It does not change other projects’ databases. The app and worker connect as the least-privilege `salesmora_web` role. Migrations use the owner URL in `MIGRATION_DATABASE_URL` (see [database roles](docs/database-roles.md)). No email/provider credentials are required yet.
 
 Quality checks: `corepack pnpm lint`, `corepack pnpm typecheck`, `corepack pnpm build`, and `corepack pnpm storybook:build`. `corepack pnpm worker:dev` runs the worker scaffold; queues are not configured yet.
 

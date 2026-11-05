@@ -1,3 +1,4 @@
+import { captureNotificationItem } from './capture-notification-item';
 import { jobNotificationItem } from './job-notification-item';
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
@@ -285,3 +286,6 @@ function deadlineStory(before: string | null, after: string | null): Story {
 export const JobDeadlineChanged = deadlineStory(copy.jobDeadlineStories.before, copy.jobDeadlineStories.after);
 export const JobDeadlineAdded = deadlineStory(null, copy.jobDeadlineStories.after);
 export const JobDeadlineRemoved = deadlineStory(copy.jobDeadlineStories.before, null);
+
+
+export const CaptureCapacityBlocked: Story = { args: { items: [captureNotificationItem({kind:'capture',id:'capture-capacity-notice',sourceId:'preview-source',sourceName:'Website requests',reason:'source_capacity',createdAt:copy.stories.date,read:false},'preview-workspace')] }, play: async ({canvasElement}) => { const panel = await open(canvasElement); const c = within(panel); await expect(c.getByText(copy.captureTitle,{exact:true})).toBeVisible(); await expect(c.getByRole('link',{name:copy.captureOpen})).toHaveAttribute('href','/lead-capture/preview-source?workspace=preview-workspace'); } };

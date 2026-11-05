@@ -17,7 +17,7 @@ import { findWorkspace } from "../workspaces/store";
 import { WorkspaceShell } from "../../features/workspace/workspace-shell/workspace-shell";
 import { estimatesPageData as copy } from "../../features/estimates/estimates-page/estimates-page.data";
 import { EstimatesReadRoute } from "../../features/estimates/estimates-page/estimates-read-route";
-import { chatRuntimeAvailable } from "../chat/config";
+import { workspaceChatAvailable } from "../chat/config";
 
 export type EstimateSearchParams = Record<
   string,
@@ -87,7 +87,7 @@ export async function renderEstimatesPage(params: EstimateSearchParams) {
       }
       authorizedPages={workspaceNavigationPages(context)}
       assistantAvailable={capabilities.assistant}
-      chatEnabled={chatRuntimeAvailable()}
+      chatEnabled={await workspaceChatAvailable(workspace.id)}
       chatSurface="estimates.list"
       jobNotificationsAvailable={capabilities.jobNotifications}
       permissionsAvailable={capabilities.permissions}

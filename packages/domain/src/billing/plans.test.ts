@@ -9,7 +9,7 @@ describe('workspace billing boundaries', () => {
     expect(() => getWorkspacePlan('constructor' as 'free')).toThrow('Unknown workspace plan');
   });
   it('keeps the approved workspace-wide capacities and sandbox prices', () => {
-    expect(Object.values(workspacePlanCatalog).map(p => [p.monthlyPriceCents, p.limits.teammates, p.limits.newLeadsPerMonth, p.limits.publishedCampaigns, p.limits.aiTokensPerMonth, p.limits.storageBytes])).toEqual([
+    expect(Object.values(workspacePlanCatalog).map(p => [p.monthlyPriceCents, p.limits.teammates, p.limits.newLeadsPerMonth, p.limits.publishedCaptureSources, p.limits.aiTokensPerMonth, p.limits.storageBytes])).toEqual([
       [0,1,100,1,1_000_000,1_000_000_000], [2900,5,1000,5,5_000_000,10_000_000_000], [4900,20,5000,null,20_000_000,25_000_000_000],
     ]);
     expect(Object.isFrozen(workspacePlanCatalog.standard.limits)).toBe(true);

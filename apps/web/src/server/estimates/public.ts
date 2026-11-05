@@ -1,5 +1,5 @@
 import "server-only";
-import { createStorageAdapter, readPublicEstimate, readPublicEstimateLogo } from "@salesmora/data";
+import { createStorageAdapter, isFeatureFlagEnabled, readPublicEstimate, readPublicEstimateLogo } from "@salesmora/data";
 import type { PublicEstimateSource } from "../../features/estimates/public-estimate-view/public-estimate-view.preview";
 import { database } from "../workspaces/store";
 import { configuredEstimateSharingAvailable } from "./sharing-availability";
@@ -25,7 +25,8 @@ function publicStatus(state: PublicEstimateSource["state"]) {
 export async function publicEstimateSource(token: string): Promise<{ source: PublicEstimateSource; status: number }> {
   if (!configuredEstimateSharingAvailable()) return { source: { state: "unavailable" }, status: 503 };
   try {
-    const read = await readPublicEstimate(database(), token, requesterKey);
+    const read = await readPublicEstimate(database(), token, requesterKey, (trx, workspaceId) =>
+      isFeatureFlagEnabled(trx, "estimate.sharing.enabled", workspaceId));
     if (read.state !== "ready") return { source: read, status: publicStatus(read.state) };
     const paper = read.snapshot;
     const source: PublicEstimateSource = {
@@ -52,7 +53,8 @@ export async function publicEstimateSource(token: string): Promise<{ source: Pub
 export async function publicEstimateLogo(token: string) {
   if (!configuredEstimateSharingAvailable()) return { state: "unavailable", status: 503 } as const;
   try {
-    const result = await readPublicEstimateLogo(database(), createStorageAdapter(), token, requesterKey);
+    const result = await readPublicEstimateLogo(database(), createStorageAdapter(), token, requesterKey, (trx, workspaceId) =>
+      isFeatureFlagEnabled(trx, "estimate.sharing.enabled", workspaceId));
     return result.state === "ready"
       ? { state: "ready" as const, image: result.image, status: 200 }
       : { state: result.state, status: publicStatus(result.state) };

@@ -1,17 +1,24 @@
 import 'server-only';
 import { authorize, canViewGantt, resolveAuthorizedCollectionScope } from '@salesmora/domain';
-import { loadWorkspaceAuthorization, withWorkspaceAuthorization } from '@salesmora/data';
+import { isFeatureFlagEnabled, loadWorkspaceAuthorization, withWorkspaceAuthorization } from '@salesmora/data';
 import { permissionCatalog, type AuthorizationContext, type PermissionDefinition, type PermissionId } from '@salesmora/contracts';
 import { database } from '../workspaces/store';
 import { configuredEstimateSharingAvailable } from '../estimates/sharing-availability';
 // Server-owned implemented surface. Future modules stay disabled even if saved templates grant them.
-export const enabledPermissions: readonly PermissionId[] = ['calendar.read', 'materials.read', 'materials.propose', 'materials.manage', 'workorders.read', 'workorders.view_prices', 'workorders.view_costs', 'workorders.create', 'workorders.update', 'workorders.schedule.update', 'workorders.issue', 'workorders.progress', 'workorders.complete', 'workorders.reopen', 'workorders.cancel', 'workorders.archive', 'workorders.delete', 'workorders.export', 'jobs.read', 'jobs.create', 'jobs.update', 'jobs.assign', 'jobs.status.update', 'jobs.progress.create', 'jobs.complete', 'jobs.cancel', 'jobs.reopen', 'jobs.schedule.update', 'customers.read', 'customers.related.read', 'customers.create', 'customers.update', 'customers.archive', 'customers.delete', 'customers.export', 'workspace.delete', 'home.access', 'assistant.use', 'leads.read', 'leads.update', 'leads.stage.update', 'leads.archive', 'leads.delete', 'leads.export', 'leads.create', 'leads.assign', 'estimates.read', 'estimates.create', 'estimates.update', 'estimates.delete', 'estimates.void', 'estimates.decide', 'estimates.archive', 'estimates.export', ...(configuredEstimateSharingAvailable() ? ['estimates.send'] as const : []), 'team.invite', 'permissions.read', 'permissions.manage', 'settings.business.read', 'settings.business.update', ...(process.env.BILLING_SANDBOX_ENABLED === 'true' ? ['billing.read', 'billing.manage'] as const : [])];
-export function workspaceAuthorization(userId: string, workspaceId: string) {
-  return loadWorkspaceAuthorization(database(), { userId, workspaceId }, enabledPermissions);
+export const enabledPermissions: readonly PermissionId[] = ['intake.read', 'intake.update', 'intake.approve', 'intake.dismiss', 'leadCapture.pause', 'leadCapture.archive', 'leadCapture.activate', 'leadCapture.read', 'leadCapture.create', 'leadCapture.update', 'calendar.read', 'materials.read', 'materials.propose', 'materials.manage', 'workorders.read', 'workorders.view_prices', 'workorders.view_costs', 'workorders.create', 'workorders.update', 'workorders.schedule.update', 'workorders.issue', 'workorders.progress', 'workorders.complete', 'workorders.reopen', 'workorders.cancel', 'workorders.archive', 'workorders.delete', 'workorders.export', 'jobs.read', 'jobs.create', 'jobs.update', 'jobs.assign', 'jobs.status.update', 'jobs.progress.create', 'jobs.complete', 'jobs.cancel', 'jobs.reopen', 'jobs.schedule.update', 'customers.read', 'customers.related.read', 'customers.create', 'customers.update', 'customers.archive', 'customers.delete', 'customers.export', 'workspace.delete', 'home.access', 'assistant.use', 'leads.read', 'leads.update', 'leads.stage.update', 'leads.archive', 'leads.delete', 'leads.export', 'leads.create', 'leads.assign', 'estimates.read', 'estimates.create', 'estimates.update', 'estimates.delete', 'estimates.void', 'estimates.decide', 'estimates.archive', 'estimates.export', ...(configuredEstimateSharingAvailable() ? ['estimates.send'] as const : []), 'team.invite', 'permissions.read', 'permissions.manage', 'settings.business.read', 'settings.business.update', ...(process.env.BILLING_SANDBOX_ENABLED === 'true' ? ['billing.read', 'billing.manage'] as const : [])];
+async function permissionsForWorkspace(workspaceId: string) {
+  if (!configuredEstimateSharingAvailable()) return enabledPermissions;
+  const allowed = await isFeatureFlagEnabled(database(), 'estimate.sharing.enabled', workspaceId);
+  return allowed ? enabledPermissions : enabledPermissions.filter(permission => permission !== 'estimates.send');
 }
-export function authorizedWorkspace<T>(userId: string, workspaceId: string, write: boolean,
+export async function workspaceAuthorization(userId: string, workspaceId: string) {
+  const db = database();
+  return loadWorkspaceAuthorization(db, { userId, workspaceId }, await permissionsForWorkspace(workspaceId));
+}
+export async function authorizedWorkspace<T>(userId: string, workspaceId: string, write: boolean,
   use: Parameters<typeof withWorkspaceAuthorization<T>>[4]) {
-  return withWorkspaceAuthorization(database(), { userId, workspaceId }, enabledPermissions, write, use);
+  const db = database();
+  return withWorkspaceAuthorization(db, { userId, workspaceId }, await permissionsForWorkspace(workspaceId), write, use);
 }
 export function workspaceCapabilities(context: AuthorizationContext) {
   return {
@@ -23,6 +30,8 @@ export function workspaceCapabilities(context: AuthorizationContext) {
     readGantt: canViewGantt(context),
     readJobs: resolveAuthorizedCollectionScope(context, 'jobs.read').allowed,
     readCustomers: resolveAuthorizedCollectionScope(context, 'customers.read').allowed,
+    readCaptureSources: resolveAuthorizedCollectionScope(context, 'leadCapture.read').allowed,
+    readIntake: resolveAuthorizedCollectionScope(context, 'intake.read').allowed,
     readLeads: resolveAuthorizedCollectionScope(context, 'leads.read').allowed,
     readEstimates: resolveAuthorizedCollectionScope(context, 'estimates.read').allowed,
     readWorkOrders: resolveAuthorizedCollectionScope(context, 'workorders.read').allowed,
@@ -32,13 +41,12 @@ export function workspaceCapabilities(context: AuthorizationContext) {
     inviteField: authorize(context, { permission: 'team.invite', targetRole: 'field' }).allowed,
     permissions: authorize(context, { permission: 'permissions.read' }).allowed,
     settings: authorize(context, { permission: 'settings.business.read' }).allowed || authorize(context, { permission: 'permissions.read' }).allowed,
+    leadSettings: authorize(context, { permission: 'settings.business.read' }).allowed,
     estimateBusinessSettings: authorize(context, { permission: 'settings.business.read' }).allowed,
   };
 }
 const upcomingNavigation = [
-  { page: 'intake', permissions: ['intake.read'] },
   { page: 'reports', permissions: ['reports.read'] },
-  { page: 'campaigns', permissions: ['campaigns.read'] },
 ] as const;
 
 /** Navigation presentation only, using the current validated repository context.
@@ -52,5 +60,5 @@ export function workspaceNavigationPages(context: AuthorizationContext) {
     return definition.reviewed && definition.eligibleRoles.includes(context.membership.role) &&
       context.policy.grants.some(grant => grant.role === context.membership.role && grant.permission === permission);
   })).map(item => item.page);
-  return [...(capabilities.home ? ['home' as const] : []), ...(capabilities.readLeads ? ['leads' as const] : []), ...(capabilities.readCalendar ? ['calendar' as const] : []), ...(capabilities.readJobs ? ['jobs' as const] : []), ...(capabilities.readWorkOrders ? ['work-orders' as const] : []), ...(capabilities.materials ? ['materials' as const] : []), ...(capabilities.readCustomers ? ['customers' as const] : []), ...(capabilities.readEstimates ? ['estimates' as const] : []), ...(capabilities.estimateBusinessSettings ? ['estimate-settings' as const] : []), ...upcoming, ...((capabilities.settings || capabilities.billing) ? ['settings' as const] : [])];
+  return [...(capabilities.readIntake ? ['intake' as const] : []), ...(capabilities.readCaptureSources ? ['campaigns' as const] : []), ...(capabilities.home ? ['home' as const] : []), ...(capabilities.readLeads ? ['leads' as const] : []), ...(capabilities.readCalendar ? ['calendar' as const] : []), ...(capabilities.readJobs ? ['jobs' as const] : []), ...(capabilities.readWorkOrders ? ['work-orders' as const] : []), ...(capabilities.materials ? ['materials' as const] : []), ...(capabilities.readCustomers ? ['customers' as const] : []), ...(capabilities.readEstimates ? ['estimates' as const] : []), ...(capabilities.estimateBusinessSettings ? ['estimate-settings' as const] : []), ...(capabilities.leadSettings ? ['lead-settings' as const] : []), ...upcoming, ...((capabilities.settings || capabilities.billing) ? ['settings' as const] : [])];
 }

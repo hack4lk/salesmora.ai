@@ -1,4 +1,5 @@
 import 'server-only';
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../../server/http/suspension';
 import { NextResponse } from 'next/server';
 import { type FileRecord, createFileStore, createStorageAdapter, FileStorageError, logWorkOrderFileActivity } from '@salesmora/data';
 import { getSession } from '../../../../../server/auth/session';
@@ -82,6 +83,7 @@ export async function GET(
       { status: 200, headers }
     );
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) {
       return NextResponse.json(
         { error: 'You do not have permission to access files for this work order.' },
@@ -211,6 +213,7 @@ export async function POST(
       { status: 201, headers }
     );
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) {
       console.error('[FileAPI] Authorization error:', error.message);
       return NextResponse.json(

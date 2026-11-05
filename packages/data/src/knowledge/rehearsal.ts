@@ -32,7 +32,7 @@ try {
   await ingestArticle(trx, article('fixture-create', { capabilities: ['leads.create'] }), space);
   await ingestArticle(trx, article('fixture-planned', { productStatus: 'planned' }), space);
   await ingestArticle(trx, article('fixture-plan', { plans: ['enterprise'] }), space);
-  await ingestArticle(trx, article('fixture-unknown', { capabilities: ['campaigns.read'] }), space);
+  await ingestArticle(trx, article('fixture-unknown', { capabilities: ['leadCapture.read'] }), space);
   await stageArticle(trx, article('fixture-unpublished'), space);
   const retired = article('fixture-retired'); await ingestArticle(trx, retired, space);
   await trx('helpArticles').where({ slug: retired.slug }).update({ state: 'retired' });

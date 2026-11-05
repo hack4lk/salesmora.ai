@@ -9,7 +9,7 @@ import { database, findWorkspace } from '../workspaces/store';
 import { enabledPermissions, workspaceAuthorization, workspaceCapabilities, workspaceNavigationPages } from '../authorization/permissions';
 import { WorkspaceShell } from '../../features/workspace/workspace-shell/workspace-shell';
 import { GanttChart } from '../../features/gantt-chart/gantt-chart/gantt-chart';
-import { chatRuntimeAvailable } from '../chat/config';
+import { workspaceChatAvailable } from '../chat/config';
 async function signOut() { 'use server'; await auth.api.signOut({ headers: await headers() }); redirect('/login'); }
 export async function renderGanttPage(params: Record<string, string | string[] | undefined>) {
   const session = await getSession(); if (!session) redirect('/login');
@@ -23,7 +23,7 @@ export async function renderGanttPage(params: Record<string, string | string[] |
     const gantt = await readGantt(database(), { userId: session.user.id, workspaceId: workspace.id }, enabledPermissions);
     return <WorkspaceShell currentPage="calendar" currentCalendarPage="gantt" workspaceId={workspace.id} workspaceName={workspace.businessName}
       user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} authorizedPages={workspaceNavigationPages(context)}
-      jobNotificationsAvailable={caps.jobNotifications} permissionsAvailable={caps.permissions} ganttAvailable={caps.readGantt} billingAvailable={caps.billing} assistantAvailable={caps.assistant} chatEnabled={chatRuntimeAvailable()}
+      jobNotificationsAvailable={caps.jobNotifications} permissionsAvailable={caps.permissions} ganttAvailable={caps.readGantt} billingAvailable={caps.billing} assistantAvailable={caps.assistant} chatEnabled={await workspaceChatAvailable(workspace.id)}
       contentWidth="full" onSignOut={signOut}>
       <GanttChart key={`gantt:${workspace.id}`} jobs={gantt.jobs} teamMembers={gantt.teamMembers} customers={gantt.customers} today={gantt.today} truncated={gantt.truncated} workspaceId={workspace.id} />
     </WorkspaceShell>;

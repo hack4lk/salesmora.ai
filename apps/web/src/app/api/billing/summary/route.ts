@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../server/http/suspension';
 import { NextResponse } from 'next/server';
 import { billingCheckoutRequestSchema } from '@salesmora/contracts';
 import { AuthorizationAccessError, readWorkspaceBilling, sandboxBillingEnabled } from '@salesmora/data';
@@ -16,6 +17,7 @@ export async function GET(request:Request) {
     const {snapshot} = await readWorkspaceBilling(database(),session.user.id,workspace.data,enabledPermissions);
     return respond(snapshot);
   } catch(error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     return respond({error:'Billing could not be loaded.'},error instanceof AuthorizationAccessError ? 403 : 503);
   }
 }

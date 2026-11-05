@@ -2,18 +2,20 @@ import { randomUUID } from "node:crypto";
 import type { Knex } from "knex";
 import { estimateEmailDestinationSchema, type PermissionId } from "@salesmora/contracts";
 import { validEstimateFrozenSnapshot } from "@salesmora/domain";
-import { AuthorizationAccessError, withWorkspaceAuthorization } from "../authorization/store";
+import { AuthorizationAccessError, WorkspaceSuspendedError, withWorkspaceAuthorization } from "../authorization/store";
+import { withoutSuspendedWorkspaces } from "../accounts/workspace-hold";
 import type { EstimateEmailInput } from "../email/estimate";
 import { authorizeEstimateDelivery } from "./drafts";
 import { estimateSnapshotHash } from "./sharing-paper";
 import { recoverEstimateShareToken } from "./share-token";
 import { notifyEstimateRecipients } from "../notifications/estimates";
+import { isFeatureFlagEnabled } from "../feature-flags";
 
 export type EstimateEmailDelivery = Omit<EstimateEmailInput, "baseURL"> & { id: string; to: string; queuedAt: Date | string };
 type FailureCode = "authorization" | "inactive" | "invalid" | "transport";
 export const estimateDeliveryFailureMessages: Record<FailureCode, string> = {
   authorization: "Delivery stopped because the sender no longer has access to send this estimate.",
-  inactive: "Delivery stopped because the estimate or customer link is no longer active.",
+  inactive: "Delivery stopped because estimate sharing, the estimate, or the customer link is no longer active.",
   invalid: "Delivery stopped because the frozen estimate or customer link could not be verified.",
   transport: "The email could not be delivered within the retry window. Check email delivery and review the recipient before resending.",
 };
@@ -118,12 +120,20 @@ export async function processEstimateEmails(
 ) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new RangeError("Invalid estimate delivery batch size.");
   const summary = { sent: 0, retryPending: 0, failed: 0 };
-  const candidates: Candidate[] = await db("estimate_deliveries").where({ status: "queued" })
+  const candidates: Candidate[] = await withoutSuspendedWorkspaces(db("estimate_deliveries"), "estimate_deliveries.workspaceId").where({ status: "queued" })
     .where("nextAttemptAt", "<=", now(db)).orderBy("nextAttemptAt").orderBy("id").limit(limit)
     .select("id", "workspaceId", "estimateId", "requestedBy");
   for (const candidate of candidates) {
     try {
       if (!candidate.requestedBy) throw new AuthorizationAccessError();
+      if (!await isFeatureFlagEnabled(db, "estimate.sharing.enabled", candidate.workspaceId)) {
+        await db.transaction(async trx => {
+          await trx("workspaces").where({ id: candidate.workspaceId }).forShare().first("id");
+          const delivery = await claim(trx, candidate.id);
+          if (delivery) { await fail(trx, delivery, "inactive"); summary.failed++; }
+        });
+        continue;
+      }
       await withWorkspaceAuthorization(db, {
         workspaceId: candidate.workspaceId, userId: candidate.requestedBy,
       }, enabled, false, async (trx, context) => {
@@ -166,6 +176,7 @@ export async function processEstimateEmails(
         summary.sent++;
       });
     } catch (error) {
+      if (error instanceof WorkspaceSuspendedError) continue;
       if (!(error instanceof AuthorizationAccessError)) throw error;
       await db.transaction(async trx => {
         await trx("workspaces").where({ id: candidate.workspaceId }).forShare().first("id");

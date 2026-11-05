@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../server/http/suspension';
 import {NextResponse} from 'next/server';
 import {billingInvoiceHistoryRequestSchema} from '@salesmora/contracts';
 import {AuthorizationAccessError,readWorkspaceInvoices,sandboxBillingEnabled} from '@salesmora/data';
@@ -13,5 +14,5 @@ export async function GET(request:Request){
   const parsed=billingInvoiceHistoryRequestSchema.safeParse(Object.fromEntries(params));
   if(!parsed.success||[...params.keys()].some(key=>params.getAll(key).length!==1))return reply({error:'Invalid invoice request.'},400);
   try{return reply(await readWorkspaceInvoices(database(),session.user.id,parsed.data.workspace,enabledPermissions,parsed.data.after));}
-  catch(error){return reply({error:'Invoice history unavailable.'},error instanceof AuthorizationAccessError?403:503);}
+  catch(error){ if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();return reply({error:'Invoice history unavailable.'},error instanceof AuthorizationAccessError?403:503);}
 }

@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
 import type { AuthorizationContext, CalendarRecordRef, CalendarSchedule, VisitNotificationRecord, PermissionId } from '@salesmora/contracts';
 import { resolveAuthorizedCollectionScope } from '@salesmora/domain';
-import { withWorkspaceAuthorization, AuthorizationAccessError } from '../authorization/store';
+import { withWorkspaceAuthorization, AuthorizationAccessError, WorkspaceSuspendedError } from '../authorization/store';
+import { withoutSuspendedWorkspaces } from '../accounts/workspace-hold';
 import { scoped } from '../work-orders/store';
 type Ref = Pick<CalendarRecordRef, 'type' | 'id'>;
 type Notice = { id: string; workspaceId: string; userId: string; event: VisitNotificationRecord['event']; actorName: string; before: CalendarSchedule; after: CalendarSchedule; timezone: string; createdAt: Date; readAt: Date | null };
@@ -73,7 +74,7 @@ export async function notifyVisitChange(trx: Knex.Transaction, context: Authoriz
 export async function processVisitEmails(db: Knex, enabled: readonly PermissionId[], send: (mail: VisitNotificationRecord & { to: string; workspaceId: string; workspaceName: string }) => Promise<void>, limit = 10) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new RangeError('Invalid delivery batch size');
   const summary = { sent: 0, skipped: 0, retryPending: 0, failed: 0 };
-  const candidates = await db('visitNotifications').where({ emailStatus: 'queued' }).where('nextAttemptAt', '<=', db.fn.now()).orderBy('nextAttemptAt').orderBy('id').limit(limit).select('id', 'workspaceId', 'userId');
+  const candidates = await withoutSuspendedWorkspaces(db('visitNotifications'), 'visitNotifications.workspaceId').where({ emailStatus: 'queued' }).where('nextAttemptAt', '<=', db.fn.now()).orderBy('nextAttemptAt').orderBy('id').limit(limit).select('id', 'workspaceId', 'userId');
   for (const candidate of candidates) try {
     await withWorkspaceAuthorization(db, { workspaceId: candidate.workspaceId, userId: candidate.userId }, enabled, false, async (trx, context) => {
       const row = await trx('visitNotifications').where({ id: candidate.id, emailStatus: 'queued' }).where('nextAttemptAt', '<=', trx.fn.now()).forUpdate().skipLocked().first(); if (!row) return;
@@ -94,6 +95,7 @@ export async function processVisitEmails(db: Knex, enabled: readonly PermissionI
       }
     });
   } catch (e) {
+    if (e instanceof WorkspaceSuspendedError) continue;
     if (!(e instanceof AuthorizationAccessError)) throw e;
     await db('visitNotifications').where({ id: candidate.id, emailStatus: 'queued' }).update({ emailStatus: 'skipped' }); summary.skipped++;
   }

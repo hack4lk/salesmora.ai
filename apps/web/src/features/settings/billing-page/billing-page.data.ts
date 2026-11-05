@@ -19,6 +19,10 @@ export const billingPageData = {
   closeInvoice: 'Close invoice', invoiceTotal: 'Total', invoicePaid: 'Amount paid', invoiceDue: 'Amount due',
   invoiceStatuses: {draft:'Draft',open:'Open',paid:'Paid',uncollectible:'Uncollectible',void:'Void',unknown:'Pending'},
   planNames: {free:'Free',standard:'Standard',premium:'Premium'},
+  complimentary: 'Complimentary',
+  overrideNote: (endsAt: string, billedPlan: string) => billedPlan === 'Free'
+    ? `Complimentary access until ${endsAt}. There’s no charge, and Free limits apply after that.`
+    : `Complimentary access until ${endsAt}. You’re still billed for ${billedPlan}, and ${billedPlan} limits apply after that.`,
   title: 'Billing', eyebrow: 'Workspace settings', back: 'Back to Settings',
   description: 'Manage your workspace plan, shared allowances and billing history.',
   preview: 'Design preview · Fictional billing data · No payments or account changes',

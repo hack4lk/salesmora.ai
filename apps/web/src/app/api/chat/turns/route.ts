@@ -5,9 +5,10 @@ import {
   type ChatStreamEvent,
 } from "@salesmora/contracts";
 import { authorize } from "@salesmora/domain";
-import { AuthorizationAccessError } from "@salesmora/data";
+import { AuthorizationAccessError, isFeatureFlagEnabled } from "@salesmora/data";
 import { getSession } from "../../../../server/auth/session";
 import { workspaceAuthorization } from "../../../../server/authorization/permissions";
+import { database } from "../../../../server/workspaces/store";
 import {
   acceptTurn,
   appendDelta,
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
     );
     if (!authorize(context, { permission: "assistant.use" }).allowed)
       throw new AuthorizationAccessError();
-    if (!chatRuntimeAvailable())
+    if (!chatRuntimeAvailable() || !await isFeatureFlagEnabled(database(), "chat.enabled", input.workspaceId))
       return chatReply({ error: "provider_unavailable" }, 503);
     const { turn, replay } = await acceptTurn(identity, input);
     if (replay)
@@ -113,7 +114,10 @@ export async function POST(request: Request) {
         let customerResult;
         let workOrderResult;
         let calendarResult;
+        let captureResult;
         let calendarProposal;
+        let captureSetup;
+        let captureSource;
         let estimateResult;
         let estimateDraft;
         let estimateSharing;
@@ -174,6 +178,9 @@ export async function POST(request: Request) {
             customerResult = result.customerResult;
             workOrderResult = result.workOrderResult;
             calendarResult = result.calendarResult;
+            captureSource = result.captureSource;
+            captureSetup = result.captureSetup;
+            captureResult = result.captureResult;
             calendarProposal = result.calendarProposal;
             estimateResult = result.estimateResult;
             estimateDraft = result.estimateDraft;
@@ -234,6 +241,9 @@ export async function POST(request: Request) {
             });
           }
           if (calendarProposal) { await validateTurnEvidence(identity,turn.id);send({ type:"calendar.proposal",messageId:turn.messageId,result:calendarProposal }); }
+          if (captureSource) { await validateTurnEvidence(identity, turn.id); send({ type: "capture.source", messageId: turn.messageId, result: captureSource }); }
+          if (captureSetup) { await validateTurnEvidence(identity, turn.id); send({ type: "capture.setup", messageId: turn.messageId, result: captureSetup }); }
+          if (captureResult) { await validateTurnEvidence(identity, turn.id); send({ type: "capture.result", messageId: turn.messageId, result: captureResult }); }
           if (calendarResult) { await validateTurnEvidence(identity, turn.id); send({ type: "calendar.result", messageId: turn.messageId, result: calendarResult }); }
           if (workOrderResult) {
             await validateTurnEvidence(identity, turn.id);

@@ -1,0 +1,18 @@
+export const customerEmailChangeData = {
+  brand: 'SalesMora.ai',
+  verificationSubject: 'Confirm your new SalesMora.ai email address',
+  verificationPreheader: 'A customer account email change is waiting for your confirmation.',
+  verificationHeading: 'Confirm your new email address',
+  verificationIntroduction: 'A SalesMora.ai administrator requested an email change for your account.',
+  verificationPurpose: 'Your current email address stays active unless you confirm this change.',
+  verificationAction: 'Confirm email address',
+  verificationExpiry: 'This link expires in 60 minutes and can be used once.',
+  verificationIgnore: 'If you did not expect this request, you can ignore this message. Your current email address will remain active.',
+  verificationFallback: 'If the button does not work, copy and paste this link into your browser:',
+  notificationSubject: 'A change to your SalesMora.ai email was requested',
+  notificationPreheader: 'Your current email address remains active until the new address is confirmed.',
+  notificationHeading: 'Email change requested',
+  notificationIntroduction: 'A SalesMora.ai administrator requested a change to the email address on your account.',
+  notificationCurrentAddress: 'Your current email address remains active until the new address is confirmed.',
+  notificationIgnore: 'If you did not expect this request, contact SalesMora.ai support. No change has been made yet.',
+} as const;

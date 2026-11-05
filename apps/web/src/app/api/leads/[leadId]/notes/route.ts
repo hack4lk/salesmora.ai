@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../../server/http/suspension';
 import { NextResponse } from 'next/server';
 import { AuthorizationAccessError, LeadNoteConflictError } from '@salesmora/data';
 import { addLeadNoteSchema, leadNotesQuerySchema } from '@salesmora/contracts';
@@ -15,6 +16,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ lead
     const result = await workspaceLead(session.user.id, input.data.workspaceId, leadId, 1, input.data.page);
     return NextResponse.json({ notes: result.teamNotes, total: result.notesTotal }, { headers });
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) return NextResponse.json({ error: 'These notes are unavailable.' }, { status: 404, headers });
     return NextResponse.json({ error: 'Notes could not be loaded. Try again.' }, { status: 500, headers });
   }
@@ -30,6 +32,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ lea
   if (!input.success || input.data.leadId !== leadId) return NextResponse.json({ error: 'Enter a note of up to 2,000 characters.' }, { status: 422, headers });
   try { return NextResponse.json({ ok: true, note: await addWorkspaceLeadNote(session.user.id, input.data) }, { headers }); }
   catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) return NextResponse.json({ error: 'This lead is unavailable or you no longer have permission to add notes.' }, { status: 404, headers });
     if (error instanceof LeadNoteConflictError) return NextResponse.json({ error: 'This note submission was used for different text. Reload before trying again.' }, { status: 409, headers });
     return NextResponse.json({ error: 'Could not add your note. Your text is preserved. Try again.' }, { status: 500, headers });

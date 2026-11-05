@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./lead-capture/gmail-secrets": "./src/lead-capture/gmail-secrets.ts"
   },
   "scripts": {
     "build": "tsc",

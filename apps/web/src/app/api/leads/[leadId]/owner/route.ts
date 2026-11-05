@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../../server/http/suspension';
 import { NextResponse } from 'next/server';
 import { AuthorizationAccessError, LeadAssignmentConflictError } from '@salesmora/data';
 import { assignLeadSchema } from '@salesmora/contracts';
@@ -15,6 +16,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ lea
   if (!input.success || input.data.leadId !== leadId) return NextResponse.json({ error: 'Check the selected teammate.' }, { status: 422, headers });
   try { return NextResponse.json(await assignWorkspaceLead(session.user.id, input.data), { headers }); }
   catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) return NextResponse.json({ error: 'This lead is unavailable or you no longer have permission to assign it.' }, { status: 404, headers });
     if (error instanceof LeadAssignmentConflictError) return NextResponse.json({ error: 'This lead or teammate changed. Reload before assigning.' }, { status: 409, headers });
     return NextResponse.json({ error: 'The assignment could not be confirmed. Reload the lead before trying again.' }, { status: 500, headers });

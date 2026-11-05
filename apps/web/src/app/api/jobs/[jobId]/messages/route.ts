@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 import { getJobMessages, createJobMessage } from '@salesmora/data';
 import { enabledPermissions } from '../../../../../server/authorization/permissions';
 import { getSession } from '../../../../../server/auth/session';
-import { database, findWorkspace } from '../../../../../server/workspaces/store';
+import { database, findWorkspaceRecord } from '../../../../../server/workspaces/store';
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../../server/http/suspension';
 
 const headers = { 'Cache-Control': 'private, no-store', Vary: 'Cookie' };
 
@@ -37,7 +38,8 @@ export async function GET(
       );
     }
 
-    const workspace = await findWorkspace(session.user.id, workspaceId);
+    const workspace = await findWorkspaceRecord(session.user.id, workspaceId);
+    if (workspace?.suspendedAt) return workspaceSuspendedResponse();
     if (!workspace) {
       return NextResponse.json(
         { error: 'Workspace not found' },
@@ -59,6 +61,7 @@ export async function GET(
       { status: 200, headers }
     );
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('[JobMessagesAPI] GET error:', message);
     return NextResponse.json(
@@ -97,7 +100,8 @@ export async function POST(
       );
     }
 
-    const workspace = await findWorkspace(session.user.id, workspaceId);
+    const workspace = await findWorkspaceRecord(session.user.id, workspaceId);
+    if (workspace?.suspendedAt) return workspaceSuspendedResponse();
     if (!workspace) {
       return NextResponse.json(
         { error: 'Workspace not found' },
@@ -129,6 +133,7 @@ export async function POST(
       { status: 201, headers }
     );
   } catch (error) {
+    if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('[JobMessagesAPI] POST error:', message);
     return NextResponse.json(

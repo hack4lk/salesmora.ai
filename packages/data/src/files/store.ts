@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
 import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIdentity } from '../authorization/store';
+import { withoutSuspendedWorkspaces } from '../accounts/workspace-hold';
 import { encryptFile, decryptFile, generateDataEncryptionKey, generateFileId, serializeDekEnvelope, deserializeDekEnvelope, serializeFileCiphertext, deserializeFileCiphertext } from './encryption';
 import { StorageAdapter } from './storage-adapter';
 
@@ -424,7 +425,7 @@ export class FileStore {
    * Get a file record for processing (used by worker).
    */
   async getFileForProcessing(fileId: string): Promise<FileRow | null> {
-    const row = (await this.db('files')
+    const row = (await withoutSuspendedWorkspaces(this.db('files'), 'files.workspaceId')
       .where({ id: fileId })
       .first()) as FileRow | undefined;
 
@@ -438,7 +439,7 @@ export class FileStore {
     statuses: ('uploading')[],
     limit: number = 100,
   ): Promise<FileRow[]> {
-    return (await this.db('files')
+    return (await withoutSuspendedWorkspaces(this.db('files'), 'files.workspaceId')
       .whereIn('status', statuses)
       .orderBy('createdAt', 'asc')
       .limit(limit)) as FileRow[];

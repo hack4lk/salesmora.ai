@@ -11,6 +11,9 @@ const meta = {
 } satisfies Meta<typeof WorkspaceNavigation>;
 export default meta;
 type Story = StoryObj<typeof meta>;
+export const LeadSettings: Story = { args: { currentPage: 'settings', currentSettingsPage: 'leads', authorizedPages: ['settings', 'lead-settings'], leadSettingsHref: '/settings/leads?workspace=fictional-workspace' }, play: async ({ canvasElement }) => {
+  const c = await openNavigationIfMobile(canvasElement); await expect(c.getByRole('link', { name: copy.leadSettings })).toHaveAttribute('aria-current', 'page');
+} };
 async function openNavigationIfMobile(canvasElement: HTMLElement) {
   const c=within(canvasElement); const button=c.getByLabelText(copy.open);
   if (getComputedStyle(button).display !== 'none') await userEvent.click(button);
@@ -98,7 +101,32 @@ export const EstimateSettingsDenied: Story = {args:{
   await expect(c.queryByRole('link',{name:copy.estimateSettings})).not.toBeInTheDocument();
 }};
 export const Office:Story={args:{user:{name:copy.stories.name,email:copy.stories.email,role:'office'},authorizedPages:['home','leads','jobs','calendar','estimates','reports','campaigns']}};
-export const DeniedCapabilities:Story={args:{authorizedPages:['home']},play:async({canvasElement})=>{const c=await openNavigationIfMobile(canvasElement);await expect(c.queryByRole('link',{name:'Campaigns'})).not.toBeInTheDocument();await expect(c.queryByRole('navigation',{name:copy.management})).not.toBeInTheDocument();}};
+export const DeniedCapabilities:Story={args:{authorizedPages:['home']},play:async({canvasElement})=>{const c=await openNavigationIfMobile(canvasElement);await expect(c.queryByRole('link',{name:copy.items.find(item=>item.id==='campaigns')!.label})).not.toBeInTheDocument();await expect(c.queryByRole('navigation',{name:copy.management})).not.toBeInTheDocument();}};
+
+export const LeadCapture: Story = {
+  args: { currentPage: 'campaigns' },
+  play: async ({ canvasElement, args }) => {
+    const c = await openNavigationIfMobile(canvasElement);
+    const item = copy.items.find(item => item.id === 'campaigns')!;
+    const link = c.getByRole('link', { name: item.label });
+    await expect(link).toHaveAttribute('href', item.href);
+    await expect(link).toHaveAttribute('aria-current', 'page');
+    link.focus();
+    await userEvent.keyboard('{Enter}');
+    await expect(args.onNavigate).toHaveBeenCalledWith(item.id);
+    await expect(c.getByLabelText(copy.open)).toHaveAttribute('aria-expanded', 'false');
+  },
+};
+export const LeadCaptureMobile: Story = { ...LeadCapture, globals: { viewport: { value: 'phone', isRotated: false } } };
+export const LeadCaptureComingSoon: Story = {
+  args: { availablePages: ['home'], authorizedPages: ['home', 'campaigns'] },
+  play: async ({ canvasElement }) => {
+    const c = await openNavigationIfMobile(canvasElement);
+    const item = copy.items.find(item => item.id === 'campaigns')!;
+    await expect(c.getByRole('button', { name: `${item.label} ${copy.unavailable}` })).toBeDisabled();
+    await expect(c.queryByRole('link', { name: item.label })).not.toBeInTheDocument();
+  },
+};
 
 export const WorkspaceSettings: Story = {
   args: { currentPage: 'settings', authorizedPages: ['home', 'settings'], availablePages: ['home', 'settings'], settingsHref: '/settings?workspace=fictional-workspace', permissionsHref: '/settings/permissions?workspace=fictional-workspace' },

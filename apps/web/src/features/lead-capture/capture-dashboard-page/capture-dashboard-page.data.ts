@@ -1,0 +1,9 @@
+export const captureDashboardPageData = {
+  title: 'Capture source dashboard', back: 'Back to Lead Capture', tabsLabel: 'Source dashboard sections', tabs: { overview: 'Overview', settings: 'Settings', publication: 'Form installation' },
+  actionsLabel: 'Source actions', actions: { pause: 'Pause intake', resume: 'Resume intake', archive: 'Archive source', restore: 'Restore source', duplicate: 'Duplicate source', 'change-launch': 'Change scheduled launch' },
+  denied: 'You do not have permission to view this capture source.', invalid: 'Source details are incomplete. Reload before making changes.', loading: 'Loading capture source…', error: 'The capture source could not be loaded.', retry: 'Reload source', publicationInvalid: 'Current publication details are unavailable. Reload the source before copying installation details.',
+  stories: { description: 'Source dashboard preview. Metrics, configuration, lifecycle changes, connection actions and publication details are simulated. No source, form or Gmail account is changed.', workspace: 'Northstar Plumbing', viewer: 'Sam Rivera', email: 'sam@example.com',
+    intake: 'Source-scoped Intake Review requested (preview only).', changed: 'Source updated in this preview only.', copied: 'Draft-copy request accepted in this preview only. Existing leads and activity were not copied.', edit: 'Draft setup requested (preview only).', connection: 'Gmail connection management requested (preview only).', back: 'Lead Capture navigation requested (preview only).',
+    failure: 'Simulated source update failure.', conflict: 'This source changed. Reload its latest details before confirming.', now: '2026-10-30T14:00:00Z', scheduledAt: '2026-11-03T14:00:00.000Z', scheduledLocal: '2026-11-03T09:00', nextLocal: '2026-11-04T09:00', nextAt: '2026-11-04T14:00:00.000Z', timezone: 'America/New_York',
+  },
+} as const;

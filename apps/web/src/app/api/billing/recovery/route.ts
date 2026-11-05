@@ -1,3 +1,4 @@
+import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../server/http/suspension';
 import {randomUUID} from 'node:crypto';
 import {NextResponse} from 'next/server';
 import {paymentRecoveryRequestSchema} from '@salesmora/contracts';
@@ -22,5 +23,5 @@ export async function POST(request:Request){
       value=fresh.status==='review'?{...fresh,status:'declined'}:fresh;
     }
     return reply(value);
-  }catch(error){return reply({error:error instanceof BillingAccessError||error instanceof AuthorizationAccessError?'Owner billing access required.':'Payment recovery is unavailable. Refresh the invoice before trying again.'},error instanceof BillingAccessError||error instanceof AuthorizationAccessError?403:409);}
+  }catch(error){ if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();return reply({error:error instanceof BillingAccessError||error instanceof AuthorizationAccessError?'Owner billing access required.':'Payment recovery is unavailable. Refresh the invoice before trying again.'},error instanceof BillingAccessError||error instanceof AuthorizationAccessError?403:409);}
 }

@@ -1,7 +1,6 @@
 .git
 **/node_modules
-**/.next
-**/.next-e2e
+**/.next*
 **/dist
 **/storybook-static
 **/playwright-report
@@ -15,3 +14,5 @@
 .codex
 .aws
 prototypes
+
+.vscode
