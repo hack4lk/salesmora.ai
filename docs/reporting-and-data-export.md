@@ -2,6 +2,8 @@
 
 **Status:** Detailed working proposal for review. Phase 1 recommendations are explicit; items needing a product decision are listed at the end.
 
+**November 5, 2026 scope review:** The [Workspace Reports implementation plan](reporting-implementation-plan.md) records the interactively reviewed report scope and proposed delivery steps. It supersedes conflicting first-release scope/phasing assumptions below, including the addition of Estimates, current Calendar/deadline reporting, CRM activity and a limited sales-value/recorded-cost view. Detailed capture outcomes and true revenue/profitability remain deferred. Implementation, technical definition gates, individual components and deployment require separate review.
+
 ## 1. Goals
 
 Reporting should help small-business owners and their teams answer practical questions quickly:
