@@ -49,9 +49,58 @@ describe('all default role/action combinations', () => {
   }
 });
 
+describe('Report CSV explicit opt-in', () => {
+  it('defaults off, allows eligible explicit grants and denies disabled/missing dependencies', () => {
+    for (const role of ['owner', 'admin'] as const) {
+      const c = context(role);
+      expect(authorize(c, { permission: 'reports.export' }).allowed).toBe(false);
+      setGrant(c.policy, role, 'reports.export', 'enabled');
+      expect(authorize(c, { permission: 'reports.export' }).allowed).toBe(true);
+      c.enabledPermissions = c.enabledPermissions.filter(id => id !== 'reports.export');
+      expect(authorize(c, { permission: 'reports.export' }).allowed).toBe(false);
+      c.enabledPermissions = [...permissionIds]; remove(c.policy, role, 'reports.read');
+      expect(authorize(c, { permission: 'reports.export' }).allowed).toBe(false);
+    }
+  });
+  it('cannot grant Office/Field export access through stored policy', () => {
+    for (const role of ['office', 'field'] as const) {
+      const c = context(role); setGrant(c.policy, role, 'reports.export', 'enabled');
+      expect(validateWorkspacePolicy(c.policy).ok).toBe(false);
+      expect(authorize(c, { permission: 'reports.export' }).allowed).toBe(false);
+    }
+  });
+});
+describe('Financial report explicit opt-in', () => {
+  it('has no default grants and is revocable for both eligible roles', () => {
+    for (const role of ['owner', 'admin'] as const) {
+      const c = context(role);
+      expect(authorize(c, { permission: 'reports.financial.read' }).allowed).toBe(false);
+      setGrant(c.policy, role, 'reports.financial.read', 'enabled');
+      expect(authorize(c, { permission: 'reports.financial.read' }).allowed).toBe(true);
+      c.enabledPermissions = c.enabledPermissions.filter(id => id !== 'reports.financial.read');
+      expect(authorize(c, { permission: 'reports.financial.read' }).allowed).toBe(false);
+      c.enabledPermissions = [...permissionIds];
+      remove(c.policy, role, 'reports.financial.read');
+      expect(authorize(c, { permission: 'reports.financial.read' }).allowed).toBe(false);
+    }
+  });
+  it('rejects Office/Field grants and dependencies missing Reports authority', () => {
+    for (const role of ['office', 'field'] as const) {
+      const c = context(role);
+      setGrant(c.policy, role, 'reports.financial.read', 'enabled');
+      expect(validateWorkspacePolicy(c.policy).ok).toBe(false);
+      expect(authorize(c, { permission: 'reports.financial.read' }).allowed).toBe(false);
+    }
+    const c = context('owner');
+    setGrant(c.policy, 'owner', 'reports.financial.read', 'enabled');
+    remove(c.policy, 'owner', 'reports.read');
+    expect(validateWorkspacePolicy(c.policy).ok).toBe(false);
+  });
+});
+
 describe('code-owned catalog and policy validation', () => {
-  it('has 83 unique actions, legal defaults, known dependencies and a consistent default template', () => {
-    expect(permissionIds).toHaveLength(83);
+  it('has 85 unique actions, legal defaults, known dependencies and a consistent default template', () => {
+    expect(permissionIds).toHaveLength(85);
     expect(new Set(permissionIds).size).toBe(permissionIds.length);
     expect(validateWorkspacePolicy(defaultPolicy()).ok).toBe(true);
     for (const id of permissionIds) {

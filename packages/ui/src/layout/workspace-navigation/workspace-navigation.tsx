@@ -38,6 +38,7 @@ export interface WorkspaceNavigationProps {
   jobsHref?: string;
   calendarHref?: string;
   estimatesHref?: string;
+  reportsHref?: string;
   /** Supply only when the server authorizes the Gantt chart. Omitted means deny. */
   ganttHref?: string;
   workOrdersHref?: string;
@@ -68,7 +69,7 @@ const icons = { home: HomeOutlined, intake: InboxOutlined, leads: PeopleOutlined
 const controlClass = 'inline-flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold focus-visible:focus-ring';
 
 /** Visibility reflects current server-supplied capabilities; routes must enforce authorization. */
-export function WorkspaceNavigation({ workspaceName, user, currentPage, contentId, homeHref = '/home', leadsHref = '/leads', leadCaptureHref = '/lead-capture', intakeHref = '/intake', customersHref = '/customers', jobsHref = '/jobs', calendarHref = '/calendar', estimatesHref = '/estimates', ganttHref, workOrdersHref = '/work-orders', materialsHref = '/materials', settingsHref = '/settings', estimateSettingsHref, leadSettingsHref, permissionsHref, aiUsageHref, billingHref, accountHref, notificationsHref, jobNotificationsHref, currentCalendarPage, currentSettingsPage, availablePages, authorizedPages = [], accountSettingsAvailable = true, signingOut = false, onNavigate, onAccountSettings, onSignOut }: WorkspaceNavigationProps) {
+export function WorkspaceNavigation({ workspaceName, user, currentPage, contentId, homeHref = '/home', leadsHref = '/leads', leadCaptureHref = '/lead-capture', intakeHref = '/intake', customersHref = '/customers', jobsHref = '/jobs', calendarHref = '/calendar', estimatesHref = '/estimates', reportsHref = '/reports', ganttHref, workOrdersHref = '/work-orders', materialsHref = '/materials', settingsHref = '/settings', estimateSettingsHref, leadSettingsHref, permissionsHref, aiUsageHref, billingHref, accountHref, notificationsHref, jobNotificationsHref, currentCalendarPage, currentSettingsPage, availablePages, authorizedPages = [], accountSettingsAvailable = true, signingOut = false, onNavigate, onAccountSettings, onSignOut }: WorkspaceNavigationProps) {
   const id = useId();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -84,7 +85,7 @@ export function WorkspaceNavigation({ workspaceName, user, currentPage, contentI
       if (availablePages && !availablePages.includes(item.id)) return <button key={item.id} type="button" disabled className={`${controlClass} w-full cursor-not-allowed text-left text-muted`}>
         <Icon className="size-5 shrink-0" aria-hidden="true" /><span className="min-w-0 flex-1">{item.label}</span><span className="text-xs font-normal">{copy.unavailable}</span>
       </button>;
-      return <div key={item.id}><a href={item.id === 'home' ? homeHref : item.id === 'leads' ? leadsHref : item.id === 'intake' ? intakeHref : item.id === 'campaigns' ? leadCaptureHref : item.id === 'customers' ? customersHref : item.id === 'jobs' ? jobsHref : item.id === 'calendar' ? calendarHref : item.id === 'estimates' ? estimatesHref : item.id === 'work-orders' ? workOrdersHref : item.id === 'materials' ? materialsHref : item.id === 'settings' ? settingsHref : item.href} aria-current={currentPage === item.id && !(item.id === 'settings' && currentSettingsPage) && !(item.id === 'calendar' && currentCalendarPage) ? 'page' : undefined}
+      return <div key={item.id}><a href={item.id === 'home' ? homeHref : item.id === 'leads' ? leadsHref : item.id === 'intake' ? intakeHref : item.id === 'campaigns' ? leadCaptureHref : item.id === 'customers' ? customersHref : item.id === 'jobs' ? jobsHref : item.id === 'calendar' ? calendarHref : item.id === 'estimates' ? estimatesHref : item.id === 'reports' ? reportsHref : item.id === 'work-orders' ? workOrdersHref : item.id === 'materials' ? materialsHref : settingsHref} aria-current={currentPage === item.id && !(item.id === 'settings' && currentSettingsPage) && !(item.id === 'calendar' && currentCalendarPage) ? 'page' : undefined}
         onClick={event => { if (onNavigate) event.preventDefault(); navigate(item.id); }}
         className={`${controlClass} w-full ${currentPage === item.id && !(item.id === 'calendar' && currentCalendarPage) ? 'bg-primary text-paper hover:bg-primary-dark' : 'text-muted hover:bg-canvas hover:text-ink'}`}>
         <Icon className="size-5 shrink-0" aria-hidden="true" /><span>{item.label}</span>

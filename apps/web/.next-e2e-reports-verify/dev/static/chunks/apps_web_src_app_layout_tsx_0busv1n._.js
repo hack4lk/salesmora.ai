@@ -1,0 +1,5 @@
+(globalThis["TURBOPACK_CHUNK_LISTS"] || (globalThis["TURBOPACK_CHUNK_LISTS"] = [])).push({
+    script: typeof document === "object" ? document.currentScript : undefined,
+    chunks: ["static/chunks/packages_ui_src_styles_global_0ck._3q.css","static/chunks/packages_ui_src_0gg-md.._.js","static/chunks/packages_contracts_src_reports_0qp9kb-._.js","static/chunks/packages_contracts_src_lead-capture_0us1abf._.js","static/chunks/packages_contracts_src_admin_0~w-pa2._.js","static/chunks/packages_contracts_src_0-d6rga._.js","static/chunks/packages_domain_src_0rkwmww._.js","static/chunks/0.0a_next_0eqmjf1._.js","static/chunks/0fbm_@mui_utils_0vjh1jw._.js","static/chunks/031._@mui_system_0ie.812._.js","static/chunks/0pyw_@mui_material_styles_0fpbgs6._.js","static/chunks/0pyw_@mui_material_Select_0y26jo5._.js","static/chunks/0pyw_@mui_material_0lpt-q1._.js","static/chunks/03nf_zod_v4_classic_0~6doov._.js","static/chunks/03nf_zod_v4_core_0~_2zzd._.js","static/chunks/03nf_zod_v4_locales_0b76yml._.js","static/chunks/node_modules__pnpm_0g3wtuk._.js"],
+    source: "dynamic"
+});

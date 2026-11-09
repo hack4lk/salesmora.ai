@@ -1,0 +1,15 @@
+export const calendarScheduledReportData = {
+  title: 'Scheduled visits',
+  help: 'About scheduled visit reporting',
+  visits: 'Distinct scheduled visits',
+  busy: 'Busy person-days',
+  days: 'Visits by day',
+  people: 'Visits by person',
+  definition: 'Current canonical visits with authorized active Job or Work Order records, filtered by business-local scheduled visit date. Dates are inclusive and stay exact even when the range crosses Calendar weeks.',
+  sharing: 'An explicitly shared visit counts once overall and once per distinct authorized participant. Duplicate crew memberships never add visits. Matching customers or dates do not merge separate visits. Person totals are non-additive.',
+  busyDefinition: 'A busy person-day has four or more distinct visits for that person on that date, matching Calendar. This is a workload review signal, not hours, capacity, availability, utilization or performance.',
+  current: 'This is the current schedule, not historical scheduling, rescheduling, cancellation or attendance analytics. No missed attendance is inferred from a past scheduled date.',
+  own: 'Own scope shows only Me and my visits. Hidden records, parent Jobs, other participants and residual unassigned totals are withheld.',
+  invalid: 'Scheduled visits could not be displayed because the date range, distinct visits, person workload, scope or evidence are inconsistent. Retry the report.',
+  unassigned: 'No authorized participant',
+};

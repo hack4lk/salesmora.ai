@@ -4,10 +4,13 @@ export { workspacePlanCatalogVersion, workspacePlanCatalog, getWorkspacePlan, wo
 export * from './billing/plan-override';
 export * from './jobs/lifecycle';
 export * from './work-orders/lifecycle';
+export * from './work-orders/material-cost';
 export * from './calendar/schedule';
 export * from './calendar/dates';
+export * from './reports/period';
 export * from './calendar/gantt';
 export * from './estimates/items';
+export { parseEstimateDecimal, roundEstimateHalfUp } from './estimates/decimal';
 export * from './estimates/totals';
 export * from './estimates/state';
 export * from './estimates/sharing';

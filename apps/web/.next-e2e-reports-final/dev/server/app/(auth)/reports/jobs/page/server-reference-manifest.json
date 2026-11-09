@@ -1,0 +1,17 @@
+{
+  "node": {
+    "008f6f8f167de42bbeccd0263a2273616f3dfa3d86": {
+      "workers": {
+        "app/(auth)/reports/jobs/page": {
+          "moduleId": "[project]/apps/web/.next-internal/server/app/(auth)/reports/jobs/page/actions.js { ACTIONS_MODULE0 => \"[project]/apps/web/src/server/reports/read-page.tsx [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": true,
+          "exportedName": "$$RSC_SERVER_ACTION_0",
+          "filename": "apps/web/src/server/reports/read-page.tsx"
+        }
+      },
+      "exportedName": "$$RSC_SERVER_ACTION_0",
+      "filename": "apps/web/src/server/reports/read-page.tsx"
+    }
+  },
+  "edge": {}
+}

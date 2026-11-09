@@ -1,0 +1,5 @@
+(globalThis["TURBOPACK_CHUNK_LISTS"] || (globalThis["TURBOPACK_CHUNK_LISTS"] = [])).push({
+    script: typeof document === "object" ? document.currentScript : undefined,
+    chunks: ["static/chunks/apps_web_src_features_lead-capture_06h8-29._.js","static/chunks/apps_web_src_features_assistant_00opvr7._.js","static/chunks/apps_web_src_features_jobs_0siboyc._.js","static/chunks/apps_web_src_features_estimates_08gc4f2._.js","static/chunks/apps_web_src_features_reports_lead-source-report_0999gut._.js","static/chunks/apps_web_src_features_reports_business-overview_0fxlg2.._.js","static/chunks/apps_web_src_features_reports_calendar-report-workspace_0jogeql._.js","static/chunks/apps_web_src_features_reports_estimate-report-workspace_0p96sd5._.js","static/chunks/apps_web_src_features_reports_activity-report_0dcjo_u._.js","static/chunks/apps_web_src_features_reports_financial-report_0hb17u5._.js","static/chunks/apps_web_src_features_reports_0o_lv-7._.js","static/chunks/apps_web_src_features_125.xl1._.js","static/chunks/packages_ui_src_0rx154b._.js","static/chunks/node_modules__pnpm_07opscm._.js"],
+    source: "dynamic"
+});

@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#F4F8FC">
+  <title>Report date controls | SalesMora prototype</title>
+  <style>
+    @font-face {
+      font-family: "Source Sans 3";
+      src: url("../apps/web/public/fonts/source-sans-3/source-sans-3-variable.woff2") format("woff2");
+      font-weight: 200 900;
+      font-display: swap;
+    }
+    :root {
+      font-family: "Source Sans 3", "Segoe UI", Arial, sans-serif;
+      color: #23384D;
+      background: #F4F8FC;
+      font-size: 16px;
+      --blue: #3B6FA5;
+      --border: #E2EAF1;
+      --muted: #64778A;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; line-height: 1.625; }
+    [hidden] { display: none !important; }
+    button, input, select { font: inherit; color: inherit; }
+    button, select { cursor: pointer; }
+    button, input, select { min-height: 48px; border: 1px solid #64778A; border-radius: 12px; background: white; }
+    input, select { width: 100%; padding: 8px 12px; }
+    button { padding: 12px 24px; font-weight: 600; line-height: 1.5; }
+    button:hover { background: #F4F8FC; }
+    .primary { color: white; background: var(--blue); border-color: var(--blue); }
+    .primary:hover { background: #315C8A; }
+    :focus-visible { outline: 3px solid #8DB5D5; outline-offset: 3px; }
+    .skip { position: absolute; top: -100px; left: 16px; background: white; padding: 12px; color: var(--blue); z-index: 1; }
+    .skip:focus { top: 8px; }
+    .topbar { background: white; border-bottom: 1px solid var(--border); }
+    .topbar-inner { max-width: 1200px; margin: auto; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .logo { width: 224px; height: auto; max-width: 100%; }
+    .badge { display: inline-block; padding: 4px 12px; border-radius: 24px; background: #E8F5F0; color: #23384D; font-size: 14px; font-weight: 600; }
+    main { max-width: 1200px; margin: auto; padding: 32px; }
+    .breadcrumb, .muted, .hint { color: var(--muted); }
+    .breadcrumb, .hint, .badge, .caption { font-size: 14px; }
+    h1 { margin: 8px 0; font-size: 36px; line-height: 1.25; letter-spacing: -.025em; font-weight: 600; }
+    h2 { font-size: 24px; line-height: 1.25; margin: 0 0 8px; font-weight: 600; }
+    h3 { font-size: 18px; margin: 0 0 8px; font-weight: 600; }
+    p { margin: 0 0 16px; }
+    .intro { max-width: 760px; margin-bottom: 24px; }
+    .prototype-note { border-left: 4px solid #7CCBB7; padding: 12px 16px; margin: 0 0 24px; background: white; }
+    .context { max-width: 448px; margin-bottom: 24px; }
+    label { display: block; font-weight: 600; margin-bottom: 8px; }
+    .card { padding: 24px; background: white; border: 1px solid var(--border); border-radius: 16px; margin-bottom: 24px; min-width: 0; }
+    .card-header { display: flex; justify-content: space-between; align-items: start; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+    .card-header p { margin: 0; }
+    .timezone { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+    .fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+    .field { min-width: 0; }
+    .preset-field { grid-column: 1; }
+    .dates { grid-column: 2 / 4; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .range-help { margin-top: 12px; }
+    .error { border: 1px solid #D32F2F; border-radius: 12px; padding: 16px; margin-top: 16px; }
+    .error strong { display: block; }
+    .error p { margin: 4px 0 0; }
+    input[aria-invalid="true"] { border-color: #D32F2F; }
+    .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
+    .draft { margin: 0; font-size: 14px; color: var(--muted); }
+    .applied { border-top: 1px solid var(--border); padding-top: 20px; margin-top: 24px; }
+    .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin: 0 0 8px; }
+    .applied-range { font-size: 24px; font-weight: 600; margin-bottom: 4px; line-height: 1.3; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+    .basis-list { margin: 24px 0 0; }
+    .basis-row { padding: 16px 0; border-top: 1px solid var(--border); }
+    dt { font-weight: 600; }
+    dd { margin: 4px 0 0; color: var(--muted); }
+    .current { border-top: 4px solid #7CCBB7; }
+    .current-note { margin-top: 24px; padding: 16px; background: #F4F8FC; border-radius: 12px; }
+    footer { padding-bottom: 24px; color: var(--muted); font-size: 14px; }
+    @media (max-width: 899px) {
+      .grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+      .fields { grid-template-columns: minmax(0, 1fr); }
+      .dates { grid-column: 1; }
+    }
+    @media (max-width: 599px) {
+      main { padding: 24px 16px; }
+      .topbar-inner { padding: 16px; }
+      h1 { font-size: 30px; }
+      .card { padding: 20px 16px; }
+      .dates { grid-template-columns: minmax(0, 1fr); }
+      .actions button { width: 100%; }
+      .timezone { width: 100%; overflow-wrap: anywhere; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to report controls</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <img class="logo" src="../branding/assets/salesmora-logo.svg" alt="SalesMora.ai">
+      <span class="badge">Prototype / date controls</span>
+    </div>
+  </header>
+  <main id="main">
+    <div class="breadcrumb">Workspace / Reports / Shared controls</div>
+    <div class="intro">
+      <h1>Choose a reporting period</h1>
+      <p class="muted">One clear period for dated activity. Current-state sections stay separate, so changing dates never suggests a historical pipeline snapshot.</p>
+    </div>
+    <p class="prototype-note"><strong>Review prototype.</strong> Fixed example date: November 5, 2026. No live data, permissions, exports, or API requests. Changing the context below demonstrates the two report defaults.</p>
+    <p><a href="prototype-screen-44-reporting-flow.html">Open the connected reporting flow: landing, configuration, results and CSV preview</a></p>
+    <div class="context">
+      <label for="context">Prototype report context</label>
+      <select id="context" aria-describedby="context-help">
+        <option value="history">Historical reports</option>
+        <option value="calendar">Calendar reports</option>
+      </select>
+      <p id="context-help" class="hint">Review aid only; this selector will not appear in the live controls. Switching contexts discards unapplied edits.</p>
+    </div>
+
+    <section class="card" aria-labelledby="period-heading">
+      <div class="card-header">
+        <div>
+          <h2 id="period-heading">Reporting period</h2>
+          <p class="muted" id="period-description">Date-based sections use this period, each with its own stated date basis.</p>
+        </div>
+        <div class="timezone"><span class="caption muted">Workspace timezone</span><br><strong>Europe/Warsaw</strong></div>
+      </div>
+      <form id="range-form" novalidate>
+        <div class="fields">
+          <div class="field preset-field">
+            <label for="preset">Date range</label>
+            <select id="preset" aria-describedby="range-help">
+              <option value="default">Last 30 days, including today</option>
+              <option value="custom">Custom dates</option>
+            </select>
+          </div>
+          <div class="dates" id="custom-dates" hidden>
+            <div class="field">
+              <label for="start">Start date</label>
+              <input id="start" type="date" min="0001-01-01" max="9999-12-31" required aria-describedby="range-help">
+            </div>
+            <div class="field">
+              <label for="end">End date</label>
+              <input id="end" type="date" min="0001-01-01" max="9999-12-31" required aria-describedby="range-help">
+            </div>
+          </div>
+        </div>
+        <p id="range-help" class="hint range-help">Both selected dates are included. Custom ranges can contain up to 366 calendar dates.</p>
+        <div class="error" id="range-error" role="alert" hidden>
+          <strong>Check your date range</strong>
+          <p id="error-message"></p>
+        </div>
+        <div class="actions">
+          <button class="primary" type="submit">Apply period</button>
+          <button id="cancel" type="button">Cancel changes</button>
+          <p class="draft" id="draft-note">No unapplied changes.</p>
+        </div>
+      </form>
+      <div class="applied" role="status" aria-live="polite" aria-atomic="true">
+        <p class="eyebrow">Applied period</p>
+        <p class="applied-range" id="applied-range"></p>
+        <p class="caption muted" id="applied-details"></p>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="card" aria-labelledby="basis-heading">
+        <p class="eyebrow">Uses the applied period</p>
+        <h2 id="basis-heading">Date basis, per metric</h2>
+        <p class="muted">The period does not turn every metric into a creation-date filter.</p>
+        <dl class="basis-list" id="history-basis">
+          <div class="basis-row"><dt>New leads</dt><dd>Lead creation date in the workspace timezone.</dd></div>
+          <div class="basis-row"><dt>Completed Jobs</dt><dd>Latest recorded completion per Job within the selected period, even if it later reopened.</dd></div>
+          <div class="basis-row"><dt>Estimate decisions</dt><dd>Recorded decision date of each currently effective issued quote. Later revisions can restate past rates.</dd></div>
+        </dl>
+        <dl class="basis-list" id="calendar-basis" hidden>
+          <div class="basis-row"><dt>Scheduled visits</dt><dd>Visit dates within the selected period, in the workspace timezone.</dd></div>
+          <div class="basis-row"><dt>Assigned person-days</dt><dd>Each distinct assigned person and local visit date, not the number of source records.</dd></div>
+          <div class="basis-row"><dt>Seven-day default</dt><dd>Today plus the next six dates. This is separate from the Job deadline window of today plus seven dates.</dd></div>
+        </dl>
+      </section>
+      <section class="card current" aria-labelledby="current-heading">
+        <p class="eyebrow">Independent of the selected period</p>
+        <h2 id="current-heading">As of now</h2>
+        <p class="muted">Current open pipeline, workload, and attention queues describe the present, not the selected historical period.</p>
+        <dl class="basis-list">
+          <div class="basis-row"><dt id="current-example">Current pipeline</dt><dd id="current-description">All currently open leads in your authorized scope, regardless of creation date.</dd></div>
+          <div class="basis-row"><dt>Example snapshot</dt><dd>November 5, 2026 at 10:00, Europe/Warsaw. Fixed for this prototype.</dd></div>
+        </dl>
+        <p class="current-note">Applying or canceling a period changes only the dated sections. This panel stays unchanged within the same report context.</p>
+      </section>
+    </div>
+    <footer>Review focus: date editing, Apply/Cancel behavior, timezone visibility, and period versus current-state clarity. No React components have been created.</footer>
+  </main>
+  <script>
+    const exampleToday = "2026-11-05";
+    const dayMilliseconds = 86400000;
+    const context = document.getElementById("context");
+    const preset = document.getElementById("preset");
+    const start = document.getElementById("start");
+    const end = document.getElementById("end");
+    const errorPanel = document.getElementById("range-error");
+    const defaultRanges = {
+      history: { preset: "default", start: "2026-10-07", end: exampleToday },
+      calendar: { preset: "default", start: exampleToday, end: "2026-11-11" }
+    };
+    const applied = {
+      history: { ...defaultRanges.history },
+      calendar: { ...defaultRanges.calendar }
+    };
+    const dateFormatter = new Intl.DateTimeFormat("en-GB", {
+      day: "numeric", month: "short", year: "numeric", timeZone: "UTC"
+    });
+
+    // UTC is used only for calendar-date arithmetic, not workspace instant boundaries.
+    function parseDate(value) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith("0000")) return null;
+      const date = new Date(value + "T00:00:00.000Z");
+      if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) return null;
+      return date;
+    }
+
+    function draftRange() {
+      return preset.value === "default"
+        ? { ...defaultRanges[context.value] }
+        : { preset: "custom", start: start.value, end: end.value };
+    }
+
+    function clearError() {
+      errorPanel.hidden = true;
+      for (const input of [start, end]) {
+        input.removeAttribute("aria-invalid");
+        input.setAttribute("aria-describedby", "range-help");
+      }
+    }
+
+    function updateDraft() {
+      clearError();
+      document.getElementById("custom-dates").hidden = preset.value !== "custom";
+      const draft = draftRange();
+      const saved = applied[context.value];
+      const changed = ["preset", "start", "end"].some(key => draft[key] !== saved[key]);
+      document.getElementById("draft-note").textContent = changed
+        ? "Unapplied changes. Reports still use the applied period below."
+        : "No unapplied changes.";
+    }
+
+    function renderApplied() {
+      const range = applied[context.value];
+      const first = parseDate(range.start);
+      const last = parseDate(range.end);
+      const count = (last - first) / dayMilliseconds + 1;
+      document.getElementById("applied-range").textContent =
+        dateFormatter.format(first) + " to " + dateFormatter.format(last);
+      document.getElementById("applied-details").textContent =
+        count + " calendar " + (count === 1 ? "date" : "dates") +
+        ", both endpoints included. Europe/Warsaw. No live data is loaded.";
+    }
+
+    function restoreApplied() {
+      const range = applied[context.value];
+      preset.value = range.preset;
+      start.value = range.start;
+      end.value = range.end;
+      updateDraft();
+    }
+
+    function showError(message, invalidInputs) {
+      document.getElementById("error-message").textContent = message;
+      errorPanel.hidden = false;
+      for (const input of invalidInputs) {
+        input.setAttribute("aria-invalid", "true");
+        input.setAttribute("aria-describedby", "range-help error-message");
+      }
+      invalidInputs[0].focus();
+    }
+
+    document.getElementById("range-form").addEventListener("submit", event => {
+      event.preventDefault();
+      clearError();
+      const draft = draftRange();
+      const first = parseDate(draft.start);
+      const last = parseDate(draft.end);
+      if (!first || !last) {
+        showError("Enter a real start and end date, with a year from 0001 to 9999.", [!first && start, !last && end].filter(Boolean));
+        return;
+      }
+      if (first > last) {
+        showError("End date must be on or after start date. Your applied period has not changed.", [end]);
+        return;
+      }
+      if ((last - first) / dayMilliseconds + 1 > 366) {
+        showError("Choose no more than 366 calendar dates, including the start and end dates. Your range has not been shortened or applied.", [start, end]);
+        return;
+      }
+      applied[context.value] = draft;
+      renderApplied();
+      updateDraft();
+    });
+    document.getElementById("cancel").addEventListener("click", restoreApplied);
+    preset.addEventListener("change", updateDraft);
+    start.addEventListener("input", updateDraft);
+    end.addEventListener("input", updateDraft);
+    context.addEventListener("change", () => {
+      const calendar = context.value === "calendar";
+      preset.options[0].textContent = calendar
+        ? "Next 7 days, including today" : "Last 30 days, including today";
+      document.getElementById("history-basis").hidden = calendar;
+      document.getElementById("calendar-basis").hidden = !calendar;
+      document.getElementById("current-example").textContent = calendar ? "Unscheduled queue" : "Current pipeline";
+      document.getElementById("current-description").textContent = calendar
+        ? "Currently unscheduled visits in your authorized scope. They have no visit date to filter."
+        : "All currently open leads in your authorized scope, regardless of creation date.";
+      restoreApplied();
+      renderApplied();
+    });
+    restoreApplied();
+    renderApplied();
+  </script>
+</body>
+</html>

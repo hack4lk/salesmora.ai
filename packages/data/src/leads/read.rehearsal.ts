@@ -1,11 +1,16 @@
-/** Isolated-schema PostgreSQL checks. Never resets or edits development records. */
+/** Disposable-database PostgreSQL checks. Never resets or edits development records. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import knex from 'knex';
-import { leadListQuerySchema, leadEditableFields, type UpdateLeadInput, type PermissionId } from '@salesmora/contracts';
+import { leadListQuerySchema, leadEditableFields, type LeadReportQuery, type UpdateLeadInput, type PermissionId } from '@salesmora/contracts';
 import { resolveLeadChatContext, leadChatEvidenceAllowed, leadChatPipelineCounts } from './chat-context';
-import { loadWorkspaceAuthorization } from '../authorization/store';
+import { initializeWorkspacePolicy, loadWorkspaceAuthorization, withWorkspaceAuthorization } from '../authorization/store';
+import { readLeadReportInTransaction } from '../reports/leads';
+import { readLeadReportWithAuthorityInTransaction } from '../reports/lead-read';
+import { readTeamLeadsReportInTransaction } from '../reports/team-leads';
+import { prepareTeamReportCSVProjectionInTransaction } from '../reports/team-export-projection';
+import { readTeamReportWithAuthorityInTransaction, initialTeamReportWithAuthorityInTransaction } from '../reports/team-read';
 import { createLeadCSVExport, previewLeadExport, LeadExportLimitError, LeadExportEmptyError } from './export';
 import { deleteLead, LeadDeleteConflictError, LeadDeleteConfirmationError, LeadDeleteWonError } from './delete';
 import { setLeadArchived, LeadArchiveConflictError } from './archive';
@@ -21,17 +26,26 @@ import { addLeadNote, LeadNoteConflictError } from './notes';
 import { updateLead, LeadEditConflictError, LeadSourceLockedError } from './update';
 process.loadEnvFile(fileURLToPath(new URL('../../../../.env.local', import.meta.url)));
 const connection = process.env.TEST_DATABASE_URL;
-if (!connection || !new URL(connection).pathname.endsWith('_test') || connection === process.env.DATABASE_URL) throw new Error('Use a separate _test database.');
-const schema = `lead_read_${randomUUID().replaceAll('-', '')}`, admin = knex({ client: 'pg', connection });
-const db = knex({ client: 'pg', connection: { connectionString: connection, options: `-c search_path=${schema},public` }, pool: { min: 0, max: 8 } });
+if (!connection || !new URL(connection).pathname.endsWith('_test') || connection === process.env.DATABASE_URL ||
+  !['localhost', '127.0.0.1'].includes(new URL(connection).hostname)) throw new Error('Use a separate local _test database.');
+const databaseName = `lead_read_${randomUUID().replaceAll('-', '')}_test`, admin = knex({ client: 'pg', connection });
+const testURL = new URL(connection);
+testURL.pathname = `/${databaseName}`;
+const db = knex({ client: 'pg', connection: testURL.toString(), pool: { min: 0, max: 8 } });
+let databaseCreated = false;
 const a = randomUUID(), b = randomUUID(), ids = Array.from({ length: 63 }, () => randomUUID());
 const enabled: PermissionId[] = ['leads.read', 'leads.update', 'leads.stage.update', 'leads.create', 'leads.assign', 'leads.archive', 'leads.delete', 'leads.export'];
+const reportEnabled: PermissionId[] = [...enabled, 'reports.read'];
 const input = (patch = {}) => leadListQuerySchema.parse({ workspaceId: a, view: 'list', ...patch });
 const read = (userId: string, patch = {}) => readLeads(db, { userId, workspaceId: a }, enabled, input(patch));
+const readReport = (userId: string, query: Parameters<typeof readLeadReportInTransaction>[2], permissions = reportEnabled) =>
+  withWorkspaceAuthorization(db, { userId, workspaceId: a }, permissions, false,
+    (trx, context) => readLeadReportInTransaction(trx, context, query));
 let checks = 0;
 async function check(name: string, run: () => Promise<void>) { await run(); checks++; console.log(`PASS ${name}`); }
 try {
-  await admin.raw('CREATE SCHEMA ??', [schema]);
+  await admin.raw('CREATE DATABASE ??', [databaseName]);
+  databaseCreated = true;
   // Legacy leads are seeded before the authorization and read-model migrations; every later migration then runs on top.
   await replayMigrations(db, { through: '202610110003_leads' });
   await db('users').insert(['owner', 'admin', 'office', 'field', 'outsider', 'other-owner'].map(id => ({ id, name: id, email: `${id}@example.test`, createdAt: new Date(), updatedAt: new Date(), termsVersion: 'test', termsAcceptedAt: new Date() })));
@@ -180,6 +194,7 @@ try {
       await updateLead(db, { userId: 'field', workspaceId: a }, enabled, { workspaceId: a, leadId: id, expectedVersion: 1, submissionId: randomUUID(), values: { ...values, service: 'Allowed service edit' } });
       assert.equal((await db('leads').where({ id }).first()).source, row.source);
     }
+    await db('leads').where({ id: gmailId }).update({ archivedAt: new Date() });
   });
   await check('edit writes enforce assignment, tenant, archive and current grants', async () => {
     await assert.rejects(edit('field', ids[20], { name: 'Denied' }), AuthorizationAccessError);
@@ -407,6 +422,130 @@ try {
       await assert.rejects(createLeadCSVExport(db, exportIdentity, enabled, exportInput({ query: 'No matching export fixture' })), LeadExportEmptyError);
     } finally { if (previous === undefined) delete process.env.LEAD_EXPORT_ROW_LIMIT; else process.env.LEAD_EXPORT_ROW_LIMIT = previous; }
   });
+  await check('Lead report projections reconcile and keep period/current populations separate', async () => {
+    await db('workspaces').where({ id: a }).update({ timezone: 'UTC' });
+    const reportIds = Array.from({ length: 4 }, () => randomUUID());
+    const reportBase = { ...base, source: 'gmail', service: 'Report fixture' };
+    const now = await db.raw('SELECT CURRENT_TIMESTAMP AS now');
+    const asOf = new Date(now.rows[0].now as Date | string);
+    const daysAgo = (days: number) => new Date(asOf.getTime() - days * 86_400_000);
+    await db('leads').insert([
+      { ...reportBase, id: reportIds[0], submissionId: randomUUID(), workspaceId: a, ownerId: 'field', stage: 'new', createdAt: daysAgo(10) },
+      { ...reportBase, id: reportIds[1], submissionId: randomUUID(), workspaceId: a, ownerId: null, stage: 'estimate-sent', createdAt: daysAgo(20) },
+      { ...reportBase, id: reportIds[2], submissionId: randomUUID(), workspaceId: a, ownerId: 'office', stage: 'won', createdAt: daysAgo(15) },
+      { ...reportBase, id: reportIds[3], submissionId: randomUUID(), workspaceId: a, ownerId: 'office', stage: 'lost', archivedAt: asOf, createdAt: daysAgo(25) },
+    ]);
+    await db('leads').whereIn('id', reportIds.slice(0, 2)).update({ lastActivityAt: daysAgo(8) });
+    await db('leads').where({ id: reportIds[2] }).update({ lastActivityAt: asOf });
+    const today = asOf.toISOString().slice(0, 10);
+    const periodFrom = new Date(Date.parse(`${today}T00:00:00Z`) - 26 * 86_400_000).toISOString().slice(0, 10);
+    const periodTo = new Date(Date.parse(`${today}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+    const filters: LeadReportQuery['filters'] = { stages: [], owners: [], sources: ['gmail'] };
+    const baseQuery = { workspaceId: a, filters, page: 1, pageSize: 25 as const };
+    await db('leadActivity').insert([
+      { id: randomUUID(), workspaceId: a, leadId: reportIds[2], actorId: null, actorName: null, actorType: 'system', type: 'stage', changes: JSON.stringify({ from: 'contacted', to: 'lost' }), createdAt: daysAgo(22) },
+      { id: randomUUID(), workspaceId: a, leadId: reportIds[2], actorId: null, actorName: null, actorType: 'system', type: 'stage', changes: JSON.stringify({ from: 'lost', to: 'won' }), createdAt: daysAgo(18) },
+      { id: randomUUID(), workspaceId: a, leadId: reportIds[3], actorId: null, actorName: null, actorType: 'system', type: 'stage', changes: JSON.stringify({ from: 'contacted', to: 'lost' }), createdAt: daysAgo(16) },
+    ]);
+
+    const intake = await readReport('owner', {
+      ...baseQuery, view: 'intake', period: { from: periodFrom, to: periodTo },
+      currentFilters: { stages: ['estimate-sent'], owners: [], sources: ['gmail'] },
+    });
+    assert.equal(intake.view, 'intake');
+    if (intake.view !== 'intake') throw new Error('Expected intake projection.');
+    assert.equal(intake.total, 4);
+    assert.equal(intake.sources.find(group => group.source === 'gmail')?.count, 4);
+    assert.equal(intake.trend.reduce((sum, bucket) => sum + bucket.count, 0), 4);
+    assert.equal(intake.currentOpenLeads, 1);
+
+    const pipeline = await readReport('owner', {
+      ...baseQuery, view: 'pipeline', selection: { kind: 'pipeline' },
+    });
+    assert.equal(pipeline.view, 'pipeline');
+    if (pipeline.view !== 'pipeline') throw new Error('Expected pipeline projection.');
+    assert.equal(pipeline.total, 2);
+    assert.equal(pipeline.stages.new, 1);
+    assert.equal(pipeline.stages['estimate-sent'], 1);
+    assert.equal(pipeline.ages['8-14'] + pipeline.ages['15-30'], 2);
+
+    const attention = await readReport('owner', {
+      ...baseQuery, view: 'attention', selection: 'combined',
+    });
+    assert.equal(attention.view, 'attention');
+    if (attention.view !== 'attention') throw new Error('Expected attention projection.');
+    assert.deepEqual(attention.counts, { inactive: 2, unowned: 1, combined: 2 });
+    assert(attention.rows.every(row => row.recordId !== reportIds[3]));
+
+    const won = await readReport('owner', {
+      ...baseQuery, view: 'won', period: { from: periodFrom, to: periodTo },
+    });
+    assert.equal(won.view, 'won');
+    if (won.view !== 'won') throw new Error('Expected Won projection.');
+    assert.deepEqual(won.counts, { won: 1, lost: 2 });
+    assert.equal(won.coverage.kind, 'partial');
+
+    const officeIntake = await readReport('office', {
+      ...baseQuery, view: 'intake', period: { from: periodFrom, to: periodTo },
+      currentFilters: { stages: [], owners: [], sources: ['gmail'] },
+    });
+    assert.equal(officeIntake.view, 'intake');
+    if (officeIntake.view !== 'intake') throw new Error('Expected Office intake projection.');
+    assert.equal(officeIntake.total, 3);
+    assert.equal(officeIntake.archiveVisibility, 'excluded');
+
+    const fieldIntake = await readReport('field', {
+      ...baseQuery, view: 'intake', period: { from: periodFrom, to: periodTo },
+      currentFilters: { stages: [], owners: [], sources: ['gmail'] },
+    });
+    assert.equal(fieldIntake.view, 'intake');
+    if (fieldIntake.view !== 'intake') throw new Error('Expected Field intake projection.');
+    assert.equal(fieldIntake.total, 1);
+    assert(fieldIntake.rows.every(row => row.recordId === reportIds[0]));
+    await assert.rejects(readReport('owner', {
+      ...baseQuery, view: 'pipeline', selection: { kind: 'pipeline' },
+    }, enabled), AuthorizationAccessError);
+    await assert.rejects(readReport('owner', {
+      ...baseQuery, view: 'pipeline', selection: { kind: 'pipeline' },
+    }, reportEnabled.filter(permission => permission !== 'leads.read')), AuthorizationAccessError);
+    await assert.rejects(readReport('field', {
+      ...baseQuery, view: 'intake', period: { from: periodFrom, to: periodTo },
+      currentFilters: { stages: [], owners: [], sources: ['gmail'] },
+      filters: { ...filters, owners: [randomUUID()] },
+    }), AuthorizationAccessError);
+  });
+  await check('session-bound Leads report envelopes reconcile six views and preserve text member identities and disabled access', async () => {
+    const filters = { stages: [], owners: [], sources: [] };
+    const common = { workspaceId: a, filters, page: 1, pageSize: 25 as const };
+    const first = await withWorkspaceAuthorization(db, { userId: 'owner', workspaceId: a }, reportEnabled, false, async (trx, context) => {
+      const current = await readLeadReportInTransaction(trx, context, { ...common, view: 'pipeline', selection: { kind: 'pipeline' } });
+      const today = current.today, from = new Date(Date.parse(`${today}T00:00:00Z`) - 29 * 86400000).toISOString().slice(0, 10);
+      const period = { from, to: today };
+      const queries: LeadReportQuery[] = [
+        { ...common, view: 'intake', period, currentFilters: filters }, { ...common, view: 'won', period }, { ...common, view: 'lost', period },
+        { ...common, view: 'pipeline', selection: { kind: 'pipeline' } }, { ...common, view: 'age', selection: { kind: 'age', band: '31+' } },
+        { ...common, view: 'attention', selection: 'combined' },
+      ];
+      for (const query of queries) {
+        const wrapped = await readLeadReportWithAuthorityInTransaction(trx, context, query);
+        assert.deepEqual(wrapped.report, await readLeadReportInTransaction(trx, context, query));
+        assert.equal(wrapped.viewerId, 'owner'); assert.equal(wrapped.workspaceId, a);
+        assert(wrapped.options.owners.some(option => option.value === 'field'));
+        assert(wrapped.report.rows.every(row => !Object.hasOwn(row.cells, 'details')));
+      }
+      const memberQuery: LeadReportQuery = { ...common, view: 'pipeline', selection: { kind: 'pipeline' }, filters: { ...filters, owners: ['field'] } };
+      const member = await readLeadReportWithAuthorityInTransaction(trx, context, memberQuery);
+      assert.deepEqual(member.report, await readLeadReportInTransaction(trx, context, memberQuery));
+      await assert.rejects(readLeadReportWithAuthorityInTransaction(trx, context, { ...memberQuery, filters: { ...filters, owners: ['not-a-member'] } }), AuthorizationAccessError);
+      return queries[0]!;
+    });
+    await withWorkspaceAuthorization(db, { userId: 'field', workspaceId: a }, reportEnabled, false, async (trx, context) => {
+      const result = await readLeadReportWithAuthorityInTransaction(trx, context, first);
+      assert.equal(result.scope, 'assigned'); assert.deepEqual(result.options.owners.map(option => option.value), ['me', 'unassigned']);
+    });
+    await assert.rejects(withWorkspaceAuthorization(db, { userId: 'owner', workspaceId: a }, enabled, false,
+      (trx, context) => readLeadReportWithAuthorityInTransaction(trx, context, first)), AuthorizationAccessError);
+  });
   await check('cancelled streams release the transaction and retain failure evidence', async () => {
     await db('leads').where({ workspaceId: a }).whereILike('name', 'Export Fixture%').update({ details: 'x'.repeat(10000) });
     const result = await createLeadCSVExport(db, exportIdentity, enabled, exportInput({ query: 'Export Fixture' }));
@@ -419,6 +558,246 @@ try {
     }
     assert.equal(audit.outcome, 'failed');
     await db.transaction(async trx => { await trx('workspaces').where({ id: a }).forUpdate().first(); });
+  });
+  await check('Team Lead workload reconciles owner stages, exact inactivity, former owners and assigned scope', async () => {
+    const workspaceId = randomUUID();
+    const teamOwner = `team-owner-${randomUUID()}`;
+    const teamIds = Array.from({ length: 30 }, () => randomUUID());
+    await db('users').insert({
+      id: teamOwner, name: 'Team fixture owner', email: `${teamOwner}@example.test`,
+      createdAt: new Date(), updatedAt: new Date(), termsVersion: 'test', termsAcceptedAt: new Date(),
+    });
+    await db.transaction(async trx => {
+      await trx('workspaces').insert({
+        id: workspaceId, ownerId: teamOwner, businessName: 'Team Lead fixture',
+        businessType: 'test', postalCode: '', serviceRange: '', timezone: 'America/New_York',
+      });
+      await trx('workspaceMemberships').insert([
+        { workspaceId, userId: teamOwner, role: 'owner' },
+        { workspaceId, userId: 'office', role: 'office' },
+        { workspaceId, userId: 'field', role: 'field' },
+        { workspaceId, userId: 'admin', role: 'office' },
+      ]);
+      await initializeWorkspacePolicy(trx, { workspaceId, userId: teamOwner });
+    });
+    const readTeam = (
+      userId = teamOwner,
+      selected: Parameters<typeof readTeamLeadsReportInTransaction>[2]['selected'] = { kind: 'queue', queue: 'open' },
+      page = 1, permissions = reportEnabled, members: string[] = [],
+    ) => withWorkspaceAuthorization(db, { userId, workspaceId }, permissions, false,
+      (trx, context) => readTeamLeadsReportInTransaction(trx, context, {
+        workspaceId, view: 'team-leads', selected, page, pageSize: 25, filters: { members },
+      }));
+    try {
+      await db('leads').insert(teamIds.map((id, index) => ({
+        ...base, id, workspaceId, submissionId: randomUUID(), createdBy: teamOwner,
+        ownerId: index === 0 ? 'field' : index === 2 ? 'admin' : index === 3 ? null : 'office',
+        name: `Team Lead ${index}`,
+        stage: index === 1 ? 'contacted' : index === 2 ? 'estimate-sent' : index === 4 ? 'won' : index === 5 ? 'lost' : 'new',
+        archivedAt: index === 6 ? db.fn.now() : null,
+        createdAt: db.raw(`CURRENT_TIMESTAMP - INTERVAL '20 days'`),
+      })));
+      await db('leads').whereIn('id', teamIds).update({
+        lastActivityAt: db.raw(`CURRENT_TIMESTAMP - INTERVAL '1 day'`),
+      });
+      await db('leads').whereIn('id', [teamIds[0], teamIds[2]]).update({
+        lastActivityAt: db.raw(`CURRENT_TIMESTAMP - INTERVAL '8 days'`),
+      });
+      await db('workspaceMemberships').where({ workspaceId, userId: 'admin' }).delete();
+      const first = await withWorkspaceAuthorization(db, { userId: teamOwner, workspaceId }, reportEnabled, false,
+        async (trx, context) => {
+          await trx('leads').where({ id: teamIds[1] }).update({
+            lastActivityAt: trx.raw(`CURRENT_TIMESTAMP - INTERVAL '7 days'`),
+          });
+          const query = { workspaceId, view: 'team-leads' as const, selected: { kind: 'queue' as const, queue: 'open' as const }, page: 1, pageSize: 25 as const };
+          const exact = await readTeamLeadsReportInTransaction(trx, context, query);
+          assert.deepEqual(exact.counts, { open: 27, inactive: 2, unassigned: 2 });
+          const owner = await readTeamLeadsReportInTransaction(trx, context, {
+            ...query, selected: { kind: 'owner', id: 'member:office', stage: 'contacted' },
+          });
+          assert.equal(owner.rows[0]?.inactive, false);
+          assert.equal(owner.rows[0]?.cells.activity, exact.inactivityCutoff);
+          await trx('leads').where({ id: teamIds[1] }).update({
+            lastActivityAt: trx.raw(`CURRENT_TIMESTAMP - INTERVAL '7 days' - INTERVAL '1 microsecond'`),
+          });
+          const below = await readTeamLeadsReportInTransaction(trx, context, query);
+          assert.equal(below.counts.inactive, 3);
+          return below;
+        });
+      assert.equal(first.rows.length, 25);
+      assert.equal(first.owners.find(owner => owner.id === 'member:field')?.count, 1);
+      assert.equal(first.owners.find(owner => owner.id === 'member:office')?.count, 24);
+      assert.equal(first.owners.find(owner => owner.id === 'unassigned')?.count, 2);
+      assert(!first.owners.some(owner => owner.id === 'member:admin'));
+      const last = await readTeam(teamOwner, { kind: 'queue', queue: 'open' }, 99);
+      assert.equal(last.page, 2);
+      assert.equal(last.rows.length, 2);
+      assert.equal(new Set([...first.rows, ...last.rows].map(row => row.id)).size, 27);
+      const reassignment = await readTeam(teamOwner, { kind: 'queue', queue: 'unassigned' });
+      assert.deepEqual(new Set(reassignment.rows.map(row => row.ownerState)), new Set(['former', 'unassigned']));
+      assert(reassignment.rows.every(row => row.currentOwnerId === null));
+      assert(!JSON.stringify(reassignment.rows).includes('"admin"'));
+      const former = reassignment.rows.find(row => row.id === teamIds[2]);
+      assert.equal(former?.ownerState, 'former');
+      await check('Team Lead CSV matches native workload, former owners and narrowed privacy', async () => {
+        await withWorkspaceAuthorization(db, { userId: teamOwner, workspaceId }, [...reportEnabled, 'reports.export'], false,
+          async (trx, context) => {
+            context.policy.grants.push({ role: 'owner', permission: 'reports.export', scope: 'enabled' });
+            const query = { workspaceId, view: 'team-leads' as const, selected: { kind: 'queue' as const, queue: 'open' as const },
+              filters: { members: [] } };
+            const native = await readTeamLeadsReportInTransaction(trx, context, { ...query, page: 1, pageSize: 100 });
+            const collect = async (dataset: 'summary' | 'owners' | 'evidence') => {
+              const projection = await prepareTeamReportCSVProjectionInTransaction(trx, context, { query, dataset });
+              const rows = []; for await (const row of projection.rows()) rows.push(row);
+              assert.equal(rows.length, projection.count);
+              assert(rows.every(row => row.length === projection.columns.length));
+              return rows;
+            };
+            assert.deepEqual((await collect('summary'))[0]?.slice(-3), Object.values(native.counts));
+            assert.deepEqual((await collect('owners')).map(row => row.slice(9, 11)),
+              native.owners.map(owner => [owner.id, owner.label]));
+            assert.deepEqual((await collect('evidence')).map(row => row[9]), native.rows.map(row => row.id));
+            const formerQuery = { ...query, selected: { kind: 'queue' as const, queue: 'unassigned' as const } };
+            const formerProjection = await prepareTeamReportCSVProjectionInTransaction(trx, context, { query: formerQuery, dataset: 'evidence' });
+            const formerRows = []; for await (const row of formerProjection.rows()) formerRows.push(row);
+            assert.deepEqual(new Set(formerRows.map(row => row[12])), new Set(['former', 'unassigned']));
+            assert(!JSON.stringify(formerRows).includes('"admin"'));
+            for (const selected of [
+              { kind: 'queue' as const, queue: 'inactive' as const },
+              { kind: 'owner' as const, id: 'member:office', stage: 'contacted' as const },
+              { kind: 'owner' as const, id: 'member:field', inactiveOnly: true },
+            ]) {
+              const selectedQuery = { ...query, selected };
+              const selectedNative = await readTeamLeadsReportInTransaction(trx, context, { ...selectedQuery, page: 1, pageSize: 100 });
+              const projection = await prepareTeamReportCSVProjectionInTransaction(trx, context, { query: selectedQuery, dataset: 'evidence' });
+              const rows = []; for await (const row of projection.rows()) rows.push(row);
+              assert.deepEqual(rows.map(row => row[9]), selectedNative.rows.map(row => row.id));
+            }
+            await trx('leads').where({ id: teamIds[0] }).update({ ownerId: teamOwner });
+            context.policy.grants = context.policy.grants.map(grant => grant.role === 'owner' && grant.permission === 'leads.export'
+              ? { ...grant, scope: 'assigned' } : grant);
+            const restricted = await prepareTeamReportCSVProjectionInTransaction(trx, context, { query, dataset: 'evidence' });
+            const mine = []; for await (const row of restricted.rows()) mine.push(row);
+            assert.equal(restricted.scope.kind, 'assigned');
+            assert.deepEqual(mine.map(row => row[9]), [teamIds[0]]);
+            assert(!JSON.stringify(mine).includes('office'));
+            const summary = await prepareTeamReportCSVProjectionInTransaction(trx, context, { query, dataset: 'summary' });
+            const summaryRows = []; for await (const row of summary.rows()) summaryRows.push(row);
+            assert.equal(summaryRows[0]?.[11], null);
+            await assert.rejects(prepareTeamReportCSVProjectionInTransaction(trx, context, {
+              query: { ...query, filters: { members: ['office'] } }, dataset: 'summary' }), AuthorizationAccessError);
+            await assert.rejects(prepareTeamReportCSVProjectionInTransaction(trx, context, {
+              query: { ...query, selected: { kind: 'queue', queue: 'unassigned' } }, dataset: 'evidence' }), AuthorizationAccessError);
+            const selfQuery = { ...query, filters: { members: [teamOwner] },
+              selected: { kind: 'owner' as const, id: `member:${teamOwner}` } };
+            const self = await prepareTeamReportCSVProjectionInTransaction(trx, context, { query: selfQuery, dataset: 'evidence' });
+            const selfRows = []; for await (const row of self.rows()) selfRows.push(row);
+            assert.deepEqual(selfRows.map(row => row[9]), [teamIds[0]]);
+            const extraIds = Array.from({ length: 105 }, () => randomUUID());
+            await trx('leads').insert(extraIds.map(id => ({
+              ...base, id, workspaceId, submissionId: randomUUID(), createdBy: teamOwner,
+              ownerId: teamOwner, name: 'Team CSV cursor fixture', stage: 'new',
+            })));
+            const unpaged = await prepareTeamReportCSVProjectionInTransaction(trx, context, { query: selfQuery, dataset: 'evidence' });
+            const unpagedRows = []; for await (const row of unpaged.rows()) unpagedRows.push(row);
+            assert.equal(unpaged.count, 106);
+            assert.equal(unpagedRows.length, 106);
+            assert.equal(new Set(unpagedRows.map(row => row[9])).size, 106);
+            const cursor = unpaged.rows();
+            assert.equal((await cursor.next()).done, false);
+            await cursor.return(undefined);
+            assert.equal((await trx.raw<{ rows: { count: string }[] }>(
+              "SELECT count(*)::text AS count FROM pg_cursors WHERE name LIKE 'team_csv_%'",
+            )).rows[0]?.count, '0');
+            await trx('leads').whereIn('id', extraIds).delete();
+            await trx('leads').where({ id: teamIds[0] }).update({ ownerId: 'field' });
+          });
+      });
+      const filtered = await readTeam(teamOwner, { kind: 'queue', queue: 'open' }, 99, reportEnabled, ['office', 'field']);
+      assert.deepEqual(filtered.filters, { members: ['office', 'field'] });
+      assert.equal(filtered.page, 1);
+      assert.deepEqual(filtered.counts, { open: 25, inactive: 2, unassigned: 0 });
+      assert.equal(filtered.rows.length, 25);
+      assert(filtered.rows.every(row => row.currentOwnerId === 'office' || row.currentOwnerId === 'field'));
+      assert.equal(filtered.owners.find(owner => owner.id === 'unassigned')?.count, 0);
+      const officeOnly = await readTeam(teamOwner, { kind: 'queue', queue: 'open' }, 1, reportEnabled, ['office']);
+      assert.equal(officeOnly.counts.open, 24);
+      assert.equal(officeOnly.owners.find(owner => owner.id === 'member:field')?.count, 0);
+      const noMatches = await readTeam(teamOwner, { kind: 'queue', queue: 'open' }, 1, reportEnabled, [teamOwner]);
+      assert.equal(noMatches.counts.open, 0);
+      assert.equal(noMatches.rows.length, 0);
+      for (const members of [['admin'], ['other-owner'], [randomUUID()]]) {
+        await assert.rejects(readTeam(teamOwner, { kind: 'queue', queue: 'open' }, 1, reportEnabled, members), AuthorizationAccessError);
+      }
+      await assert.rejects(readTeam('field', { kind: 'queue', queue: 'open' }, 1, reportEnabled, ['office']), AuthorizationAccessError);
+      assert.equal((await readTeam('field', { kind: 'queue', queue: 'open' }, 1, reportEnabled, ['field'])).counts.open, 1);
+      const mine = await readTeam('field');
+      await check('Team authority envelopes preserve native Leads, full zero-workload roster and assigned draft restrictions', async () => {
+        await withWorkspaceAuthorization(db, { userId: teamOwner, workspaceId }, reportEnabled, false, async (trx, context) => {
+          const initial = await initialTeamReportWithAuthorityInTransaction(trx, context);
+          assert(initial.query.view === 'team-leads');
+          assert(initial.report.view === 'team-leads');
+          assert.deepEqual(initial.authority, { leads: { kind: 'workspace' }, jobs: null });
+          const native = await readTeamLeadsReportInTransaction(trx, context, initial.query);
+          assert.deepEqual(initial.report, native);
+          assert.equal(initial.options.length, native.owners.length - 1);
+          assert(initial.options.some(option => option.value === teamOwner));
+          assert.equal(native.owners.find(owner => owner.id === `member:${teamOwner}`)?.count, 0);
+          const filteredEnvelope = await readTeamReportWithAuthorityInTransaction(trx, context, {
+            workspaceId, view: 'team-leads', selected: { kind: 'owner', id: 'member:office', stage: 'new' },
+            filters: { members: ['office', 'field'] }, page: 99, pageSize: 25,
+          });
+          assert.equal(filteredEnvelope.options.length, initial.options.length);
+          assert.equal(filteredEnvelope.report.page, 1);
+          await assert.rejects(readTeamReportWithAuthorityInTransaction(trx, context, {
+            workspaceId, view: 'team-jobs', selected: { kind: 'queue', queue: 'active' },
+            filters: { members: [] }, page: 1, pageSize: 25,
+          }), AuthorizationAccessError);
+        });
+        await withWorkspaceAuthorization(db, { userId: 'field', workspaceId }, reportEnabled, false, async (trx, context) => {
+          const initial = await initialTeamReportWithAuthorityInTransaction(trx, context);
+          assert(initial.query.view === 'team-leads');
+          assert.deepEqual(initial.authority, { leads: { kind: 'assigned', currentMemberId: 'field' }, jobs: null });
+          assert.deepEqual(initial.options.map(option => option.value), ['field']);
+          assert.deepEqual(initial.report, await readTeamLeadsReportInTransaction(trx, context, initial.query));
+          await assert.rejects(readTeamReportWithAuthorityInTransaction(trx, context, {
+            ...initial.query, filters: { members: ['office'] },
+          }), AuthorizationAccessError);
+        });
+        for (const permission of ['reports.read', 'leads.read']) {
+          await withWorkspaceAuthorization(db, { userId: teamOwner, workspaceId },
+            reportEnabled.filter(item => item !== permission), false, async (trx, context) => {
+              await assert.rejects(initialTeamReportWithAuthorityInTransaction(trx, context), AuthorizationAccessError);
+            });
+        }
+      });
+      assert.deepEqual(mine.counts, { open: 1, inactive: 1, unassigned: 0 });
+      assert.deepEqual(mine.owners.map(owner => owner.id), ['member:field']);
+      assert.deepEqual(mine.rows.map(row => row.id), [teamIds[0]]);
+      assert(!JSON.stringify(mine).includes('member:office'));
+      for (const selected of [
+        { kind: 'queue' as const, queue: 'unassigned' as const },
+        { kind: 'owner' as const, id: 'member:office' },
+      ]) await assert.rejects(readTeam('field', selected), AuthorizationAccessError);
+      await assert.rejects(readTeam(teamOwner, { kind: 'owner', id: 'member:admin' }), AuthorizationAccessError);
+      for (const permission of ['reports.read', 'leads.read']) {
+        await assert.rejects(readTeam(teamOwner, { kind: 'queue', queue: 'open' }, 1,
+          reportEnabled.filter(item => item !== permission)), AuthorizationAccessError);
+      }
+      await assert.rejects(withWorkspaceAuthorization(db, { userId: teamOwner, workspaceId }, reportEnabled, false,
+        (trx, context) => readTeamLeadsReportInTransaction(trx, context, {
+          workspaceId: a, view: 'team-leads', selected: { kind: 'queue', queue: 'open' }, page: 1, pageSize: 25,
+        })), AuthorizationAccessError);
+      await db('leads').where({ id: teamIds[0] }).update({ ownerId: 'office' });
+      const empty = await readTeam('field');
+      assert.equal(empty.counts.open, 0);
+      assert.equal((await readTeam('field', { kind: 'queue', queue: 'open' }, 1, reportEnabled, ['field'])).counts.open, 0);
+      assert.equal(empty.rows.length, 0);
+      await db('workspaceMemberships').where({ workspaceId, userId: 'field' }).delete();
+      await assert.rejects(readTeam('field'), AuthorizationAccessError);
+    } finally {
+      await db('workspaces').where({ id: workspaceId }).delete();
+    }
   });
   await check('chat context reloads scoped summaries, drops forbidden refs and validates all inherited source versions', async () => {
     const id = await fresh(); await assign(id, 'field');
@@ -444,4 +823,8 @@ try {
     await db('workspaceRolePolicies').where({ workspaceId: a, role: 'field', permission: 'leads.read' }).delete(); await assert.rejects(read('field'), AuthorizationAccessError); await assert.rejects(note('field', ids[6]), AuthorizationAccessError);
   });
   console.log(`${checks} lead read/database checks passed.`);
-} finally { await db.destroy(); await admin.raw('DROP SCHEMA IF EXISTS ?? CASCADE', [schema]); await admin.destroy(); }
+} finally {
+  await db.destroy();
+  if (databaseCreated) await admin.raw('DROP DATABASE ??', [databaseName]);
+  await admin.destroy();
+}

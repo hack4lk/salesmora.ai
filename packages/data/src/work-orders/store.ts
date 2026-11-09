@@ -27,12 +27,12 @@ export const resource = (row: Row) => ({ kind: "work_order" as const, id: row.id
   assigneeIds: [...(row.primaryAssigneeId ? [row.primaryAssigneeId] : []), ...row.crewIds],
   job: { kind: "job" as const, id: row.jobId, workspaceId: row.workspaceId, ownerId: row.jobOwnerId, teamUserIds: row.jobTeamUserIds } });
 
-/** Apply the current read scope in SQL before search, counts, pagination or record lookup; Field never sees drafts. */
-export function scoped(trx: Knex.Transaction, context: AuthorizationContext) {
+/** Apply current read authority in SQL; assignedOnly narrows workspace grants to non-Draft assigned relationships. */
+export function scoped(trx: Knex.Transaction, context: AuthorizationContext, assignedOnly = false) {
   const scope = resolveAuthorizedCollectionScope(context, "workorders.read");
   if (!scope.allowed || !["workspace", "assigned_job"].includes(scope.scope)) throw new AuthorizationAccessError();
   const query = trx("workOrders as w").join("jobs as j", q => q.on("j.workspaceId", "w.workspaceId").andOn("j.id", "w.jobId")).where("w.workspaceId", context.workspaceId);
-  if (scope.scope === "assigned_job") {
+  if (assignedOnly || scope.scope === "assigned_job") {
     query.whereNot("w.status", "draft").andWhere(q => q.where("j.primaryOwnerId", context.userId).orWhere("w.primaryAssigneeId", context.userId).orWhereExists(
       trx("workOrderCrew as wc").select(trx.raw("1")).whereRaw('wc."workspaceId" = w."workspaceId" AND wc."workOrderId" = w.id').where("wc.userId", context.userId)).orWhereExists(
       trx("jobTeamMembers as jt").select(trx.raw("1")).whereRaw('jt."workspaceId" = j."workspaceId" AND jt."jobId" = j.id').where("jt.userId", context.userId)));

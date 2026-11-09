@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#F4F8FC">
+  <title>Reports | SalesMora prototype</title>
+  <style>
+    @font-face { font-family: "Source Sans 3"; src: url("../apps/web/public/fonts/source-sans-3/source-sans-3-variable.woff2") format("woff2"); font-weight: 200 900; font-display: swap; }
+    :root { font-family: "Source Sans 3", "Segoe UI", Arial, sans-serif; color: #23384D; background: #F4F8FC; --blue: #3B6FA5; --line: #E2EAF1; --muted: #64778A; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-size: 16px; line-height: 1.625; }
+    [hidden] { display: none !important; }
+    button, input, select { font: inherit; color: inherit; }
+    button, a, select { cursor: pointer; }
+    button, input, select, .button { min-height: 48px; border: 1px solid #64778A; border-radius: 12px; background: white; }
+    button, .button { padding: 12px 20px; font-weight: 600; line-height: 1.5; }
+    input, select { width: 100%; padding: 8px 12px; min-width: 0; }
+    button:hover, .button:hover { background: #F4F8FC; }
+    button:disabled { cursor: not-allowed; color: #64778A; background: #E2EAF1; border-color: #E2EAF1; }
+    .primary { background: var(--blue); border-color: var(--blue); color: white; }
+    .primary:hover { background: #315C8A; }
+    a { color: var(--blue); }
+    :focus-visible { outline: 3px solid #8DB5D5; outline-offset: 3px; }
+    .skip { position: absolute; top: -100px; left: 16px; padding: 12px; background: white; z-index: 3; }
+    .skip:focus { top: 8px; }
+    header { background: white; border-bottom: 1px solid var(--line); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .logo { width: 224px; height: auto; max-width: 100%; }
+    .badge { display: inline-block; font-size: 14px; padding: 4px 12px; border-radius: 24px; background: #E8F5F0; }
+    .app { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: calc(100vh - 88px); }
+    aside { padding: 24px 16px; background: white; border-right: 1px solid var(--line); }
+    .workspace { border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 24px; }
+    .workspace strong, .workspace small { display: block; }
+    .workspace small { color: var(--muted); font-size: 14px; }
+    aside nav { display: grid; gap: 8px; }
+    .nav-link { display: block; padding: 12px 16px; border-radius: 12px; text-decoration: none; }
+    .nav-link.active { background: #EDF3F9; font-weight: 600; }
+    .nav-label { padding: 8px 16px; color: var(--muted); }
+    main { min-width: 0; width: 100%; max-width: 1440px; margin: auto; padding: 32px; align-self: start; }
+    h1 { font-size: 36px; line-height: 1.25; letter-spacing: -.025em; margin: 8px 0 12px; font-weight: 600; }
+    h2 { font-size: 24px; line-height: 1.3; margin: 0 0 12px; font-weight: 600; }
+    h3 { font-size: 18px; margin: 0 0 8px; font-weight: 600; }
+    p { margin: 0 0 16px; }
+    .muted, .hint { color: var(--muted); }
+    .hint, small, .breadcrumb { font-size: 14px; }
+    .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 8px; }
+    .review { margin-bottom: 24px; border: 1px dashed #64778A; border-radius: 12px; padding: 16px; }
+    .review summary { cursor: pointer; min-height: 44px; font-weight: 600; }
+    .review-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+    .notice { padding: 16px; border-left: 4px solid #7CCBB7; background: white; margin-bottom: 24px; }
+    .notice p { margin: 0; }
+    .steps { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; list-style: none; margin: 0 0 24px; }
+    .steps li { padding: 8px 12px; border: 1px solid var(--line); border-radius: 24px; font-size: 14px; }
+    .steps [aria-current="step"] { background: #23384D; color: white; }
+    .card { min-width: 0; border: 1px solid var(--line); border-radius: 16px; padding: 24px; background: white; margin-bottom: 24px; }
+    .catalog { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .report-card { display: flex; flex-direction: column; padding: 24px; border: 1px solid var(--line); border-radius: 16px; background: white; }
+    .report-card p { color: var(--muted); flex: 1; }
+    .report-card button { width: 100%; margin-top: 16px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
+    .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+    .field { min-width: 0; }
+    label { display: block; font-weight: 600; margin-bottom: 8px; }
+    .field p { margin: 8px 0 0; }
+    .wide { grid-column: 1 / -1; }
+    .date-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+    .error { border: 1px solid #D32F2F; border-radius: 12px; padding: 16px; margin-top: 16px; }
+    .error p { margin: 4px 0 0; }
+    .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .metric { padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: white; }
+    .metric strong { display: block; font-size: 30px; line-height: 1.3; margin: 8px 0; font-weight: 600; }
+    .metric .count-link { font-size: 30px; color: var(--blue); padding: 4px 12px; margin: 8px 0; }
+    .columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
+    dl { margin: 0; }
+    dt { color: var(--muted); font-size: 14px; }
+    dd { margin: 0 0 12px; font-weight: 600; overflow-wrap: anywhere; }
+    .bar-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px; gap: 12px; align-items: center; margin: 16px 0; }
+    .bar { height: 12px; background: #E2EAF1; border-radius: 8px; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: var(--blue); }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+    table { border-collapse: collapse; width: 100%; text-align: left; }
+    th { font-size: 14px; background: #F4F8FC; font-weight: 600; }
+    th, td { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+    td { white-space: nowrap; }
+    caption { text-align: left; padding: 12px 16px; font-size: 14px; color: var(--muted); }
+    .record-link { color: var(--blue); text-align: left; min-height: 44px; padding: 8px 12px; }
+    .current { border-top: 4px solid #7CCBB7; }
+    .template-callout { border: 2px solid var(--blue); background: #EDF3F9; }
+    .template-list { display: grid; gap: 16px; }
+    .template-item { border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+    .template-item h3 { overflow-wrap: anywhere; }
+    .template-item .actions { margin-top: 12px; }
+    .state { text-align: center; padding: 40px 24px; }
+    dialog { border: 1px solid var(--line); border-radius: 16px; padding: 24px; width: min(560px, calc(100% - 32px)); max-height: calc(100vh - 32px); overflow: auto; color: #23384D; }
+    dialog::backdrop { background: #23384D88; }
+    .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid #E2EAF1; border-top-color: var(--blue); border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+    @media (max-width: 1199px) { .catalog { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 899px) { .app { grid-template-columns: minmax(0, 1fr); } aside { padding: 12px 24px; border-right: 0; border-bottom: 1px solid var(--line); } .workspace, .nav-label { display: none; } aside nav { display: flex; flex-wrap: wrap; } .columns { grid-template-columns: minmax(0, 1fr); gap: 0; } }
+    @media (max-width: 599px) { main { padding: 24px 16px; } header { padding: 16px; } h1 { font-size: 30px; } .catalog, .fields, .date-fields, .metrics, .review-grid { grid-template-columns: minmax(0, 1fr); } .card, .report-card { padding: 20px 16px; } .actions > button { width: 100%; } .row { align-items: stretch; } .row > button { width: 100%; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to reports</a>
+  <header>
+    <img class="logo" src="../branding/assets/salesmora-logo.svg" alt="SalesMora.ai">
+    <span class="badge">Connected reporting prototype</span>
+  </header>
+  <div class="app">
+    <aside>
+      <div class="workspace"><strong>Example Services</strong><small>Fictional review workspace</small></div>
+      <nav aria-label="Workspace">
+        <span class="nav-label">Workspace navigation</span>
+        <a class="nav-link active" href="#reports" aria-current="page">Reports</a>
+        <a class="nav-link" href="prototype-screen-43-report-date-controls.html">Date-control study</a>
+      </nav>
+    </aside>
+    <main id="main">
+      <details class="review">
+        <summary>Prototype review controls / not part of the application</summary>
+        <p>All nine report areas are connected. Each has representative supporting tables, not every planned projection. Values come from small fictional fixtures, not a live workspace. Dates, filters, charts, tables and CSV use the same selected fixture rows. Personal template configurations persist in this browser only, without real accounts or server permissions. Do not enter sensitive information. No API requests, saved results, background generation or audit events.</p>
+        <div class="review-grid">
+          <div><label for="access">Simulated access</label><select id="access"><option value="owner">Owner / explicit report, financial and export grants</option><option value="office">Office / workspace read, no financial or CSV grant</option><option value="field">Field / assigned to me only, no financial or CSV grant</option><option value="denied">No Reports access</option></select></div>
+          <div><label for="result-state">Results state</label><select id="result-state"><option value="ready">Available sample rows</option><option value="empty">Empty authorized result</option><option value="loading">Loading preview</option><option value="error">Query error with retry</option></select></div>
+          <div><label for="export-state">CSV confirmation state</label><select id="export-state"><option value="ready">Ready / sample file</option><option value="changed">Row count changed since preview</option><option value="limit">Technical limit exceeded</option><option value="error">Download failed</option></select></div>
+        </div>
+      </details>
+      <div class="notice"><p><strong>Static review prototype.</strong> Fixed snapshot: November 5, 2026 at 10:00, Europe/Warsaw. All displayed totals refer only to sample rows. Downloads are labeled sample CSVs.</p></div>
+      <div class="error" id="template-storage-error" role="alert" hidden></div>
+      <p class="hint" id="template-status" role="status" aria-live="polite"></p>
+      <nav aria-label="Reporting steps"><ol class="steps"><li data-step="reports">1. Choose report</li><li data-step="templates">2. My templates</li><li data-step="configure">3. Configure</li><li data-step="results">4. Results</li><li data-step="export">5. CSV preview</li></ol></nav>
+      <div class="breadcrumb" id="breadcrumb"></div>
+      <div id="view"></div>
+    </main>
+  </div>
+  <dialog id="record-dialog" aria-labelledby="record-heading">
+    <h2 id="record-heading">Sample evidence</h2>
+    <div id="record-content"></div>
+    <form method="dialog"><button class="primary">Close evidence</button></form>
+  </dialog>
+  <dialog id="template-dialog" aria-labelledby="template-heading">
+    <h2 id="template-heading"></h2>
+    <p id="template-description"></p>
+    <form id="template-form" novalidate>
+      <div id="template-name-field"><label for="template-name">Template name</label><input id="template-name" maxlength="80" autocomplete="off" aria-describedby="template-name-help"><p class="hint" id="template-name-help">A personal template, visible only to you in the live application. Up to 80 characters.</p></div>
+      <div class="error" id="template-form-error" role="alert" hidden></div>
+      <div class="actions"><button class="primary" type="submit" id="template-confirm">Save template</button><button type="button" id="template-cancel">Cancel</button></div>
+    </form>
+  </dialog>
+  <script>
+    const reports = {
+      overview: { name: "Business overview", description: "Period intake and outcomes, with current operations kept separate.", tables: ["intake", "completed", "accepted"] },
+      leads: { name: "Leads and pipeline", description: "Intake, current pipeline, source and ownership.", tables: ["intake", "pipeline"] },
+      jobs: { name: "Jobs and deadlines", description: "Recorded completions, current active Jobs and overdue work.", tables: ["completed", "active", "overdue"] },
+      team: { name: "Team workload", description: "Current primary and supporting assignments. No productivity scores.", tables: ["primary", "support"] },
+      estimates: { name: "Estimates and acceptance", description: "Effective decisions, frozen accepted values and current follow-up.", tables: ["accepted", "decisions", "awaiting"] },
+      calendar: { name: "Calendar and scheduling", description: "Canonical visits and the current unscheduled queue.", tables: ["visits", "unscheduled"] },
+      sources: { name: "Lead-source effectiveness", description: "Current broad-source labels for lead cohorts and accepted values.", tables: ["cohort", "sourceValue"] },
+      activity: { name: "CRM activity history", description: "Safe native-domain events, counted once each.", tables: ["events"] },
+      financial: { name: "Sales value and recorded costs", description: "Accepted sales value and current known material costs, not profit.", tables: ["sales", "materials"], restricted: true }
+    };
+    const leadRows = [
+      { id: "L-101", name: "Kitchen inquiry", date: "2026-10-12", owner: "Me", group: "Referral", detail: "New" },
+      { id: "L-102", name: "Hallway repair", date: "2026-10-25", owner: "Teammate A", group: "Phone", detail: "Contacted" },
+      { id: "L-103", name: "Bathroom refresh", date: "2026-11-03", owner: "Me", group: "Website", detail: "Estimate sent" }
+    ];
+    const jobRows = [
+      { id: "J-201", name: "Kitchen installation", date: "2026-10-18", owner: "Me", group: "Completed", detail: "4 calendar days", value: 4 },
+      { id: "J-202", name: "Door repair", date: "2026-10-29", owner: "Teammate A", group: "Completed", detail: "2 calendar days", value: 2 },
+      { id: "J-203", name: "Bathroom tiling", date: "2026-11-04", owner: "Me", group: "Reopened now", detail: "6 calendar days", value: 6 }
+    ];
+    const activeRows = [
+      { id: "J-203", name: "Bathroom tiling", date: "", owner: "Me", group: "In progress", detail: "Deadline Nov 4 / overdue" },
+      { id: "J-204", name: "Window fitting", date: "", owner: "Teammate A", group: "Waiting", detail: "Deadline Nov 10" },
+      { id: "J-205", name: "Hallway painting", date: "", owner: "Me", group: "Scheduled", detail: "No deadline" }
+    ];
+    const quoteRows = [
+      { id: "E-301", name: "Kitchen quote / v1", date: "2026-10-15", owner: "Me", group: "Referral", detail: "Accepted", value: 240000 },
+      { id: "E-302", name: "Door quote / v2", date: "2026-10-23", owner: "Teammate A", group: "Phone", detail: "Accepted", value: 80000 }
+    ];
+    const tables = {
+      intake: { name: "New leads", basis: "Lead creation date", group: "Current source", rows: leadRows },
+      pipeline: { name: "Current open pipeline", basis: "As of now", group: "Current source", current: true, rows: leadRows },
+      completed: { name: "Completed Jobs", basis: "Latest completion per Job within the period", group: "Current status", value: "Elapsed calendar days", rows: jobRows, note: "The reopened Job remains a historical completion. Mean duration is elapsed calendar dates, not labor hours." },
+      active: { name: "Current active Jobs", basis: "As of now", current: true, group: "Current status", rows: activeRows },
+      overdue: { name: "Overdue Jobs", basis: "As of now / deadline before today", current: true, group: "Current status", rows: activeRows.slice(0, 1) },
+      primary: { name: "Primary Job assignments", basis: "As of now", current: true, group: "Current status", rows: activeRows, note: "One row per primary Job assignment. Supporting assignments are a separate projection, not extra primary workload." },
+      support: { name: "Supporting Job assignments", basis: "As of now", current: true, group: "Assignment", rows: [{ id: "J-204:S-1", name: "Window fitting / support", date: "", owner: "Me", group: "Supporting", detail: "Also has a primary owner" }] },
+      accepted: { name: "Accepted estimates", basis: "Recorded decision date / effective issued quote", group: "Current source", money: true, value: "Frozen pre-tax value", rows: quoteRows },
+      decisions: { name: "Effective decided quotes", basis: "Recorded decision date / effective issued quote", group: "Current source", rows: [...quoteRows, { id: "E-303", name: "Garden quote / v1", date: "2026-11-01", owner: "Me", group: "Unattributed", detail: "Declined" }], note: "Acceptance among currently effective decided quotes. New issued revisions and corrected decisions can restate historical rates." },
+      awaiting: { name: "Awaiting estimate decision", basis: "As of now", current: true, group: "Current state", rows: [{ id: "E-304", name: "Painting quote / v1", date: "", owner: "Me", group: "Sent", detail: "Awaiting decision" }] },
+      visits: { name: "Scheduled visits", basis: "Visit date", group: "Visit type", rows: [
+        { id: "V-401", name: "Window measurement", date: "2026-11-05", owner: "Me", group: "Shared visit", detail: "Job + Work Order / counted once" },
+        { id: "V-402", name: "Painting survey", date: "2026-11-08", owner: "Teammate A", group: "Job visit", detail: "One canonical visit" },
+        { id: "V-403", name: "Tiling follow-up", date: "2026-11-11", owner: "Me", group: "Work Order visit", detail: "One canonical visit" }
+      ] },
+      unscheduled: { name: "Unscheduled Jobs", basis: "As of now / no visit date", current: true, group: "Current status", rows: [activeRows[2]] },
+      cohort: { name: "Lead creation cohort by source", basis: "Lead creation date", group: "Current source", rows: leadRows, note: "Source labels describe current surviving values. This is not historical attribution or advertising ROI." },
+      sourceValue: { name: "Accepted value by source", basis: "Estimate decision date, not lead creation cohort", group: "Current source", money: true, value: "Frozen pre-tax value", rows: quoteRows },
+      events: { name: "Native CRM events", basis: "Event timestamp in workspace timezone", group: "Domain", rows: [
+        { id: "lead:event-1", name: "L-101 / created", date: "2026-10-12", owner: "Me", group: "Lead", detail: "Record created" },
+        { id: "job:event-2", name: "J-201 / completed", date: "2026-10-18", owner: "Me", group: "Job", detail: "Status changed to Completed" },
+        { id: "estimate:event-3", name: "E-302 / accepted", date: "2026-10-23", owner: "Teammate A", group: "Estimate", detail: "Decision recorded / no note body" }
+      ], note: "Native event identity is domain + event ID. Safe summaries only; no raw payloads or duplicated customer-linked events." },
+      sales: { name: "Accepted sales value", basis: "Recorded decision date / effective issued quote", group: "Current source", money: true, value: "Frozen pre-tax value", rows: quoteRows, note: "Accepted sales value is not customer revenue or cash collected. Tax and deposits are not subtracted from this pre-tax value." },
+      materials: { name: "Current recorded materials", basis: "As of now / saved material rows", current: true, group: "Material state", money: true, value: "Known recorded line cost", rows: [
+        { id: "M-501", name: "Tile adhesive", date: "", owner: "Me", group: "Used", detail: "1.250 x PLN 10.01 / half-up per line", value: 1251 },
+        { id: "M-502", name: "Paint", date: "", owner: "Teammate A", group: "Planned", detail: "Missing unit cost", value: null },
+        { id: "M-503", name: "Supplied trim", date: "", owner: "Me", group: "Used", detail: "Saved zero cost", value: 0 }
+      ], note: "Nonarchived Work Orders; Draft/Canceled excluded. Unknown costs are not zero. Used is a saved status, not an actual-usage ledger. No profit or margin calculation." }
+    };
+    let selected = "overview";
+    let selection = null;
+    let route = "reports";
+    let downloadUrl = null;
+    const exampleToday = "2026-11-05";
+    const templateStorageKey = "salesmora-reporting-prototype-personal-templates-v1";
+    let templates = [];
+    let templateStorageReady = false;
+    let activeTemplateId = null;
+    let templateAction = null;
+    let templateActionId = null;
+    const view = document.getElementById("view");
+    const access = document.getElementById("access");
+    const resultState = document.getElementById("result-state");
+    const exportState = document.getElementById("export-state");
+    const money = value => value === null ? "Unknown" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "PLN" }).format(value / 100);
+    const escape = value => String(value).replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+    const formatDate = value => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(value + "T00:00:00Z"));
+    function parseDate(value) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith("0000")) return null;
+      const date = new Date(value + "T00:00:00Z");
+      return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? date : null;
+    }
+    function permitted(key) { return access.value !== "denied" && (!reports[key].restricted || access.value === "owner"); }
+    function defaultSelection(key) {
+      const offsetDate = offset => {
+        const date = parseDate(exampleToday);
+        date.setUTCDate(date.getUTCDate() + offset);
+        return date.toISOString().slice(0, 10);
+      };
+      return { table: reports[key].tables[0], preset: "default", from: key === "calendar" ? exampleToday : offsetDate(-29), to: key === "calendar" ? offsetDate(6) : exampleToday, owner: "all", group: "all" };
+    }
+    function templatePeriod(config, reportKey) {
+      if (tables[config.table].current) return "As of now / no date filter";
+      if (config.preset === "default") return reportKey === "calendar" ? "Next 7 days / rolling" : "Last 30 days / rolling";
+      return formatDate(config.from) + " to " + formatDate(config.to) + " / fixed dates";
+    }
+    function templateConfiguration(reportKey, config) {
+      const saved = { table: config.table, owner: config.owner, group: config.group };
+      if (!tables[config.table].current) {
+        saved.preset = config.preset;
+        if (config.preset === "custom") { saved.from = config.from; saved.to = config.to; }
+      }
+      return saved;
+    }
+    function resolveTemplate(template) {
+      return { ...defaultSelection(template.report), ...template.config };
+    }
+    function validTemplate(template) {
+      if (!template || typeof template.id !== "string" || !template.id || typeof template.name !== "string" || !template.name.trim() || template.name.length > 80 || !Object.hasOwn(reports, template.report)) return false;
+      const config = template.config;
+      if (!config || !reports[template.report].tables.includes(config.table) || !["all", "Me", "Teammate A"].includes(config.owner)) return false;
+      const table = tables[config.table];
+      if (config.group !== "all" && !table.rows.some(row => row.group === config.group)) return false;
+      if (table.current) return true;
+      if (config.preset === "default") return true;
+      if (config.preset !== "custom") return false;
+      const from = parseDate(config.from), to = parseDate(config.to);
+      return from !== null && to !== null && from <= to && (to - from) / 86400000 + 1 <= 366;
+    }
+    function storageError(message) {
+      const panel = document.getElementById("template-storage-error");
+      panel.textContent = message;
+      panel.hidden = false;
+    }
+    function persistTemplates(next) {
+      if (!templateStorageReady) {
+        storageError("Template storage is unavailable. No template changes were saved. Check browser storage access and reload.");
+        return false;
+      }
+      try {
+        localStorage.setItem(templateStorageKey, JSON.stringify({ version: 1, templates: next }));
+      } catch (error) {
+        if (!(error instanceof DOMException) || !["SecurityError", "QuotaExceededError"].includes(error.name)) throw error;
+        storageError("Browser storage rejected the template change. Nothing was saved. Check storage access or available space, then try again.");
+        return false;
+      }
+      templates = next;
+      document.getElementById("template-storage-error").hidden = true;
+      return true;
+    }
+    function loadTemplates() {
+      let raw;
+      try { raw = localStorage.getItem(templateStorageKey); }
+      catch (error) {
+        if (!(error instanceof DOMException) || error.name !== "SecurityError") throw error;
+        storageError("Personal template storage is blocked in this browser. You can explore reports, but templates cannot be saved.");
+        return;
+      }
+      if (raw === null) {
+        templateStorageReady = true;
+        persistTemplates(Object.entries(reports).map(([key, report]) => ({
+          id: "sample-" + key, name: report.name + " / default",
+          report: key, config: templateConfiguration(key, defaultSelection(key))
+        })));
+        return;
+      }
+      let stored;
+      try { stored = JSON.parse(raw); }
+      catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
+        storageError("Saved prototype templates could not be read. Browser data was not overwritten. Report configuration remains available.");
+        return;
+      }
+      if (!stored || stored.version !== 1 || !Array.isArray(stored.templates) || !stored.templates.every(validTemplate) || new Set(stored.templates.map(template => template.id)).size !== stored.templates.length) {
+        storageError("Saved prototype templates have an unsupported configuration. Browser data was not overwritten. Report configuration remains available.");
+        return;
+      }
+      templates = stored.templates;
+      templateStorageReady = true;
+    }
+    function scopedRows(tableKey, filters = selection) {
+      const table = tables[tableKey];
+      return table.rows.filter(row =>
+        (access.value !== "field" || row.owner === "Me") &&
+        (filters.owner === "all" || row.owner === filters.owner) &&
+        (filters.group === "all" || row.group === filters.group) &&
+        (table.current || row.date >= filters.from && row.date <= filters.to)
+      );
+    }
+    function selectedRows() { return resultState.value === "empty" ? [] : scopedRows(selection.table); }
+    function scopeText() {
+      if (access.value === "field") return "Assigned to me only. Archived records excluded by your access.";
+      if (access.value === "office") return "Workspace scope within underlying grants. Archived records excluded by your access.";
+      return "Workspace scope within underlying grants. Authorized archives included in history; excluded from current views.";
+    }
+    function periodText(table = tables[selection.table]) {
+      return table.current ? "As of now / Nov 5, 2026 at 10:00" : formatDate(selection.from) + " to " + formatDate(selection.to) + " / inclusive";
+    }
+    function navigate(step, focus = true) {
+      route = step;
+      document.getElementById("template-status").textContent = "";
+      const hash = step === "reports" ? "reports" : step + "/" + selected;
+      history.pushState(null, "", "#" + hash);
+      render(focus);
+    }
+    function render(focus = false) {
+      document.querySelectorAll("[data-step]").forEach(item => {
+        if (item.dataset.step === route) item.setAttribute("aria-current", "step");
+        else item.removeAttribute("aria-current");
+      });
+      document.getElementById("breadcrumb").textContent = "Workspace / Reports" + (route === "reports" ? "" : " / " + reports[selected].name);
+      if (access.value === "denied") {
+        view.innerHTML = '<section class="card state"><h1 tabindex="-1">Reports access required</h1><p>Your role does not currently allow Reports. No counts or record names are shown.</p><p class="muted">Ask a workspace administrator to review your permissions.</p></section>';
+      } else if (route === "reports") renderLanding();
+      else if (!permitted(selected)) view.innerHTML = '<section class="card state"><h1 tabindex="-1">Financial report unavailable</h1><p>This report requires Owner/Admin access, the financial report grant and applicable money permissions. No financial totals are shown.</p><button data-action="landing">Back to reports</button></section>';
+      else if (route === "templates") renderTemplates();
+      else if (route === "configure") renderConfigure();
+      else if (route === "results") renderResults();
+      else renderExport();
+      if (focus) { view.querySelector("h1").focus(); view.scrollIntoView({ block: "start" }); }
+    }
+    function renderLanding() {
+      view.innerHTML = `<h1 tabindex="-1">Reports</h1><p class="muted">Choose what you want to understand, configure its scope, then review results or export the supporting rows.</p>
+        <div class="card row"><div><p class="eyebrow">Start here</p><h2>How is the business doing?</h2><p class="muted">Open a personal template in one click, or configure a new business overview.</p></div><button class="primary" data-report="overview">View business overview templates</button></div>
+        <p class="hint">${scopeText()} All standard reports are available on every plan, subject to access. No plan-specific row quotas.</p>
+        <div class="catalog">${Object.entries(reports).map(([key, report]) => `<section class="report-card"><span class="eyebrow">${key === "team" ? "Current snapshot" : key === "calendar" ? "Upcoming + current" : "Workspace report"}</span><h2>${report.name}</h2><p>${report.description}</p>${report.restricted ? '<span class="hint">Owner/Admin + financial and money grants</span>' : '<span class="hint">Reports + underlying domain access</span>'}<button data-report="${key}" ${permitted(key) ? "" : "disabled"}>${permitted(key) ? "View my templates (" + templates.filter(template => template.report === key).length + ")" : "Financial access required"}</button></section>`).join("")}</div>`;
+    }
+    function renderTemplates() {
+      const items = templates.filter(template => template.report === selected);
+      view.innerHTML = `<div class="row"><div><h1 tabindex="-1">${reports[selected].name}</h1><p class="muted">My templates / personal configurations, not saved results.</p></div><button class="primary" data-action="new-report">Configure a new report</button></div>
+        <div class="notice"><p><strong>Run in one click.</strong> Each run uses fresh authorized data. Relative presets roll forward; custom dates stay fixed. In this prototype, rolling dates use the fixed example date of November 5, 2026.</p></div>
+        <section class="card"><h2>My saved templates</h2><p class="hint">Personal only. Initial example templates are editable sample configurations. This prototype stores them locally in this browser, not in your SalesMora account.</p><div id="template-run-error" class="error" role="alert" hidden></div>
+        <div class="template-list">${items.length ? items.map(template => `<article class="template-item"><div class="row"><div><h3>${escape(template.name)}</h3><span class="badge">Personal</span></div><button class="primary" data-template-action="run" data-template-id="${escape(template.id)}">Run report</button></div><p class="hint">${tables[template.config.table].name} / ${templatePeriod(template.config, template.report)}</p><p class="hint">Assignment/actor: ${escape(template.config.owner === "all" ? "All authorized" : template.config.owner)} / Group: ${escape(template.config.group)}</p><div class="actions"><button data-template-action="edit" data-template-id="${escape(template.id)}">Edit configuration</button><button data-template-action="rename" data-template-id="${escape(template.id)}">Rename</button><button data-template-action="delete" data-template-id="${escape(template.id)}">Delete</button></div></article>`).join("") : '<div class="state"><h3>No templates yet</h3><p>Configure and run a report, then choose "Save this report as a template" on its results screen.</p><button class="primary" data-action="new-report">Create Report Template</button></div>'}</div></section><button data-action="landing">All report areas</button>`;
+    }
+    function templateCallout() {
+      const active = templates.find(template => template.id === activeTemplateId);
+      return `<section class="card template-callout"><p class="eyebrow">Make this report one click next time</p><h2>Save this report as a template</h2><p>Keep this report's supporting view, filters and date choice as a personal template. Results and permissions are never saved.</p><p class="hint">${templatePeriod(selection, selected)}. ${active ? "Currently based on: " + escape(active.name) + "." : "Only you can manage your personal templates in the live application."}</p><div class="actions"><button class="primary" data-action="save-template">Save this report as a template</button>${active ? '<button data-action="update-template">Update this template</button>' : ""}<button data-action="templates">View my templates</button></div></section>`;
+    }
+    function openTemplateDialog(action, id = null) {
+      templateAction = action;
+      templateActionId = id;
+      const template = templates.find(item => item.id === id);
+      const deleting = action === "delete";
+      const titles = { save: "Save this report as a template", rename: "Rename personal template", update: "Update template configuration", delete: "Delete personal template?" };
+      document.getElementById("template-heading").textContent = titles[action];
+      document.getElementById("template-description").textContent = deleting
+        ? 'Delete "' + template.name + '"? Reports and business records are not deleted. This cannot be undone.'
+        : action === "update" ? 'Replace the saved configuration of "' + template.name + '" with this report\'s current settings. Result rows and permissions are not saved.'
+        : "Save configuration only. Relative dates roll forward; custom dates remain fixed. Prototype templates persist only in this browser.";
+      document.getElementById("template-name-field").hidden = deleting || action === "update";
+      document.getElementById("template-name").value = template ? template.name : reports[selected].name + " / my view";
+      document.getElementById("template-name").removeAttribute("aria-invalid");
+      document.getElementById("template-form-error").hidden = true;
+      document.getElementById("template-confirm").textContent = deleting ? "Delete template" : action === "update" ? "Update configuration" : action === "rename" ? "Save name" : "Save personal template";
+      document.getElementById("template-dialog").showModal();
+      document.getElementById(deleting || action === "update" ? "template-cancel" : "template-name").focus();
+    }
+    function renderConfigure() {
+      const report = reports[selected];
+      const table = tables[selection.table];
+      const groups = [...new Set(table.rows.filter(row => access.value !== "field" || row.owner === "Me").map(row => row.group))];
+      view.innerHTML = `<h1 tabindex="-1">Configure ${report.name.toLowerCase()}</h1><p class="muted">Choose a supporting view and its applicable filters. Generate a read-only report; nothing is saved or scheduled.</p>
+        <form id="configure-form" novalidate><section class="card"><h2>Report and scope</h2><div class="fields">
+          <div class="field"><label for="report-choice">Report</label><select id="report-choice">${Object.entries(reports).filter(([key]) => permitted(key)).map(([key, item]) => `<option value="${key}" ${key === selected ? "selected" : ""}>${item.name}</option>`).join("")}</select></div>
+          <div class="field"><label for="table-choice">Supporting view</label><select id="table-choice">${report.tables.map(key => `<option value="${key}" ${key === selection.table ? "selected" : ""}>${tables[key].name}</option>`).join("")}</select><p class="hint">Representative views for this prototype; not the full planned table catalog.</p></div>
+          <div class="wide notice"><p><strong>Date basis:</strong> ${table.basis}. ${table.current ? "A date-range filter does not apply to this current snapshot." : "Use the selected period below; this is not a universal creation-date filter."}</p></div>
+          <div class="field" ${table.current ? "hidden" : ""}><label for="period">Period</label><select id="period"><option value="default" ${selection.preset === "default" ? "selected" : ""}>${selected === "calendar" ? "Next 7 days, including today" : "Last 30 days, including today"}</option><option value="custom" ${selection.preset === "custom" ? "selected" : ""}>Custom dates</option></select></div>
+          <div class="field"><strong>Workspace timezone</strong><p><strong>Europe/Warsaw</strong></p><p class="hint">Workspace setting, not a per-report timezone override.</p></div>
+          <div class="date-fields wide" id="custom-dates" ${table.current || selection.preset !== "custom" ? "hidden" : ""}>
+            <div><label for="from">Start date</label><input id="from" type="date" min="0001-01-01" max="9999-12-31" value="${selection.from}" aria-describedby="date-help"></div>
+            <div><label for="to">End date</label><input id="to" type="date" min="0001-01-01" max="9999-12-31" value="${selection.to}" aria-describedby="date-help"></div>
+          </div>
+          <p class="hint wide" id="date-help" ${table.current ? "hidden" : ""}>Both dates included. Maximum 366 calendar dates; invalid ranges are rejected, never shortened.</p>
+          <div class="field"><label for="owner">Assignment / actor scope</label><select id="owner" ${access.value === "field" ? "disabled" : ""}>${(access.value === "field" ? ["Me"] : ["all", "Me", "Teammate A"]).map(owner => `<option value="${owner}" ${owner === selection.owner ? "selected" : ""}>${owner === "all" ? "Everyone in my authorized scope" : owner}</option>`).join("")}</select><p class="hint">Field access cannot widen beyond assigned records. Activity uses an authorized actor filter.</p></div>
+          <div class="field"><label for="group">${table.group} filter</label><select id="group"><option value="all">All authorized values</option>${groups.map(group => `<option ${group === selection.group ? "selected" : ""}>${group}</option>`).join("")}</select></div>
+        </div><p class="hint">${scopeText()}</p>${table.note ? `<p class="hint">${table.note}</p>` : ""}
+        <div class="error" id="form-error" role="alert" hidden></div>
+        <div class="actions"><button class="primary" type="submit">Generate sample report</button><button type="button" data-action="cancel-config">Cancel</button></div></section></form>`;
+    }
+    function rowTable(rows, preview = false) {
+      const table = tables[selection.table];
+      return `<div class="table-wrap" tabindex="0" role="region" aria-label="${preview ? "CSV sample rows" : "Supporting sample rows"}"><table><caption>${rows.length} selected sample ${rows.length === 1 ? "row" : "rows"} / ${table.basis}. ${table.current ? "No period filter." : "Both selected dates included."}</caption><thead><tr><th scope="col">Record / event</th><th scope="col">${table.current ? "Snapshot" : "Basis date"}</th><th scope="col">Assignment / actor</th><th scope="col">${table.group}</th><th scope="col">${table.value || "Evidence"}</th></tr></thead><tbody>${rows.map((row, index) => `<tr><td>${preview ? escape(row.name) : `<button class="record-link" data-record="${index}">${escape(row.name)}</button>`}</td><td>${row.date && !table.current ? formatDate(row.date) : "As of now"}</td><td>${escape(row.owner)}</td><td>${escape(row.group)}</td><td>${table.value ? table.money ? money(row.value) : row.value : escape(row.detail)}</td></tr>`).join("")}</tbody></table></div>`;
+    }
+    function renderResults() {
+      const table = tables[selection.table];
+      const state = resultState.value;
+      view.innerHTML = `<div class="row"><div><h1 tabindex="-1">${reports[selected].name}</h1><p class="muted">${table.name} / ${periodText()}</p></div><button data-action="configure">Edit report</button></div>
+        <p class="hint">Europe/Warsaw / ${scopeText()} ${selection.owner !== "all" ? "Selected assignment/actor: " + escape(selection.owner) + "." : ""} ${selection.group !== "all" ? "Selected group: " + escape(selection.group) + "." : ""}</p>`;
+      if (state === "loading") {
+        view.innerHTML += '<section class="card state" role="status" aria-busy="true"><span class="spinner" aria-hidden="true"></span><h2>Preparing report</h2><p>This loading state is held for review; no background job is running.</p><button data-action="ready">Show loaded sample</button></section>';
+        return;
+      }
+      if (state === "error") {
+        view.innerHTML += '<section class="card error" role="alert"><h2>Report could not be loaded</h2><p>No totals are displayed. Retry, or edit the report to narrow the selection.</p><button class="primary" data-action="ready">Retry sample report</button></section>';
+        return;
+      }
+      const rows = selectedRows();
+      const known = rows.filter(row => row.value !== null);
+      const sum = known.reduce((total, row) => total + (row.value || 0), 0);
+      const unknown = rows.filter(row => row.value === null).length;
+      const groups = [...new Set(rows.map(row => row.group))];
+      const secondaryLabel = table.money ? unknown ? "Known subtotal only" : "Sample pre-tax / recorded value" : selection.table === "completed" ? "Mean elapsed calendar days" : selection.table === "decisions" ? "Acceptance / effective decisions" : "Distinct sample groups";
+      const secondary = table.money ? money(sum) : selection.table === "completed" ? rows.length ? (sum / rows.length).toFixed(1) : "Unavailable" : selection.table === "decisions" ? rows.length ? Math.round(rows.filter(row => row.detail === "Accepted").length / rows.length * 100) + "%" : "Unavailable" : groups.length;
+      view.innerHTML += `<div class="metrics"><section class="metric"><span>${table.name} / sample only</span><br><button class="count-link" data-action="table">${rows.length}</button><p class="hint">View the exact supporting rows below.</p></section><section class="metric"><span>${secondaryLabel}</span><strong>${secondary}</strong><p class="hint">${selection.table === "decisions" ? rows.filter(row => row.detail === "Accepted").length + " accepted / " + rows.length + " currently effective decided quotes." : unknown ? known.length + " known / " + rows.length + " lines; no complete total." : "Derived only from this supporting sample."}</p></section><section class="metric"><span>Time basis</span><strong>${table.current ? "Current" : "Period"}</strong><p class="hint">${table.basis}. Snapshot fixed at Nov 5, 10:00.</p></section></div>`;
+      if (selected === "overview") view.innerHTML += `<section class="card"><h2>Overview / period evidence</h2><p class="muted">These links use the selected period and assignment scope, without the supporting table's group filter. Each opens its exact evidence.</p><div class="actions">${[["leads", "intake"], ["jobs", "completed"], ["estimates", "accepted"]].map(([report, key]) => `<button data-drill-report="${report}" data-drill-table="${key}">${tables[key].name}: ${resultState.value === "empty" ? 0 : scopedRows(key, { ...selection, group: "all" }).length} sample rows</button>`).join("")}</div></section>`;
+      if (unknown) view.innerHTML += `<div class="notice"><p><strong>Incomplete cost coverage.</strong> ${unknown} sample line has unknown cost. Known subtotal is not a complete cost total. A saved zero is genuine zero.</p></div>`;
+      if (table.note) view.innerHTML += `<div class="notice"><p>${table.note}</p></div>`;
+      view.innerHTML += templateCallout();
+      view.innerHTML += `<div class="columns"><section class="card"><h2>Breakdown / ${table.group.toLowerCase()}</h2><p class="hint">Counts use the same sample rows as the table. Each bar has a text label and count.</p>${groups.length ? groups.map(group => { const count = rows.filter(row => row.group === group).length; return `<div class="bar-row"><span>${escape(group)}</span><div class="bar" aria-hidden="true"><span style="width:${count / rows.length * 100}%"></span></div><strong>${count}</strong></div>`; }).join("") : '<p>No groups in this selection.</p>'}</section>
+        <section class="card current"><p class="eyebrow">As of now / not filtered by period</p><h2>Current-state context</h2><p>${selected === "calendar" ? "Unscheduled visits have no visit date to filter." : "Current workload is not limited to records created in the selected period."}</p><p><strong>${(access.value === "field" ? activeRows.filter(row => row.owner === "Me") : activeRows).length} active sample Jobs</strong> in the simulated access scope.</p><p class="hint">Nov 5, 2026 at 10:00 / Europe/Warsaw. This context uses access scope only, not the supporting table's owner/group filters.</p><button data-drill-report="jobs" data-drill-table="active">View current Jobs</button></section></div>
+        <section class="card" id="supporting-table"><div class="row"><div><h2>Supporting evidence</h2><p class="hint">${table.name}. Click a sample record for its evidence summary.</p></div><button data-action="export" ${access.value === "owner" && rows.length ? "" : "disabled"}>Preview CSV</button></div>${access.value !== "owner" ? '<p class="hint">CSV requires Owner/Admin, reports.export and the underlying projection export grants. On-screen access does not imply export access.</p>' : ""}${rows.length ? rowTable(rows) : '<div class="state"><h3>No matching records</h3><p>This is an authorized empty selection, not a permission denial. Try another range or filter.</p><button data-action="configure">Edit selection</button></div>'}</section>`;
+    }
+    function csvContents() {
+      const table = tables[selection.table];
+      const rows = selectedRows();
+      const cell = value => {
+        let text = String(value ?? "");
+        if (/^[\s]*[=+\-@]/.test(text) || /^[\t\r\n]/.test(text)) text = "'" + text;
+        return '"' + text.replace(/"/g, '""') + '"';
+      };
+      return [["sample_record_id", "sample_record_name", "basis_date", "assignment_or_actor", "group", table.money ? "known_value_cents" : "evidence", "currency", "date_basis", "period_from", "period_to", "timezone", "sample_only"],
+        ...rows.map(row => [row.id, row.name, table.current ? "" : row.date, row.owner, row.group, table.money ? row.value : row.detail, table.money ? "PLN" : "", table.basis, table.current ? "" : selection.from, table.current ? "" : selection.to, "Europe/Warsaw", "true"])
+      ].map(row => row.map(cell).join(",")).join("\r\n") + "\r\n";
+    }
+    function renderExport() {
+      const rows = selectedRows();
+      const allowed = access.value === "owner" && rows.length > 0 && resultState.value !== "loading" && resultState.value !== "error";
+      const table = tables[selection.table];
+      view.innerHTML = `<h1 tabindex="-1">Review CSV export</h1><p class="muted">Export one supporting projection, not an entire dashboard. This confirmation matches the selected on-screen scope.</p>`;
+      if (!allowed) {
+        view.innerHTML += '<section class="card"><h2>Export unavailable</h2><p>Export needs explicit grants and a nonempty available result. No file was generated.</p><button data-action="results">Back to results</button></section>';
+        return;
+      }
+      const bytes = new TextEncoder().encode(csvContents()).length;
+      const state = exportState.value;
+      const messages = {
+        changed: "The row count changed since preview. No file was generated. Refresh the preview and review again. Matching counts do not guarantee frozen content.",
+        limit: "This simulated export exceeds 50,000 rows or 32 MiB. No partial CSV will be offered. Narrow the date range or filters.",
+        error: "The simulated download failed. No successful export is recorded. Retry after reviewing the selection."
+      };
+      view.innerHTML += `<div class="columns"><section class="card"><h2>File scope</h2><dl><dt>Report / supporting view</dt><dd>${reports[selected].name} / ${table.name}</dd><dt>Period</dt><dd>${periodText()}</dd><dt>Date basis / timezone</dt><dd>${table.basis} / Europe/Warsaw</dd><dt>Assignment / group</dt><dd>${escape(selection.owner === "all" ? "All authorized" : selection.owner)} / ${escape(selection.group)}</dd><dt>Access scope</dt><dd>${scopeText()}</dd><dt>File</dt><dd>salesmora-SAMPLE-${selected}-${selection.table}.csv</dd><dt>Expected sample rows / actual sample bytes</dt><dd>${rows.length} / ${bytes}</dd></dl><p class="hint">Unknown monetary values remain empty, not zero. Known values are integer cents with currency. No note bodies or hidden fields.</p></section>
+        <section class="card"><h2>Confirm download</h2><p>New report CSVs have technical limits of 50,000 rows and 32 MiB; these are not subscription quotas. Production downloads must reauthorize, recount and enforce byte/time limits.</p><p class="hint">This local sample has no server stream, transaction or audit event. It does not validate production export behavior.</p>${state !== "ready" ? `<div class="error" role="alert"><strong>Export not ready</strong><p>${messages[state]}</p></div>` : '<p class="badge">Sample file ready for review</p>'}<div class="actions"><button class="primary" data-action="download" ${state !== "ready" ? "disabled" : ""}>Download sample CSV</button>${state !== "ready" ? '<button data-action="refresh-export">Refresh sample preview</button>' : ""}<button data-action="results">Back to results</button></div><p id="download-status" role="status" class="hint"></p></section></div>
+        <section class="card"><h2>Rows to export</h2><p class="hint">All selected fixture rows are shown. The CSV also contains stable sample IDs, date-basis metadata and an explicit sample-only flag.</p>${rowTable(rows, true)}</section>`;
+    }
+    function captureDraft() {
+      if (!document.getElementById("configure-form")) return;
+      selection.owner = access.value === "field" ? "Me" : document.getElementById("owner").value;
+      selection.group = document.getElementById("group").value;
+      selection.preset = document.getElementById("period").value;
+      if (selection.preset === "custom") {
+        selection.from = document.getElementById("from").value;
+        selection.to = document.getElementById("to").value;
+      } else {
+        const defaults = defaultSelection(selected);
+        selection.from = defaults.from;
+        selection.to = defaults.to;
+      }
+    }
+    let appliedSelection = null;
+    view.addEventListener("change", event => {
+      const id = event.target.id;
+      if (id === "report-choice") {
+        selected = event.target.value; selection = defaultSelection(selected); appliedSelection = null; activeTemplateId = null; navigate("configure");
+      } else if (id === "table-choice") {
+        const tableKey = event.target.value;
+        captureDraft(); selection.table = tableKey; selection.group = "all"; renderConfigure();
+      } else if (id === "period") {
+        document.getElementById("custom-dates").hidden = event.target.value !== "custom";
+      }
+    });
+    view.addEventListener("submit", event => {
+      if (event.target.id !== "configure-form") return;
+      event.preventDefault();
+      captureDraft();
+      if (!tables[selection.table].current) {
+        const from = parseDate(selection.from), to = parseDate(selection.to);
+        const message = !from || !to ? "Enter real start and end dates, with years from 0001 to 9999." : from > to ? "End date must be on or after start date." : (to - from) / 86400000 + 1 > 366 ? "Select no more than 366 inclusive calendar dates. Your range has not been shortened." : "";
+        if (message) {
+          const error = document.getElementById("form-error");
+          error.textContent = message; error.hidden = false;
+          const invalidInput = document.getElementById(!from ? "from" : "to");
+          invalidInput.setAttribute("aria-invalid", "true");
+          invalidInput.setAttribute("aria-describedby", "date-help form-error");
+          invalidInput.focus();
+          return;
+        }
+      }
+      appliedSelection = { ...selection };
+      navigate("results");
+    });
+    view.addEventListener("click", event => {
+      const button = event.target.closest("button");
+      if (!button || button.disabled) return;
+      if (button.dataset.report) {
+        selected = button.dataset.report; selection = defaultSelection(selected); appliedSelection = null; activeTemplateId = null; navigate("templates"); return;
+      }
+      if (button.dataset.templateAction) {
+        const template = templates.find(item => item.id === button.dataset.templateId);
+        const action = button.dataset.templateAction;
+        if (action === "run" || action === "edit") {
+          if (action === "run" && access.value === "field" && (template.config.owner === "Teammate A" || template.config.group !== "all" && !tables[template.config.table].rows.some(row => row.owner === "Me" && row.group === template.config.group))) {
+            const error = document.getElementById("template-run-error");
+            error.textContent = "This template has a filter outside your current access. Edit the configuration before running. No report was generated.";
+            error.hidden = false;
+            return;
+          }
+          activeTemplateId = template.id;
+          selection = resolveTemplate(template);
+          if (action === "edit" && access.value === "field") {
+            selection.owner = "Me"; selection.group = "all";
+          }
+          appliedSelection = action === "run" ? { ...selection } : null;
+          navigate(action === "run" ? "results" : "configure");
+          if (action === "edit" && access.value === "field") document.getElementById("template-status").textContent = "Review required: assignment was narrowed to Me and the group filter was reset to your authorized values. The saved template has not changed.";
+        } else openTemplateDialog(action, template.id);
+        return;
+      }
+      if (button.dataset.drillReport) {
+        selected = button.dataset.drillReport; selection = { ...selection, table: button.dataset.drillTable, group: "all" };
+        if (tables[selection.table].current) selection.owner = "all";
+        appliedSelection = { ...selection }; activeTemplateId = null; navigate("results"); return;
+      }
+      if (button.dataset.record !== undefined) {
+        const row = selectedRows()[Number(button.dataset.record)];
+        document.getElementById("record-content").innerHTML = `<p class="badge">Fictional record / no live route</p><dl><dt>Sample identity</dt><dd>${escape(row.id)}</dd><dt>Record / event</dt><dd>${escape(row.name)}</dd><dt>Selected date basis</dt><dd>${tables[selection.table].basis}</dd><dt>Evidence summary</dt><dd>${escape(row.detail)}</dd></dl><p>In the application, authorized drill-through opens the canonical record. This local dialog demonstrates the evidence handoff only.</p>`;
+        document.getElementById("record-dialog").showModal(); return;
+      }
+      switch (button.dataset.action) {
+        case "landing": navigate("reports"); break;
+        case "templates": navigate("templates"); break;
+        case "new-report": selection = defaultSelection(selected); appliedSelection = null; activeTemplateId = null; navigate("configure"); break;
+        case "save-template": openTemplateDialog("save"); break;
+        case "update-template": openTemplateDialog("update", activeTemplateId); break;
+        case "configure": navigate("configure"); break;
+        case "cancel-config":
+          if (appliedSelection) { selection = { ...appliedSelection }; navigate("results"); }
+          else navigate("templates");
+          break;
+        case "results": navigate("results"); break;
+        case "export": navigate("export"); break;
+        case "ready": resultState.value = "ready"; render(true); break;
+        case "refresh-export": exportState.value = "ready"; render(true); break;
+        case "table": document.getElementById("supporting-table").scrollIntoView(); document.querySelector(".table-wrap")?.focus(); break;
+        case "download": {
+          if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+          downloadUrl = URL.createObjectURL(new Blob([csvContents()], { type: "text/csv;charset=utf-8" }));
+          const link = document.createElement("a");
+          link.href = downloadUrl; link.download = "salesmora-SAMPLE-" + selected + "-" + selection.table + ".csv";
+          document.body.append(link); link.click(); link.remove();
+          document.getElementById("download-status").textContent = "Sample file offered to your browser. This is not a live report export.";
+          break;
+        }
+      }
+    });
+    for (const control of [access, resultState, exportState]) control.addEventListener("change", () => {
+      for (const dialog of document.querySelectorAll("dialog[open]")) dialog.close();
+      if (control === access && selection) {
+        selection.owner = access.value === "field" ? "Me" : "all";
+        selection.group = "all";
+        appliedSelection = null;
+      }
+      render();
+    });
+    function readHash() {
+      const [step, key] = location.hash.slice(1).split("/");
+      if (["templates", "configure", "results", "export"].includes(step) && Object.hasOwn(reports, key)) {
+        if (selected !== key || !selection) { selected = key; selection = defaultSelection(key); appliedSelection = null; activeTemplateId = null; }
+        route = step;
+      } else route = "reports";
+      render();
+    }
+    window.addEventListener("hashchange", readHash);
+    window.addEventListener("popstate", readHash);
+    for (const dialog of document.querySelectorAll("dialog")) dialog.addEventListener("keydown", event => {
+      if (event.key === "Escape") { event.preventDefault(); event.currentTarget.close(); }
+    });
+    document.getElementById("template-cancel").addEventListener("click", () => document.getElementById("template-dialog").close());
+    document.getElementById("template-form").addEventListener("submit", event => {
+      event.preventDefault();
+      const input = document.getElementById("template-name");
+      const name = input.value.trim();
+      const error = document.getElementById("template-form-error");
+      if (["save", "rename"].includes(templateAction) && (!name || name.length > 80 || templates.some(template => template.report === selected && template.id !== templateActionId && template.name.toLocaleLowerCase() === name.toLocaleLowerCase()))) {
+        error.textContent = !name || name.length > 80 ? "Enter a template name between 1 and 80 characters." : "You already have a template with this name in this report area. Choose another name.";
+        error.hidden = false; input.setAttribute("aria-invalid", "true"); input.focus(); return;
+      }
+      let next;
+      let newId = activeTemplateId;
+      if (templateAction === "save") {
+        newId = "personal-" + crypto.randomUUID();
+        next = [...templates, { id: newId, name, report: selected, config: templateConfiguration(selected, selection) }];
+      } else if (templateAction === "delete") next = templates.filter(template => template.id !== templateActionId);
+      else next = templates.map(template => template.id !== templateActionId ? template : templateAction === "rename" ? { ...template, name } : { ...template, config: templateConfiguration(selected, selection) });
+      if (!persistTemplates(next)) {
+        error.textContent = "The change was not saved. Browser storage is unavailable or full. Cancel to see the storage notice.";
+        error.hidden = false; return;
+      }
+      if (templateAction === "save") activeTemplateId = newId;
+      if (templateAction === "delete" && activeTemplateId === templateActionId) activeTemplateId = null;
+      document.getElementById("template-dialog").close();
+      render(true);
+      document.getElementById("template-status").textContent = templateAction === "delete"
+        ? "Personal template deleted. No reports or business records were deleted."
+        : templateAction === "rename" ? "Personal template renamed."
+        : templateAction === "update" ? "Personal template configuration updated. Result rows were not saved."
+        : "Personal template saved. Open My templates to run it in one click.";
+    });
+    window.addEventListener("pagehide", () => { if (downloadUrl) URL.revokeObjectURL(downloadUrl); });
+    loadTemplates();
+    readHash();
+  </script>
+</body>
+</html>

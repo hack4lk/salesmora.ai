@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { Knex } from 'knex';
 import { calendarQuerySchema, calendarAdvisorySchema, type CalendarQuery, type CalendarVisit, type CalendarResult,
-  type CalendarQueryValue, type AuthorizationContext, type PermissionId, type AuthorizationResource, type JobStatus, type WorkOrderStatus, type arrivalWindows } from '@salesmora/contracts';
+  type CalendarQueryValue, type CalendarExportOutputScopes, type AuthorizationContext, type PermissionId, type AuthorizationResource, type JobStatus, type WorkOrderStatus, type arrivalWindows } from '@salesmora/contracts';
 import { addCalendarDays, calendarWeekStart, authorize, resolveAuthorizedCollectionScope, CalendarRevisionError } from '@salesmora/domain';
 import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIdentity } from '../authorization/store';
 
@@ -22,8 +22,11 @@ function calendarScope(context: AuthorizationContext) {
   if (!scope.allowed || !['workspace', 'own_assigned'].includes(scope.scope)) throw new AuthorizationAccessError();
   return scope.scope === 'own_assigned' ? 'own' as const : 'workspace' as const;
 }
-function visible(trx: Knex.Transaction, context: AuthorizationContext, range?: { from:string;to:string }) {
-  const scope = scopes(context), own = calendarScope(context) === 'own';
+export function scopedCalendarRecordsQuery(
+  trx: Knex.Transaction, context: AuthorizationContext, range?: { from:string;to:string }, ownOnly = false,
+  exportScopes?: CalendarExportOutputScopes,
+) {
+  const scope = scopes(context), own = ownOnly || calendarScope(context) === 'own';
   const jobs = trx('jobs as j').join('calendarVisitRecords as r', q => q.on('r.workspaceId', 'j.workspaceId').andOn('r.jobId', 'j.id'))
     .join('calendarVisits as v', q => q.on('v.workspaceId', 'r.workspaceId').andOn('v.id', 'r.visitId'))
     .where('j.workspaceId', context.workspaceId).whereNull('r.endedAt').whereNotIn('j.status', ['completed', 'canceled']);
@@ -39,10 +42,20 @@ function visible(trx: Knex.Transaction, context: AuthorizationContext, range?: {
   if (!jobAllowed) jobs.whereRaw('false');
   if (own || (scope.job.allowed && scope.job.scope === 'assigned')) jobs.whereRaw('? = ANY(' + jobPeople + ')', [context.userId]);
   if (!orderAllowed) orders.whereRaw('false');
+  if (ownOnly) orders.whereNot('w.status', 'draft');
   if (scope.work_order.allowed && scope.work_order.scope === 'assigned_job') {
     orders.whereNot('w.status', 'draft').whereRaw('(? = ANY(' + orderPeople + ') OR ? = ANY(' + jobPeople + '))', [context.userId, context.userId]);
   }
   if (own) orders.whereRaw('? = ANY(' + orderPeople + ')', [context.userId]);
+  if (exportScopes) {
+    if (exportScopes.jobs.kind === 'unavailable') jobs.whereRaw('false');
+    else if (exportScopes.jobs.scope === 'assigned') jobs.whereRaw('? = ANY(' + jobPeople + ')', [context.userId]);
+    if (exportScopes.workOrders.kind === 'unavailable') orders.whereRaw('false');
+    else if (exportScopes.workOrders.scope === 'assigned_job') {
+      orders.whereNot('w.status', 'draft').whereRaw('(? = ANY(' + orderPeople + ') OR (?::boolean AND ? = ANY(' + jobPeople + ')))',
+        [context.userId, jobAllowed, context.userId]);
+    }
+  }
   const common = `v.id AS "visitId", v.version AS "visitVersion", v."workspaceId", to_char(v."scheduledDate",'YYYY-MM-DD') AS "scheduledDate", v."arrivalWindow",
     (SELECT count(*)::int FROM "calendarVisitRecords" allr WHERE allr."workspaceId"=v."workspaceId" AND allr."visitId"=v.id AND allr."endedAt" IS NULL) AS "activeCount"`;
   jobs.select(trx.raw(`${common}, j.id, 'job' AS type, j."jobNumber" AS number, j.title, j.status, j.version, j."customerName", j.location,
@@ -108,7 +121,7 @@ export async function readCalendar(db: Knex, identity: WorkspaceIdentity, enable
   return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
     const meta = await metadata(trx, context), weekDate = calendarWeekStart(input.date ?? meta.today);
     const query = { ...input, date: weekDate, person: meta.scope === 'own' ? 'me' : input.person };
-    const base = () => trx.with('visible', visible(trx, context,{ from:weekDate,to:addCalendarDays(weekDate,6) }));
+    const base = () => trx.with('visible', scopedCalendarRecordsQuery(trx, context,{ from:weekDate,to:addCalendarDays(weekDate,6) }));
     const matching = () => candidates(trx, query, context.userId);
     const queueCount = await base().from('visible').whereNull('scheduledDate').whereIn('visitId', matching()).countDistinct('visitId as count').first() as { count: string };
     const unscheduledTotal = Number(queueCount.count), queuePages = Math.max(1, Math.ceil(unscheduledTotal / 10));
@@ -119,7 +132,7 @@ export async function readCalendar(db: Knex, identity: WorkspaceIdentity, enable
     const visits = await project(trx, context, rows, meta);
     const scope = scopes(context), wide = meta.scope === 'workspace' && [scope.job, scope.work_order].some(s => s.allowed && s.scope === 'workspace');
     const scopedPeople: { id: string }[] = !wide && meta.scope === 'workspace'
-      ? await trx.with('visible',visible(trx,context)).from('visible').select(trx.raw('DISTINCT unnest(people) AS id')) : [];
+      ? await trx.with('visible',scopedCalendarRecordsQuery(trx,context)).from('visible').select(trx.raw('DISTINCT unnest(people) AS id')) : [];
     const members = await trx('workspaceMemberships as m').join('users as u', 'u.id', 'm.userId').where('m.workspaceId', context.workspaceId).whereNull('u.deletionRequestedAt')
       .modify(q => { if (!wide) q.whereIn('u.id', meta.scope === 'own' ? [context.userId] : [...new Set([context.userId, ...scopedPeople.map(p => p.id)])]); })
       .select('u.id', 'u.name').orderBy('u.name').orderBy('u.id');
@@ -137,7 +150,7 @@ export async function readCalendarVisit(db: Knex, identity: WorkspaceIdentity, e
   calendarAdvisorySchema.shape.visitId.parse(visitId);
   return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
     const meta = await metadata(trx, context);
-    const rows: Row[] = await trx.with('visible', visible(trx, context)).from('visible').where({ visitId }).select('*');
+    const rows: Row[] = await trx.with('visible', scopedCalendarRecordsQuery(trx, context)).from('visible').where({ visitId }).select('*');
     if (!rows.length) throw new AuthorizationAccessError();
     return (await project(trx, context, rows, meta))[0];
   });

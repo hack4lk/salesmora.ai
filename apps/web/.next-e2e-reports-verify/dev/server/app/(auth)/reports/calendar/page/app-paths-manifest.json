@@ -1,0 +1,3 @@
+{
+  "/(auth)/reports/calendar/page": "app/(auth)/reports/calendar/page.js"
+}

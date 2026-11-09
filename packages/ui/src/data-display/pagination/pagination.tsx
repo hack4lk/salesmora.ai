@@ -44,7 +44,7 @@ export function Pagination({ total, page, pageSize, pageSizeOptions = [25, 50, 1
         onChange={(_event, value) => { if (!disabled && safeTotal > 0 && value !== current) onPageChange(value); }}
         renderItem={item => <PaginationItem {...item} className={item.type.includes('ellipsis')
           ? 'm-0 flex h-11 min-w-6 items-center justify-center px-0 text-muted'
-          : 'm-0 min-h-11 min-w-11 cursor-pointer rounded-xl px-2 text-sm font-semibold text-ink hover:bg-canvas focus-visible:focus-ring [&.Mui-selected]:bg-primary [&.Mui-selected]:text-paper [&.Mui-selected:hover]:bg-primary-dark disabled:cursor-not-allowed'}/>}/>
+          : 'm-0 min-h-11 min-w-11 cursor-pointer rounded-xl px-2 text-sm font-semibold text-ink hover:bg-canvas focus-visible:focus-ring [&.Mui-selected]:bg-seafoam-light [&.Mui-selected]:bg-linear-110 [&.Mui-selected]:from-seafoam-pale [&.Mui-selected]:to-seafoam-light [&.Mui-selected]:text-ink [&.Mui-selected]:shadow-sm [&.Mui-selected:enabled:hover]:bg-none [&.Mui-selected:enabled:hover]:bg-seafoam-dark disabled:cursor-not-allowed'}/>}/>
     </div>
   </div>;
 }

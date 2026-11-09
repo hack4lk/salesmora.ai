@@ -1,0 +1,21 @@
+{
+  "/(auth)/home/page": "app/(auth)/home/page.js",
+  "/(auth)/register/page": "app/(auth)/register/page.js",
+  "/(auth)/reports/activity/page": "app/(auth)/reports/activity/page.js",
+  "/(auth)/reports/calendar/page": "app/(auth)/reports/calendar/page.js",
+  "/(auth)/reports/estimates/page": "app/(auth)/reports/estimates/page.js",
+  "/(auth)/reports/financial/page": "app/(auth)/reports/financial/page.js",
+  "/(auth)/reports/jobs/page": "app/(auth)/reports/jobs/page.js",
+  "/(auth)/reports/leads/page": "app/(auth)/reports/leads/page.js",
+  "/(auth)/reports/overview/page": "app/(auth)/reports/overview/page.js",
+  "/(auth)/reports/page": "app/(auth)/reports/page.js",
+  "/(auth)/reports/sources/page": "app/(auth)/reports/sources/page.js",
+  "/(auth)/reports/team/page": "app/(auth)/reports/team/page.js",
+  "/api/auth/[...all]/route": "app/api/auth/[...all]/route.js",
+  "/api/notifications/route": "app/api/notifications/route.js",
+  "/api/permissions/route": "app/api/permissions/route.js",
+  "/api/reports/templates/[id]/route": "app/api/reports/templates/[id]/route.js",
+  "/api/reports/templates/[id]/run/route": "app/api/reports/templates/[id]/run/route.js",
+  "/api/reports/templates/route": "app/api/reports/templates/route.js",
+  "/api/workspaces/route": "app/api/workspaces/route.js"
+}

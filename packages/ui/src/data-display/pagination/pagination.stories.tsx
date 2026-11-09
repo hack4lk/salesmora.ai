@@ -28,7 +28,9 @@ export const SinglePage: Story = { args: { total: 12 } };
 export const Disabled: Story = { args: { disabled: true, page: 3 }, play: async ({ canvasElement, args }) => {
   const c = within(canvasElement);
   await expect(c.getByRole('combobox', { name: copy.pageSize })).toBeDisabled();
-  await userEvent.click(c.getByRole('button', { name: copy.item('next', null, false) }));
+  await expect(c.getByRole('button', { name: copy.item('next', null, false) })).toBeDisabled();
+  await userEvent.tab();
+  await userEvent.keyboard('{Enter}');
   await expect(args.onPageChange).not.toHaveBeenCalled();
 } };
 export const Narrow: Story = { ...Middle, parameters: { viewport: { value: 'mobile1' } } };

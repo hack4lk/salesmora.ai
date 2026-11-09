@@ -11,6 +11,7 @@ import { authorize, resolveAuthorizedCollectionScope, isClosedJob, scheduledJobS
 import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIdentity } from "../authorization/store";
 
 import { assertIndependentCalendarSchedule, synchronizeCalendarRecord } from "../calendar/sync";
+import { scopedJobQuery } from "./query";
 
 export class JobConflictError extends Error {
   constructor(message = "This job changed. Reload its current details before trying again.") { super(message); }
@@ -26,13 +27,7 @@ function permit(context:AuthorizationContext, permission:PermissionId, row?:JobR
 }
 /** Apply current read scope in SQL before sorting, pagination, counts or record lookup. */
 function scoped(trx:Knex.Transaction, context:AuthorizationContext) {
-  const scope=resolveAuthorizedCollectionScope(context,"jobs.read");
-  if(!scope.allowed || !["workspace","assigned"].includes(scope.scope)) throw new AuthorizationAccessError();
-  const query=trx("jobs as j").where("j.workspaceId",context.workspaceId);
-  if(scope.scope==="assigned") query.andWhere(q=>q.where("j.primaryOwnerId",context.userId).orWhereExists(
-    trx("jobTeamMembers as jt").select(trx.raw("1")).whereRaw('jt."workspaceId" = j."workspaceId" AND jt."jobId" = j.id').where("jt.userId",context.userId)
-  ));
-  return query;
+  return scopedJobQuery(trx, context).query;
 }
 const teamSelect = `(SELECT coalesce(array_agg(t."userId" ORDER BY t."userId"), ARRAY[]::text[]) FROM "jobTeamMembers" t WHERE t."workspaceId"=j."workspaceId" AND t."jobId"=j.id) AS "teamUserIds"`;
 const dateSelect = `to_char(j."scheduledDate", 'YYYY-MM-DD') AS "scheduledDate", to_char(j."completionDeadline", 'YYYY-MM-DD') AS "completionDeadline"`;
@@ -211,8 +206,12 @@ export async function readJobs(db: Knex, identity: WorkspaceIdentity, enabled: r
        count(*) filter (where j.status = 'waiting')::int as waiting, count(*) filter (where j."primaryOwnerId" is null)::int as unassigned`, [today])).first();
     const facets = await scoped(trx, context).distinct("j.customerName", "j.service");
     const canAssign = authorize(context, { permission: "jobs.assign", resource: { kind: "job", id: context.workspaceId, workspaceId: context.workspaceId, ownerId: context.userId, teamUserIds: [] } }).allowed;
-    const visibleIds = await scoped(trx, context).select("j.primaryOwnerId", trx.raw(teamSelect));
-    const participantIds = [...new Set<string>(visibleIds.flatMap(r => [r.primaryOwnerId, ...r.teamUserIds]).filter(Boolean))];
+    const visibleIds: { primaryOwnerId: string | null; teamUserIds: string[] }[] =
+      await scoped(trx, context).select("j.primaryOwnerId", trx.raw(teamSelect));
+    const participantIds = [...new Set(visibleIds.flatMap(r => [
+      ...(r.primaryOwnerId ? [r.primaryOwnerId] : []),
+      ...r.teamUserIds,
+    ]))];
     const members = await membersFor(trx, context, canAssign ? undefined : participantIds);
     const canReadCustomers = resolveAuthorizedCollectionScope(context, "customers.read");
     const customers: { id: string; name: string }[] = canReadCustomers.allowed && canReadCustomers.scope === "workspace"
