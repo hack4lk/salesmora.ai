@@ -49,7 +49,7 @@ export const Default: Story = { play: async ({ canvasElement }) => {
   const style = getComputedStyle(parent);
   const available = parent.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
   expect(Math.abs(bounds.width - available)).toBeLessThan(1);
-  expect(bounds.height).toBeLessThan(220);
+  expect(bounds.height).toBeLessThan(bounds.width < 600 ? 240 : 190);
   await expect(c.queryByRole('heading', { name: 'Date basis, per metric' })).not.toBeInTheDocument();
   await expect(c.queryByRole('heading', { name: 'As of now' })).not.toBeInTheDocument();
 } };
@@ -100,6 +100,16 @@ export const ReversedDates: Story = { play: async ({ canvasElement, args }) => {
 } };
 export const MaximumRange: Story = { args: { value: { preset: 'custom', from: '2024-01-01', to: '2024-12-31' } }, play: async ({ canvasElement, args }) => {
   const c = within(canvasElement);
+  const region = c.getByRole('region', { name: copy.title }).getBoundingClientRect();
+  if (region.width >= 1100) {
+    const fields = [c.getByRole('combobox'), c.getByLabelText(copy.from, { exact: false }),
+      c.getByLabelText(copy.to, { exact: false }), c.getByRole('button', { name: copy.apply })];
+    const centers = fields.map(field => {
+      const bounds = field.getBoundingClientRect();
+      return bounds.top + bounds.height / 2;
+    });
+    expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(2);
+  }
   await checkPeriodHelp(canvasElement, 366);
   await userEvent.click(c.getByRole('button', { name: copy.apply }));
   await expect(args.onApply).toHaveBeenCalledWith(args.value);
