@@ -77,22 +77,18 @@ export function ReportDateControls({
     <section
       aria-labelledby={`${id}-title`}
       aria-busy={pending}
-      className="grid w-full min-w-0 max-w-2xl gap-5 rounded-2xl border border-line bg-paper p-4 text-ink sm:p-6"
+      className="grid w-full min-w-0 gap-3 rounded-2xl border border-line bg-paper p-4 text-ink"
     >
       <header className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 items-center gap-1">
-          <h2 id={`${id}-title`} className="m-0 text-xl font-semibold">
+          <h2 id={`${id}-title`} className="m-0 text-base font-semibold">
             {copy.title}
           </h2>
           <HelpTooltip
             label={copy.periodHelp}
-            paragraphs={[copy.count(range.count)]}
+            paragraphs={[copy.count(range.count), copy.help]}
           />
         </div>
-        <p className="m-0 min-w-0 text-xs text-muted wrap-anywhere">
-          <span className="sr-only">{copy.timezone}: </span>
-          {timezone}
-        </p>
       </header>
       <form
         noValidate
@@ -111,39 +107,41 @@ export function ReportDateControls({
           }
           onApply(draft);
         }}
-        className="grid min-w-0 gap-4"
+        className="grid min-w-0 gap-3"
       >
-        <div className="grid min-w-0 gap-5">
-          <MuiTextField
-            select
-            label={copy.range}
-            value={draft.preset}
-            disabled={pending}
-            fullWidth
-            size="small"
-            className={fieldClasses}
-            slotProps={{
-              select: { native: true },
-              inputLabel: { shrink: true },
-              htmlInput: {
-                className: "box-border min-h-11",
-                "aria-describedby":
-                  draft.preset === "custom" ? `${id}-help` : undefined,
-              },
-            }}
-            onChange={(event) => {
-              if (event.target.value === "custom")
-                change({ preset: "custom", from: range.from, to: range.to });
-              else change({ preset: defaultReportPreset(context) });
-            }}
-          >
-            <option value={defaultReportPreset(context)}>
-              {copy.presets[context]}
-            </option>
-            <option value="custom">{copy.custom}</option>
-          </MuiTextField>
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <div className="min-w-0 basis-64 flex-1">
+            <MuiTextField
+              select
+              label={copy.range}
+              value={draft.preset}
+              disabled={pending}
+              fullWidth
+              size="small"
+              className={fieldClasses}
+              slotProps={{
+                select: { native: true },
+                inputLabel: { shrink: true },
+                htmlInput: {
+                  className: "box-border min-h-11",
+                  "aria-describedby":
+                    draft.preset === "custom" ? `${id}-help` : undefined,
+                },
+              }}
+              onChange={(event) => {
+                if (event.target.value === "custom")
+                  change({ preset: "custom", from: range.from, to: range.to });
+                else change({ preset: defaultReportPreset(context) });
+              }}
+            >
+              <option value={defaultReportPreset(context)}>
+                {copy.presets[context]}
+              </option>
+              <option value="custom">{copy.custom}</option>
+            </MuiTextField>
+          </div>
           {draft.preset === "custom" && (
-            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+            <div className="grid min-w-0 basis-80 flex-1 gap-3 sm:grid-cols-2">
               {(["from", "to"] as const).map((key) => (
                 <MuiTextField
                   key={key}
@@ -173,9 +171,25 @@ export function ReportDateControls({
               ))}
             </div>
           )}
+          <div className="ml-auto flex flex-wrap items-center gap-3">
+            <SeafoamButton
+              size={14}
+              type="submit"
+              disabled={pending}
+              label={copy.apply}
+            />
+            <button
+              type="button"
+              disabled={pending || !changed}
+              className={`${button} border-line bg-paper text-primary hover:bg-canvas`}
+              onClick={() => setEdit(null)}
+            >
+              {copy.cancel}
+            </button>
+          </div>
         </div>
         {draft.preset === "custom" && (
-          <p id={`${id}-help`} className="m-0 text-xs leading-5 text-muted">
+          <p id={`${id}-help`} className="sr-only">
             {copy.help}
           </p>
         )}
@@ -188,41 +202,31 @@ export function ReportDateControls({
             />
           </div>
         )}
-        <div
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          className="grid min-w-0 flex-1 gap-1"
-        >
-          <p className="m-0 text-sm wrap-anywhere">
-            <span className="text-muted">{copy.applied}: </span>
-            <strong className="font-semibold">
-              {formatReportDate(range.from)} to {formatReportDate(range.to)}
-            </strong>
-          </p>
-          {pending ? (
-            <p className="mb-0 mt-1 text-sm text-muted">{copy.pending}</p>
-          ) : (
-            changed && (
-              <p className="mb-0 mt-1 text-sm text-muted">{copy.changed}</p>
-            )
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
-          <SeafoamButton
-            size={14}
-            type="submit"
-            disabled={pending}
-            label={copy.apply}
-          />
-          <button
-            type="button"
-            disabled={pending || !changed}
-            className={`${button} border-line bg-paper text-primary hover:bg-canvas`}
-            onClick={() => setEdit(null)}
+        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <div
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className="grid min-w-0 flex-1 gap-1"
           >
-            {copy.cancel}
-          </button>
+            <p className="m-0 text-xs wrap-anywhere">
+              <span className="text-muted">{copy.applied}: </span>
+              <strong className="font-semibold">
+                {formatReportDate(range.from)} to {formatReportDate(range.to)}
+              </strong>
+            </p>
+            {pending ? (
+              <p className="mb-0 mt-1 text-sm text-muted">{copy.pending}</p>
+            ) : (
+              changed && (
+                <p className="mb-0 mt-1 text-sm text-muted">{copy.changed}</p>
+              )
+            )}
+          </div>
+          <p className="m-0 min-w-0 text-xs text-muted wrap-anywhere">
+            <span className="sr-only">{copy.timezone}: </span>
+            {timezone}
+          </p>
         </div>
       </form>
     </section>

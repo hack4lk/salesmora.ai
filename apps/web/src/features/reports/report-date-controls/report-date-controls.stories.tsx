@@ -29,7 +29,9 @@ async function checkPeriodHelp(canvasElement: HTMLElement, count: number) {
   const trigger = c.getByRole('button', { name: copy.periodHelp });
   await expect(c.queryByText(copy.count(count))).not.toBeInTheDocument();
   await userEvent.click(trigger);
-  await expect(await body.findByRole('dialog', { name: copy.periodHelp })).toHaveTextContent(copy.count(count));
+  const dialog = await body.findByRole('dialog', { name: copy.periodHelp });
+  await expect(dialog).toHaveTextContent(copy.count(count));
+  await expect(dialog).toHaveTextContent(copy.help);
   await userEvent.keyboard('{Escape}');
   await waitFor(() => expect(body.queryByRole('dialog')).not.toBeInTheDocument());
   await expect(trigger).toHaveFocus();
@@ -41,6 +43,13 @@ export const Default: Story = { play: async ({ canvasElement }) => {
   await checkPeriodHelp(canvasElement, 30);
   await expect(c.queryByLabelText(copy.from)).not.toBeInTheDocument();
   await expect(c.getAllByRole('region')).toHaveLength(1);
+  const region = c.getByRole('region', { name: copy.title });
+  const bounds = region.getBoundingClientRect();
+  const parent = region.parentElement!;
+  const style = getComputedStyle(parent);
+  const available = parent.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  expect(Math.abs(bounds.width - available)).toBeLessThan(1);
+  expect(bounds.height).toBeLessThan(220);
   await expect(c.queryByRole('heading', { name: 'Date basis, per metric' })).not.toBeInTheDocument();
   await expect(c.queryByRole('heading', { name: 'As of now' })).not.toBeInTheDocument();
 } };
