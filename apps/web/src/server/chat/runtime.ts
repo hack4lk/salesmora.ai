@@ -10,7 +10,7 @@ import {
   availableLeadOperations,
   authorizeLeadOperation,
   createConversationModel,
-  implementedTools,
+  liveChatTools,
   runConversation,
   type ConversationModel,
 } from "@salesmora/agent";
@@ -41,6 +41,7 @@ import {
   validateTurnEvidence,
   rememberEstimateRead,
   rememberCalendarRead,
+  rememberReportHistory,
   rememberCalendarProposalHistory,
   rememberEstimateDecisionHistory,
   rememberEstimateDraftActionHistory,
@@ -76,7 +77,7 @@ export async function liveChatResponse(
     const context = await currentAuthority();
     if (
       tool &&
-      !authorizeChatTool(context, request.surfaceKey, tool, implementedTools)
+      !authorizeChatTool(context, request.surfaceKey, tool, liveChatTools)
         .allowed
     )
       throw new AuthorizationAccessError();
@@ -85,7 +86,7 @@ export async function liveChatResponse(
       !authorizeLeadOperation(context, request.surfaceKey, operation).allowed
     )
       throw new AuthorizationAccessError();
-    return availableChatTools(context, request.surfaceKey, implementedTools);
+    return availableChatTools(context, request.surfaceKey, liveChatTools);
   };
   const history = await readThreads(identity, turn.threadId);
   if (!("messages" in history) || !history.messages)
@@ -232,6 +233,7 @@ export async function liveChatResponse(
   const inheritedDraftDeletes = new Set<string>();
   const inheritedConversions = new Set<string>();
   const inheritedCalendarProposals = new Set<string>();
+  const inheritedReports = new Set<string>();
   for (const message of [...bounded].reverse()) {
     const sources: ChatLeadEvidence =
       message.role === "assistant"
@@ -270,6 +272,9 @@ export async function liveChatResponse(
       ? [...(decisionTurn.estimateConversionEvidence ?? []),
         ...(decisionTurn.estimateConversion && !["expired", "superseded"].includes(decisionTurn.estimateConversion.state) ? [decisionTurn.id] : [])] : [];
     const calendarIds = decisionTurn?.calendarProposalEvidence ?? [];
+    const reportIds = decisionTurn?.reportSources ?? [];
+    // Reserve one binding for the single distinct report read this turn may perform.
+    if (new Set([...inheritedReports, ...reportIds]).size > 6) continue;
     if (new Set([...inheritedCalendarProposals,...calendarIds]).size > 7) continue;
     if (
       candidate.size > 50 ||
@@ -287,10 +292,12 @@ export async function liveChatResponse(
     for (const id of draftDeleteIds) inheritedDraftDeletes.add(id);
     for (const id of conversionIds) inheritedConversions.add(id);
     for (const id of calendarIds) inheritedCalendarProposals.add(id);
+    for (const id of reportIds) inheritedReports.add(id);
     for (const source of candidate.values()) inherited.set(source.id, source);
     safeHistory.unshift(message);
   }
   await rememberTurnLeadEvidence(identity, turn.id, [...inherited.values()]);
+  await rememberReportHistory(identity, turn.id, [...inheritedReports]);
   await rememberTurnSearchEvidence(identity, turn.id, [...inheritedSearches]);
   const priorCustomerStamps =
     history.turns

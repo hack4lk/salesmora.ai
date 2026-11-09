@@ -20,6 +20,7 @@ export type ReportFacetFiltersProps = {
   context: 'period' | 'current';
   contextLabel?: string;
   contextHelp?: string;
+  compact?: boolean;
   canRead: boolean;
   state?: 'ready' | 'loading' | 'error';
   pending?: boolean;
@@ -33,7 +34,7 @@ export type ReportFacetFiltersProps = {
 const unavailable = 'Unavailable saved selection';
 
 /** Shared dropdown/chip UI; domain wrappers validate applicable authorized facets and selections. */
-export function ReportFacetFilters({ reportLabel, facets, context, contextLabel, contextHelp, canRead, state = 'ready', pending = false,
+export function ReportFacetFilters({ reportLabel, facets, context, contextLabel, contextHelp, compact = false, canRead, state = 'ready', pending = false,
   validOptions, validSelection, attributionHelp, onSelect, onClear, onRetry }: ReportFacetFiltersProps) {
   const id = useId();
   if (!canRead) return <FormFeedback kind="error" message={`Your current access does not allow these ${reportLabel} report filters.`} />;
@@ -57,18 +58,22 @@ export function ReportFacetFilters({ reportLabel, facets, context, contextLabel,
       }
     }
   }
-  return <FilterBar title={`${reportLabel} report filters`} activeFilters={activeFilters} disabled={pending} onRemove={remove}
+  const contextDescription = contextLabel ?? (context === 'current' ? 'Current-view filters / independent of period results' : 'Period-result filters / do not filter current snapshots');
+  const help = <HelpTooltip label={`About ${reportLabel} report filters`} paragraphs={[
+    ...(compact ? [contextDescription] : []),
+    'Choose multiple values within each facet (OR). Different facets combine with AND. No selections means all currently authorized values, never wider access.',
+    attributionHelp,
+    contextHelp ?? 'The host keeps current-view and period-result filters separate and queries the matching authorized projection.',
+  ]} />;
+  return <FilterBar title={`${reportLabel} report filters`} compact={compact} activeFilters={activeFilters} disabled={pending} onRemove={remove}
+    titleHelp={compact ? help : undefined}
     onClearAll={() => { if (!pending) onClear(); }}>
-    <div className="grid w-full min-w-0 gap-4">
-      <div className="flex min-w-0 items-center gap-1">
-        <p className="m-0 text-sm text-muted">{contextLabel ?? (context === 'current' ? 'Current-view filters / independent of period results' : 'Period-result filters / do not filter current snapshots')}</p>
-        <HelpTooltip label={`About ${reportLabel} report filters`} paragraphs={[
-          'Choose multiple values within each facet (OR). Different facets combine with AND. No selections means all currently authorized values, never wider access.',
-          attributionHelp,
-          contextHelp ?? 'The host keeps current-view and period-result filters separate and queries the matching authorized projection.',
-        ]} />
-      </div>
-      <div className="grid min-w-0 gap-4 md:grid-cols-3">
+    <div className={compact ? 'flex w-full min-w-0 flex-wrap items-center gap-3' : 'grid w-full min-w-0 gap-4'}>
+      {!compact && <div className="flex min-w-0 items-center gap-1">
+        <p className="m-0 text-sm text-muted">{contextDescription}</p>
+        {help}
+      </div>}
+      <div className={compact ? 'min-w-0 flex-1' : 'grid min-w-0 gap-4 md:grid-cols-3'}>
         {facets.filter(facet => facet.options !== undefined).map(facet => <Autocomplete
           key={facet.id} id={`${id}-${facet.id}`} multiple disableCloseOnSelect disabled={pending}
           options={(facet.options ?? []).map(option => option.value)}
@@ -87,7 +92,7 @@ export function ReportFacetFilters({ reportLabel, facets, context, contextLabel,
           }}
           renderInput={params => <TextField {...params} label={facet.label} size="small" className={fieldClasses}
             placeholder={facet.selected.length === 0 ? 'All authorized values' : 'Select more'}
-            helperText="No selections: all authorized values."
+            helperText={compact ? undefined : 'No selections: all authorized values.'}
             error={facet.selected.some(selected => !facet.options?.some(option => option.value === selected))}
           />}
           className="min-w-0"

@@ -1,16 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ session: vi.fn(), workspace: vi.fn(), context: vi.fn(), reports: vi.fn(),
-  financial: vi.fn(), initial: vi.fn() }));
+  financial: vi.fn(), initial: vi.fn(), chat: vi.fn() }));
 vi.mock('server-only', () => ({}));
 vi.mock('next/navigation', () => ({
   notFound: () => { throw new Error('NOT_FOUND'); }, redirect: (url: string) => { throw new Error(`REDIRECT:${url}`); },
 }));
 vi.mock('next/headers', () => ({ headers: vi.fn() }));
 vi.mock('../auth/session', () => ({ getSession: mocks.session }));
+vi.mock('../chat/config', () => ({ workspaceChatAvailable: mocks.chat }));
 vi.mock('../auth/auth', () => ({ auth: { api: { signOut: vi.fn() } } }));
 vi.mock('../workspaces/store', () => ({ findWorkspace: mocks.workspace }));
 vi.mock('../authorization/permissions', () => ({ workspaceAuthorization: mocks.context,
-  workspaceCapabilities: () => ({}), workspaceNavigationPages: vi.fn() }));
+  workspaceCapabilities: () => ({ assistant: false }), workspaceNavigationPages: vi.fn() }));
 vi.mock('./store', () => ({ initialWorkspaceFinancialReport: mocks.initial }));
 vi.mock('@salesmora/domain', async original => ({ ...await original<typeof import('@salesmora/domain')>(),
   authorize: mocks.financial, resolveAuthorizedCollectionScope: mocks.reports }));

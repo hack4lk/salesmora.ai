@@ -114,6 +114,7 @@ export async function POST(request: Request) {
         let customerResult;
         let workOrderResult;
         let calendarResult;
+        let reportResult;
         let captureResult;
         let calendarProposal;
         let captureSetup;
@@ -178,6 +179,7 @@ export async function POST(request: Request) {
             customerResult = result.customerResult;
             workOrderResult = result.workOrderResult;
             calendarResult = result.calendarResult;
+            reportResult = result.reportResult;
             captureSource = result.captureSource;
             captureSetup = result.captureSetup;
             captureResult = result.captureResult;
@@ -245,6 +247,7 @@ export async function POST(request: Request) {
           if (captureSetup) { await validateTurnEvidence(identity, turn.id); send({ type: "capture.setup", messageId: turn.messageId, result: captureSetup }); }
           if (captureResult) { await validateTurnEvidence(identity, turn.id); send({ type: "capture.result", messageId: turn.messageId, result: captureResult }); }
           if (calendarResult) { await validateTurnEvidence(identity, turn.id); send({ type: "calendar.result", messageId: turn.messageId, result: calendarResult }); }
+          if (reportResult) { await validateTurnEvidence(identity, turn.id); send({ type: "report.result", messageId: turn.messageId, result: reportResult }); }
           if (workOrderResult) {
             await validateTurnEvidence(identity, turn.id);
             send({

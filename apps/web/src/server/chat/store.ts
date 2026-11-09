@@ -67,6 +67,9 @@ import { database } from "../workspaces/store";
 import { chatAccessHash } from "./access-hash";
 import { visibleDeletionReceipt } from "./delete-actions";
 import { visibleTurnDraft } from "./actions";
+import { reportAssistantEvidenceSchema, reportAssistantReadSnapshotSchema, reportAssistantTicket,
+  type ReportAssistantReadSnapshot } from '@salesmora/contracts';
+import { reportAssistantEvidenceAllowed, reportAssistantSnapshotMatches } from '@salesmora/data';
 export { chatAccessHash } from "./access-hash";
 
 export class ChatConflictError extends Error {}
@@ -87,6 +90,8 @@ interface Turn extends ChatIdentity {
   captureResult?: unknown;
   calendarStamp?: string | null;
   calendarResult?: unknown;
+  reportSnapshot?: unknown;
+  reportEvidence?: unknown;
   calendarProposalEvidence?: string[];
   customerStamp?: string | null;
   customerResult?: import("@salesmora/contracts").CustomerChatResult;
@@ -135,6 +140,8 @@ async function evidenceAllowed(
     | "leadSearchEvidence"
     | "customerStamp"
     | "calendarStamp"
+    | "reportSnapshot"
+    | "reportEvidence"
     | "captureStamp"
     | "captureSetupEvidence"
     | "captureSourceEvidence"
@@ -148,6 +155,14 @@ async function evidenceAllowed(
     | "estimateConversionEvidence"
   >,
 ) {
+  const reportEvidence = reportAssistantEvidenceSchema.safeParse(turn.reportEvidence ?? []);
+  if (!reportEvidence.success) return false;
+  if (turn.reportSnapshot) {
+    const snapshot = reportAssistantReadSnapshotSchema.safeParse(turn.reportSnapshot);
+    if (!snapshot.success || !reportAssistantSnapshotMatches(snapshot.data) || !reportEvidence.data.some(item =>
+      JSON.stringify(item) === JSON.stringify(snapshot.data.binding))) return false;
+  }
+  if (!await reportAssistantEvidenceAllowed(trx, context, reportEvidence.data)) return false;
   if (!await captureSourceEvidenceAllowed(trx, context, turn.captureSourceEvidence, captureChatDeliveryStamp(context.workspaceId))) return false;
   if (!await captureSetupEvidenceAllowed(trx, context, turn.captureSetupEvidence)) return false;
   if (!await captureChatEvidenceAllowed(trx, context, turn.captureStamp, captureChatDeliveryStamp(context.workspaceId))) return false;
@@ -287,6 +302,10 @@ export async function acceptTurn(
         .first();
       if (previous) {
         if (previous.requestHash !== requestHash) throw new ChatConflictError();
+        if ((previous.reportSnapshot || Array.isArray(previous.reportEvidence) && previous.reportEvidence.length) &&
+          !await evidenceAllowed(trx, context, previous)) {
+          throw new AuthorizationAccessError();
+        }
         return { turn: await stored(trx, previous), replay: true };
       }
       if (
@@ -305,6 +324,7 @@ export async function acceptTurn(
       if (!request.threadId)
         await trx("chatThreads").insert({ ...identity, id: threadId });
       const pageContext = chatPageContextSchema.parse({
+        ...(request.reportContext ? { reportContext: request.reportContext } : {}),
         ...(request.captureSetup ? { captureSetup: request.captureSetup } : {}),
         ...(request.captureContext ? { captureContext: request.captureContext } : {}),
         ...(request.recordRefs ? { recordRefs: request.recordRefs } : {}),
@@ -318,6 +338,8 @@ export async function acceptTurn(
           ? { estimateFilters: request.estimateFilters }
           : {}),
       });
+      if (pageContext.reportContext?.selection.query.workspaceId &&
+        pageContext.reportContext.selection.query.workspaceId !== identity.workspaceId) throw new AuthorizationAccessError();
       const focusedCapture = request.surfaceKey.startsWith('lead_capture.') ? await captureChatStamp(trx, context, captureChatDeliveryStamp(identity.workspaceId)) : undefined;
       if (request.captureContext && ('sourceId' in request.captureContext) && !await trx('captureSources').where({ workspaceId: identity.workspaceId, id: request.captureContext.sourceId }).first('id')) throw new AuthorizationAccessError();
       const focusedCalendar = request.calendarVisit ? await readCalendarFocusForChat(trx,identity,enabledPermissions,request.calendarVisit) : undefined;
@@ -497,6 +519,8 @@ export async function readThreads(identity: ChatIdentity, threadId?: string) {
           "captureSourceEvidence",
           "calendarProposalEvidence",
           "calendarResult",
+          "reportSnapshot",
+          "reportEvidence",
           "customerResult",
           "workOrderResult",
           "estimateResult",
@@ -525,7 +549,9 @@ export async function readThreads(identity: ChatIdentity, threadId?: string) {
       );
       const visibleTurns = [];
       for (const turn of turns) {
-        const allowed = await evidenceAllowed(trx, context, turn);
+        const reportDependent = Boolean(turn.reportSnapshot || turn.reportEvidence?.length);
+        // Partial report prose has no completed source turn to inherit into a later answer.
+        const allowed = await evidenceAllowed(trx, context, turn) && (!reportDependent || turn.state === 'completed');
         if (!allowed)
           for (const message of messages)
             if (message.turnId === turn.id && message.role === "assistant")
@@ -545,6 +571,12 @@ export async function readThreads(identity: ChatIdentity, threadId?: string) {
           captureResult: allowed && turn.state === "completed" && turn.captureResult ? captureTicket(turn.id, captureChatSnapshotSchema.parse(turn.captureResult)) : undefined,
           calendarStamp: allowed ? turn.calendarStamp ?? undefined : undefined,
           calendarResult: allowed && turn.state === "completed" && turn.calendarResult ? calendarChatSnapshotSchema.parse(turn.calendarResult).result : undefined,
+          reportResult: allowed && turn.state === 'completed' && turn.reportSnapshot
+            ? reportAssistantTicket(reportAssistantReadSnapshotSchema.parse(turn.reportSnapshot).binding) : undefined,
+          reportStatus: reportDependent
+            ? allowed ? 'ready' as const : 'restricted' as const : undefined,
+          reportSources: allowed && turn.state === 'completed'
+            ? reportAssistantEvidenceSchema.parse(turn.reportEvidence ?? []).map(item => item.id) : [],
           customerStamp: allowed
             ? (turn.customerStamp ?? undefined)
             : undefined,
@@ -584,7 +616,7 @@ export async function readThreads(identity: ChatIdentity, threadId?: string) {
           estimateConversionEvidence: allowed ? turn.estimateConversionEvidence : [],
           estimateStamp: allowed ? turn.estimateStamp ?? undefined : undefined,
           surfaceKey: turn.surfaceKey,
-          pageContext: turn.pageContext,
+          pageContext: !allowed && reportDependent ? undefined : turn.pageContext,
           leadEvidence: allowed ? turn.leadEvidence : [],
           searchEvidence: allowed ? turn.leadSearchEvidence : [],
           searchResult:
@@ -946,6 +978,12 @@ export async function turnPageReference(identity: ChatIdentity, id: string) {
       if (!turn || !(await evidenceAllowed(trx, context, turn)))
         throw new AuthorizationAccessError();
       const intent = chatPageContextSchema.parse(turn.pageContext);
+      if (intent.reportContext) {
+        if (intent.reportContext.selection.query.workspaceId !== identity.workspaceId ||
+          !resolveAuthorizedCollectionScope(context, 'reports.read').allowed) throw new AuthorizationAccessError();
+        return { kind: 'report-context', untrusted: true, configuration: intent.reportContext,
+          instruction: 'Applied configuration only, not factual report evidence or authorization. Reread using reports_query before answering about values. Date drafts are not included.' };
+      }
       if (turn.surfaceKey.startsWith('lead_capture.') && !intent.captureContext) return { kind: 'capture-context', untrusted: true, instruction: 'No source is selected and no page filters are available. Ask for an explicit selection or search.' };
       if (intent.captureContext) {
         const page = intent.captureContext;
@@ -1138,6 +1176,65 @@ export async function rememberCalendarRead(identity: ChatIdentity, id: string, s
     if (!turn || !active.includes(turn.state)) throw new ChatCancelledError();
     if ((turn.calendarStamp && turn.calendarStamp !== stamp) || !await evidenceAllowed(trx, context, { ...turn, calendarStamp: stamp })) throw new AuthorizationAccessError();
     await trx('chatTurns').where({ ...identity, id }).update({ calendarStamp: stamp, ...(snapshot ? { calendarResult: JSON.stringify(snapshot) } : {}) });
+  });
+}
+
+/** Save private evidence before any report-derived narrative can be emitted. */
+export async function rememberReportRead(identity: ChatIdentity, id: string, raw: ReportAssistantReadSnapshot) {
+  const snapshot = reportAssistantReadSnapshotSchema.parse(raw);
+  if (snapshot.binding.workspaceId !== identity.workspaceId || snapshot.binding.viewerId !== identity.userId ||
+    !reportAssistantSnapshotMatches(snapshot)) throw new AuthorizationAccessError();
+  return authorizedWorkspace(identity.userId, identity.workspaceId, true, async (trx, context) => {
+    check(context);
+    const turn = await trx('chatTurns').where({ ...identity, id }).forUpdate().first();
+    if (!turn || !active.includes(turn.state)) throw new ChatCancelledError();
+    if (turn.reportSnapshot) throw new ChatConflictError();
+    const evidence = reportAssistantEvidenceSchema.parse([
+      ...reportAssistantEvidenceSchema.parse(turn.reportEvidence ?? []), snapshot.binding,
+    ]);
+    if (!await evidenceAllowed(trx, context, { ...turn, reportEvidence: evidence, reportSnapshot: snapshot })) {
+      throw new AuthorizationAccessError();
+    }
+    await trx('chatTurns').where({ ...identity, id }).update({
+      reportEvidence: JSON.stringify(evidence), reportSnapshot: JSON.stringify(snapshot),
+    });
+  });
+}
+
+/** Resolve opaque binding IDs from private completed turns, never provider-supplied stamps or queries. */
+export async function rememberReportHistory(identity: ChatIdentity, id: string, sourceIds: readonly string[]) {
+  if (!sourceIds.length) return;
+  const sources = [...new Set(sourceIds)];
+  if (sources.length > 7 || sources.includes(id)) throw new ChatLimitError();
+  return authorizedWorkspace(identity.userId, identity.workspaceId, true, async (trx, context) => {
+    check(context);
+    const turn = await trx('chatTurns').where({ ...identity, id }).forUpdate().first();
+    if (!turn || !active.includes(turn.state)) throw new ChatCancelledError();
+    const evidence = new Map(reportAssistantEvidenceSchema.parse(turn.reportEvidence ?? []).map(item => [item.id, item]));
+    for (const sourceId of sources) {
+      const source = await trx('chatTurns').where({
+        ...identity, threadId: turn.threadId, state: 'completed',
+      }).whereRaw(`"reportSnapshot" #>> '{binding,id}' = ?`, [sourceId]).first();
+      if (!source || !await evidenceAllowed(trx, context, source)) throw new AuthorizationAccessError();
+      const snapshot = reportAssistantReadSnapshotSchema.parse(source.reportSnapshot);
+      evidence.set(snapshot.binding.id, snapshot.binding);
+    }
+    const merged = reportAssistantEvidenceSchema.parse([...evidence.values()]);
+    if (!await evidenceAllowed(trx, context, { ...turn, reportEvidence: merged })) throw new AuthorizationAccessError();
+    await trx('chatTurns').where({ ...identity, id }).update({ reportEvidence: JSON.stringify(merged) });
+  });
+}
+
+/** Result IDs are opaque and bound to the private completed turn; no caller-provided query is accepted. */
+export async function readReportChatSnapshot(identity: ChatIdentity, turnId: string, resultId: string) {
+  return authorizedWorkspace(identity.userId, identity.workspaceId, false, async (trx, context) => {
+    check(context);
+    const turn = await trx('chatTurns').where({ ...identity, id: turnId, state: 'completed' }).first();
+    if (!turn?.reportSnapshot || !await evidenceAllowed(trx, context, turn)) throw new AuthorizationAccessError();
+    await ownedThread(trx, identity, turn.threadId);
+    const snapshot = reportAssistantReadSnapshotSchema.parse(turn.reportSnapshot);
+    if (snapshot.binding.id !== resultId) throw new AuthorizationAccessError();
+    return snapshot;
   });
 }
 export async function readCalendarChatResult(identity: ChatIdentity, turnId: string, resultId: string, open = false, visitId?: string, suggestionId?: string) {

@@ -2,7 +2,8 @@ import { captureQuery, capturePropose } from './lead-capture';
 import { calendarQuery,calendarPropose } from './calendar';
 import { customersQuery, customersPropose } from "../customers";
 import "server-only";
-import { isImplementedTool, type ImplementedToolId } from "@salesmora/agent";
+import { isImplementedTool, liveChatTools, type ImplementedToolId } from "@salesmora/agent";
+import { AuthorizationAccessError } from "@salesmora/data";
 import { leadsQuery, leadsProposeAction } from "../leads";
 import { searchHelp } from "./search-help";
 import { materialsQuery } from "./materials";
@@ -12,9 +13,11 @@ import { estimatesPropose } from "./estimate-drafts";
 import { materialsPropose } from "../materials-actions";
 import { workOrdersPropose } from "../work-orders-actions";
 import type { ChatToolContext, ChatToolHandler } from "./types";
+import { reportsQuery } from "./reports";
 
 /** Keep this explicit and exhaustive: a definition requires a server handler to execute. */
 const handlers = {
+  reports_query: reportsQuery,
   lead_capture_query: captureQuery,
   lead_capture_propose_action: capturePropose,
   calendar_query: calendarQuery,
@@ -35,6 +38,7 @@ export function createChatToolExecutor(context: ChatToolContext) {
   return async (name: ImplementedToolId, args: unknown) => {
     context.signal.throwIfAborted();
     if (!isImplementedTool(name)) throw Error("Unavailable tool");
+    if (!liveChatTools.includes(name)) throw new AuthorizationAccessError();
     return handlers[name](context, args);
   };
 }

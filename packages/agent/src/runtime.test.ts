@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { MemorySaver } from '@langchain/langgraph';
 import { runConversation, type ConversationModel, type RuntimeDependencies } from './runtime';
 import { AIBudgetExceededError, type EstimateDraftChatView } from '@salesmora/contracts';
+import { liveChatTools } from './tools/registry';
 const turnId = '00000000-0000-4000-8000-000000000001';
 const input = () => ({ turnId, surface: 'home' as const, messages: [{ role: 'user' as const, text: 'Fictional private question' }], signal: new AbortController().signal });
 function fixture() {
@@ -10,6 +11,41 @@ function fixture() {
   return { model, checkpointer, authorize: vi.fn<RuntimeDependencies['authorize']>(async () => ['search_help']), executeTool: vi.fn<RuntimeDependencies['executeTool']>(async () => ({ evidence: { type: 'untrusted-help-reference', matches: [] }, sources: [] })), rememberSources: vi.fn(async () => {}), emit: vi.fn<RuntimeDependencies['emit']>(async () => {}) };
 }
 describe('bounded conversation graph', () => {
+  it('stops report-derived streaming immediately when fresh authorization revokes its evidence', async () => {
+    const deps = fixture();
+    let allowed = true;
+    const revoked = new Error('Access denied.');
+    deps.authorize.mockImplementation(async () => {
+      if (!allowed) throw revoked;
+      return ['reports_query'];
+    });
+    deps.model.plan = async () => [{ name: 'reports_query', args: { request: { mode: 'current_report' } } }];
+    deps.executeTool.mockResolvedValue({ evidence: { native: 'PRIVATE_REPORT_LABEL' } });
+    deps.model.answer = async function* () {
+      yield 'First authorized report text.';
+      allowed = false;
+      yield 'MUST_NOT_BE_EMITTED';
+    };
+    await expect(runConversation(input(), deps)).rejects.toBe(revoked);
+    expect(deps.emit).toHaveBeenCalledWith({ type: 'text', text: 'First authorized report text.' });
+    expect(deps.emit.mock.calls.some(([event]) => event.type === 'text' && event.text === 'MUST_NOT_BE_EMITTED')).toBe(false);
+  });
+  it('keeps report evidence and opaque tickets out of graph checkpoints', async () => {
+    const deps = fixture();
+    const ticket = { id: '00000000-0000-4000-8000-000000000022', area: 'leads' as const,
+      retrievedAt: '2026-11-09T15:00:00.000Z' };
+    deps.authorize.mockResolvedValue(['reports_query']);
+    deps.model.plan = async () => [{ name: 'reports_query', args: { request: { mode: 'current_report' } } }];
+    deps.executeTool.mockResolvedValue({ reportResult: ticket, evidence: { native: 'PRIVATE_REPORT_LABEL' } });
+    deps.model.answer = async function* (_messages, evidence) {
+      expect(evidence).toEqual([{ native: 'PRIVATE_REPORT_LABEL' }]);
+      yield 'PRIVATE_REPORT_NARRATIVE';
+    };
+    expect((await runConversation(input(), deps)).reportResult).toEqual(ticket);
+    const checkpoint = JSON.stringify(await deps.checkpointer.getTuple({ configurable: { thread_id: turnId } }));
+    expect(checkpoint).not.toContain('PRIVATE_REPORT');
+    expect(checkpoint).not.toContain(ticket.id);
+  });
   it('prepares Void without checkpointing the private reason or compact ticket', async () => {
     const deps = fixture();
     const ticket = {
@@ -166,6 +202,20 @@ describe('bounded conversation graph', () => {
     const deps = fixture(); deps.model.plan = async () => calls;
     await expect(runConversation(input(), deps)).rejects.toThrow('Conversation step interrupted');
     expect(deps.executeTool).not.toHaveBeenCalled();
+  });
+  it('rejects a report call after fresh server authorization removes report access before execution or text', async () => {
+    const deps = fixture();
+    deps.authorize.mockImplementation(async tool => {
+      if (tool === 'reports_query') throw Error('Access denied.');
+      return liveChatTools.filter(tool => tool !== 'reports_query');
+    });
+    deps.model.plan = async (_messages, tools) => {
+      expect(tools).not.toContain('reports_query');
+      return [{ name: 'reports_query', args: { request: { mode: 'current_report' } } }];
+    };
+    await expect(runConversation(input(), deps)).rejects.toThrow('Access denied.');
+    expect(deps.executeTool).not.toHaveBeenCalled();
+    expect(deps.emit).not.toHaveBeenCalled();
   });
   it('rechecks authorization after retrieval before sending any text', async () => {
     const deps = fixture(); let revoked = false;

@@ -34,7 +34,7 @@ export function validTeamReportFilters(value: TeamReportFiltersValue, options: r
 export function TeamReportFilters({ value, options, scope, canRead, state = 'ready', pending = false, onChange, onRetry }: TeamReportFiltersProps) {
   const choices = options.map(option => scope.kind === 'assigned' ? { ...option, label: 'Me' } : option)
     .sort((a, b) => alphabetic.compare(a.label, b.label) || alphabetic.compare(a.value, b.value));
-  return <ReportFacetFilters reportLabel="Team" context="current" canRead={canRead} state={state} pending={pending}
+  return <ReportFacetFilters reportLabel="Team" context="current" compact canRead={canRead} state={state} pending={pending}
     facets={[{ id: 'members', label: 'Current member', selected: value.members, options: choices }]}
     validOptions={validTeamReportFilterOptions(options, scope)} validSelection={validTeamReportFilters(value, options, scope)}
     attributionHelp="Members use current surviving membership, not historical attribution. Leads match selected primary owners. Jobs match selected members in either primary responsibility or supporting participation; each Job counts once overall. Primary and supporting cards remain separate and supporting counts are non-additive. The unassigned queue stays separate, not a member option. Assigned scope exposes Me only. The host supplies matching authorized aggregates and evidence; saved unavailable members require explicit correction."

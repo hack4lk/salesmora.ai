@@ -30,6 +30,7 @@ export const chatSurfaceRegistry = Object.fromEntries(
     surface,
     [
       "search_help",
+      "reports_query",
       "lead_capture_query",
       "lead_capture_propose_action",
       "calendar_query",
@@ -94,6 +95,8 @@ export function authorizeChatTool(
   const assistant = authorize(context, { permission: "assistant.use" });
   if (!assistant.allowed) return denied();
   switch (id) {
+    case "reports_query":
+      return resolveAuthorizedCollectionScope(context, "reports.read");
     case "lead_capture_propose_action":
       return availableCaptureSetupOperations(context).length ? assistant : denied();
     case "lead_capture_query":

@@ -85,6 +85,7 @@ export async function runConversation(
   },
   deps: RuntimeDependencies,
 ) {
+  let reportResult: import("@salesmora/contracts").ReportAssistantTicket | undefined;
   let customerResult: CustomerChatResult | undefined;
   let calendarProposal: import("@salesmora/contracts").CalendarProposalTicket | undefined;
   let captureSource: import("@salesmora/contracts").CaptureAssistantProposalTicket | undefined;
@@ -191,6 +192,7 @@ export async function runConversation(
           if (definition.progress)
             await deps.emit({ type: "status", status: definition.progress });
           const result = await deps.executeTool(call.name, args);
+          reportResult = result.reportResult ?? reportResult;
           if (result.sources) {
             sources = result.sources;
             await deps.rememberSources(sources);
@@ -265,6 +267,7 @@ export async function runConversation(
     },
   );
   return {
+    reportResult,
     sources,
     action,
     searchResult,

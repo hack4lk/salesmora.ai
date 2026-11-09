@@ -127,3 +127,7 @@ export * from './lead-capture';
 export * from './lead-assignment-settings';
 export * from './reports/business-overview-export';
 export * from './reports/template';
+export * from './reports/assistant-result';
+export * from './reports/assistant-query';
+export * from './reports/assistant-tool';
+export * from './reports/assistant-evidence';

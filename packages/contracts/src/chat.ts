@@ -26,6 +26,8 @@ import { estimateVoidChatTicketSchema } from "./estimate-void-chat";
 import { estimateArchiveChatTicketSchema } from "./estimate-archive-chat";
 import { estimateDraftDeleteChatTicketSchema } from "./estimate-draft-delete-chat";
 import { estimateConversionChatTicketSchema } from "./estimate-conversion-chat";
+import { reportAssistantContextSchema } from './reports/assistant-query';
+import { reportAssistantTicketSchema } from './reports/assistant-evidence';
 
 export const estimateDecisionEvidenceSchema = z.array(z.uuid()).max(7);
 export const estimateDraftActionEvidenceSchema = z.array(z.uuid()).max(7);
@@ -45,6 +47,7 @@ export const chatSurfaceKeys = [
   "estimate.editor",
   "estimate.detail",
   "home",
+  "reports",
   "calendar",
   "leads.create",
   "leads.list",
@@ -55,6 +58,7 @@ export const chatSurfaceKeys = [
 export const chatSurfaceKeySchema = z.enum(chatSurfaceKeys);
 export type ChatSurfaceKey = z.infer<typeof chatSurfaceKeySchema>;
 export const chatToolIds = [
+  "reports_query",
   "lead_capture_query",
   "lead_capture_propose_action",
   "search_help",
@@ -86,6 +90,7 @@ export const chatUIStateSchema = z
   .strict();
 export const chatPageContextSchema = z
   .object({
+    reportContext: reportAssistantContextSchema.optional(),
     recordRefs: chatRecordRefsSchema.optional(),
     uiState: chatUIStateSchema.optional(),
     customerFilters: customerQuerySchema
@@ -118,6 +123,7 @@ export type ChatLeadEvidence = z.infer<typeof chatLeadEvidenceSchema>;
 /** Browser intent only. Identity, policy, history, tool lists and prompts are server-owned. */
 export const chatTurnRequestSchema = z
   .object({
+    reportContext: reportAssistantContextSchema.optional(),
     workspaceId: z.uuid(),
     threadId: z.uuid().optional(),
     clientTurnId: z.uuid(),
@@ -136,6 +142,9 @@ export const chatTurnRequestSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
+    if (value.reportContext && value.reportContext.selection.query.workspaceId !== value.workspaceId) {
+      ctx.addIssue({ code: 'custom', path: ['reportContext'], message: 'Invalid report workspace context.' });
+    }
     if (value.captureSetup && (value.surfaceKey !== 'lead_capture.setup' || value.captureContext?.surface !== 'lead_capture.setup' || value.captureContext.sourceId !== value.captureSetup.sourceId)) ctx.addIssue({ code: 'custom', path: ['captureSetup'], message: 'Invalid unsaved setup context.' });
     if (value.captureContext && value.captureContext.surface !== value.surfaceKey) ctx.addIssue({ code: 'custom', path: ['captureContext'], message: 'Invalid capture page context.' });
     if (value.calendarVisit && value.surfaceKey !== 'calendar') ctx.addIssue({ code:'custom',path:['calendarVisit'],message:'Invalid Calendar visit context.' });
@@ -270,6 +279,7 @@ export const chatStreamEventSchema = z.discriminatedUnion("type", [
   z.object({ ...envelope, type: z.literal("capture.setup"), messageId: z.uuid(), result: captureAssistantProposalTicketSchema }).strict(),
   z.object({ ...envelope, type: z.literal("capture.result"), messageId: z.uuid(), result: captureChatTicketSchema }).strict(),
   z.object({ ...envelope, type: z.literal("calendar.result"), messageId: z.uuid(), result: calendarChatResultSchema }).strict(),
+  z.object({ ...envelope, type: z.literal("report.result"), messageId: z.uuid(), result: reportAssistantTicketSchema }).strict(),
   z.object({
     ...envelope,
     type: z.literal("estimates.void"),
@@ -413,6 +423,9 @@ export const chatHistoryResponseSchema = z
             customerStamp: z.string().optional(),
             workOrderResult: workOrderChatResultSchema.optional(),
             calendarResult: calendarChatResultSchema.optional(),
+            reportResult: reportAssistantTicketSchema.optional(),
+            reportStatus: z.enum(['ready', 'restricted']).optional(),
+            reportSources: z.array(z.uuid()).max(7).optional(),
             captureResult: captureChatTicketSchema.optional(),
             captureSource: captureAssistantProposalTicketSchema.optional(),
             captureSourceEvidence: z.array(z.uuid()).max(7).optional(),

@@ -1,4 +1,5 @@
 export const connectedAssistantData = {
+  reportChanged: 'This report answer is unavailable or out of date. Ask the assistant to retrieve it again.',
   historyChanged: 'These history results are unavailable or out of date. Ask the assistant to retrieve them again.',
   detailsChanged: 'These lead details have changed or are no longer available. Ask the assistant to retrieve them again.',
   searchChanged: 'These search results have changed or are no longer available. Ask the assistant to search again.',

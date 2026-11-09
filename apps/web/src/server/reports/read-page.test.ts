@@ -1,21 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ session: vi.fn(), workspace: vi.fn(), context: vi.fn(), reports: vi.fn(), authorized: vi.fn(), templates: vi.fn(), selectedLead: vi.fn(), selectedJob: vi.fn(), selectedCalendar: vi.fn(), initial: vi.fn(), initialSource: vi.fn(), initialOverview: vi.fn(), initialCalendar: vi.fn(), initialJobs: vi.fn(), initialTeam: vi.fn(), initialEstimates: vi.fn(), initialActivity: vi.fn(), capabilities: vi.fn(),
+const mocks = vi.hoisted(() => ({ session: vi.fn(), workspace: vi.fn(), context: vi.fn(), reports: vi.fn(), authorize: vi.fn(), authorized: vi.fn(), templates: vi.fn(),
+  selectedSource: vi.fn(), selectedOverview: vi.fn(), selectedTeam: vi.fn(), selectedEstimates: vi.fn(), selectedActivity: vi.fn(), selectedFinancial: vi.fn(), chat: vi.fn(),
+  initialFinancial: vi.fn(), selectedLead: vi.fn(), selectedJob: vi.fn(), selectedCalendar: vi.fn(), initial: vi.fn(), initialSource: vi.fn(), initialOverview: vi.fn(), initialCalendar: vi.fn(), initialJobs: vi.fn(), initialTeam: vi.fn(), initialEstimates: vi.fn(), initialActivity: vi.fn(), capabilities: vi.fn(),
   notFound: vi.fn(() => { throw new Error('NOT_FOUND'); }), redirect: vi.fn((url: string) => { throw new Error(`REDIRECT:${url}`); }) }));
 vi.mock('server-only', () => ({}));
 vi.mock('next/navigation', () => ({ notFound: mocks.notFound, redirect: mocks.redirect }));
 vi.mock('next/headers', () => ({ headers: vi.fn() }));
 vi.mock('../auth/session', () => ({ getSession: mocks.session }));
+vi.mock('../chat/config', () => ({ workspaceChatAvailable: mocks.chat }));
 vi.mock('../auth/auth', () => ({ auth: { api: { signOut: vi.fn() } } }));
 vi.mock('../workspaces/store', () => ({ findWorkspace: mocks.workspace }));
 vi.mock('../authorization/permissions', () => ({ workspaceAuthorization: mocks.context, authorizedWorkspace: mocks.authorized, workspaceCapabilities: mocks.capabilities, workspaceNavigationPages: vi.fn() }));
 vi.mock('@salesmora/data', async original => ({ ...await original<typeof import('@salesmora/data')>(), listReportTemplatesInTransaction: mocks.templates }));
 vi.mock('./store', () => ({ workspaceLeadReport: mocks.selectedLead, workspaceJobReport: mocks.selectedJob, workspaceCalendarReport: mocks.selectedCalendar,
+  workspaceLeadSourceReport: mocks.selectedSource, workspaceBusinessOverview: mocks.selectedOverview,
+  workspaceTeamReport: mocks.selectedTeam, workspaceEstimateReport: mocks.selectedEstimates,
+  workspaceActivityReport: mocks.selectedActivity, workspaceFinancialReport: mocks.selectedFinancial,
+  initialWorkspaceFinancialReport: mocks.initialFinancial,
   initialWorkspaceLeadReport: mocks.initial, initialWorkspaceLeadSourceReport: mocks.initialSource,
   initialWorkspaceBusinessOverview: mocks.initialOverview, initialWorkspaceCalendarReport: mocks.initialCalendar,
   initialWorkspaceJobReport: mocks.initialJobs, initialWorkspaceTeamReport: mocks.initialTeam,
   initialWorkspaceEstimateReport: mocks.initialEstimates, initialWorkspaceActivityReport: mocks.initialActivity }));
 vi.mock('@salesmora/domain', async original => ({ ...await original<typeof import('@salesmora/domain')>(), resolveAuthorizedCollectionScope: mocks.reports,
-  authorize: vi.fn(() => ({ allowed: false })) }));
+  authorize: mocks.authorize }));
 vi.mock('../../features/workspace/workspace-shell/workspace-shell', () => ({ WorkspaceShell: vi.fn() }));
 vi.mock('../../features/reports/lead-report-workspace/lead-report-route', () => ({ LeadReportRoute: vi.fn() }));
 vi.mock('../../features/reports/lead-source-report/lead-source-route', () => ({ LeadSourceRoute: vi.fn() }));
@@ -25,7 +32,8 @@ vi.mock('../../features/reports/job-report-workspace/job-report-page', () => ({ 
 vi.mock('../../features/reports/team-report-workspace/team-report-page', () => ({ TeamReportRoute: vi.fn() }));
 vi.mock('../../features/reports/estimate-report-workspace/estimate-report-page', () => ({ EstimateReportRoute: vi.fn() }));
 vi.mock('../../features/reports/activity-report/activity-report-page', () => ({ ActivityReportRoute: vi.fn() }));
-import { renderLeadReportsPage, renderSourcesReportsPage, renderBusinessOverviewPage, renderCalendarReportsPage, renderJobReportsPage, renderTeamReportsPage, renderEstimateReportsPage, renderActivityReportsPage, renderReportCatalogPage } from './read-page';
+vi.mock('../../features/reports/financial-report/financial-report-page', () => ({ FinancialReportRoute: vi.fn() }));
+import { renderLeadReportsPage, renderSourcesReportsPage, renderBusinessOverviewPage, renderCalendarReportsPage, renderJobReportsPage, renderTeamReportsPage, renderEstimateReportsPage, renderActivityReportsPage, renderFinancialReportsPage, renderReportCatalogPage } from './read-page';
 import { AuthorizationAccessError } from '@salesmora/data';
 import { initialLeadReportQuery, leadReportBackendResponse } from '../../features/reports/lead-report-workspace/lead-report.adapter.fixtures';
 import { initialLeadSourceQuery, sourceReadResponse } from '../../features/reports/lead-source-report/lead-source-read.fixtures';
@@ -35,10 +43,14 @@ import { initialTeamQuery, teamReadResponse, teamWorkspaceAuthority } from '../.
 import { initialEstimateQuery, estimateReadResponse } from '../../features/reports/estimate-report-workspace/estimate-read.fixtures';
 import { activityReadResponse } from '../../features/reports/activity-report/activity-read.fixtures';
 import { overviewAttentionHref } from '../../features/reports/business-overview/business-overview-navigation';
+import { reportHref } from '../../features/reports/report-navigation';
+import { reportSelectionExamples } from '../../../../../packages/contracts/src/reports/assistant-query.fixtures';
 const workspaceId = '00000000-0000-4000-8000-000000000001';
 beforeEach(() => { vi.clearAllMocks(); mocks.session.mockResolvedValue({ user: { id: 'session-user' } });
   mocks.workspace.mockResolvedValue({ id: workspaceId }); mocks.context.mockResolvedValue({});
-  mocks.reports.mockReturnValue({ allowed: false }); mocks.capabilities.mockReturnValue({});
+  mocks.reports.mockReturnValue({ allowed: false }); mocks.capabilities.mockReturnValue({ assistant: false });
+  mocks.chat.mockResolvedValue(false);
+  mocks.authorize.mockReturnValue({ allowed: false });
   mocks.initial.mockResolvedValue(leadReportBackendResponse(initialLeadReportQuery));
   mocks.initialSource.mockResolvedValue(sourceReadResponse(initialLeadSourceQuery));
   mocks.initialOverview.mockResolvedValue(overviewReadResponse(initialOverviewQuery));
@@ -46,6 +58,74 @@ beforeEach(() => { vi.clearAllMocks(); mocks.session.mockResolvedValue({ user: {
   mocks.initialTeam.mockResolvedValue(teamReadResponse(initialTeamQuery));
   mocks.initialEstimates.mockResolvedValue(estimateReadResponse(initialEstimateQuery));
   mocks.initialActivity.mockResolvedValue(activityReadResponse()); });
+const destinations = {
+  overview: [renderBusinessOverviewPage, mocks.selectedOverview],
+  leads: [renderLeadReportsPage, mocks.selectedLead],
+  sources: [renderSourcesReportsPage, mocks.selectedSource],
+  calendar: [renderCalendarReportsPage, mocks.selectedCalendar],
+  jobs: [renderJobReportsPage, mocks.selectedJob],
+  team: [renderTeamReportsPage, mocks.selectedTeam],
+  estimates: [renderEstimateReportsPage, mocks.selectedEstimates],
+  activity: [renderActivityReportsPage, mocks.selectedActivity],
+  financial: [renderFinancialReportsPage, mocks.selectedFinancial],
+} as const;
+describe.each(reportSelectionExamples)('report link $area / $query.view', selection => {
+  const [renderPage, reader] = destinations[selection.area];
+  const params = () => Object.fromEntries(new URL(reportHref(selection), 'http://localhost').searchParams);
+  beforeEach(() => {
+    mocks.context.mockResolvedValue({ membership: { role: 'owner' } });
+    mocks.reports.mockReturnValue({ allowed: true, sourceScopes: { lead: 'workspace', job: 'workspace' } });
+    mocks.authorize.mockReturnValue({ allowed: true });
+    reader.mockResolvedValue({ query: selection.query });
+  });
+  it('passes the exact native configuration to a fresh authenticated reader', async () => {
+    const page = await renderPage(params());
+    expect(reader).toHaveBeenCalledWith('session-user', selection.query);
+    expect(page.props.children.props.initial).toEqual({ query: selection.query });
+  });
+  it('uses the Reports chat surface only with both assistant capability and workspace runtime availability', async () => {
+    mocks.capabilities.mockReturnValue({ assistant: true });
+    mocks.chat.mockResolvedValue(true);
+    expect(await renderPage(params())).toMatchObject({ props: {
+      assistantAvailable: true, chatEnabled: true, chatSurface: 'reports',
+    } });
+    expect(mocks.chat).toHaveBeenCalledWith(workspaceId);
+    mocks.chat.mockResolvedValue(false);
+    expect(await renderPage(params())).toMatchObject({ props: {
+      assistantAvailable: true, chatEnabled: false, chatSurface: 'reports',
+    } });
+    mocks.capabilities.mockReturnValue({ assistant: false });
+    mocks.chat.mockClear();
+    expect(await renderPage(params())).toMatchObject({ props: { assistantAvailable: false, chatEnabled: false } });
+    expect(mocks.chat).not.toHaveBeenCalled();
+  });
+  it('rejects invalid workspace, area query, malformed JSON and duplicate controls', async () => {
+    const controls = params();
+    for (const query of ['{', [controls.query, controls.query], 'x'.repeat(16001),
+      JSON.stringify({ ...selection.query, workspaceId: '00000000-0000-4000-8000-000000000002' }),
+      JSON.stringify({ ...selection.query, view: 'unknown' }), JSON.stringify({ ...selection.query, scope: 'workspace' })]) {
+      await expect(renderPage({ ...controls, query })).rejects.toThrow('NOT_FOUND');
+    }
+    expect(reader).not.toHaveBeenCalled();
+  });
+  it('never bypasses Reports or underlying native-reader authority', async () => {
+    mocks.reports.mockReturnValueOnce({ allowed: false });
+    await expect(renderPage(params())).rejects.toThrow('NOT_FOUND');
+    expect(reader).not.toHaveBeenCalled();
+    reader.mockRejectedValueOnce(new AuthorizationAccessError());
+    await expect(renderPage(params())).rejects.toThrow('NOT_FOUND');
+  });
+});
+describe('Financial deep-link authority', () => {
+  it('requires explicit Financial access before invoking its reader', async () => {
+    const selection = reportSelectionExamples.find(item => item.area === 'financial')!;
+    const params = Object.fromEntries(new URL(reportHref(selection), 'http://localhost').searchParams);
+    mocks.reports.mockReturnValue({ allowed: true });
+    mocks.authorize.mockReturnValue({ allowed: false });
+    await expect(renderFinancialReportsPage(params)).rejects.toThrow('NOT_FOUND');
+    expect(mocks.selectedFinancial).not.toHaveBeenCalled();
+  });
+});
 describe.each([
   ['stale-leads', renderLeadReportsPage, mocks.selectedLead],
   ['overdue-jobs', renderJobReportsPage, mocks.selectedJob],

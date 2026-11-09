@@ -1,21 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
 import { reportTemplateAreaSchema, reportTemplateConfigurationSchema, reportTemplateCreateSchema, reportTemplateDeleteSchema,
-  reportTemplateSchema, reportTemplateUpdateSchema, leadReportQuerySchema, leadSourceQuerySchema, businessOverviewQuerySchema,
-  calendarReportQuerySchema, jobReportQuerySchema, teamReportQuerySchema, estimateReportQuerySchema,
-  activityReportQuerySchema, financialReportQuerySchema, type AuthorizationContext,
+  reportTemplateSchema, reportTemplateUpdateSchema, reportSelectionSchema, type AuthorizationContext,
   type ReportTemplate, type ReportTemplateConfiguration } from '@salesmora/contracts';
 import { resolveAuthorizedCollectionScope, resolveReportPeriod } from '@salesmora/domain';
 import { AuthorizationAccessError } from '../authorization/store';
-import { readLeadReportWithAuthorityInTransaction } from './lead-read';
-import { readLeadSourceReportWithAuthorityInTransaction } from './lead-source-read';
-import { readBusinessOverviewWithAuthorityInTransaction } from './business-overview-read';
-import { readCalendarReportWithAuthorityInTransaction } from './calendar-read';
-import { readJobReportWithAuthorityInTransaction } from './job-read';
-import { readTeamReportWithAuthorityInTransaction } from './team-read';
-import { readEstimateReportWithAuthorityInTransaction } from './estimate-read';
-import { readActivityReportWithAuthorityInTransaction } from './activity-read';
-import { readFinancialReportWithAuthorityInTransaction } from './financial-read';
+import { readReportSelectionInTransaction } from './read-selection';
 
 export class ReportTemplateConflictError extends Error {
   constructor() { super('The template changed or its name is already in use. Reload and try again.'); }
@@ -65,36 +55,8 @@ export async function runReportTemplateConfigurationInTransaction(
 ) {
   requireRead(context, context.workspaceId);
   const { configuration, query } = await resolveQuery(trx, context, raw);
-  switch (configuration.area) {
-    case 'overview': return readBusinessOverviewWithAuthorityInTransaction(trx, context, businessOverviewQuerySchema.parse(query));
-    case 'leads': return readLeadReportWithAuthorityInTransaction(trx, context, leadReportQuerySchema.parse(query));
-    case 'sources': {
-      const parsed = leadSourceQuerySchema.parse(query);
-      const result = await readLeadSourceReportWithAuthorityInTransaction(trx, context, parsed);
-      if (parsed.selected === 'converted' && !result.canReadConversion ||
-        parsed.selected === 'accepted-estimates' && !result.canReadAcceptedValue) throw new AuthorizationAccessError();
-      return result;
-    }
-    case 'calendar': return readCalendarReportWithAuthorityInTransaction(trx, context, calendarReportQuerySchema.parse(query));
-    case 'jobs': return readJobReportWithAuthorityInTransaction(trx, context, jobReportQuerySchema.parse(query));
-    case 'team': return readTeamReportWithAuthorityInTransaction(trx, context, teamReportQuerySchema.parse(query));
-    case 'estimates': {
-      const parsed = estimateReportQuerySchema.parse(query);
-      const result = await readEstimateReportWithAuthorityInTransaction(trx, context, parsed);
-      if (parsed.view === 'estimate-current' && parsed.selected === 'handoff' && !result.authority.handoff) {
-        throw new AuthorizationAccessError();
-      }
-      return result;
-    }
-    case 'activity': return readActivityReportWithAuthorityInTransaction(trx, context, activityReportQuerySchema.parse(query));
-    case 'financial': {
-      const parsed = financialReportQuerySchema.parse(query);
-      const result = await readFinancialReportWithAuthorityInTransaction(trx, context, parsed);
-      if (parsed.selected === 'materials' ? result.reports.materials.costs.kind === 'unavailable'
-        : result.reports[parsed.selected].estimates.kind === 'unavailable') throw new AuthorizationAccessError();
-      return result;
-    }
-  }
+  return (await readReportSelectionInTransaction(trx, context,
+    reportSelectionSchema.parse({ area: configuration.area, query }))).read;
 }
 export async function createReportTemplateInTransaction(trx: Knex.Transaction, context: AuthorizationContext, raw: unknown) {
   const input = reportTemplateCreateSchema.parse(raw);

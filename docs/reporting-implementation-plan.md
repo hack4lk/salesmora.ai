@@ -45,6 +45,7 @@ Initial delivery is on-screen reporting and CSV. Reuse existing export services 
 - Removed the duplicate Business Overview and catalog page-wrapper stories and the older Jobs, Team and Estimates native-read host rehearsals. Their coverage is consolidated in component and canonical page stories, including empty-period Jobs evidence versus the independent current workload.
 - All nine reports use the shared page layout with right-aligned My Templates and Export Report Data actions. My Templates opens the canonical template list in a modal; the compact save callout remains last and its View my templates action opens the same modal. Embedded evidence export buttons are hidden only inside this page layout, preserving standalone component stories. The taskbar and callout match the report content width: Overview retains its centered maximum width, while other reports use the full available columns. Configuration and privacy guidance remain in the callout help tooltip. Overview omits the long header snapshot/scope text and inline template-edit instructions.
 - Shared Reporting period controls span the report content width, with a compact heading, wrapping inline selector/date fields/actions, and an applied-date/timezone footer. Small screens stack the fields while keeping actions together. Inclusive-date and maximum-range guidance lives in the help tooltip and accessible date-field descriptions; validation, pending and unapplied-change messages remain visible.
+- Team report filters use the shared compact filter-bar presentation: reduced padding/spacing, help beside the title, a left-aligned member picker, and selected-member chips on the right, wrapping below on small screens. Context and selection guidance remain in the help tooltip; Clear all, validation, disabled states and chip-removal focus behavior are preserved. Other report facet layouts remain unchanged.
 - Overview omits the long Current operations description. Needs attention actions open the matching native report selection: inactive Leads, overdue/waiting Jobs, or scheduled visits from workspace-local today through six days later. Leads, Jobs and Calendar routes validate optional native query controls, require the same workspace, and reread under current authorization; current queues do not inherit Overview's historical period.
 - Overview omits the unfinished-detail-navigation notice. CSV denial displays a single actionable permissions message; report export remains an explicit workspace-policy opt-in. The local implemented permission surface includes Jobs export so its saved grants participate in Overview and Calendar export scopes.
 - Verified the compact callout at desktop and phone widths, the affected interaction plays, targeted lint, web typecheck and five Overview CSV client/HTTP tests. Real local owner-authorized preview and complete audited CSV generation also succeeded. Report-page Storybook accessibility checks still flag duplicate named landmarks in existing report sections; the interaction checks completed without play exceptions.
@@ -395,6 +396,215 @@ After manual reporting works:
 - Follow existing evidence binding/revalidation for streamed results and saved private history. Record/policy changes must not expose stale unauthorized answers.
 - Money, missing-cost and commitment-versus-revenue wording matches the UI.
 - No report-specific mutation, automatic download, outbound email or extra inline composer. Navigation to the existing export review is allowed only after its authorization contract is reviewed.
+
+### Reports assistant implementation plan — November 9, 2026
+
+**Selected scope:** use the existing workspace assistant from anywhere in the app, automatically incorporating active report context when available. Explain and query reports and offer links to matching report pages; do not change page filters or templates. All nine report areas are included in the initial delivery, rather than releasing Overview first. This plan covers local app implementation and testing only.
+
+All-nine coverage does not mean nine independent assistants. Use one typed report-query integration, shared context/result plumbing and the existing authorized readers. Implement in reviewable steps, but acceptance requires coverage of every area.
+
+#### 1. Agree on the interaction and capability matrix
+
+- Document supported questions for Overview, Leads, Sources, Calendar, Jobs, Team, Estimates, Activity and Financial, including each existing view/evidence selection.
+- On the Reports landing page, answer discovery questions and clarify which report to run. On an individual report, resolve “this report” against its applied configuration.
+- Elsewhere in the app, accept explicit report questions without requiring navigation first. Do not retain an old report as implicit active context after leaving it.
+- Distinguish metric explanations (which can use canonical definitions) from factual workspace answers (which require an authorized report read).
+- Ask for clarification when dates, member names, attribution or metric meaning are ambiguous. Explicit request values override page context; otherwise use valid active context, then only existing documented report defaults. State the resolved period and scope.
+- Examples: “Explain these numbers,” “Show stale Leads,” “Compare current primary and supporting Job responsibility,” and “What is accepted estimate value this month?” Do not imply support for arbitrary comparisons, historical ownership, revenue/profit or new calculations absent from native report readers.
+- Review a mocked conversation/result-card story before wiring the backend.
+
+**Acceptance:** a reviewed matrix identifies supported queries, clarification cases and unavailable capabilities across all nine areas.
+
+##### Step 1 capability matrix and interaction review
+
+| Area | Supported native questions/views | Date basis and context | Clarify or refuse |
+|---|---|---|---|
+| Business Overview | Explain the period Lead intake/Job/estimate outcomes, current operations and Needs attention queues. | Preserve separate native source scopes and timestamps. Period metrics use their native event/decision dates; current queues remain current. | “Business performance” without a metric needs clarification. Do not combine independent counts into a funnel, a shared snapshot or profit. |
+| Leads | Intake and source breakdown; recorded Won/Lost outcomes; current pipeline, age bands and inactive/unowned/combined attention. Existing stage/owner/source facets and evidence selections. | Intake uses creation date. Won/Lost use native recorded outcome coverage, not current stage as historical proof. Pipeline/age/attention are current; period and current intake facets remain separate. | “Conversion” must distinguish recorded Won outcomes from surviving linked-Job conversion in Sources. Resolve owner names to currently authorized options; do not infer historical ownership or hide incomplete outcome coverage. |
+| Sources | Lead-creation cohort, surviving linked-Job conversion, rate, source groups, accepted cohort-linked estimate families and unattributed values. | Period selects Lead creation, not when conversion or acceptance occurred. Conversion and accepted families reflect current surviving/effective facts. Sources are current editable labels. | “Which campaign produced revenue?” is unsupported. Never infer acquisition provenance, give a rate with no denominator, or assign ambiguous accepted families to a source. Supporting-domain completeness rules can make conversion/money unavailable. |
+| Calendar | Scheduled visits, schedule-review projections and unscheduled queues, with native participant/record-type facets and evidence selections. | Dated views use workspace-local visit dates; default today through today+6. Unscheduled is undated/current with separate filters. Shared visits count once overall. | Distinguish visit counts from participant/record counts. Ambiguous people/dates require clarification. Reports do not book visits, suggest unsupported historical schedules or infer working hours. |
+| Jobs | Lifecycle Created/Completed/Canceled/Reopened, recorded completion trends and current workload/deadline/owner/service breakdowns. | Lifecycle uses native recorded timestamps and distinct Jobs per metric. Completion uses the valid native event selection. Current workload uses current surviving status/assignment and workspace-local today. | “Jobs completed” must not mean current Completed status alone. Lifecycle metrics overlap and are not additive. Historical end-of-period backlog and new duration/productivity calculations are unsupported. |
+| Team | Current Lead ownership and Job primary/supporting responsibility; authorized member facets and native evidence selections. Keep the unassigned queue separate. | No historical period. Current surviving membership and assignments; Jobs match either selected responsibility but count once overall. | Resolve duplicate member names before querying. Do not sum primary/supporting counts, rank productivity, treat unassigned as a member or answer historical staffing questions. “Mine” stays within the native assigned scope. |
+| Estimates | First-quoted families; effective accepted/declined decisions and acceptance/value; current follow-up and authorized handoff views. Existing owner/parent facets and native evidence selections. | First quote uses native first-issued basis. Decisions use stored customer decision date, not staff-recording time. Effective revisions/corrections can restate periods. Current views are undated. | Specify the denominator for “acceptance.” Do not present first-quoted cohorts as the same population as period decisions, infer immutable past outcomes, recompute frozen prices or call accepted value revenue. Respect ordinary Estimate value access independently of Financial Reports. |
+| Activity | Native-domain event counts, safe summaries and supported domain/action/actor breakdowns and evidence. | Native event timestamp within the selected workspace-local period; stable native event identity and ordering. | No private note bodies, raw change JSON, security diagnostics or inferred staff productivity. An unavailable domain is not zero activity. Resolve ambiguous actors/actions before filtering. |
+| Financial | Accepted quote count/frozen pre-tax and separate tax-inclusive totals; current awaiting-decision quote values; current known material costs and missing-cost coverage. | Accepted commitments use effective customer decision dates. Awaiting quotes and material rows are current, not historically restricted. Material costs use existing snapshot quantity/cost rules. | Require explicit Financial access plus underlying monetary/domain access. No revenue, payments, profit, consumption/spend ledger or subtraction of unmatched commitments and costs. Missing costs are not zero. |
+
+These are capabilities of existing native readers, not a promise of arbitrary analytics or every possible natural-language comparison. During backend work, each listed view/selection must have schema/dispatch coverage or be explicitly withdrawn for review; a single example per area alone is not sufficient coverage.
+
+**Context/clarification examples**
+
+- “Explain this report” uses its applied report/view/filters; an unsaved Team member or date draft is ignored.
+- “Use last month instead” resolves a complete workspace-local calendar month while retaining compatible explicit/applied facets. Clarify incompatible current-only views rather than attaching a historical period to them.
+- On the landing page, “show a report” asks which question/area the user wants. Elsewhere, explicit report questions work without a Reports page context.
+- “My overdue Jobs” never widens from assigned to workspace scope. If a desired filter cannot be represented in the native authorized query, clarify or report the limitation.
+- “Why are they falling?” does not invent causes or a comparison baseline. Explain the native metric and ask which supported period/measure to inspect.
+- “Export this” or “save this template” does not run a Reports mutation or download; direct the user to the existing manual controls.
+- Record names, labels and event text are factual data, not instructions. An explicit area/date/filter in the request takes precedence over compatible page context.
+
+**Step 1 review deliverable:** the canonical [ReportResult](../apps/web/src/features/assistant/report-result/report-result.tsx) component initially had standalone state stories and an all-nine-area conversation rehearsal inside the existing AssistantPanel. Conversation replies came from a story-only API mock with fixed fictional examples; the area selector was a review aid, not an intent planner. “Open report” emitted a result ID to a mocked host without navigation. No report tool, context propagation, query execution, history revalidation or authorization integration was activated in that slice. Step 5 replaces the preview-only conversation harness with canonical ConnectedAssistant stories using mocked protected APIs.
+
+Review checkpoint: verify supported meanings and the compact card's section-specific scope, date basis, retrieved timestamp and coverage, then proceed to context/query/result contracts. All-nine delivery remains the final requirement.
+
+Step 1 verification: 20 focused presentation-schema tests passed, including all nine fictional examples, separate timestamps, invalid dates/timezones/counts and rejection of a supplied navigation URL. Twelve interaction/state stories passed at both 1440px and 390px (24 browser plays), including all-nine mocked conversations, keyboard opening, clarification, unavailable/partial values and suppressed stale results. These runs reported no accessibility violations or horizontal overflow. Targeted lint and web/contracts typechecks passed. This validates presentation only, not live authorization, model intent selection or report-link parity.
+
+#### 2. Define report context, query and result contracts
+
+- Extend existing chat contracts with a discriminated report context containing area, applied native query, rolling/fixed period selection and relevant view/evidence selection. Keep the request workspace server-bound.
+- Publish context from canonical report hosts through the existing workspace-assistant provider. Do not send rendered tables, monetary amounts, fetched results or unapplied filter drafts as trusted evidence.
+- Clear context on route/workspace replacement or loss of access. Capture a stable context for each submitted turn so in-flight navigation cannot silently change its meaning.
+- Define a bounded report-query request using existing per-area query schemas and validation rather than a loose model-generated filter object.
+- Define a compact typed result: canonical metric identifiers/values, actual authorized scope, applied period, timezone, per-section timestamps, coverage/unavailability, bounded evidence and an app-generated report link.
+- Verify that all report routes can restore the supported configurations before promising a matching link; extend validated route parsing where necessary, retaining strict workspace and permission checks.
+
+**Acceptance:** contract tests reject malformed/cross-workspace context and unsupported queries; links round-trip to the same applied report configuration.
+
+**Step 2 implemented — local context and navigation foundation:** [Report selections and context](../packages/contracts/src/reports/assistant-query.ts) now use an area-discriminated union of the existing native query schemas for all nine areas and 21 native views. Applied context retains exact resolved native dates, rolling/fixed period choice, facets, pagination and evidence selection; mismatched custom dates, incompatible presets/current views, unknown authority fields and oversized periods are rejected. The result snapshot contract binds area and exact period to a native selection; it is not authorization or proof that displayed metrics match that query.
+
+The shared page layout publishes context only after a successful validated read and clears it while loading, on failure/denial or unmount. Date-control drafts do not replace applied context. Context contains configuration only, not report values or tables. The existing provider holds this passive context, but ConnectedAssistant does not yet submit it and the chat-turn schema still rejects it: turn capture, server workspace checks, authorization, intent resolution and replay binding belong to the next tool/runtime integration step. Reports chat remains disabled.
+
+The shared [report-link builder](../apps/web/src/features/reports/report-navigation.ts) serializes validated native selections; Overview attention actions reuse it. All nine canonical routes now accept optional native query links and reread with the authenticated identity and current authorization, including explicit Financial access. No query means the existing initial read. Links preserve exact retrieved dates, not a rolling period's future meaning; opening the report reads fresh data and does not restore cached metrics.
+
+Step 2 verification: 188 focused tests passed, covering 25 native configurations across all nine areas/21 views, exact query round trips and authenticated route dispatch, malformed/duplicate/oversized/cross-workspace rejection, native-reader denial and explicit Financial gating. The canonical Financial page adds an AppliedAssistantContext story covering unchanged date drafts, successful apply, pending context clearing, unmount/remount, denied reads and workspace replacement. Its desktop/phone interactions passed without horizontal overflow; the final Financial report after workspace replacement still reports the existing duplicate-landmark accessibility issue. Nine canonical report-host interaction plays also completed without play/browser errors or horizontal overflow; existing Sources, Activity and Financial CSV stories report the same duplicate-landmark issue. Targeted lint and web/contracts typechecks passed.
+
+#### 3. Add one bounded read integration across all nine areas
+
+- Register the report-query tool in the existing tool contracts, agent definition registry, surface/access registry, model schema and exhaustive server handler map.
+- Make it available on existing assistant surfaces where the caller has the required access, not only on Reports routes.
+- Dispatch by report area to the existing authorized services and native adapters. Share canonical metric definitions; never introduce model-authored SQL or a parallel aggregation path.
+- Recheck `assistant.use`, Reports entrance, area-specific grants and each underlying domain/monetary permission inside execution. Preserve assigned scope, archive rules and mixed-source constraints.
+- Resolve periods from the server workspace clock/timezone; reject invalid or unsupported combinations. Keep current queues independent of historical dates where the native report requires it.
+- Bound evidence rows, response size and runtime; mark partial evidence explicitly and never calculate whole-population totals from a paginated evidence window.
+- Keep the runtime's existing tool-call budget. Overview remains a single report operation composing its native readers, not nine assistant calls.
+
+**Acceptance:** parameterized tests cover all nine dispatches and compare exact metric values, scope, dates and coverage with the same manual-reader fixtures.
+
+**Step 3 implemented — bounded native reads, not live chat activation:** the [tool contract](../packages/contracts/src/reports/assistant-tool.ts) supports an exact applied report, an explicit native query, or a documented area default. Its closed model schema excludes workspace, viewer, scope, policy and pagination controls. Optional model fields use null and are normalized only where the native schema permits omission; native refinements are rechecked. Explicit facets require known authorized IDs; this slice does not introduce a name resolver or guess a member from an ambiguous label. Personal requests must use the matching native facet or actual assigned scope, never an unfiltered workspace default.
+
+The [authorized assistant reader](../packages/data/src/reports/assistant.ts) binds the authenticated identity in a fresh workspace transaction and uses the existing workspace-local period resolver. Historical defaults end on business-local today; Calendar defaults to today through today+6; Team remains current. Applied rolling context retains its exact already-applied dates. Chat starts evidence at page 1 with 25 rows per native evidence window, without changing filters, metric/evidence selection or population totals. Responses retain the complete validated native envelope, including independent section timestamps, scope, coverage, unavailable values and missing costs. They are not yet presentation cards or persisted evidence.
+
+Templates and assistant reads now share [native selection dispatch](../packages/data/src/reports/read-selection.ts), including selected Sources conversion/value, Estimate handoff and Financial section checks. No report aggregation was recreated. The assistant additionally requires `assistant.use`; the native readers still enforce Reports entrance, domain, archive, assigned-scope and Financial/cost rules.
+
+The native response ceiling is **60,000 UTF-8 bytes**, with no silent label, aggregate or roster truncation. Oversized reads explicitly require a narrower question or the report page. The SQL statement timeout is 15 seconds after authorization; a separate 15-second elapsed delivery budget rejects late native results. Cancellation is cooperative around the composite native read and discards its result; it does not claim to immediately cancel an already-running SQL statement. The existing two-distinct-tools-per-turn budget is unchanged, and Overview is still one tool operation.
+
+The definition, surface/access registry, model mapping and exhaustive server handler are wired. **At the step 3 checkpoint, live activation was deliberately blocked twice:** the server runtime advertised/authorized only `liveChatTools`, excluding `reports_query`, and the executor rejected it before dispatch. Reports chat remained disabled pending its connected result UI. Step 4 adds configuration-only report context to the turn contract; step 5 transmits that context and activates authorized tool execution after integrating the canonical result card.
+
+Step 3 verification: 380 focused contract/agent/runtime/route/navigation/card tests passed. The isolated local database rehearsal covered 25 configurations across all nine areas and 21 native views, exact native/template parity, all-nine workspace-clock defaults, assigned and explicit personal scope, 25-row evidence with 32-record totals, missing material costs, current-context pagination normalization, membership/permission/policy/Financial/cost denial, ordinary Estimate reads without Financial access, cross-workspace context rejection, future-period clarification, cancellation before/during reads, the exact 14,999/15,000 ms delivery boundary, and multibyte payload rejection. Its fixtures roll back. The existing personal-template database rehearsal also passed. Targeted lint and contracts/agent/data/web typechecks passed. This is native dispatch coverage, not certification of every facet/evidence permutation, provider-generated query, streamed narrative or live report-card journey; those remain in steps 4–6.
+
+Reproduce the native database checks from the repository root with Node 22:
+
+```sh
+pnpm --filter @salesmora/data exec node --import tsx src/reports/assistant.rehearsal.ts
+pnpm --filter @salesmora/data exec node --import tsx src/reports/template.rehearsal.ts
+```
+
+Both require the existing separate local `_test` database configuration. No application workspace or production data is used.
+
+#### 4. Bind evidence to streaming, replay and private history
+
+- Follow existing structured-result patterns through tool output, runtime, turn persistence, stream events, replay and thread-history contracts.
+- Bind report evidence to the authenticated workspace/user, normalized query and current authorization facts. Treat labels and record content as untrusted data, never instructions.
+- Revalidate saved evidence before supplying it to the model or returning it in history/replay; do not validate only the visible card while retaining unauthorized narrative.
+- Preserve historical retrieval timestamps. A fresh query creates fresh evidence; it must not silently relabel saved numbers as current.
+- Review how existing transcript redaction and result invalidation cover report-derived prose, and implement any missing checks for revoked access, deleted records or changed monetary permissions.
+- Return explicit denied, stale, unavailable and retry states; do not substitute empty or zero-valued successful results.
+
+**Acceptance:** revocation/workspace-switch/race tests prove that neither streamed text, cards, replay nor restored history disclose invalidated report evidence.
+
+**Step 4 implemented — private evidence and guarded delivery:** the [private evidence contracts](../packages/contracts/src/reports/assistant-evidence.ts) bind each validated native snapshot to its authenticated workspace/viewer, policy revision, exact normalized selection, content hash and original retrieval timestamp. A separately stamped binding prevents query, identity, timestamp or result-ID substitution. Canonical key ordering survives PostgreSQL JSONB normalization. The browser turn accepts only same-workspace configuration, never supplied results, stamps or evidence.
+
+The [snapshot reader](../packages/data/src/reports/assistant-evidence.ts) fingerprints relevant native workspace populations, relationships, memberships, live member/owner labels, authorization grants/enabled permissions, workspace settings and business-local date before and after the canonical read. A changed fingerprint rejects the result. Fingerprinting is included in the existing elapsed delivery/cancellation budget; fingerprint SQL is bounded to 15 seconds, including later revalidation. Cancellation still does not claim to interrupt an already-running SQL statement immediately. This is intentionally conservative **all-area invalidation**: a change in one report domain can invalidate an answer about another. Future native dependencies must be included in this fingerprint. This correctness slice is not a large-workspace performance certification.
+
+An [additive chat-turn migration](../packages/data/src/migrations/202611120006_report_assistant_evidence.ts), applied to the separate local test and development databases, stores private snapshots and at most seven distinct immutable bindings. Rollback refuses to discard retained evidence. [The chat store](../apps/web/src/server/chat/store.ts) persists a snapshot before its native facts reach the model, rejects a second distinct snapshot in the same turn, checks content integrity and fresh authorization before deltas/completion/result resolution/replay, and redacts invalid report-derived narrative as well as result/context metadata in restored history.
+
+Follow-up answers inherit provenance only from completed source results in the same user's workspace and private thread. The runtime binds sources from the assistant messages actually retained in its bounded prompt, reserving one of the seven slots for a new read. Unfinished report prose is not restored or supplied to a later model as unbound evidence. A valid saved answer retains historical retrieval/section timestamps; only an explicit fresh read creates a new result.
+
+Streaming/history expose only `{id, area, retrievedAt}` result tickets and opaque source IDs, not native snapshots, private stamps or authority assertions. Native facts reach the authorized model ephemerally; neither them, report prose nor tickets enter graph checkpoints. [ConnectedAssistant](../apps/web/src/features/assistant/connected-assistant/connected-assistant.tsx) now immediately clears displayed messages on HTTP or streamed access denial and does not restore cached text afterward. Its [canonical mocked transport stories](../apps/web/src/features/assistant/connected-assistant/connected-assistant.stories.tsx) exercise mid-answer revocation on desktop and phone; no duplicate chat or report-card implementation was added.
+
+Step 4 verification: **584 focused tests** passed, along with contracts/agent/data/web typechecks and targeted lint. The rollback-only [server/database rehearsal](../apps/web/src/server/chat/report-evidence.rehearsal.ts) passed **19 groups**, covering all-nine native snapshots, a mutation during capture, fingerprint-stage cancellation and the exact 14,999/15,000 ms delivery boundary, pre-persistence races, interrupted prose, direct/transitive history, assignment/deletion/label/material/timezone changes, a real Financial snapshot losing cost access, membership removal, workspace suspension, enabled-permission revocation, altered persisted native content, cross-user/workspace/thread access, forged result IDs, binding budgets, replay, original timestamps and late persistence after cancellation. Both desktop/phone revocation story interactions passed. The existing native 25-configuration/21-view assistant parity and personal-template database rehearsals also passed; their fixtures roll back.
+
+Reproduce the server/database evidence checks from the repository root with Node 22:
+
+```sh
+NODE_ENV=development pnpm --filter @salesmora/data exec node --conditions=react-server --import tsx ../../apps/web/src/server/chat/report-evidence.rehearsal.ts
+```
+
+**Step 4 checkpoint boundary:** both live-tool gates were still closed. The protected result resolver was server-only; result-card/API/navigation integration, request-context serialization and report-surface activation followed in step 5. Provider-backed journeys remain step 6. Step 4 alone did not claim a live report card or navigation endpoint was complete.
+
+#### 5. Integrate report answers into the existing chat UI
+
+- Create one canonical report-result card with API-mocked stories: concise finding, report/period/scope context, supporting metric references, coverage and “Open report.”
+- Reuse existing formatting, help, pending/error and unavailable-state patterns. Keep detailed charts and evidence tables on the report page.
+- Wire the card through ConnectedAssistant for live streaming, replay and restored history.
+- The link opens the authorized canonical report with matching applied controls; it does not apply filters to the current page or imply an export occurred.
+- Use the current assistant entry point and composer. Do not add a separate report chat, template mutation, automatic download or new action-confirmation workflow.
+
+**Acceptance:** keyboard and phone stories cover result navigation, partial/denied/empty states, pending cancellation and restored history.
+
+**Step 5 implemented — connected cards and exact report navigation:** the [native presentation projection](../apps/web/src/server/chat/report-result.ts) covers all nine areas and all 25 supported configurations across 21 native views. Metrics come from native population totals, not sampled evidence rows. Independent Overview section clocks and scopes stay separate; the bounded presentation ceiling increases from three to twelve sections to accommodate up to nine native Overview sections without merging timestamps or dropping populations. Financial commitments, awaiting quotes and current material costs remain separate, with missing or denied costs unavailable rather than zero. Display labels may summarize a long facet list explicitly, but the complete exact query remains unchanged. Server projection reuses the existing money formatter through the lightweight `@salesmora/ui/money` export.
+
+The protected [report endpoint](../apps/web/src/app/api/chat/reports/route.ts) accepts only workspace, turn and result IDs. GET resolves freshly authorized private evidence into canonical presentation and its exact selection; it does not expose native snapshots, private stamps or content hashes. Same-origin POST revalidates that same saved result and generates the canonical matching report URL. It never trusts a browser-provided query or destination. The destination page performs its existing fresh native read.
+
+[ConnectedReportResult](../apps/web/src/features/assistant/report-result/connected-report-result.tsx) composes the existing card, checks ticket identity/area/retrieval time and workspace, refreshes on focus and every 15 seconds, and aborts obsolete work. Navigation requires the exact URL generated from the currently displayed selection, including dates, facets and evidence controls; changed-query or unsafe destinations fail explicitly. Invalidated cards remove report-dependent cached narrative rather than leaving stale facts beside an unavailable card.
+
+[ConnectedAssistant](../apps/web/src/features/assistant/connected-assistant/connected-assistant.tsx) now sends successfully applied report context and carries opaque tickets through streaming, idempotent replay and restored private history. It still uses the existing entry point, composer, cancellation and pending states. The [live tool registry](../packages/agent/src/tools/registry.ts) includes the authorized report tool on existing surfaces, and the [Reports shell](../apps/web/src/server/reports/read-page.tsx) uses the existing assistant capability and workspace/runtime availability gates with the Reports surface. No runtime environment flag, workspace feature setting or production permission enablement was changed.
+
+Step 5 verification: **689 focused tests** passed, covering contracts, agent/runtime, protected presentation/navigation, all 25 projection configurations, native navigation parity, Reports-shell availability and stream parsing. Contracts/data/agent/UI/web typechecks and targeted lint passed. The rollback-only [evidence/runtime rehearsal](../apps/web/src/server/chat/report-evidence.rehearsal.ts) passed **21 groups**, including all configurations and the actual live executor persisting private evidence before releasing facts to the model.
+
+The [connected card stories](../apps/web/src/features/assistant/report-result/connected-report-result.stories.tsx) passed 13 browser interactions: keyboard navigation, revoked/stale/error/loading/empty/disabled/missing-cost states, mismatched tickets, unsafe or changed-query navigation, all-nine cards and phone layout. The [canonical conversation stories](../apps/web/src/features/assistant/report-result/connected-report-assistant.stories.tsx) passed nine interactions covering streaming/restore, restored history, replay, revoked history, pending cancellation, phone, post-restore revocation/narrative redaction, exact router navigation and clarification without a fabricated result. These mocked-API runs reported no console errors and made no provider calls. The old preview-only conversation implementation was removed; standalone card stories continue exercising the same shared presentation.
+
+**Step 5 checkpoint boundary:** connected integration was complete locally, with provider-backed questions and the signed-in nine-area journey awaiting step 6. The subsequent local acceptance results and remaining release limitations are recorded below. No production activation or deployment is claimed.
+
+#### 6. Validate and review the complete local journey
+
+- Exercise a representative factual query and report link for each of the nine areas.
+- Verify page/chat parity for exact period endpoints, timezone, counts/amounts, evidence selection, mixed-source scope and unavailable money.
+- Cover context precedence, unapplied drafts, changing pages mid-turn, explicit dates, ambiguous requests and unsupported calculations.
+- Verify owner/admin/customized grants, assigned-only scope, cross-workspace rejection, Financial access, monetary revocation and no unauthorized drill-through.
+- Test result-size/tool budgets, abort/retry, provider errors, history reload and fresh re-reads.
+- Run the smallest relevant contracts/domain/agent/server tests and canonical browser stories, then a signed-in local all-area smoke test, lint and affected package typechecks.
+- Review each completed step before proceeding. Final acceptance is the complete nine-area experience; no subset should be presented as complete.
+
+**Step 6 local acceptance results — November 9, 2026:** the reproducible [Reports assistant browser suite](../apps/web/e2e/chat-reports.spec.ts) passed **all 14 deterministic tests in one final run (2.8 minutes)** against the separate local `_test` database. It creates fictional accounts and a workspace, exercises the actual authenticated pages, runtime, native readers and protected result/navigation APIs, then removes its own workspace, accounts and graph checkpoints. It does not truncate shared tables or use normal development/customer records. The existing [test-only provider gate](../apps/web/src/server/chat/test-provider.ts) protects the fixture model; its cancellation mode now waits for an actual abort, with an explicit 60-second failure deadline, instead of racing a short fixed completion delay.
+
+The nine signed-in browser journeys verify successfully applied request context, exact saved selection, workspace timezone, all rendered card metric values/scopes/bases, independently preserved retrieval clocks, idempotent replay, restored history and keyboard-triggered matching-report navigation. Team also runs at 390 x 844. Saved native envelopes match fresh manual report API reads except independently advancing snapshot clocks. Team inactivity cutoffs are checked relative to their own snapshot clocks rather than incorrectly requiring two separate reads to share a timestamp.
+
+Additional deterministic journeys cover all **25 configurations / 21 native views**, ignoring unapplied date drafts, clearing report context, assigned-only Lead totals, denying another user's or outsider's saved result, assignment-change history redaction, Stop followed by reload without unfinished facts, and Financial permission revocation clearing restored cards and narrative before navigation. These are real HTTP/database authorization checks, not mocked report APIs.
+
+**Real-provider acceptance:** all **nine signed-in journeys passed in 4.6 minutes** with the existing opt-in provider and fictional fixtures. Each question requests a specific native primary count; the test checks the generated answer's numeric count against the saved native metric, then checks the complete card, manual API parity, replay, history and exact navigation. Financial additionally checks the missing-cost explanation. Planning and answer usage records must be completed with nonzero token usage. This verifies representative factual reads on each area, not every possible sentence, calculation, facet combination or provider behavior.
+
+Observed local submit-to-validated-card times include model planning/answer generation, native reads, development compilation and assertions:
+
+| Area | Provider-backed time |
+|---|---:|
+| Overview | 23.316 s |
+| Leads | 19.586 s |
+| Sources | 19.583 s |
+| Calendar | 17.425 s |
+| Jobs | 19.511 s |
+| Team | 26.337 s |
+| Estimates | 18.217 s |
+| Activity | 24.592 s |
+| Financial | 25.732 s |
+
+These are nine single-sample end-to-end observations on a small synthetic workspace, **not** API latency, p95 measurements or production-scale performance certification. Native payloads ranged from 1,108 to 3,569 UTF-8 bytes, below the 60,000-byte delivery ceiling; oversized and exact-deadline rejection remain separately covered by the native rehearsals.
+
+Regression closeout: **689 focused tests**, **21 private-evidence/runtime database groups**, **eight native assistant database groups** and the personal-template database rehearsal passed. Database rehearsal fixtures rolled back. Final web typecheck, targeted lint and whitespace checks passed. Step 5's 13 connected-card and nine canonical conversation story checks remain the recorded story coverage; no new UI or parallel preview implementation was introduced in step 6.
+
+Reproduce the deterministic acceptance suite from the repository root with Node 22:
+
+```sh
+pnpm --filter @salesmora/web test:e2e e2e/chat-reports.spec.ts --reporter=line --max-failures=1
+```
+
+Opt-in provider evaluation uses the same isolated test-server harness, requires configured credentials and disabled tracing, and incurs provider usage:
+
+```sh
+SALESMORA_LIVE_EVAL=1 pnpm --filter @salesmora/web test:e2e e2e/chat-reports.spec.ts --grep 'signed-in native totals' --reporter=line --max-failures=1
+```
+
+**Acceptance boundary:** representative local functional acceptance now covers all nine areas. This is not exhaustive certification of the checklist: provider-backed off-page questions, arbitrary explicit-period/facet precedence, ambiguous/unsupported requests, navigation mid-turn, admin/custom-grant permutations, provider-error/retry behavior, nonzero accepted monetary fixtures and shared Calendar populations still need broader signed-in coverage. Existing unit/native/story coverage is not a substitute for those additional journeys. The production-like scale/concurrency/query-plan/RSS targets in section 10, a release build, fresh full responsive/accessibility audit and staging/production acceptance remain unverified. No deployment, production permission/feature change or normal development workspace mutation occurred; the temporary E2E server stopped after testing.
+
+**Out of scope:** report editing via chat, saved-template CRUD via chat, downloads/email, scheduling, arbitrary analytics, unsupported comparisons and any new business metric.
 
 ## 10. Validation plan
 

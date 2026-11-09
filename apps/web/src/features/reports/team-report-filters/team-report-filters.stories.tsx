@@ -19,6 +19,9 @@ export const Default: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const c = within(canvasElement), body = within(canvasElement.ownerDocument.body);
+    expect(c.getByRole('region', { name: 'Team report filters' }).getBoundingClientRect().height).toBeLessThan(160);
+    expect(c.queryByText('Current-view filters / independent of period results')).not.toBeInTheDocument();
+    expect(c.queryByText('No selections: all authorized values.')).not.toBeInTheDocument();
     await userEvent.click(c.getByRole('combobox', { name: 'Current member' }));
     await userEvent.keyboard('{ArrowDown}');
     await body.findByRole('option', { name: 'Alex' });
@@ -27,10 +30,20 @@ export const Default: Story = {
     for (const label of ['Alex', 'Blair']) await userEvent.click(body.getByRole('option', { name: label }));
     await userEvent.keyboard('{Escape}');
     await expect(args.onChange).toHaveBeenLastCalledWith({ members: ['a', 'b'] });
+    const region = c.getByRole('region', { name: 'Team report filters' }).getBoundingClientRect();
+    const picker = c.getByRole('combobox', { name: 'Current member' }).getBoundingClientRect();
+    const pills = c.getByRole('group', { name: 'Active filters' }).getBoundingClientRect();
+    if (region.width >= 800) {
+      expect(pills.left).toBeGreaterThan(picker.right);
+      expect(Math.abs(pills.top + pills.height / 2 - picker.top - picker.height / 2)).toBeLessThan(3);
+    } else {
+      expect(pills.top).toBeGreaterThanOrEqual(picker.bottom);
+    }
     await userEvent.click(c.getByRole('button', { name: 'Remove filter: Current member: Alex' }));
     await expect(args.onChange).toHaveBeenLastCalledWith({ members: ['b'] });
     await userEvent.click(c.getByRole('button', { name: 'Clear all' }));
     await expect(args.onChange).toHaveBeenLastCalledWith({ members: [] });
+    await expect(c.getByRole('combobox', { name: 'Current member' })).toHaveFocus();
   },
 };
 export const SearchAndKeyboard: Story = { render: Default.render, play: async ({ canvasElement, args }) => {
@@ -109,9 +122,11 @@ export const Pending: Story = { args: { pending: true, value: { members: ['a'] }
 export const Help: Story = { play: async ({ canvasElement }) => {
   const c = within(canvasElement), body = within(canvasElement.ownerDocument.body);
   const trigger = c.getByRole('button', { name: 'About Team report filters' });
+  expect(trigger.parentElement).toBe(c.getByRole('heading', { name: 'Team report filters' }).parentElement);
   trigger.focus(); await userEvent.keyboard('{Enter}');
   const dialog = await body.findByRole('dialog', { name: 'About Team report filters' });
   await waitFor(() => expect(dialog).toBeVisible());
+  await expect(within(dialog).getByText('Current-view filters / independent of period results')).toBeVisible();
   await expect(within(dialog).getByText(/each Job counts once overall/)).toBeVisible();
   await expect(within(dialog).getByText(/unassigned queue stays separate/)).toBeVisible();
   await userEvent.keyboard('{Escape}');

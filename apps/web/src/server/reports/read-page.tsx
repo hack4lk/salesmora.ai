@@ -3,14 +3,17 @@ import type { ReactNode } from 'react';
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { AuthorizationAccessError, listReportTemplatesInTransaction } from '@salesmora/data';
-import { leadDetailQuerySchema, leadReportQuerySchema, jobReportQuerySchema, calendarReportQuerySchema } from '@salesmora/contracts';
+import { leadDetailQuerySchema, leadReportQuerySchema, jobReportQuerySchema, calendarReportQuerySchema,
+  leadSourceQuerySchema, businessOverviewQuerySchema, teamReportQuerySchema, estimateReportQuerySchema,
+  activityReportQuerySchema, financialReportQuerySchema } from '@salesmora/contracts';
 import { authorize, resolveAuthorizedCollectionScope } from '@salesmora/domain';
 import { getSession } from '../auth/session';
 import { auth } from '../auth/auth';
 import { findWorkspace } from '../workspaces/store';
 import { authorizedWorkspace, workspaceAuthorization, workspaceCapabilities, workspaceNavigationPages } from '../authorization/permissions';
 import { initialWorkspaceLeadReport, initialWorkspaceLeadSourceReport, initialWorkspaceBusinessOverview, initialWorkspaceCalendarReport, initialWorkspaceJobReport, initialWorkspaceTeamReport, initialWorkspaceEstimateReport, initialWorkspaceActivityReport, initialWorkspaceFinancialReport } from './store';
-import { workspaceLeadReport, workspaceJobReport, workspaceCalendarReport } from './store';
+import { workspaceLeadReport, workspaceJobReport, workspaceCalendarReport, workspaceLeadSourceReport,
+  workspaceBusinessOverview, workspaceTeamReport, workspaceEstimateReport, workspaceActivityReport, workspaceFinancialReport } from './store';
 import { WorkspaceShell } from '../../features/workspace/workspace-shell/workspace-shell';
 import { LeadReportRoute } from '../../features/reports/lead-report-workspace/lead-report-route';
 import { LeadSourceRoute } from '../../features/reports/lead-source-report/lead-source-route';
@@ -23,6 +26,7 @@ import { ActivityReportRoute } from '../../features/reports/activity-report/acti
 import { FinancialReportRoute } from '../../features/reports/financial-report/financial-report-page';
 import { ReportAreaCatalogRoute } from '../../features/reports/report-area-catalog/report-area-catalog-route';
 import { reportAreaDefinitions } from '../../features/reports/report-area-catalog/report-area-catalog.definitions';
+import { workspaceChatAvailable } from '../chat/config';
 
 async function signOut() { 'use server'; await auth.api.signOut({ headers: await headers() }); redirect('/login'); }
 async function renderReportsPage(params: Record<string, string | string[] | undefined>,
@@ -47,7 +51,8 @@ async function renderReportsPage(params: Record<string, string | string[] | unde
     const capabilities = workspaceCapabilities(context), content = await load(session.user.id, workspace.id);
     return <WorkspaceShell currentPage="reports" workspaceId={workspace.id} workspaceName={workspace.businessName}
       user={{ name: session.user.name, email: session.user.email, role: context.membership.role }}
-      authorizedPages={workspaceNavigationPages(context)} assistantAvailable={false} chatEnabled={false}
+      authorizedPages={workspaceNavigationPages(context)} assistantAvailable={capabilities.assistant}
+      chatEnabled={capabilities.assistant && await workspaceChatAvailable(workspace.id)} chatSurface="reports"
       jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions}
       ganttAvailable={capabilities.readGantt} billingAvailable={capabilities.billing} contentWidth="full" onSignOut={signOut}>
       {content}
@@ -72,12 +77,16 @@ export function renderLeadReportsPage(params: Record<string, string | string[] |
   }, 'lead', true);
 }
 export function renderSourcesReportsPage(params: Record<string, string | string[] | undefined>) {
-  return renderReportsPage(params, async (userId, workspaceId) =>
-    <LeadSourceRoute initial={await initialWorkspaceLeadSourceReport(userId, workspaceId)} />, 'lead');
+  return renderReportsPage(params, async (userId, workspaceId) => {
+    const query = reportPageQuery(params.query, workspaceId, leadSourceQuerySchema);
+    return <LeadSourceRoute initial={query ? await workspaceLeadSourceReport(userId, query) : await initialWorkspaceLeadSourceReport(userId, workspaceId)} />;
+  }, 'lead', true);
 }
 export function renderBusinessOverviewPage(params: Record<string, string | string[] | undefined>) {
-  return renderReportsPage(params, async (userId, workspaceId) =>
-    <BusinessOverviewRoute initial={await initialWorkspaceBusinessOverview(userId, workspaceId)} />, null);
+  return renderReportsPage(params, async (userId, workspaceId) => {
+    const query = reportPageQuery(params.query, workspaceId, businessOverviewQuerySchema);
+    return <BusinessOverviewRoute initial={query ? await workspaceBusinessOverview(userId, query) : await initialWorkspaceBusinessOverview(userId, workspaceId)} />;
+  }, null, true);
 }
 export function renderCalendarReportsPage(params: Record<string, string | string[] | undefined>) {
   return renderReportsPage(params, async (userId, workspaceId) => {
@@ -92,20 +101,28 @@ export function renderJobReportsPage(params: Record<string, string | string[] | 
   }, 'job', true);
 }
 export function renderTeamReportsPage(params: Record<string, string | string[] | undefined>) {
-  return renderReportsPage(params, async (userId, workspaceId) =>
-    <TeamReportRoute initial={await initialWorkspaceTeamReport(userId, workspaceId)} />, null);
+  return renderReportsPage(params, async (userId, workspaceId) => {
+    const query = reportPageQuery(params.query, workspaceId, teamReportQuerySchema);
+    return <TeamReportRoute initial={query ? await workspaceTeamReport(userId, query) : await initialWorkspaceTeamReport(userId, workspaceId)} />;
+  }, null, true);
 }
 export function renderEstimateReportsPage(params: Record<string, string | string[] | undefined>) {
-  return renderReportsPage(params, async (userId, workspaceId) =>
-    <EstimateReportRoute initial={await initialWorkspaceEstimateReport(userId, workspaceId)} />, 'estimate');
+  return renderReportsPage(params, async (userId, workspaceId) => {
+    const query = reportPageQuery(params.query, workspaceId, estimateReportQuerySchema);
+    return <EstimateReportRoute initial={query ? await workspaceEstimateReport(userId, query) : await initialWorkspaceEstimateReport(userId, workspaceId)} />;
+  }, 'estimate', true);
 }
 export function renderActivityReportsPage(params: Record<string, string | string[] | undefined>) {
-  return renderReportsPage(params, async (userId, workspaceId) =>
-    <ActivityReportRoute initial={await initialWorkspaceActivityReport(userId, workspaceId)} />, null);
+  return renderReportsPage(params, async (userId, workspaceId) => {
+    const query = reportPageQuery(params.query, workspaceId, activityReportQuerySchema);
+    return <ActivityReportRoute initial={query ? await workspaceActivityReport(userId, query) : await initialWorkspaceActivityReport(userId, workspaceId)} />;
+  }, null, true);
 }
 export function renderFinancialReportsPage(params: Record<string, string | string[] | undefined>) {
-  return renderReportsPage(params, async (userId, workspaceId) =>
-    <FinancialReportRoute initial={await initialWorkspaceFinancialReport(userId, workspaceId)} />, 'financial');
+  return renderReportsPage(params, async (userId, workspaceId) => {
+    const query = reportPageQuery(params.query, workspaceId, financialReportQuerySchema);
+    return <FinancialReportRoute initial={query ? await workspaceFinancialReport(userId, query) : await initialWorkspaceFinancialReport(userId, workspaceId)} />;
+  }, 'financial', true);
 }
 export function renderReportCatalogPage(params: Record<string, string | string[] | undefined>) {
   return renderReportsPage(params, async (userId, workspaceId) => authorizedWorkspace(userId, workspaceId, false, async (trx, context) => {

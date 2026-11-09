@@ -154,6 +154,7 @@ export function createConversationModel(
           messages.filter((message) => message.role === "user").at(-1)?.text ??
           "";
         const planningTokens = available.includes("lead_capture_propose_action") ? Math.min(16384, Math.max(4096, JSON.stringify(messages).length * 2 + 1024)) :
+          available.includes("reports_query") ? 4096 :
           operations.includes("add_note") ||
           customerOperations.length > 0 ||
           available.includes("work_orders_propose_action") ||
@@ -166,7 +167,7 @@ export function createConversationModel(
         const response = await base(planningTokens, transport)
           .bindTools(
             available.map((tool) =>
-              tool === 'lead_capture_propose_action' ? { ...captureSetupTool.modelDefinition, function: { ...captureSetupTool.modelDefinition.function, parameters: { ...captureSetupTool.modelDefinition.function.parameters, properties: { ...captureSetupTool.modelDefinition.function.parameters.properties, operation: { type: 'string', enum: [...captureOperations] } } } } } : tool === "lead_capture_query" ? captureQueryTool.modelDefinition : tool === "calendar_propose_action" ? calendarProposeTool.modelDefinition : tool === "calendar_query" ? calendarQueryTool.modelDefinition : tool === "search_help"
+              tool === 'reports_query' ? toolRegistry.reports_query.modelDefinition : tool === 'lead_capture_propose_action' ? { ...captureSetupTool.modelDefinition, function: { ...captureSetupTool.modelDefinition.function, parameters: { ...captureSetupTool.modelDefinition.function.parameters, properties: { ...captureSetupTool.modelDefinition.function.parameters.properties, operation: { type: 'string', enum: [...captureOperations] } } } } } : tool === "lead_capture_query" ? captureQueryTool.modelDefinition : tool === "calendar_propose_action" ? calendarProposeTool.modelDefinition : tool === "calendar_query" ? calendarQueryTool.modelDefinition : tool === "search_help"
                 ? toolRegistry.search_help.modelDefinition
                 : tool === "materials_propose_action"
                   ? materialsProposeTool.modelDefinition

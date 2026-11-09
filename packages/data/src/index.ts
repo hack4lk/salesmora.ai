@@ -196,3 +196,5 @@ export { duplicateCaptureSource } from './lead-capture/duplicate';
 export { proposeCaptureSource, readCaptureSourceProposal, decideCaptureSourceProposal, captureSourceEvidenceAllowed, visibleCaptureSourceTicket } from './lead-capture/source-proposals';
 export * from './reports/business-overview-export';
 export * from './reports/template';
+export { readReportForAssistant, ReportAssistantLimitError, ReportAssistantClarificationError } from './reports/assistant';
+export { readReportSnapshotForAssistant, reportAssistantEvidenceAllowed, reportAssistantSnapshotMatches, ReportAssistantStaleError } from './reports/assistant-evidence';

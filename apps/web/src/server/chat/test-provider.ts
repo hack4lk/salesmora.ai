@@ -72,6 +72,26 @@ export function testDraftModel(
   message: string,
 ): import("@salesmora/agent").ConversationModel | undefined {
   if (!testChatProviderEnabled()) return;
+  if (message.startsWith('fixture:reports:') || message.startsWith('fixture:reports-slow:')) return {
+    async plan() { return [{ name: 'reports_query', args: JSON.parse(message.slice(message.indexOf(':', 8) + 1)) }]; },
+    async *answer(_messages, evidence, signal) {
+      yield 'Checking the authorized native report. ';
+      if (message.startsWith('fixture:reports-slow:')) {
+        await new Promise<void>((_resolve, reject) => {
+          const stop = () => { clearTimeout(timer); reject(new Error('Cancelled')); };
+          const timer = setTimeout(() => {
+            signal.removeEventListener('abort', stop);
+            reject(new Error('Report cancellation fixture was not stopped.'));
+          }, 60_000);
+          signal.addEventListener('abort', stop, { once: true });
+          if (signal.aborted) stop();
+        });
+      }
+      yield evidence.some(item => !!item && typeof item === 'object' && 'type' in item && item.type === 'report-clarification')
+        ? 'Choose an applied report before asking about this report. No report facts were retrieved.'
+        : 'Review the report card for native totals, scope and coverage. No report controls or records were changed.';
+    },
+  };
   if (message.startsWith('fixture:capture-setup:')) return {
     async plan() { return [{ name: 'lead_capture_propose_action', args: JSON.parse(message.slice('fixture:capture-setup:'.length)) }]; },
     async *answer(_messages, evidence) { yield evidence.some(item => !!item && typeof item === 'object' && 'type' in item && item.type === 'capture-setup-clarification') ? 'Please provide the missing setup details. No proposal was prepared and nothing was saved.' : 'Setup proposal prepared for review. Nothing has been saved or published.'; },

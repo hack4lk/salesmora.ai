@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { financialReportQuerySchema, financialReportReadResultSchema, financialReportExportInputSchema,
@@ -11,6 +11,7 @@ import { fullFinancialAccess } from './financial-report.fixtures';
 import { financialReportData as copy } from './financial-report.data';
 import { selectMetricEvidence } from '../report-summary/report-summary.story-helpers';
 import { resolveReportPeriod } from '../report-date-controls/report-date-controls.validation';
+import { WorkspaceAssistantProvider, useWorkspaceAssistant } from '../../assistant/workspace-assistant/workspace-assistant';
 
 let requests: FinancialReportQuery[] = [], release: (() => void) | undefined, aborted = false, settled = false;
 let templates: ReportTemplate[] = [];
@@ -198,6 +199,62 @@ export const NativeSectionsAndDates: Story = {
     expect(canvas.queryAllByRole('button', { name: /^View record:/ })).toHaveLength(0);
     expect(canvas.queryByRole('combobox', { name: 'Current owner' })).not.toBeInTheDocument();
     await expect(canvas.getByRole('button', { name: 'Export Report Data' })).toBeDisabled();
+  },
+};
+function PublishedReportContext() {
+  const assistant = useWorkspaceAssistant();
+  return <pre aria-label="Published report context" className="m-4 whitespace-pre-wrap text-xs wrap-anywhere">
+    {assistant?.pageContext?.reportContext ? JSON.stringify(assistant.pageContext.reportContext) : 'No report context'}
+  </pre>;
+}
+function ReportContextReview(args: ComponentProps<typeof FinancialReportPage>) {
+  const [visible, setVisible] = useState(true);
+  const [workspaceId, setWorkspaceId] = useState(args.initial.workspaceId);
+  const initial = workspaceId === args.initial.workspaceId ? args.initial
+    : financialReadResponse({ ...args.initial.query, workspaceId });
+  return <WorkspaceAssistantProvider key={workspaceId} enabled={false}>
+    <button type="button" className="m-4 min-h-11" onClick={() => setVisible(value => !value)}>Toggle report page</button>
+    <button type="button" className="m-4 min-h-11" onClick={() => setWorkspaceId('00000000-0000-4000-8000-000000000002')}>Switch review workspace</button>
+    <PublishedReportContext />
+    {visible && <FinancialReportPage {...args} initial={initial} />}
+  </WorkspaceAssistantProvider>;
+}
+export const AppliedAssistantContext: Story = {
+  render: args => <ReportContextReview {...args} />,
+  beforeEach: () => {
+    const original = globalThis.fetch;
+    let attempt = 0;
+    globalThis.fetch = async (input, init) => {
+      if (!String(input).startsWith('/api/reports/financial?')) return original(input, init);
+      attempt++;
+      if (attempt > 1) return Response.json({ error: 'This report is unavailable.' }, { status: 404 });
+      await new Promise<void>(resolve => { release = resolve; });
+      return Response.json(financialReadResponse(parseQuery(input)));
+    };
+    return () => { globalThis.fetch = original; release?.(); };
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const context = () => canvas.getByLabelText('Published report context');
+    await waitFor(() => expect(context()).toHaveTextContent('"area":"financial"'));
+    expect(JSON.parse(context().textContent!).selection.query).toEqual(args.initial.query);
+    await userEvent.click(canvas.getByRole('button', { name: 'Toggle report page' }));
+    await waitFor(() => expect(context()).toHaveTextContent('No report context'));
+    await userEvent.click(canvas.getByRole('button', { name: 'Toggle report page' }));
+    await waitFor(() => expect(context()).toHaveTextContent('"area":"financial"'));
+    fireEvent.change(canvas.getByLabelText('Start date', { exact: false }), { target: { value: '2026-08-01' } });
+    expect(JSON.parse(context().textContent!).selection.query).toEqual(args.initial.query);
+    await userEvent.click(canvas.getByRole('button', { name: 'Apply period' }));
+    await waitFor(() => expect(context()).toHaveTextContent('No report context'));
+    await waitFor(() => expect(release).toBeDefined());
+    release!();
+    await waitFor(() => expect(context()).toHaveTextContent('"from":"2026-08-01"'));
+    await selectMetricEvidence(canvasElement, copy.awaiting);
+    await canvas.findByText('This report is unavailable.');
+    await waitFor(() => expect(context()).toHaveTextContent('No report context'));
+    await userEvent.click(canvas.getByRole('button', { name: 'Switch review workspace' }));
+    await waitFor(() => expect(context()).toHaveTextContent('"workspaceId":"00000000-0000-4000-8000-000000000002"'));
+    expect(context()).not.toHaveTextContent(args.initial.workspaceId);
   },
 };
 export const EstimatesUnavailable: Story = {

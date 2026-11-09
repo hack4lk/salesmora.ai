@@ -2,7 +2,7 @@ export { authorizeChatTurn, authorizeChatTool, availableChatTools, chatSurfaceRe
 export { runConversation, type ConversationModel, type RuntimeMessage, type RuntimeCall } from './runtime';
 export { createConversationModel, createGmailExtractionModel, chatModelId } from './openai-model';
 export { readToolRegistry, implementedReadTools, isImplementedReadTool, type ImplementedReadToolId, type ReadToolResult } from './tools/registry';
-export { toolRegistry, implementedTools, isImplementedTool, type ImplementedToolId, type ToolResult } from './tools/registry';
+export { toolRegistry, implementedTools, liveChatTools, isImplementedTool, type ImplementedToolId, type ToolResult } from './tools/registry';
 export { authorizeLeadOperation, availableLeadOperations } from './leads/authorization';
 
 export { availableCustomerOperations } from './customers/tools';

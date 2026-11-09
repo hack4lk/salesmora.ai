@@ -59,6 +59,7 @@ export const ClearAll: Story = { ...ManyActive, play: async ({ canvasElement, ar
   await expect(c.getByRole('status')).toHaveTextContent(data.count(0));
   await expect(c.getByRole('combobox', { name: copy.stage })).toHaveFocus();
 } };
+export const Compact: Story = { ...ClearAll, args: { ...ManyActive.args, compact: true } };
 export const AddFilters: Story = { play: async ({ canvasElement }) => {
   const c = within(canvasElement);
   await userEvent.selectOptions(c.getByRole('combobox', { name: copy.stage }), copy.stageOptions[0].id);
