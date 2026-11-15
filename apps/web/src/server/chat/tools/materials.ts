@@ -1,9 +1,7 @@
 import "server-only";
-import { readToolRegistry } from "@salesmora/agent";
+import type { readToolRegistry } from "@salesmora/agent";
 import { readMaterials } from "@salesmora/data";
 import type { MaterialView } from "@salesmora/contracts";
-import { database } from "../../workspaces/store";
-import { enabledPermissions } from "../../authorization/permissions";
 import type { ChatToolHandler } from "./types";
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}…` : text);
@@ -17,11 +15,10 @@ const summary = (m: MaterialView, full = false) => ({
 });
 
 export const materialsQuery: ChatToolHandler = async (context, args) => {
-  const input = readToolRegistry.materials_query.inputSchema.parse(args);
-  await context.authorize("materials_query");
+  const input = args as ReturnType<typeof readToolRegistry.materials_query.inputSchema.parse>;
   const identity = { userId: context.identity.userId, workspaceId: context.identity.workspaceId };
   const limit = input.limit ?? 10;
-  const found = await readMaterials(database(), identity, enabledPermissions, {
+  const found = await readMaterials(context.db, identity, context.enabledPermissions, {
     workspaceId: identity.workspaceId, q: input.query ?? "", pageSize: 25,
     ...(input.category ? { category: input.category } : {}), ...(input.supplier ? { supplier: input.supplier } : {}),
   });

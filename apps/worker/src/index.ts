@@ -22,6 +22,7 @@ import {
   createOpenAIEmbedder,
   embeddingSpace,
   ingestArticle,
+  initializeProposalStorage,
   createAIUsageRecorder,
 } from "@salesmora/data";
 import { workerConfiguration } from "./config.js";
@@ -77,13 +78,13 @@ async function main() {
   try {
     await db.raw("SELECT 1");
     await assertRuntimeDatabaseRole(db, "Worker");
+    await initializeProposalStorage(db);
     if (config.tasks === "gmail") {
       stopGmail = await startConfiguredGmailCapture(db);
     } else {
       for (const table of [
         "chatThreads",
         "chatTurns",
-        "checkpoints",
         "aiUsageCalls",
         "files",
       ]) {

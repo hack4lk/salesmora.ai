@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFixtureProposal } from "./proposal-fixture-store";
 import { expect, request as requests, test, type APIRequestContext, type Page } from "@playwright/test";
 import { createDatabase } from "@salesmora/data";
 import {
@@ -115,8 +116,22 @@ test("browser-confirmed Archive/Restore stays separate, preserves status, and op
       commands.push(request.postDataJSON());
     }
   });
-  await page.getByRole("button", { name: c.archive.confirm, exact: true }).dblclick();
-  await expect(page.getByText(c.archive.confirmed, { exact: true })).toBeVisible();
+  let releaseRefresh: () => void = () => {};
+  const refreshGate = new Promise<void>(resolve => { releaseRefresh = resolve; });
+  let refreshHeld = false;
+  await page.route("**/api/chat/threads?**", async route => {
+    refreshHeld = true;
+    await refreshGate;
+    await route.continue();
+  });
+  try {
+    await page.getByRole("button", { name: c.archive.confirm, exact: true }).dblclick();
+    await expect.poll(() => refreshHeld).toBe(true);
+    await expect(page.getByText(c.archive.confirmed, { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: c.open, exact: true })).toBeDisabled();
+  } finally {
+    releaseRefresh();
+  }
   expect(commands).toHaveLength(1);
   expect(JSON.stringify(commands)).not.toContain("Private archive customer");
   const archived = await db("estimates").where({ id: saved.id }).first();
@@ -124,17 +139,20 @@ test("browser-confirmed Archive/Restore stays separate, preserves status, and op
   expect(archived.archivedAt).not.toBeNull();
   expect(await db("estimate_activity").where({ estimateId: saved.id, type: "archived" }))
     .toMatchObject([{ source: "assistant-confirmed" }]);
-  const proposal = await db("chatEstimateArchives").where({ workspaceId }).orderBy("createdAt", "desc").first();
+  const proposal = await readFixtureProposal(db, "estimateArchive", { workspaceId });
   expect(proposal.state).toBe("confirmed");
   expect(commands[0]).toEqual(decision(proposal.payload.ticket));
 
+  const opened = page.waitForResponse(response => response.url().includes("/api/chat/estimates/archives")
+    && response.request().method() === "POST");
   await page.getByRole("button", { name: c.open, exact: true }).click();
-  await page.waitForURL(`**/estimates/${saved.id}?workspace=${workspaceId}`);
+  expect((await opened).status()).toBe(200);
+  await expect(page).toHaveURL(new RegExp(`/estimates/${saved.id}\\?workspace=${workspaceId}`), { timeout: 30000 });
   const restore = await propose(input("restore", saved.id), owner, { threadId: proposal.threadId });
   expect(restore.ticket.actionType).toBe("estimate.restore");
   expect(restore.ticket.estimate.archived).toBe(true);
   const restoreTurn = await db("chatTurns").where({ id: restore.turnId }).first();
-  expect(restoreTurn.estimateArchiveEvidence).toEqual([]);
+  expect(restoreTurn.estimateArchiveEvidence).toEqual([restore.turnId]);
   const result = estimateArchiveChatResponseSchema.parse(await (await operate(restore.ticket)).json());
   expect(result.view.receipt).toMatchObject({
     estimateId: saved.id, version: restore.ticket.estimate.version + 1, archived: false,

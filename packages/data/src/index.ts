@@ -1,5 +1,7 @@
 export { createDatabase } from './database';
 export { createAuthPool } from './auth-pool';
+export { createDatabaseMeasurement, withDatabasePhase, withDatabaseOperation } from './database-metrics';
+export { notifyChatCancellation, subscribeChatCancellation } from './chat-cancellation';
 export { assertRuntimeDatabaseRole, databaseRoleProblems, readDatabaseRoleFacts } from './runtime-roles';
 export type { DatabaseRoleFacts } from './runtime-roles';
 export { readLeads, readLead } from './leads/read';
@@ -50,12 +52,15 @@ export { resolveLeadSourceExportAccess, canExportLeadSourceDataset } from './rep
 export { prepareLeadSourceCSVProjectionInTransaction } from './reports/lead-source-export-projection';
 export { previewLeadSourceExport, createLeadSourceCSVExport } from './reports/lead-source-export';
 export type { Knex } from 'knex';
-export { withWorkspaceAuthorization, loadWorkspaceAuthorization, initializeWorkspacePolicy, saveWorkspacePolicy, listAuthorizedLeads, authorizedLeadPipelineCounts, AuthorizationAccessError, AuthorizationConflictError, WorkspaceSuspendedError, type WorkspaceIdentity, type LeadSummary } from './authorization/store';
+export { withWorkspaceAuthorization, withWorkspaceAuthoritySnapshot, workspaceAuthoritySnapshot, loadWorkspaceAuthorization, initializeWorkspacePolicy, saveWorkspacePolicy, listAuthorizedLeads, authorizedLeadPipelineCounts, AuthorizationAccessError, AuthorizationConflictError, WorkspaceSuspendedError, type WorkspaceIdentity, type LeadSummary } from './authorization/store';
+export { admittedChatTurn, admittedChatClock, stageAdmittedChatTurn, withAdmittedChatTurn,
+  type AdmittedChatTurn, type ChatTurnEvidenceUpdate } from './chat-request';
 export { embeddingSpace, createOpenAIEmbedder, validateVectors, type Embedder } from './knowledge/embeddings';
 export { articleIdentity, stageArticle, publishArticle, ingestArticle, retireMissingArticles, retrieveHelp, readHelpArticle, type HelpMatch } from './knowledge/store';
-export { createChatCheckpointer } from './checkpoints';
 export {
   createAIUsageRecorder,
+  createAIUsageSession,
+  type AIUsageSession,
   configureWorkspaceAIBudget,
   configureWorkspaceAIBudgetInTransaction,
   workspaceAIAllowance,
@@ -175,7 +180,7 @@ export { readJobCreationDeadline, JobDeadlineReviewConflict } from './jobs/deadl
 export { scheduleDeadlineReminders, processDeadlineEmails } from './notifications/deadlines';
 
 export { processJobEmails } from './notifications/jobs';
-export { CalendarFocusUnavailableError, readCalendarFocusForChat, readCalendarForChat, calendarChatStamp, calendarChatEvidenceAllowed, calendarChatClock } from './calendar/chat';
+export { CalendarFocusUnavailableError, readCalendarFocusForChat, readCalendarForChat, calendarChatStamp, calendarChatEvidenceAllowed, calendarChatClock, calendarChatClockInTransaction } from './calendar/chat';
 export * from './calendar/proposals';
 export { captureBusinessContextInTransaction, captureDraftFingerprint, captureDraftStartContext, listCaptureSources, readCaptureSource, createCaptureDraft, saveCaptureDraft, beginCaptureRevision, CaptureDraftConflictError, CaptureDraftValidationError, CaptureDraftEntitlementError } from './lead-capture/store';
 
@@ -198,3 +203,7 @@ export * from './reports/business-overview-export';
 export * from './reports/template';
 export { readReportForAssistant, ReportAssistantLimitError, ReportAssistantClarificationError } from './reports/assistant';
 export { readReportSnapshotForAssistant, reportAssistantEvidenceAllowed, reportAssistantSnapshotMatches, ReportAssistantStaleError } from './reports/assistant-evidence';
+export { assistantCapturedRecordsAllowed, type AssistantCapturedRecords } from './authorization/historical-records';
+export * from './chat-proposals';
+export { initializeProposalStorage } from './proposal-storage-authority';
+export { leadProposalStorage, customerProposalStorage, workOrderProposalStorage } from './proposal-storage';

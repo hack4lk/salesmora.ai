@@ -6,6 +6,7 @@ import {
 } from "@salesmora/contracts";
 import { authorize, isOverdue, resolveAuthorizedCollectionScope } from "@salesmora/domain";
 import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIdentity } from "../authorization/store";
+import { admittedChatClock } from '../chat-request';
 
 export class WorkOrderConflictError extends Error {
   constructor(message = "This work order changed. Reload its current details before trying again.") { super(message); }
@@ -77,8 +78,11 @@ export async function readWorkOrders(db: Knex, identity: WorkspaceIdentity, enab
   const input = workOrderQuerySchema.parse(raw);
   if (input.workspaceId !== identity.workspaceId) throw new AuthorizationAccessError();
   return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
-    const workspace = await trx("workspaces").where({ id: context.workspaceId }).first("timezone");
-    const { today } = (await trx.raw(`select to_char(current_timestamp AT TIME ZONE ?, 'YYYY-MM-DD') as today`, [workspace.timezone])).rows[0];
+    const workspace = admittedChatClock(identity) ?? (await trx.raw<{ rows: { timezone: string; today: string }[] }>(
+      `select timezone, to_char(current_timestamp AT TIME ZONE timezone, 'YYYY-MM-DD') as today from workspaces where id = ?`,
+      [context.workspaceId])).rows[0];
+    if (!workspace) throw new AuthorizationAccessError();
+    const { today } = workspace;
     const live = () => scoped(trx, context).whereNull("w.archivedAt");
     const metricsRow = await live().select(trx.raw(
       `count(*) filter (where (w."issuedAt" AT TIME ZONE ?)::date = ?::date)::int as "issuedToday",

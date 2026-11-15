@@ -11,6 +11,7 @@ export function createFeatureFlagReader(now: () => number = Date.now) {
     db: Knex,
     flagId: AdminFeatureFlagId,
     workspaceId?: string,
+    transaction?: Knex.Transaction,
   ): Promise<boolean> {
     let cache = caches.get(db);
     if (!cache) {
@@ -24,10 +25,12 @@ export function createFeatureFlagReader(now: () => number = Date.now) {
     if (cached && cached.expiresAt > time) return cached.enabled;
 
     let planId: string | null = null;
+    // Keep the root cache key while reusing an existing transaction connection on cache misses.
+    const queryDb = transaction ?? db;
     if (workspaceId) {
       const [subscription, workspace] = await Promise.all([
-        db('workspaceSubscriptions').where({ workspaceId }).first('plan', 'status', 'paidThrough', 'recoveryUntil'),
-        db('workspaces').where({ id: workspaceId }).first('planOverride', 'planOverrideEndsAt'),
+        queryDb('workspaceSubscriptions').where({ workspaceId }).first('plan', 'status', 'paidThrough', 'recoveryUntil'),
+        queryDb('workspaces').where({ id: workspaceId }).first('planOverride', 'planOverrideEndsAt'),
       ]);
       planId = effectiveWorkspacePlan(
         subscription,
@@ -35,7 +38,7 @@ export function createFeatureFlagReader(now: () => number = Date.now) {
         new Date(time),
       ).plan;
     }
-    const result = await db.raw<{ rows: { enabled: boolean }[] }>(
+    const result = await queryDb.raw<{ rows: { enabled: boolean }[] }>(
       'SELECT public.is_salesmora_feature_enabled(?, ?, ?) AS enabled',
       [flagId, planId, workspaceId ?? null],
     );

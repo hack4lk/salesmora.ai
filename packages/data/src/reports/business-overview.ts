@@ -3,10 +3,10 @@ import { businessOverviewQuerySchema, businessOverviewResultSchema, type Busines
   type BusinessOverviewQuery, type AuthorizationContext } from '@salesmora/contracts';
 import { addCalendarDays, resolveAuthorizedCollectionScope } from '@salesmora/domain';
 import { AuthorizationAccessError } from '../authorization/store';
-import { readLeadReportInTransaction } from './leads';
-import { readJobLifecycleReportInTransaction } from './job-lifecycle';
-import { readJobCompletionReportInTransaction } from './job-completion';
-import { readJobWorkloadReportInTransaction } from './jobs';
+import { readLeadOverviewInTransaction } from './leads';
+import { jobLifecycleCounts } from './job-lifecycle';
+import { jobReportContext } from './job-context';
+import { jobWorkloadCounts } from './jobs';
 import { readEstimateDecisionsReportInTransaction } from './estimate-decisions';
 import { readEstimateCurrentReportInTransaction } from './estimate-current';
 import { readCalendarScheduledReportInTransaction } from './calendar-scheduled';
@@ -35,25 +35,21 @@ export async function readBusinessOverviewInTransaction(
   const common = { workspaceId: query.workspaceId, page: 1, pageSize: 25 as const };
   let leads: BusinessOverviewBackendResult['leads'] = unavailable('Lead');
   if (report.sourceScopes?.lead) {
-    const filters = { stages: [], owners: [], sources: [] };
-    const intake = await readLeadReportInTransaction(trx, context, { ...common, view: 'intake', period: query.period, filters, currentFilters: filters });
-    const pipeline = await readLeadReportInTransaction(trx, context, { ...common, view: 'pipeline', filters, selection: { kind: 'pipeline' } });
-    const attention = await readLeadReportInTransaction(trx, context, { ...common, view: 'attention', filters, selection: 'inactive' });
-    if (intake.view !== 'intake' || pipeline.view !== 'pipeline' || attention.view !== 'attention') throw new Error('Unexpected native Lead Overview projection.');
-    leads = { kind: 'available', scope: report.sourceScopes.lead, archiveVisibility: intake.archiveVisibility,
-      reads: { intake: stamp(intake), pipeline: stamp(pipeline), attention: stamp(attention) },
-      created: intake.total, stages: pipeline.stages, inactive: attention.counts.inactive };
+    const summary = await readLeadOverviewInTransaction(trx, context, query.period);
+    leads = { kind: 'available', scope: report.sourceScopes.lead, archiveVisibility: summary.archiveVisibility,
+      reads: { intake: stamp(summary), pipeline: stamp(summary), attention: stamp(summary) },
+      created: summary.created, stages: summary.stages, inactive: summary.inactive };
   }
   let jobs: BusinessOverviewBackendResult['jobs'] = unavailable('Job');
   if (report.sourceScopes?.job) {
-    const filters = { statuses: [], owners: [], services: [] };
-    const created = await readJobLifecycleReportInTransaction(trx, context, { ...common, view: 'lifecycle', period: query.period, filters, selectedView: 'created' });
-    const completion = await readJobCompletionReportInTransaction(trx, context, { ...common, view: 'completion', period: query.period, filters });
-    const workload = await readJobWorkloadReportInTransaction(trx, context, { ...common, view: 'workload', filters, selection: { kind: 'metric', metric: 'active' } });
+    const auth = await jobReportContext(trx, context);
+    const lifecycle = await jobLifecycleCounts(trx, query.period, auth);
+    const workload = await jobWorkloadCounts(trx, auth.query, auth.today);
+    const read = { asOf: auth.asOf.toISOString(), scopeLabel: auth.scopeLabel };
     jobs = { kind: 'available', scope: report.sourceScopes.job,
-      reads: { created: stamp(created), completion: stamp(completion), workload: stamp(workload) },
-      created: created.counts.created, completed: completion.total, active: workload.counts.active,
-      overdue: workload.counts.overdue, waiting: workload.counts.waiting };
+      reads: { created: read, completion: read, workload: read },
+      created: lifecycle.created, completed: lifecycle.completed, active: workload.active,
+      overdue: workload.overdue, waiting: workload.waiting };
   }
   let estimates: BusinessOverviewBackendResult['estimates'] = unavailable('Estimate');
   const estimateAuthority = resolveAuthorizedCollectionScope(context, 'estimates.read');

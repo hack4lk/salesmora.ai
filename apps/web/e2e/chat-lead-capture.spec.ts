@@ -1,8 +1,10 @@
 import { test, expect, request as requests, type APIRequestContext } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { readFixtureProposal } from './proposal-fixture-store';
 import { createDatabase, createCaptureDraft, saveCaptureDraft, publishCaptureDraft, readCapturePublicationReview } from '@salesmora/data';
 import { permissionIds, chatStreamEventSchema, captureChatTicketSchema, type CaptureChatTicket } from '@salesmora/contracts';
+import { chatStoreData } from '../src/server/chat/store.data';
 const connection = process.env.TEST_DATABASE_URL;
 if (!connection || connection === process.env.DATABASE_URL || !new URL(connection).pathname.endsWith('_test') || !['localhost', '127.0.0.1'].includes(new URL(connection).hostname)) throw Error('An isolated local test database is required.');
 const db = createDatabase(connection), origin = 'http://127.0.0.1:3026', headers = { Origin: origin };
@@ -117,7 +119,7 @@ test('durable setup confirmation authenticates the author and retries without cr
   const results = await Promise.all([1, 2].map(() => clients.owner.post('/api/chat/lead-capture/setup', { headers, data: { ...binding, decision: 'confirm' } })));
   expect(results.map(result => result.status())).toEqual([200, 200]); const first = await results[0].json(); expect(await results[1].json()).toEqual(first); expect(first.view.receipt.kind).toBe('saved');
   expect(Number((await db('captureSources').where({ workspaceId }).count('* as n').first())!.n)).toBe(before + 1);
-  const proposal = await db('chatCaptureSetupProposals').where({ id: value.proposalId }).first();
+  const proposal = await readFixtureProposal(db, 'captureSetup', { id: value.proposalId });
   const history = await (await clients.owner.get(`/api/chat/threads?workspace=${workspaceId}&thread=${proposal.threadId}`)).json(); expect(history.turns.find((item: { id: string }) => item.id === proposal.turnId).captureSetup.state).toBe('confirmed');
   expect(Number((await db('capturePublications').count('* as n').first())!.n)).toBe(0);
 });
@@ -192,6 +194,75 @@ function sourceTicket(events: Awaited<ReturnType<typeof turn>>) { const event = 
 async function sourceTurn(operation: string, id: string, more: Record<string, unknown> = {}) { return sourceTicket(await setupTurn({ ...setupInput, operation, sourceId: id, ...more })); }
 async function sourceView(value: ReturnType<typeof sourceTicket>) { const response = await clients.owner.get(`/api/chat/lead-capture/sources?${new URLSearchParams(setupReference(value))}`); expect(response.status()).toBe(200); return (await response.json()).view; }
 async function sourceDecide(value: ReturnType<typeof sourceTicket>, decision = 'confirm', client = clients.owner) { return client.post('/api/chat/lead-capture/sources', { headers, data: { ...setupReference(value), decision } }); }
+for (const family of ['captureSetup', 'captureSource'] as const) {
+  test(`canonical ${family} review and saved receipt survive browser reload and inherited follow-up`, async ({ page }) => {
+    test.skip((await db('chatProposalStorage').where({ id: 1 }).first('store'))?.store !== 'canonical',
+      'Requires committed canonical proposal authority.');
+    await db('workspaces').where({ id: workspaceId }).update({ planOverride: 'standard', planOverrideEndsAt: new Date(Date.now() + 86400000), planOverrideReason: 'Disposable browser proposal fixture', planOverrideId: randomUUID() });
+    const name = family === 'captureSetup' ? 'Fictional browser source' : 'Fictional browser copy';
+    const input = family === 'captureSetup'
+      ? { ...setupInput, name, sourceType: 'website' }
+      : { ...setupInput, operation: 'duplicate', sourceId, name, configurationKind: 'draft' };
+    await page.context().addCookies((await clients.owner.storageState()).cookies);
+    await page.goto(`/home?workspace=${workspaceId}`);
+    const open = () => page.getByRole('button', { name: 'SalesMora assistant How can I help?', exact: true }).click();
+    await open();
+    const request = page.waitForRequest(item => item.url().endsWith('/api/chat/turns') && item.method() === 'POST');
+    await page.getByRole('textbox', { name: 'Ask the SalesMora assistant', exact: true })
+      .fill(`fixture:capture-setup:${JSON.stringify(input)}`);
+    await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
+    const { clientTurnId } = (await request).postDataJSON() as { clientTurnId: string };
+    const card = page.getByRole('region', { name: 'Lead Capture assistant result', exact: true });
+    await expect(card.getByRole('button', { name: 'Review proposed change', exact: true })).toBeEnabled();
+    const turn = await db('chatTurns').where({ workspaceId, userId: users.owner, clientTurnId }).first('id', 'threadId');
+    if (!turn) throw Error('Missing Capture proposal turn.');
+    const proposal = await readFixtureProposal(db, family, { workspaceId, userId: users.owner });
+    expect(proposal?.turnId).toBe(turn.id);
+    expect(proposal.state).toBe('pending');
+    await page.reload();
+    await open();
+    await card.getByRole('button', { name: 'Review proposed change', exact: true }).click();
+    if (family === 'captureSetup') {
+      await expect(card).toContainText(name);
+      await card.getByRole('button', { name: 'Create source draft', exact: true }).click();
+    } else {
+      const dialog = page.getByRole('alertdialog', { name: 'Duplicate capture source', exact: true });
+      await expect(dialog.getByRole('textbox', { name: 'New draft name', exact: true })).toHaveValue(name);
+      await page.keyboard.press('Escape');
+      await expect(dialog).not.toBeVisible();
+      await expect(page.getByRole('button', { name: 'Close chat', exact: true })).toBeVisible();
+      await card.getByRole('button', { name: 'Review proposed change', exact: true }).click();
+      await expect(dialog.getByRole('textbox', { name: 'New draft name', exact: true })).toHaveValue(name);
+      await dialog.getByRole('button', { name: 'Create draft copy', exact: true }).click();
+    }
+    const outcome = family === 'captureSetup'
+      ? 'Draft saved. Publication requires a separate review.'
+      : 'New source draft created. Publication requires a separate review.';
+    await expect(card.getByText(outcome, { exact: true })).toBeVisible();
+    expect((await readFixtureProposal(db, family, { id: proposal.id })).state).toBe('confirmed');
+    expect(await db('captureSources').where({ workspaceId, name, status: 'draft' })).toHaveLength(1);
+    await page.reload();
+    await open();
+    await expect(card.getByText(outcome, { exact: true })).toBeVisible();
+    const response = await clients.owner.post('/api/chat/turns', { headers, data: {
+      workspaceId, threadId: turn.threadId, clientTurnId: randomUUID(), surfaceKey: 'home',
+      message: 'fixture:database:fixture:context-counts',
+    } });
+    expect(response.status()).toBe(200);
+    const events = (await response.text()).split('\n\n').filter(frame => frame.startsWith('data:'))
+      .map(frame => chatStreamEventSchema.parse(JSON.parse(frame.slice(5))));
+    expect(events.at(-1)?.type).toBe('turn.completed');
+    const accepted = events.find(event => event.type === 'turn.accepted');
+    if (accepted?.type !== 'turn.accepted') throw Error('Missing inherited Capture follow-up.');
+    expect((await db('chatTurns').where({ id: accepted.turnId }).first('historyEvidence')).historyEvidence).toContain(turn.id);
+    const restored = await clients.owner.get(`/api/chat/threads?workspace=${workspaceId}&thread=${turn.threadId}`);
+    expect(restored.status()).toBe(200);
+    const messages = (await restored.json()).messages.filter((message: { turnId: string; role: string }) =>
+      [turn.id, accepted.turnId].includes(message.turnId) && message.role === 'assistant');
+    expect(messages).toHaveLength(2);
+    expect(messages.every((message: { text: string }) => message.text && message.text !== chatStoreData.restricted)).toBe(true);
+  });
+}
 test('source action tickets remain private and explicit archive/restore/duplicate confirmations use canonical services', async () => {
   await db('workspaces').where({ id: workspaceId }).update({ planOverride: 'standard', planOverrideEndsAt: new Date(Date.now() + 86400000), planOverrideReason: 'Disposable source action fixtures', planOverrideId: randomUUID() });
   const { initialCaptureSetupConfiguration } = await import('@salesmora/contracts');
@@ -214,11 +285,13 @@ test('source action tickets remain private and explicit archive/restore/duplicat
   const blocked = await sourceTurn('publish', receipt.sourceId, { timing: { kind: 'now', localDateTime: null } }); const blockedView = await sourceView(blocked); expect(blockedView.ready).toBe(false); expect(blockedView.checks.some((check: { code: string; ready: boolean }) => check.code === 'delivery' && !check.ready)).toBe(true); expect((await sourceDecide(blocked)).status()).toBe(422);
 });
 test('schedule source reviews bind the pending transition and cancel without activating delivery', async () => {
+  await db('workspaces').where({ id: workspaceId }).update({ timezone: 'America/New_York' });
   const { initialCaptureSetupConfiguration } = await import('@salesmora/contracts');
   const made = await createCaptureDraft(db, { workspaceId, userId: users.owner }, permissionIds, { workspaceId, requestId: randomUUID(), name: 'Fictional scheduled review', configuration: initialCaptureSetupConfiguration('website', { businessName: 'Fictional scheduled review', businessEmail: '', businessPhone: '' }) });
   const authority = { websiteReady: async () => true, gmailReady: async () => false }, review = await readCapturePublicationReview(db, { workspaceId, userId: users.owner }, permissionIds, { workspaceId, sourceId: made.sourceId }, authority);
   const scheduled = await publishCaptureDraft(db, { workspaceId, userId: users.owner }, permissionIds, { workspaceId, sourceId: made.sourceId, expectedVersion: review.sourceVersion, draftVersion: review.draftVersion, baseApprovedVersion: review.baseApprovedVersion, configurationVersion: review.configurationVersion, requestId: randomUUID(), confirmed: true, timing: { kind: 'scheduled', at: new Date(Date.now() + 86400000).toISOString(), timezone: 'America/New_York' } }, authority);
-  const change = await sourceTurn('change_schedule', made.sourceId, { timing: { kind: 'scheduled', localDateTime: '2030-01-01T09:00' } }); const proposed = await sourceView(change); expect(proposed.timing).toEqual({ kind: 'scheduled', at: '2030-01-01T14:00:00.000Z', timezone: 'America/New_York' }); expect(proposed.ready).toBe(false); expect((await sourceDecide(change)).status()).toBe(422);
+  const year = new Date().getUTCFullYear() + 2;
+  const change = await sourceTurn('change_schedule', made.sourceId, { timing: { kind: 'scheduled', localDateTime: `${year}-01-01T09:00` } }); const proposed = await sourceView(change); expect(proposed.timing).toEqual({ kind: 'scheduled', at: `${year}-01-01T14:00:00.000Z`, timezone: 'America/New_York' }); expect(proposed.ready).toBe(false); expect((await sourceDecide(change)).status()).toBe(422);
   const cancel = await sourceTurn('cancel_schedule', made.sourceId); expect(cancel.transition?.transitionId).toBe(scheduled.transitionId); expect((await sourceDecide(cancel)).status()).toBe(200);
   expect((await db('capturePublicationTransitions').where({ id: scheduled.transitionId }).first()).state).toBe('cancelled'); expect((await db('captureSources').where({ id: made.sourceId }).first()).status).toBe('paused'); expect((await db('captureSources').where({ id: made.sourceId }).first()).draftId).not.toBeNull();
 });

@@ -58,3 +58,7 @@ pnpm db:setup
 ```
 
 This ensures all containers are running and databases are initialized.
+The current migrations are fresh-only: `db:setup` refuses existing historical migration ledgers in either database and does not reset them. See [database setup and migration limitations](registration-backend.md).
+
+For a destructive reset with fictional CRM data and demo accounts, see the
+[local demo reset guide](local-demo-reset.md).

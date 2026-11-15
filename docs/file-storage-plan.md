@@ -3,6 +3,12 @@
 Status: **QA walkthrough complete** — all 16 questions and every requirement row decided (rows marked bulk were agreed together). — October 20, 2026. Q1 decided (upload through our server) and Railway behavior verified against current docs (§3.1).
 Scope: one shared, private file-storage service on Railway that every feature reuses (work-order photos and files, job files and note attachments, and later customers, leads, estimates, chat attachments and catalog images), plus the first two consumers: **work-order photos** and **job files**.
 
+**Current schema note:** Job and Work Order uploads currently associate files
+through `files.entityType` and `files.entityId`; they do not use `fileLinks`.
+The unused `fileLinks` table is removed by a guarded migration. The separate
+attachment/link behavior described below remains planned and requires a
+reviewed schema and implementation when that feature is built.
+
 ## How to use this document
 
 1. Decide §10 (open questions) first. Q2 (encryption) and Q16 (DR location) shape the rest; Q1 is decided.

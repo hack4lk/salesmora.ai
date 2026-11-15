@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createDatabase } from '../database';
+import { migrateFreshBaseline } from '../baseline-runner';
 import { initializeWorkspacePolicy, AuthorizationAccessError } from '../authorization/store';
 import { RUNTIME_LOGIN_ROLES } from '../runtime-roles';
 import { captureConfigurationSchema, type PermissionId } from '@salesmora/contracts';
@@ -22,7 +23,7 @@ let created = false, checks = 0;
 async function check(label: string, run: () => Promise<void>) { await run(); console.log(`PASS ${label}`); checks++; }
 try {
   await owner.raw('CREATE DATABASE ??', [name]); created = true;
-  await db.migrate.latest({ directory: fileURLToPath(new URL('../migrations', import.meta.url)), loadExtensions: ['.ts'] });
+  await migrateFreshBaseline(db);
   const timestamp = new Date();
   for (const person of [identity, other]) {
     await db('users').insert({ id: person.userId, name: 'Fictional draft owner', email: `${person.userId}@example.test`, createdAt: timestamp, updatedAt: timestamp, termsVersion: 'test', termsAcceptedAt: timestamp });

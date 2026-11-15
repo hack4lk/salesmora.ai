@@ -1,6 +1,14 @@
 import "server-only";
-import { createAIUsageRecorder } from "@salesmora/data";
-import { database } from "../workspaces/store";
+import { setTimeout as delay } from "node:timers/promises";
+import type { RuntimeMessage } from "@salesmora/agent";
+import type { ChatProposalFamily } from "@salesmora/contracts";
+import { chatUsageRecorder } from "./request-context";
+
+function hasRecordedProposal(messages: RuntimeMessage[], family: ChatProposalFamily, state: "pending" | "confirmed") {
+  const expected = JSON.stringify({ family, state });
+  return messages.some(item => item.role === "assistant" && item.text.split("\n").some(line =>
+    line.startsWith("App-recorded historical proposal states (") && line.includes(expected)));
+}
 
 /** Never enable a fictional provider against the normal app/customer database. */
 export function testChatProviderEnabled() {
@@ -20,7 +28,7 @@ export async function* testChatResponse(
   if (!testChatProviderEnabled()) throw new Error("Provider unavailable");
   if (message === "fixture:budget") {
     if (!identity) throw Error("Fixture identity missing");
-    const finish = await createAIUsageRecorder(database(), identity).start(
+    const finish = await chatUsageRecorder(identity, identity.turnId).start(
       "fictional-budget-fixture",
       "answer",
       100,
@@ -70,8 +78,58 @@ export async function* testChatResponse(
 /** Fixture model exercises the real graph/tool/approval boundaries without provider usage. */
 export function testDraftModel(
   message: string,
+  identity?: { userId: string; workspaceId: string; turnId: string },
 ): import("@salesmora/agent").ConversationModel | undefined {
   if (!testChatProviderEnabled()) return;
+  if (message.startsWith("fixture:database:") || message.startsWith("fixture:database-slow:") ||
+    message.startsWith("fixture:database-plan-slow:")) {
+    if (!identity) throw new Error("Database benchmark identity missing");
+    const model = testDraftModel(message.slice(message.indexOf(":", 8) + 1));
+    if (!model) throw new Error("Unknown database benchmark model");
+    const usage = chatUsageRecorder(identity, identity.turnId);
+    const tokens = { inputTokens: 50, outputTokens: 50, totalTokens: 100, cachedInputTokens: 0, reasoningTokens: 0 };
+    return {
+      async plan(...args) {
+        const finish = await usage.start("fictional-database-fixture", "planning", 100);
+        let completed = false;
+        try {
+          if (message.startsWith("fixture:database-plan-slow:"))
+            await delay(2500, undefined, { signal: args[2] });
+          const result = await model.plan(...args);
+          completed = true;
+          return result;
+        } finally {
+          await finish({ outcome: completed ? "completed" : args[2].aborted ? "cancelled" : "failed", ...(completed ? { tokens } : {}) });
+        }
+      },
+      async *answer(...args) {
+        const finish = await usage.start("fictional-database-fixture", "answer", 100);
+        let completed = false;
+        try {
+          if (message.startsWith("fixture:database-slow:")) {
+            for (let batch = 0; batch < 12; batch++) {
+              await delay(500, undefined, { signal: args[2] });
+              yield "Fictional benchmark streaming batch. ";
+            }
+          }
+          yield* model.answer(...args);
+          completed = true;
+        } finally {
+          await finish({ outcome: completed ? "completed" : args[2].aborted ? "cancelled" : "failed", ...(completed ? { tokens } : {}) });
+        }
+      },
+    };
+  }
+  if (message.startsWith('fixture:tool:')) return {
+    async plan() {
+      const { name, args } = JSON.parse(message.slice('fixture:tool:'.length));
+      return [{ name, args }];
+    },
+    async *answer(_messages, evidence) {
+      const types = evidence.flatMap(item => item && typeof item === 'object' && 'type' in item && typeof item.type === 'string' ? [item.type] : []);
+      yield `Fictional tool result checked: ${types.join(', ')}. No business action was confirmed.`;
+    },
+  };
   if (message.startsWith('fixture:reports:') || message.startsWith('fixture:reports-slow:')) return {
     async plan() { return [{ name: 'reports_query', args: JSON.parse(message.slice(message.indexOf(':', 8) + 1)) }]; },
     async *answer(_messages, evidence, signal) {
@@ -141,8 +199,8 @@ export function testDraftModel(
       async *answer(messages) {
         yield "Checking the app-recorded withdrawal. ";
         if (message.endsWith("-slow")) await new Promise(resolve => setTimeout(resolve, 1200));
-        yield messages.some(item => item.role === "assistant" && item.text.includes("App-recorded Estimate withdrawal") &&
-          item.text.includes('"state":"confirmed"')) ? "Verified confirmed withdrawal." : "No verified confirmed withdrawal.";
+        yield hasRecordedProposal(messages, "estimateVoid", "confirmed")
+          ? "Verified confirmed withdrawal." : "No verified confirmed withdrawal.";
       },
     };
   if (message === "fixture:estimate-archive-history" || message === "fixture:estimate-archive-history-slow")
@@ -151,8 +209,8 @@ export function testDraftModel(
       async *answer(messages) {
         yield "Checking the app-recorded Archive/Restore proposal. ";
         if (message.endsWith("-slow")) await new Promise(resolve => setTimeout(resolve, 1200));
-        yield messages.some(item => item.role === "assistant" && item.text.includes("App-recorded Estimate Archive/Restore proposal") &&
-          item.text.includes('"state":"confirmed"')) ? "Verified confirmed Archive/Restore." : "No verified confirmed Archive/Restore.";
+        yield hasRecordedProposal(messages, "estimateArchive", "confirmed")
+          ? "Verified confirmed Archive/Restore." : "No verified confirmed Archive/Restore.";
       },
     };
   if (message === "fixture:estimate-draft-delete-history" || message === "fixture:estimate-draft-delete-history-slow")
@@ -161,9 +219,8 @@ export function testDraftModel(
     async *answer(messages) {
       yield "Checking the app-recorded Draft deletion proposal. ";
       if (message.endsWith("-slow")) await new Promise(resolve => setTimeout(resolve, 1200));
-      yield messages.some(item => item.role === "assistant" &&
-        item.text.includes("App-recorded Estimate Draft deletion proposal") &&
-        item.text.includes('"state":"confirmed"')) ? "Verified confirmed Draft deletion." : "No verified confirmed Draft deletion.";
+      yield hasRecordedProposal(messages, "estimateDraftDelete", "confirmed")
+        ? "Verified confirmed Draft deletion." : "No verified confirmed Draft deletion.";
     },
     };
   if (message.startsWith("fixture:estimate-draft-delete:") ||
@@ -188,8 +245,7 @@ export function testDraftModel(
       async plan() { return []; },
       async *answer(messages) {
         const history = messages.filter(item => item.role === "assistant").map(item => item.text).join("\n");
-        const verified = history.includes("App-recorded Estimate conversion review") &&
-          history.includes('"state":"pending"') &&
+        const verified = hasRecordedProposal(messages, "estimateConversion", "pending") &&
           !history.includes("customer@example.test") &&
           !history.includes("PRIVATE_ESTIMATE_NOTE") &&
           !history.includes("PRIVATE_CUSTOMER_NOTE");
@@ -256,8 +312,8 @@ export function testDraftModel(
       async *answer(messages) {
         yield "Checking the app-recorded Draft operation. ";
         if (message.endsWith("-slow")) await new Promise(resolve => setTimeout(resolve, 1200));
-        yield messages.some(item => item.role === "assistant" && item.text.includes("App-recorded Estimate Draft action") &&
-          item.text.includes('"state":"confirmed"')) ? "Verified confirmed Draft operation." : "No verified confirmed Draft operation.";
+        yield hasRecordedProposal(messages, "estimateDraftAction", "confirmed")
+          ? "Verified confirmed Draft operation." : "No verified confirmed Draft operation.";
       },
     };
   if (message.startsWith("fixture:estimate-draft-action:") || message.startsWith("fixture:estimate-draft-action-slow:"))
@@ -280,8 +336,8 @@ export function testDraftModel(
       async *answer(messages) {
         yield "Checking the app-recorded decision outcome. ";
         if (message.endsWith("-slow")) await new Promise(resolve => setTimeout(resolve, 1200));
-        yield messages.some(item => item.role === "assistant" && item.text.includes("App-recorded Estimate decision proposal") &&
-          item.text.includes('"state":"confirmed"')) ? "Verified recorded decision receipt." : "No verified recorded decision receipt.";
+        yield hasRecordedProposal(messages, "estimateDecision", "confirmed")
+          ? "Verified recorded decision receipt." : "No verified recorded decision receipt.";
       },
     };
   if (message.startsWith("fixture:estimate-decision:") || message.startsWith("fixture:estimate-decision-slow:"))

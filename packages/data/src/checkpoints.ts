@@ -1,11 +1,7 @@
 import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres';
 import pg from 'pg';
 import type { Knex } from 'knex';
-/** Setup is performed by the migration, never by an incoming request. */
-export function createChatCheckpointer(connectionString: string) {
-  if (!connectionString) throw Error('Checkpoint database is not configured');
-  return PostgresSaver.fromConnString(connectionString);
-}
+/** Legacy graph tables remain migration-managed; live turns no longer use a PostgreSQL saver. */
 export async function setupChatCheckpoints(db: Knex) {
   // A migration receives a transaction client; its cloned config omits hidden credentials.
   // Copy only the resolved connection parameters from that active, validated database session.

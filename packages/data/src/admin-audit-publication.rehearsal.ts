@@ -14,16 +14,20 @@ import { createAuditBaselineStore } from './admin-audit-baseline';
 import { copyNextAdminAuditArchive, verifyNextAdminAuditArchive } from './admin-audit-publication';
 import { AUDIT_PREPARATION_LOCK, assertAuditWorkerRole } from './admin-audit-preparation';
 import { AUDIT_WORKER_ROLE, AUDIT_VERIFIER_ROLE, applyAuditWorkerGrants } from './runtime-roles';
-import { up, down } from './migrations/202610310001_admin_audit_publication';
+import { migrateFreshBaseline } from './baseline-runner';
 import type { AuditArchiveReader, AuditArchiveWriter, AuditArchiveLockReader, AuditStoredObject } from './admin-audit-delivery';
 
 const envFile = fileURLToPath(new URL('../../../.env.local', import.meta.url));
 if (existsSync(envFile)) process.loadEnvFile(envFile);
-const ownerURL = process.env.TEST_DATABASE_URL;
-if (!ownerURL || !['localhost', '127.0.0.1'].includes(new URL(ownerURL).hostname) ||
-  !new URL(ownerURL).pathname.endsWith('_test') || ownerURL === process.env.DATABASE_URL) {
+const testURL = process.env.TEST_DATABASE_URL;
+if (!testURL || !['localhost', '127.0.0.1'].includes(new URL(testURL).hostname) ||
+  !new URL(testURL).pathname.endsWith('_test') || testURL === process.env.DATABASE_URL) {
   throw new Error('Publication rehearsal requires the isolated local test database.');
 }
+const database = `audit_publication_${randomUUID().replaceAll('-', '')}_test`;
+const isolated = new URL(testURL); isolated.pathname = `/${database}`;
+const ownerURL = isolated.toString();
+const admin = createDatabase(testURL);
 const owner = createDatabase(ownerURL);
 function roleDatabase(role: string) {
   return knex({ client: 'pg', connection: ownerURL, pool: { min: 0, max: 2,
@@ -34,6 +38,7 @@ function roleDatabase(role: string) {
 }
 const worker = roleDatabase(AUDIT_WORKER_ROLE), verifier = roleDatabase(AUDIT_VERIFIER_ROLE);
 const createdRoles: string[] = [];
+let created = false;
 const directory = await mkdtemp(join(tmpdir(), 'salesmora-publication-rehearsal-'));
 const stateDirectory = join(directory, 'private');
 const baseline = await createAuditBaselineStore(stateDirectory);
@@ -66,27 +71,14 @@ let trigger = false;
 let lockConnection: Awaited<ReturnType<typeof owner.client.acquireConnection>> | undefined;
 
 try {
+  await admin.raw('CREATE DATABASE ??', [database]); created = true;
   for (const role of [AUDIT_WORKER_ROLE, AUDIT_VERIFIER_ROLE]) {
     if (!await owner('pg_roles').where({ rolname: role }).first()) {
       await owner.raw(`CREATE ROLE ${role} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT`);
       createdRoles.push(role);
     }
   }
-  await owner.transaction(async trx => {
-    if (await trx.schema.withSchema('admin').hasTable('auditArchiveCopies')) {
-      assert.equal((await trx.withSchema('admin').table('auditArchiveCopies').count<{ count: string }[]>('* AS count'))[0].count, '0');
-      await down(trx);
-    }
-    await up(trx); await down(trx); await up(trx); await trx.rollback();
-  });
-  const migration = {
-    name: '202610310001_admin_audit_publication.ts',
-    directory: fileURLToPath(new URL('./migrations', import.meta.url)), loadExtensions: ['.ts'],
-  };
-  if (await owner('knex_migrations').where({ name: migration.name }).first()) {
-    await owner.migrate.down(migration);
-  }
-  await owner.migrate.up(migration);
+  await migrateFreshBaseline(owner);
   await applyAuditWorkerGrants(owner);
   await assertAuditWorkerRole(worker);
   await assertAuditWorkerRole(verifier, true);
@@ -277,7 +269,7 @@ try {
     await owner.raw('DROP TRIGGER publication_rehearsal_failure ON admin."auditArchiveChecks"');
     await owner.raw('DROP FUNCTION admin.publication_rehearsal_failure()');
   }
-  if (await owner.schema.withSchema('admin').hasTable('auditArchiveCopies')) {
+  if (created && await owner.schema.withSchema('admin').hasTable('auditArchiveCopies')) {
     const copies = owner.withSchema('admin').table('auditArchiveCopies').where({ ledgerId }).select('id');
     await owner.withSchema('admin').table('auditArchiveChecks').whereIn('copyId', copies.clone()).delete();
     await owner.withSchema('admin').table('auditArchiveCopyAttempts').whereIn('copyId', copies.clone()).delete();
@@ -287,5 +279,6 @@ try {
     await owner.raw(`DROP OWNED BY ${role}`); await owner.raw(`DROP ROLE ${role}`);
   }
   await owner.destroy();
-  await rm(directory, { recursive: true });
+  try { if (created) await admin.raw('DROP DATABASE ??', [database]); }
+  finally { await admin.destroy(); await rm(directory, { recursive: true }); }
 }

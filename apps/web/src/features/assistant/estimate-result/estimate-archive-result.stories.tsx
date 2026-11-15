@@ -57,6 +57,16 @@ export const ConfirmAndOpen: Story = { play: async ({ canvasElement, args }) => 
   await userEvent.click(canvas.getByRole("button", { name: card.open }));
   await expect(args.onNavigate).toHaveBeenCalledWith(`/estimates/${initial.ticket.estimate.id}?workspace=${estimateArchiveWorkspace}`);
 } };
+export const RefreshInProgress: Story = {
+  args: { onRefresh: fn(() => new Promise<void>(() => {})) },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole("button", { name: card.archive.confirm }));
+    await expect(await canvas.findByText(card.archive.confirmed)).toBeVisible();
+    await expect(canvas.getByRole("button", { name: card.open })).toBeDisabled();
+    await expect(args.onNavigate).not.toHaveBeenCalled();
+  },
+};
 export const Unavailable: Story = {
   beforeEach: () => {
     const restore = mockReview();

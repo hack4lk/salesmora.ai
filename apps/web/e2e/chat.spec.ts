@@ -92,7 +92,7 @@ test('denies unsigned, forged, cross-user and cross-workspace access including h
   expect((await api.get(`/api/chat/threads?workspace=${otherWorkspace}`)).status()).toBe(403);
 });
 
-test('cancels persistently, bounds concurrent turns, preserves partial text and deletes owned transcripts', async ({ page }) => {
+test('cancels persistently, bounds concurrent turns, discards partial text and deletes owned transcripts', async ({ page }) => {
   const api = page.context().request; await account(api); const workspaceId = await workspace(api);
   await page.goto(`/home?workspace=${workspaceId}`);
   const request = input(workspaceId); const accepted = await start(page, request);
@@ -104,13 +104,13 @@ test('cancels persistently, bounds concurrent turns, preserves partial text and 
   const result = await finished(page); expect(result.at(-1)?.type).toBe('turn.cancelled');
   const history = await (await api.get(`/api/chat/threads?workspace=${workspaceId}&thread=${accepted.threadId}`)).json();
   expect(history.turns[0].state).toBe('cancelled');
-  expect(history.messages.find((message: {role:string}) => message.role === 'assistant').text).toBe('Fictional test response. ');
+  expect(history.messages.find((message: {role:string}) => message.role === 'assistant').text).toBe('');
   expect((await api.post('/api/chat/cancel', { headers, data: { workspaceId, turnId: accepted.turnId } })).status()).toBe(200);
   expect((await api.delete('/api/chat/threads', { headers, data: { workspaceId, threadId: accepted.threadId } })).status()).toBe(200);
   expect(await db('chatMessages').where({ turnId: accepted.turnId })).toHaveLength(0);
 });
 
-test('provider failure preserves partial output and redacts raw errors; expired leases recover as interrupted', async ({ page }) => {
+test('provider failure discards partial output and redacts raw errors; expired leases recover as interrupted', async ({ page }) => {
   const api = page.context().request; const userId = await account(api); const workspaceId = await workspace(api);
   const response = await api.post('/api/chat/turns', { headers, data: input(workspaceId, 'fixture:fail') });
   const raw = await response.text(); expect(raw).not.toContain('Private provider');
@@ -120,7 +120,7 @@ test('provider failure preserves partial output and redacts raw errors; expired 
   await db('chatTurns').where({ id: accepted.turnId }).update({ state: 'running', leaseUntil: new Date(Date.now() - 1000), finishedAt: null });
   const history = await (await api.get(`/api/chat/threads?workspace=${workspaceId}&thread=${accepted.threadId}`)).json();
   expect(history.turns[0].state).toBe('interrupted');
-  expect(history.messages.find((message: {role:string}) => message.role === 'assistant').text).toBe('Fictional test response. ');
+  expect(history.messages.find((message: {role:string}) => message.role === 'assistant').text).toBe('');
   // Simulate a rate window without making ten provider requests.
   await db('chatTurns').insert(Array.from({ length: 9 }, () => ({ id: randomUUID(), threadId: accepted.threadId, workspaceId, userId,
     clientTurnId: randomUUID(), requestHash: 'fixture', surfaceKey: 'home', state: 'completed', leaseUntil: new Date() })));

@@ -146,14 +146,16 @@ export async function readCalendar(db: Knex, identity: WorkspaceIdentity, enable
   });
 }
 export async function readCalendarVisit(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], visitId: string): Promise<CalendarVisit> {
+  return withWorkspaceAuthorization(db, identity, enabled, false,
+    (trx, context) => readCalendarVisitInTransaction(trx, context, visitId));
+}
+export async function readCalendarVisitInTransaction(trx: Knex.Transaction, context: AuthorizationContext, visitId: string): Promise<CalendarVisit> {
   // Reuse the strict identity validator without accepting unrelated query parameters.
   calendarAdvisorySchema.shape.visitId.parse(visitId);
-  return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
-    const meta = await metadata(trx, context);
-    const rows: Row[] = await trx.with('visible', scopedCalendarRecordsQuery(trx, context)).from('visible').where({ visitId }).select('*');
-    if (!rows.length) throw new AuthorizationAccessError();
-    return (await project(trx, context, rows, meta))[0];
-  });
+  const meta = await metadata(trx, context);
+  const rows: Row[] = await trx.with('visible', scopedCalendarRecordsQuery(trx, context)).from('visible').where({ visitId }).select('*');
+  if (!rows.length) throw new AuthorizationAccessError();
+  return (await project(trx, context, rows, meta))[0];
 }
 export async function readCalendarAdvisories(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], raw: unknown) {
   const input = calendarAdvisorySchema.parse(raw);

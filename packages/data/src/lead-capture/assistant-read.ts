@@ -1,9 +1,9 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
 import { captureAssistantContextSchema, captureChatQuerySchema, captureChatResultSchema, type AuthorizationContext, type PermissionId } from '@salesmora/contracts';
 import { authorize, resolveAuthorizedCollectionScope } from '@salesmora/domain';
 import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIdentity } from '../authorization/store';
-import { workspaceEntitlements } from '../billing/entitlements';
+import { assistantAuthorityStamp } from '../authorization/evidence-stamp';
 import { captureSourceWindowInTransaction, readCaptureSource, captureDraftFingerprint } from './store';
 import { unavailableCaptureDelivery, type CaptureDeliveryAuthority } from './publication';
 function permit(context: AuthorizationContext) {
@@ -11,26 +11,11 @@ function permit(context: AuthorizationContext) {
   if (!authorize(context, { permission: 'assistant.use' }).allowed || !scope.allowed || scope.scope !== 'workspace') throw new AuthorizationAccessError();
   return scope;
 }
-/** Conservative scoped fingerprint. Contents remain server-private; changed history must be reread. */
-export async function captureChatStamp(trx: Knex.Transaction, context: AuthorizationContext, deliveryStamp = '') {
+/** Saved facts bind authorization, not the current workspace population or delivery configuration. */
+export async function captureChatStamp(_trx: Knex.Transaction, context: AuthorizationContext, _deliveryStamp?: string) {
+  void _deliveryStamp;
   permit(context);
-  const { rows } = await trx.raw(`SELECT md5(coalesce(string_agg(v, '|' ORDER BY v), '')) AS stamp FROM (
-    SELECT 's:' || id::text || ':' || xmin::text AS v FROM "captureSources" WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 'd:' || id::text || ':' || xmin::text FROM "captureSourceDrafts" WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 'v:' || id::text || ':' || xmin::text FROM "captureSourceVersions" WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 'p:' || id::text || ':' || xmin::text FROM "capturePublications" WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 'r:' || id::text || ':' || xmin::text FROM "captureReceipts" WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 'i:' || id::text || ':' || xmin::text FROM "intakeItems" WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 't:' || id::text || ':' || xmin::text FROM "capturePublicationTransitions" WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 'b:' || id::text || ':' || xmin::text FROM "billingPlanChanges" WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 'sub:' || xmin::text FROM "workspaceSubscriptions" WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 'member:' || m."userId" || ':' || m.xmin::text || ':' || u.xmin::text FROM "workspaceMemberships" m JOIN users u ON u.id=m."userId" WHERE m."workspaceId"=:workspace
-    UNION ALL SELECT 'service:' || service || ':' || xmin::text FROM "workspaceServices" WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 'w:' || xmin::text FROM workspaces WHERE id=:workspace
-  ) evidence`, { workspace: context.workspaceId });
-  const entitlement = await workspaceEntitlements(trx, context.workspaceId);
-  const policy = { ...context.policy, grants: [...context.policy.grants].sort((a, b) => `${a.role}:${a.permission}:${a.scope}`.localeCompare(`${b.role}:${b.permission}:${b.scope}`)) };
-  return createHash('sha256').update(JSON.stringify([context.workspaceId, context.userId, policy, [...context.enabledPermissions].sort(), rows[0].stamp, entitlement.plan.id, entitlement.transition, deliveryStamp])).digest('hex');
+  return assistantAuthorityStamp(context, 'lead-capture');
 }
 export async function captureChatEvidenceAllowed(trx: Knex.Transaction, context: AuthorizationContext, stamp?: string | null, deliveryStamp = '') {
   if (!stamp) return true;
@@ -60,7 +45,6 @@ export async function readCaptureForChat(db: Knex, identity: WorkspaceIdentity, 
       else result = captureChatResultSchema.parse({ ...base, operation: input.operation, source, review: view.publicationReview });
     }
     if (JSON.stringify(result).length > 48000) return { clarification: 'This source result exceeds the assistant display limit. Open the source to review its complete configuration.' };
-    if (stamp !== await captureChatStamp(trx, context, options.deliveryStamp)) throw new AuthorizationAccessError();
     return { stamp, snapshot: { result, query: input, snapshotHash: captureDraftFingerprint(result) } };
   });
 }

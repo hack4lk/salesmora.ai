@@ -10,6 +10,13 @@ import { initializeWorkspacePolicy, withWorkspaceAuthorization, AuthorizationAcc
 import { readReportForAssistant, ReportAssistantClarificationError, ReportAssistantLimitError } from './assistant';
 import { readReportSelectionInTransaction } from './read-selection';
 import { runReportTemplateConfigurationInTransaction } from './template';
+import { readReportSnapshotForAssistant, reportAssistantEvidenceAllowed, reportAssistantSnapshotMatches } from './assistant-evidence';
+import { assistantCapturedRecordsAllowed } from '../authorization/historical-records';
+import { readBusinessOverviewInTransaction } from './business-overview';
+import { readLeadReportInTransaction } from './leads';
+import { readJobLifecycleReportInTransaction } from './job-lifecycle';
+import { readJobCompletionReportInTransaction } from './job-completion';
+import { readJobWorkloadReportInTransaction } from './jobs';
 
 process.loadEnvFile(fileURLToPath(new URL('../../../../.env.local', import.meta.url)));
 const connection = process.env.TEST_DATABASE_URL;
@@ -61,7 +68,7 @@ try {
       actorName: 'Fixture', actorType: 'user', type: 'note', changes: JSON.stringify({ body: 'PRIVATE_EVENT_NOTE' }), createdAt: new Date() });
     const read = (args: unknown, who = identity, permissions = enabled, pageContext?: unknown,
       signal = new AbortController().signal) => readReportForAssistant(trx, who, permissions, args, pageContext, signal);
-    const base = { workspaceId, page: 1, pageSize: 25 }, filters = { stages: [], owners: [], sources: [] };
+    const base = { workspaceId, page: 1, pageSize: 25 as const }, filters = { stages: [], owners: [], sources: [] };
     const examples = [
       { area: 'overview', query: { workspaceId, view: 'business-overview', period } },
       { area: 'leads', query: { ...base, view: 'intake', period, filters, currentFilters: filters } },
@@ -114,6 +121,79 @@ try {
           ? { from: today, to: addCalendarDays(today, 6) } : period);
         else assert.equal(area, 'team');
       }
+    });
+    await check('Overview aggregates match full native Lead and Job readers for workspace and assigned access', async () => {
+      const fixtureRollback = new Error('Rollback aggregate parity fixtures.');
+      await assert.rejects(trx.transaction(async fixture => {
+        await fixture('leads').where({ id: leads[0].id }).update({ archivedAt: fixture.fn.now() });
+        await fixture('leads').where({ id: leads[1].id }).update({
+          stage: 'contacted', lastActivityAt: fixture.raw("CURRENT_TIMESTAMP - interval '8 days'"),
+        });
+        await fixture('leads').where({ id: leads[2].id }).update({
+          stage: 'estimate-sent', lastActivityAt: fixture.raw("CURRENT_TIMESTAMP - interval '7 days'"),
+        });
+        await fixture('jobActivity').insert([
+          ['needs-scheduling', 'completed'], ['completed', 'in-progress'],
+          ['in-progress', 'completed'], ['completed', 'waiting'],
+        ].map(([from, to], index) => ({
+          id: randomUUID(), workspaceId, jobId, actorId: owner, actorName: 'Fixture',
+          type: 'status', source: 'ui', changes: JSON.stringify({ from, to }),
+          createdAt: fixture.raw("CURRENT_TIMESTAMP - (? * interval '1 hour')", [4 - index]),
+        })));
+        for (const userId of [owner, field]) {
+          await withWorkspaceAuthorization(fixture, { workspaceId, userId }, enabled, false, async (transaction, authority) => {
+            const statements: string[] = [];
+            const record = (query: { sql: string }) => statements.push(query.sql);
+            transaction.on('query', record);
+            let overview;
+            try {
+              overview = await readBusinessOverviewInTransaction(transaction, authority, {
+                workspaceId, view: 'business-overview', period,
+              });
+            } finally { transaction.removeListener('query', record); }
+            assert(statements.length <= 30, `Overview used ${statements.length} statements; expected <=30`);
+            const intake = await readLeadReportInTransaction(transaction, authority, {
+              ...base, view: 'intake', period, filters, currentFilters: filters,
+            });
+            const pipeline = await readLeadReportInTransaction(transaction, authority, {
+              ...base, view: 'pipeline', filters, selection: { kind: 'pipeline' },
+            });
+            const attention = await readLeadReportInTransaction(transaction, authority, {
+              ...base, view: 'attention', filters, selection: 'inactive',
+            });
+            if (overview.leads.kind !== 'available' || intake.view !== 'intake' ||
+              pipeline.view !== 'pipeline' || attention.view !== 'attention') throw new Error('Missing native Lead metrics.');
+            assert.equal(overview.leads.created, intake.total);
+            assert.deepEqual(overview.leads.stages, pipeline.stages);
+            assert.equal(overview.leads.inactive, attention.counts.inactive);
+            const jobFilters = { statuses: [], owners: [], services: [] };
+            const lifecycle = await readJobLifecycleReportInTransaction(transaction, authority, {
+              ...base, view: 'lifecycle', period, filters: jobFilters, selectedView: 'created',
+            });
+            const completion = await readJobCompletionReportInTransaction(transaction, authority, {
+              ...base, view: 'completion', period, filters: jobFilters,
+            });
+            const workload = await readJobWorkloadReportInTransaction(transaction, authority, {
+              ...base, view: 'workload', filters: jobFilters, selection: { kind: 'metric', metric: 'active' },
+            });
+            if (overview.jobs.kind !== 'available') throw new Error('Missing native Job metrics.');
+            assert.equal(overview.jobs.created, lifecycle.counts.created);
+            assert.equal(overview.jobs.completed, completion.total);
+            assert.equal(overview.jobs.completed, 1, 'Recompletion counts a job once, even after reopening.');
+            assert.equal(overview.jobs.active, workload.counts.active);
+            assert.equal(overview.jobs.overdue, workload.counts.overdue);
+            assert.equal(overview.jobs.waiting, workload.counts.waiting);
+          });
+        }
+        await fixture('leads').where({ id: leads[1].id })
+          .update({ createdAt: fixture.raw("CURRENT_TIMESTAMP + interval '1 day'") });
+        await withWorkspaceAuthorization(fixture, identity, enabled, false, async (transaction, authority) => {
+          await assert.rejects(readBusinessOverviewInTransaction(transaction, authority, {
+            workspaceId, view: 'business-overview', period,
+          }), /future-created lead/);
+        });
+        throw fixtureRollback;
+      }), error => error === fixtureRollback);
     });
     await check('evidence windows never replace totals or silently widen assigned ownership', async () => {
       const input = { request: { mode: 'default', area: 'leads', period: null } };
@@ -206,6 +286,36 @@ try {
       } finally {
         trx.removeListener('query', abort);
       }
+    });
+    await check('historical report facts survive edits, but deleted captured sources and lost permissions are withheld', async () => {
+      const historicalRollback = new Error('Rollback historical evidence edits.');
+      await assert.rejects(trx.transaction(async historical => {
+        const snapshot = await readReportSnapshotForAssistant(historical, identity, enabled,
+          explicit(examples[1]), undefined, new AbortController().signal);
+        assert.equal(reportAssistantSnapshotMatches(snapshot), true);
+        if (snapshot.native.area !== 'leads') throw new Error('Expected Leads.');
+        const captured = snapshot.native.read.report.rows.map(row => row.recordId);
+        assert(captured.length > 0);
+        const statements: string[] = [];
+        const capture = (query: { sql: string }) => statements.push(query.sql);
+        historical.on('query', capture);
+        try {
+          await historical('leads').where({ workspaceId, id: captured[0] })
+            .update({ name: 'Historically edited Lead', version: historical.raw('version + 1') });
+          await withWorkspaceAuthorization(historical, identity, enabled, false, async (transaction, authority) => {
+            assert.equal(await reportAssistantEvidenceAllowed(transaction, authority, [snapshot.binding]), true);
+            assert.equal(await assistantCapturedRecordsAllowed(transaction, authority, { lead: captured }), true);
+            const revoked = { ...authority, enabledPermissions: authority.enabledPermissions.filter(id => id !== 'leads.read') };
+            assert.equal(await reportAssistantEvidenceAllowed(transaction, revoked, [snapshot.binding]), false);
+          });
+          await historical('leads').where({ workspaceId, id: captured[0] }).delete();
+          await withWorkspaceAuthorization(historical, identity, enabled, false, async (transaction, authority) => {
+            assert.equal(await assistantCapturedRecordsAllowed(transaction, authority, { lead: captured }), false);
+          });
+          assert.equal(statements.some(sql => /string_agg|ctid|xmin/.test(sql)), false);
+        } finally { historical.removeListener('query', capture); }
+        throw historicalRollback;
+      }), error => error === historicalRollback);
     });
     await check('oversized UTF-8 evidence fails explicitly, without truncating aggregates or labels', async () => {
       const manual = () => withWorkspaceAuthorization(trx, identity, enabled, false, (transaction, context) =>

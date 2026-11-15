@@ -8,9 +8,211 @@ const input = () => ({ turnId, surface: 'home' as const, messages: [{ role: 'use
 function fixture() {
   const model: ConversationModel = { plan: vi.fn(async () => [{ name: 'search_help', args: { query: 'Fictional help' } }]), answer: async function* () { yield 'First '; yield 'answer.'; } };
   const checkpointer = new MemorySaver();
-  return { model, checkpointer, authorize: vi.fn<RuntimeDependencies['authorize']>(async () => ['search_help']), executeTool: vi.fn<RuntimeDependencies['executeTool']>(async () => ({ evidence: { type: 'untrusted-help-reference', matches: [] }, sources: [] })), rememberSources: vi.fn(async () => {}), emit: vi.fn<RuntimeDependencies['emit']>(async () => {}) };
+  const authorize = vi.fn<RuntimeDependencies['authorize']>(async () => ['search_help']);
+  const capabilities = vi.fn<RuntimeDependencies['capabilities']>(async () => ({
+    tools: await authorize(), leadOperations: [], customerOperations: [], captureOperations: [],
+  }));
+  return { model, checkpointer, authorize, capabilities, executeTool: vi.fn<RuntimeDependencies['executeTool']>(async () => ({ evidence: { type: 'untrusted-help-reference', matches: [] }, sources: [] })), rememberSources: vi.fn(async () => {}), emit: vi.fn<RuntimeDependencies['emit']>(async () => {}) };
 }
 describe('bounded conversation graph', () => {
+  it('runs without a saver and never reads or writes diagnostic checkpoints', async () => {
+    const { checkpointer, ...deps } = fixture();
+    const get = vi.spyOn(checkpointer, 'getTuple');
+    const put = vi.spyOn(checkpointer, 'put');
+    const writes = vi.spyOn(checkpointer, 'putWrites');
+    await runConversation(input(), deps);
+    expect(deps.executeTool).toHaveBeenCalledOnce();
+    expect(deps.emit.mock.calls).toEqual([
+      [{ type: 'status', status: 'retrieving' }], [{ type: 'text', text: 'First answer.' }],
+    ]);
+    expect(get).not.toHaveBeenCalled();
+    expect(put).not.toHaveBeenCalled();
+    expect(writes).not.toHaveBeenCalled();
+  });
+
+  it.each(['abort', 'access', 'tool', 'budget'] as const)('preserves %s failure behavior without a saver', async failure => {
+    const { checkpointer, ...deps } = fixture();
+    const abort = new AbortController();
+    if (failure === 'abort') abort.abort();
+    if (failure === 'access') deps.capabilities.mockRejectedValue(new Error('Access denied.'));
+    if (failure === 'tool') deps.executeTool.mockRejectedValue(new Error('Private provider error'));
+    if (failure === 'budget') deps.model.plan = async () => { throw new AIBudgetExceededError(); };
+    const run = runConversation({ ...input(), signal: abort.signal }, deps);
+    if (failure === 'access') await expect(run).rejects.toThrow('Access denied.');
+    else if (failure === 'budget') await expect(run).rejects.toBeInstanceOf(AIBudgetExceededError);
+    else await expect(run).rejects.toThrow();
+    expect(deps.emit.mock.calls.filter(([event]) => event.type === 'text')).toHaveLength(0);
+    expect(await checkpointer.getTuple({ configurable: { thread_id: turnId } })).toBeUndefined();
+  });
+
+  it('loads one complete capability snapshot per model boundary and refreshes it after planning', async () => {
+    const deps = fixture();
+    const planned = {
+      tools: ['leads_query', 'customers_query', 'lead_capture_propose_action'] as const,
+      leadOperations: ['search'] as const, customerOperations: ['search'] as const,
+      captureOperations: ['create_source'] as const,
+    };
+    const answered = { tools: ['search_help'] as const, leadOperations: [], customerOperations: [], captureOperations: [] };
+    deps.capabilities.mockResolvedValueOnce(planned).mockResolvedValueOnce(answered);
+    deps.model.plan = vi.fn(async (_messages, tools, _signal, leads, customers, capture) => {
+      expect([tools, leads, customers, capture]).toEqual([
+        planned.tools, planned.leadOperations, planned.customerOperations, planned.captureOperations,
+      ]);
+      expect(deps.capabilities).toHaveBeenCalledTimes(1);
+      return [];
+    });
+    deps.model.answer = async function* (_messages, _evidence, _signal, tools, leads, customers, capture) {
+      expect([tools, leads, customers, capture]).toEqual([
+        answered.tools, answered.leadOperations, answered.customerOperations, answered.captureOperations,
+      ]);
+      expect(deps.capabilities).toHaveBeenCalledTimes(2);
+      yield 'Freshly authorized answer.';
+    };
+    await runConversation(input(), deps);
+    expect(deps.capabilities).toHaveBeenCalledTimes(2);
+    expect(deps.executeTool).not.toHaveBeenCalled();
+  });
+
+  it('does not call the model when fresh capability loading fails', async () => {
+    const deps = fixture();
+    deps.capabilities.mockRejectedValue(new Error('Access denied.'));
+    await expect(runConversation(input(), deps)).rejects.toThrow('Access denied.');
+    expect(deps.model.plan).not.toHaveBeenCalled();
+    expect(deps.executeTool).not.toHaveBeenCalled();
+    expect(deps.emit).not.toHaveBeenCalled();
+  });
+
+  it('reloads operation capabilities before execution rather than reusing the planning snapshot', async () => {
+    const deps = fixture();
+    deps.authorize.mockResolvedValue(['leads_query']);
+    deps.capabilities
+      .mockResolvedValueOnce({ tools: ['leads_query'], leadOperations: ['pipeline_summary'], customerOperations: [], captureOperations: [] })
+      .mockResolvedValueOnce({ tools: ['leads_query'], leadOperations: [], customerOperations: [], captureOperations: [] });
+    deps.model.plan = async () => [{ name: 'leads_query', args: { request: { operation: 'pipeline_summary', input: {} } } }];
+    await expect(runConversation(input(), deps)).rejects.toThrow('Access denied.');
+    expect(deps.capabilities).toHaveBeenCalledTimes(2);
+    expect(deps.authorize).not.toHaveBeenCalled();
+    expect(deps.executeTool).not.toHaveBeenCalled();
+  });
+
+  it('uses one fresh snapshot for both tool and Lead operation checks at execution', async () => {
+    const deps = fixture();
+    deps.capabilities.mockResolvedValue({
+      tools: ['leads_query'], leadOperations: ['pipeline_summary'], customerOperations: [], captureOperations: [],
+    });
+    deps.model.plan = async () => [{ name: 'leads_query', args: { request: { operation: 'pipeline_summary', input: {} } } }];
+    deps.executeTool.mockImplementation(async () => {
+      expect(deps.capabilities).toHaveBeenCalledTimes(2);
+      expect(deps.authorize).not.toHaveBeenCalled();
+      return { evidence: { type: 'authorized-current-pipeline', data: [] } };
+    });
+    await runConversation(input(), deps);
+    expect(deps.capabilities).toHaveBeenCalledTimes(3);
+    expect(deps.executeTool).toHaveBeenCalledOnce();
+    expect(deps.authorize).toHaveBeenCalledExactlyOnceWith();
+  });
+
+  it('denies a revoked tool even when its operation is still in the fresh snapshot', async () => {
+    const deps = fixture();
+    deps.capabilities
+      .mockResolvedValueOnce({ tools: ['leads_query'], leadOperations: ['pipeline_summary'], customerOperations: [], captureOperations: [] })
+      .mockResolvedValueOnce({ tools: [], leadOperations: ['pipeline_summary'], customerOperations: [], captureOperations: [] });
+    deps.model.plan = async () => [{ name: 'leads_query', args: { request: { operation: 'pipeline_summary', input: {} } } }];
+    await expect(runConversation(input(), deps)).rejects.toThrow('Access denied.');
+    expect(deps.executeTool).not.toHaveBeenCalled();
+    expect(deps.emit).not.toHaveBeenCalled();
+  });
+
+  it('refreshes capabilities between two tool calls and stops before the revoked second tool', async () => {
+    const deps = fixture();
+    const initial = { tools: ['search_help', 'reports_query'] as const, leadOperations: [], customerOperations: [], captureOperations: [] };
+    deps.capabilities.mockResolvedValue(initial);
+    deps.model.plan = async () => [
+      { name: 'search_help', args: { query: 'Fictional help' } },
+      { name: 'reports_query', args: { request: { mode: 'current_report' } } },
+    ];
+    deps.executeTool.mockImplementation(async () => {
+      deps.capabilities.mockResolvedValue({ ...initial, tools: ['search_help'] });
+      return { evidence: {} };
+    });
+    await expect(runConversation(input(), deps)).rejects.toThrow('Access denied.');
+    expect(deps.capabilities).toHaveBeenCalledTimes(3);
+    expect(deps.executeTool).toHaveBeenCalledExactlyOnceWith('search_help', { query: 'Fictional help' });
+    expect(deps.emit.mock.calls.filter(([event]) => event.type === 'text')).toHaveLength(0);
+  });
+
+  it.each([
+    { name: 'customers_query', args: { request: { operation: 'details', input: { customerRef: '' } } },
+      tools: ['customers_query'] as const, leadOperations: [], customerOperations: ['details'] as const, captureOperations: [] },
+    { name: 'lead_capture_propose_action', args: { operation: 'create_source', sourceId: null,
+      name: 'Fictional source', sourceType: 'website', fields: null, contactRequired: null, workflow: null,
+      brief: null, content: null, rules: null, mappings: null, findings: null },
+      tools: ['lead_capture_propose_action'] as const, leadOperations: [], customerOperations: [], captureOperations: ['create_source'] as const },
+  ])('denies revoked operation capabilities for $name even when the tool remains available', async ({ name, args, ...snapshot }) => {
+    const deps = fixture();
+    deps.capabilities.mockResolvedValueOnce(snapshot).mockResolvedValueOnce({
+      ...snapshot, customerOperations: [], captureOperations: [],
+    });
+    deps.model.plan = async () => [{ name, args }];
+    await expect(runConversation(input(), deps)).rejects.toThrow('Access denied.');
+    expect(deps.capabilities).toHaveBeenCalledTimes(2);
+    expect(deps.executeTool).not.toHaveBeenCalled();
+    expect(deps.emit).not.toHaveBeenCalled();
+  });
+
+  it('does not answer or emit text when independent handler authorization denies after the graph check', async () => {
+    const deps = fixture();
+    deps.capabilities.mockResolvedValue({
+      tools: ['leads_query'], leadOperations: ['pipeline_summary'], customerOperations: [], captureOperations: [],
+    });
+    deps.model.plan = async () => [{ name: 'leads_query', args: { request: { operation: 'pipeline_summary', input: {} } } }];
+    deps.model.answer = vi.fn(deps.model.answer);
+    deps.executeTool.mockRejectedValue(new Error('Access denied.'));
+    await expect(runConversation(input(), deps)).rejects.toThrow('Access denied.');
+    expect(deps.executeTool).toHaveBeenCalledOnce();
+    expect(deps.model.answer).not.toHaveBeenCalled();
+    expect(deps.emit.mock.calls.filter(([event]) => event.type === 'text')).toHaveLength(0);
+  });
+
+  it('passes only successfully executed tools as ephemeral answer provenance, not planned or merely authorized tools', async () => {
+    const deps = fixture();
+    deps.authorize.mockResolvedValue(['search_help', 'materials_query', 'calendar_query']);
+    deps.model.plan = async () => [
+      { name: 'search_help', args: { query: 'Fictional help' } },
+      { name: 'materials_query', args: { operation: 'search', query: null, category: null, supplier: null, limit: null } },
+    ];
+    deps.executeTool.mockImplementation(async name => ({ evidence: { type: name, marker: 'PRIVATE_RESULT' } }));
+    deps.model.answer = async function* (_messages, evidence, _signal, tools, _leads, _customers, _capture, executedTools) {
+      expect(tools).toEqual(['search_help', 'materials_query', 'calendar_query']);
+      expect(executedTools).toEqual(['search_help', 'materials_query']);
+      expect(evidence).toEqual([
+        { type: 'search_help', marker: 'PRIVATE_RESULT' }, { type: 'materials_query', marker: 'PRIVATE_RESULT' },
+      ]);
+      yield 'Answer.';
+    };
+    await runConversation(input(), deps);
+    const checkpoint = JSON.stringify(await deps.checkpointer.getTuple({ configurable: { thread_id: turnId } }));
+    expect(checkpoint).not.toContain('PRIVATE_RESULT');
+    expect(checkpoint).not.toContain('executedTools');
+  });
+  it('provides empty provenance for no-tool answers and never answers after failed tool execution', async () => {
+    const deps = fixture();
+    deps.model.plan = async () => [];
+    const answer = vi.fn<ConversationModel['answer']>().mockImplementation(async function* (
+      _messages, evidence, _signal, _tools, _leads, _customers, _capture, executedTools,
+    ) {
+      expect(evidence).toEqual([]);
+      expect(executedTools).toEqual([]);
+      yield 'Answer.';
+    });
+    deps.model.answer = answer;
+    await runConversation(input(), deps);
+    answer.mockClear();
+    deps.model.plan = async () => [{ name: 'search_help', args: { query: 'Help' } }];
+    deps.executeTool.mockRejectedValue(new Error('Failure'));
+    await expect(runConversation(input(), deps)).rejects.toThrow('Conversation step interrupted');
+    expect(answer).not.toHaveBeenCalled();
+  });
   it('stops report-derived streaming immediately when fresh authorization revokes its evidence', async () => {
     const deps = fixture();
     let allowed = true;
@@ -27,7 +229,7 @@ describe('bounded conversation graph', () => {
       yield 'MUST_NOT_BE_EMITTED';
     };
     await expect(runConversation(input(), deps)).rejects.toBe(revoked);
-    expect(deps.emit).toHaveBeenCalledWith({ type: 'text', text: 'First authorized report text.' });
+    expect(deps.emit.mock.calls.filter(([event]) => event.type === 'text')).toHaveLength(0);
     expect(deps.emit.mock.calls.some(([event]) => event.type === 'text' && event.text === 'MUST_NOT_BE_EMITTED')).toBe(false);
   });
   it('keeps report evidence and opaque tickets out of graph checkpoints', async () => {
@@ -185,7 +387,7 @@ describe('bounded conversation graph', () => {
   });
   it('streams visible text with a read tool; checkpoints contain execution markers rather than prompt/tool text', async () => {
     const deps = fixture(); await runConversation(input(), deps);
-    expect(deps.emit.mock.calls).toEqual([[{ type: 'status', status: 'retrieving' }], [{ type: 'text', text: 'First ' }], [{ type: 'text', text: 'answer.' }]]);
+    expect(deps.emit.mock.calls).toEqual([[{ type: 'status', status: 'retrieving' }], [{ type: 'text', text: 'First answer.' }]]);
     const saved = await deps.checkpointer.getTuple({ configurable: { thread_id: turnId } });
     expect(JSON.stringify(saved)).not.toContain('Fictional private question');
     expect(saved?.checkpoint.channel_values).toMatchObject({ turnId, phase: 'answered' });
@@ -256,7 +458,8 @@ it('rejects a disallowed operation even when its shared tool is available', asyn
   const deps = fixture();
   deps.authorize.mockResolvedValue(['leads_propose_action']);
   deps.model.plan = async () => [{ name: 'leads_propose_action', args: { request: { operation: 'create', input: { name: 'Fictional', service: 'Repair', email: '', phone: '', address: '', details: '', notes: '', source: 'other', stage: 'new', ownerId: '' } } } }];
-  await expect(runConversation(input(), { ...deps, leadOperations: async () => ['change_stage'] })).rejects.toThrow('Access denied.');
+  deps.capabilities.mockResolvedValue({ tools: ['leads_propose_action'], leadOperations: ['change_stage'], customerOperations: [], captureOperations: [] });
+  await expect(runConversation(input(), deps)).rejects.toThrow('Access denied.');
   expect(deps.executeTool).not.toHaveBeenCalled();
 });
 
@@ -267,7 +470,8 @@ it('routes an authorized search through the existing query tool and returns app-
   deps.authorize.mockResolvedValue(['leads_query']);
   deps.model.plan = async () => [{ name: 'leads_query', args: { request: { operation: 'search', input: { mode: 'filters', filters } } } }];
   deps.executeTool.mockResolvedValue({ evidence: { type: 'authorized-lead-search', result }, searchResult: result });
-  const completed = await runConversation(input(), { ...deps, leadOperations: async () => ['search'] });
+  deps.capabilities.mockResolvedValue({ tools: ['leads_query'], leadOperations: ['search'], customerOperations: [], captureOperations: [] });
+  const completed = await runConversation(input(), deps);
   expect(completed.searchResult).toEqual(result);
   expect(deps.executeTool).toHaveBeenCalledExactlyOnceWith('leads_query', { request: { operation: 'search', input: { mode: 'filters', filters } } });
   expect(JSON.stringify(await deps.checkpointer.getTuple({ configurable: { thread_id: turnId } }))).not.toContain('authorized-lead-search');
@@ -279,7 +483,8 @@ it('returns approved detail-card data through the read facade without checkpoint
   deps.model.plan = async () => [{ name: 'leads_query', args: { request: { operation: 'details', input: { leadRef: 'LD-0001' } } } }];
   const result = { id: turnId, scope: 'assigned' as const, retrievedAt: '2026-10-17T14:30:00.000Z', lead: { id: turnId, number: 'LD-0001', name: 'Private lead', service: 'Repair', stage: 'new' as const, source: 'other' as const, ownerName: null, archived: false, email: 'private@example.test', phone: '', address: '', details: '', notes: 'PRIVATE_DETAIL_SENTINEL' } };
   deps.executeTool.mockResolvedValue({ evidence: { type: 'authorized-lead-details', result }, detailsResult: result });
-  const completed = await runConversation(input(), { ...deps, leadOperations: async () => ['details'] });
+  deps.capabilities.mockResolvedValue({ tools: ['leads_query'], leadOperations: ['details'], customerOperations: [], captureOperations: [] });
+  const completed = await runConversation(input(), deps);
   expect(completed.detailsResult).toEqual(result);
   expect(JSON.stringify(await deps.checkpointer.getTuple({ configurable: { thread_id: turnId } }))).not.toContain('PRIVATE_DETAIL_SENTINEL');
 });
@@ -290,7 +495,8 @@ it('returns approved history-card data through the read facade without checkpoin
   deps.model.plan = async () => [{ name: 'leads_query', args: { request: { operation: 'history', input: { leadRef: 'LD-0001', mode: 'notes' } } } }];
   const result = { mode: 'notes' as const, entries: [{ id: turnId, kind: 'note' as const, actorName: 'Fictional teammate', createdAt: '2026-10-17T14:00:00.000Z', viaAssistant: true, body: 'PRIVATE_HISTORY_SENTINEL' }], total: 1, id: turnId, scope: 'assigned' as const, retrievedAt: '2026-10-17T14:30:00.000Z', lead: { id: turnId, number: 'LD-0001', name: 'Private lead', archived: false } };
   deps.executeTool.mockResolvedValue({ evidence: { type: 'authorized-lead-history', result }, historyResult: result });
-  const completed = await runConversation(input(), { ...deps, leadOperations: async () => ['history'] });
+  deps.capabilities.mockResolvedValue({ tools: ['leads_query'], leadOperations: ['history'], customerOperations: [], captureOperations: [] });
+  const completed = await runConversation(input(), deps);
   expect(completed.historyResult).toEqual(result);
   expect(JSON.stringify(await deps.checkpointer.getTuple({ configurable: { thread_id: turnId } }))).not.toContain('PRIVATE_HISTORY_SENTINEL');
 });

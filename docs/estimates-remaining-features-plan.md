@@ -1,5 +1,7 @@
 # Estimates: remaining features implementation plan
 
+> Historical migration paths in this document refer to the prior release. Current fresh databases use the [curated baseline](../packages/data/src/baseline/); existing databases require a separately designed upgrade.
+
 Status: **Slices 1-8 are locally implemented and user-approved. All Slice 9 assistant operations are implemented and user-approved, including permanent Draft deletion, Estimate-to-Job conversion and the review-only CSV handoff (sections 24-44). Final cross-operation local acceptance passed and was user-approved (section 45). The authorized non-production Estimate provider-backed acceptance passed after fixing an unsupported JSON Schema union (section 46) and awaits review. Production rollout remains separate and unapproved.**
 
 This is a current implementation-gap audit and a companion to the [approved Estimates plan](estimates-page-plan.md). Existing product decisions remain approved; the sequence and unresolved integration details below need review. Implement one agreed slice, demonstrate it, and stop for feedback before proceeding.
@@ -70,7 +72,7 @@ Storybook links below use the existing local server.
 
 ### Foundations that exist but do not constitute finished features
 
-- The [foundation migration](../packages/data/src/migrations/202610230001_estimates_foundation.ts) already has decision/archive/void/supersession columns, activity, operation receipts, and the Job's `acceptedEstimateId`. Do not create a parallel lifecycle store.
+- The foundation migration (historical migration; see the prior release) already has decision/archive/void/supersession columns, activity, operation receipts, and the Job's `acceptedEstimateId`. Do not create a parallel lifecycle store.
 - The current [server permission list](../apps/web/src/server/authorization/permissions.ts) enables Draft operations, Void, Decide, Archive/Restore, locally gated Send and Estimate export. Export uses its existing Owner/Admin catalog grants and also requires Estimate read access.
 - The [live editor](../apps/web/src/features/estimates/estimate-editor-page/estimate-editor-route.tsx) now composes the real shared-record status/history rail. It explicitly disables the remaining unimplemented lifecycle capabilities.
 - Public reads distinguish withdrawn/replaced/expired links. Authorized withdrawal and revision/supersession writes are connected.
@@ -721,7 +723,7 @@ Validation:
 - **Four existing manual Playwright journeys** pass: decision API origin/binding/permissions/retries; Accepted/Declined/metadata corrections with frozen paper and converted Job; stale/revoked-grant review; and the independent Lost-stage confirmation.
 - Contracts/data/agent/web typechecks and targeted ESLint pass. No component or story was changed in this step; connected decision UI/accessibility/browser acceptance belongs to the next step.
 
-The additive [decision-proposal migration](../packages/data/src/migrations/202610270001_estimate_chat_decisions.ts) was applied only to distinct guarded local development/test databases, with the pending migration list checked first. Retained proposals/audits prevent rollback from dropping their tables. No dependencies, production operation, provider-backed acceptance or real customer mail was introduced.
+The additive decision-proposal migration (historical migration; see the prior release) was applied only to distinct guarded local development/test databases, with the pending migration list checked first. Retained proposals/audits prevent rollback from dropping their tables. No dependencies, production operation, provider-backed acceptance or real customer mail was introduced.
 
 **Status:** Server foundation implemented, verified locally and user-approved through the server-step review form. At that approval, decision operations were not yet advertised in `estimates_propose_action`; agent/API/transport/card integration was explicitly left for the next authorized step. The subsequent connected implementation is recorded in section 30 and needs its own review.
 
@@ -743,7 +745,7 @@ Model history receives an app-recorded decision reference containing only propos
 
 Follow-up answers persist flattened source-turn IDs in `chatTurns.estimateDecisionEvidence`, bounded to seven. Older assistant context is dropped rather than exceeding that provenance budget. Each source must be an owned completed turn in the same conversation and must still pass current decision-review authorization. The current CRM/date stamp additionally binds inherited answers. Expiry, supersession, record changes, assignment loss or membership replacement redact retained dependent answers and block later streamed text; deleting a source does not silently erase the dependency.
 
-The additive [provenance migration](../packages/data/src/migrations/202610270002_estimate_decision_evidence.ts), alongside the section 29 proposal migration, was applied only to distinct guarded local development/test databases. Rollback refuses to drop retained provenance.
+The additive provenance migration (historical migration; see the prior release), alongside the section 29 proposal migration, was applied only to distinct guarded local development/test databases. Rollback refuses to drop retained provenance.
 
 ### Review examples
 
@@ -787,7 +789,7 @@ The user approved the existing manual copy/revision rules and a bounded server-f
 - Confirmed receipts recheck current authority, source, parent, exact saved Draft/value/version/lineage and post-operation evidence. Opening returns only the protected route for that result. Destination edits/deletion, source changes, lost access or replaced membership withhold the old receipt rather than authorizing another write. The conservative stamp also notices later public-link view counters and other CRM changes.
 - Draft create/update, sharing, decisions and these Draft actions now supersede pending intent across all four families in one owned conversation. Invalid preparation preserves the previous intent. Expired/superseded evidence cannot authorize later release; expected authorization/conflict/eligibility failures withhold stale private views, while unexpected failures propagate.
 
-The additive [proposal/audit migration](../packages/data/src/migrations/202610270003_estimate_chat_draft_actions.ts) was applied only to distinct guarded local development/test databases after checking the exact pending migration list. Rollback refuses to drop retained proposals/audits.
+The additive proposal/audit migration (historical migration; see the prior release) was applied only to distinct guarded local development/test databases after checking the exact pending migration list. Rollback refuses to drop retained proposals/audits.
 
 ### Verification and boundary
 
@@ -846,7 +848,7 @@ The user authorized live integration after approving the server foundation and t
 - Confirm resolves the authoritative saved receipt; cancellation saves no business data. Reload/retry failures are visible. A failed history refresh does not invent a failed save or fabricate another receipt. Only explicit, independently checked **Open Draft** navigates; preparation/confirmation neither navigates nor sends/publishes.
 - Revise creates the frozen-content Draft under the same number or explicitly reuses the exact edited pending Draft without overwriting it. The predecessor stays active until a later separately confirmed Send/Publish. Duplicate creates a new-number Draft on the same parent, retaining saved content/private notes and clearing recipient name/email, valid-through date and payment link.
 - Follow-up model history receives an app-recorded compact state/action/source/plan reference, not the private review or destination receipt. Confirmed history proves the operation, not the saved record's current identity/status; a current read is required for those claims. Flattened inherited source IDs are owned, completed, same-thread and rechecked for current authority, expiry and supersession. Decision and Draft-action sources share a seven-source history budget; older context is omitted rather than overflowing it.
-- The additive [Draft-action evidence migration](../packages/data/src/migrations/202610270004_estimate_draft_action_evidence.ts) persists flattened provenance on `chatTurns`. It was applied only to distinct guarded local development/test databases after exact pending-file checks. Rollback refuses retained nonempty provenance.
+- The additive Draft-action evidence migration (historical migration; see the prior release) persists flattened provenance on `chatTurns`. It was applied only to distinct guarded local development/test databases after exact pending-file checks. Rollback refuses retained nonempty provenance.
 
 ### Shared pending-intent correction
 
@@ -888,7 +890,7 @@ The user approved the manual-equivalent rules below and selected **Approve and b
 - Withdrawal does not archive/delete, create or change a Job, alter a payment or send a new customer message. The customer link returns withdrawn without exposing the reason; frozen content stays unchanged. Queued deliveries are marked inactive using the existing delivery-stop helper.
 - Concurrent/replayed Confirm resolves one authoritative receipt, activity and audit. Current authority, source/snapshot/parent/reason/version/updated-time and saved-result evidence are rechecked before restoring a receipt, retrying or returning an explicit checked Open link. Confirmation/cancellation never navigates. A later archive, edit, membership replacement or other evidence change withholds stale outcomes instead of fabricating success.
 - All five stored proposal families now share pending-intent supersession. Invalid/aborted preparation cannot supersede the prior intent. The established replacing-turn-only removal of pending decision/Draft-action provenance also applies when Void is the replacement; unrelated sources and older dependent turns remain unchanged. Void-specific stream/history provenance is not connected in this foundation.
-- The additive [Void proposal/audit migration](../packages/data/src/migrations/202610270005_estimate_chat_voids.ts) was applied only to distinct guarded local development/test databases after checking that it was the exact sole pending file. Rollback refuses retained proposals/audits; audits contain metadata/hashes, not the reason.
+- The additive Void proposal/audit migration (historical migration; see the prior release) was applied only to distinct guarded local development/test databases after checking that it was the exact sole pending file. Rollback refuses retained proposals/audits; audits contain metadata/hashes, not the reason.
 
 ### Verification and known current-worktree UI failures
 
@@ -945,7 +947,7 @@ The user authorized live integration after separately approving the Void rules, 
 - Only the exact checked host outcome renders Withdrawn/Cancelled. Failed history refresh is visible without inventing a failed save. Only explicit **Open estimate** may navigate, after independently verifying the exact confirmed receipt/workspace path. Restored/retried outcomes remain subject to current source/snapshot/reason/parent/authority/result evidence.
 - Follow-up model history receives only an app-recorded state/action/Estimate ID/number/revision reference. Confirmed history proves the withdrawal operation, not current Estimate status. `chatTurns.estimateVoidEvidence` persists flattened owned/completed/same-thread source IDs. Void, decision and Draft-action references share the seven-source inherited-context budget; older context is omitted rather than exceeding it. Expiry, supersession, changed evidence or revoked/replaced membership blocks later streamed claims and redacts restored dependent answers.
 - Pending-intent supersession removes only the Void/decision/Draft-action source IDs it actually replaced from the replacing turn. It preserves unrelated/confirmed sources and older dependent turns; no global exemption for superseded evidence is added. The database journey now checks three source families against all five replacement families.
-- The additive [Void evidence migration](../packages/data/src/migrations/202610270006_estimate_void_evidence.ts) was applied only to distinct guarded local development/test databases after checking it was the exact sole pending file. Rollback refuses retained nonempty provenance.
+- The additive Void evidence migration (historical migration; see the prior release) was applied only to distinct guarded local development/test databases after checking it was the exact sole pending file. Rollback refuses retained nonempty provenance.
 
 ### Review examples
 
@@ -982,7 +984,7 @@ The user approved Archive and Restore together as one bounded server-only step, 
 - Extracted [the existing manual executor](../packages/data/src/estimates/lifecycle.ts) into `setEstimateArchivedInTransaction`, preserving the public wrapper and its default UI attribution. Explicit assistant confirmation changes only archive timestamp/actor, version and update time, with staff activity, operation receipt and proposal audit in the same exclusive workspace transaction. History stores `assistant-confirmed` and projects Chat attribution. No customer message, withdrawal, deletion, Job/Lead/payment change, decision rewrite or customer-token renewal occurs.
 - Concurrent/exact retries return one checked saved outcome without duplicate activity. Changed receipts or later source/status/archive/parent/authority changes block restoration, replay and Open. A confirmed outcome may survive proposal expiry only while current saved evidence still agrees. Only explicit checked Open returns the exact Estimate/workspace URL; confirmation never navigates implicitly.
 - At this foundation checkpoint, all **six stored service families** participate in one pending Estimate intent per owned conversation; only five are live/advertised. Archive/Restore replaces and is replaced by Draft, sharing, decision, Draft-action and Void intent. Existing replacing-turn-only removal of inherited pending decision/Draft-action/Void sources is preserved; unrelated/confirmed sources and older dependent turns are not rewritten. Archive-specific stream/history provenance remained for the separate live stage, which is now recorded in section 39.
-- The additive [proposal/audit migration](../packages/data/src/migrations/202610270007_estimate_chat_archives.ts) was applied only to distinct guarded local development/test databases after checking it was the exact sole pending file. Rollback refuses retained proposal or audit records.
+- The additive proposal/audit migration (historical migration; see the prior release) was applied only to distinct guarded local development/test databases after checking it was the exact sole pending file. Rollback refuses retained proposal or audit records.
 
 ### Verification and boundary
 

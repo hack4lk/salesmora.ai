@@ -159,41 +159,16 @@ Exercise both accepted and rejected file-size cases, including the Phase 1 maxim
 
 ## Knex schema changes and migrations
 
-Use Knex with the PostgreSQL driver (`pg`) for database access and schema migrations. Keep the Knex configuration and migration files in source control. Store migration state in Knex's migrations table, use timestamped migration names, and include both `up` and `down` implementations where a safe reversal is possible. Knex runs migrations in transactions by default where the database supports them, and its CLI provides migration listing and rollback commands. [Knex migrations guide](https://knexjs.org/guide/migrations)
+The current Knex migration command applies a curated baseline to empty databases and records it in the migration ledger. Use `pnpm db:setup` for local setup, or `pnpm --filter @salesmora/data migrate` with the owner connection for an empty database. See [development setup](DEV_SETUP.md) for the application and test database requirements.
 
-Suggested package scripts once the application code is in place (run them with pnpm):
-
-```json
-{
-  "scripts": {
-    "db:migrate": "knex migrate:latest",
-    "db:migrate:list": "knex migrate:list",
-    "db:rollback": "knex migrate:rollback",
-    "db:rollback:all": "knex migrate:rollback --all",
-    "db:seed:dev": "knex seed:run --env development"
-  }
-}
-```
-
-Local migration loop:
-
-```bash
-pnpm install
-docker compose --env-file .env.local up -d postgres redis mailpit
-pnpm run db:migrate
-pnpm run db:seed:dev
-```
-
-When changing the schema, generate a migration, implement and review both directions, then test the sequence **latest → rollback → latest** against a disposable database. Keep seed data separate from migrations: migrations change schema and required structural data; repeatable development seeds create fictional sample organizations, users, leads, jobs, and workflow examples.
+The baseline is **fresh-only and forward-only**. The command rejects historical ledgers and occupied databases; it does not upgrade or reset them. Existing databases require the prior release or a separately designed and verified upgrade. Rebuild only with explicit approval. Rollback commands do not reverse the baseline.
 
 ### Migration and rollback policy
 
-- A `down` migration is an operational recovery tool for schema changes, not a substitute for a database backup. Dropped or transformed customer data may not be recoverable by reversing schema alone.
 - Prefer backward-compatible expand-and-contract changes: add a nullable/new field or table, deploy code that supports both forms, backfill safely, and remove obsolete structures in a later release.
 - Back up production before migrations that drop, rewrite, or otherwise risk customer data. Review migration duration, locks, and table size for large changes.
-- Run `knex migrate:latest` once as a controlled deploy step before the new web and worker services serve traffic. Do not let every replica run migrations independently during startup.
-- If a release fails after a migration, decide whether to roll back the application, run a verified Knex rollback, or ship a forward-fix. Confirm schema and data compatibility before taking action.
-- Knex's default `migrate:rollback` reverses the latest migration **batch**, not necessarily one migration; `migrate:rollback --all` reverses all completed batches. Check `knex migrate:list` and the deployment record first. [Knex rollback behavior](https://knexjs.org/guide/migrations#rollback)
+- Run the repository migration command as a controlled deploy step before the new web and worker services serve traffic; the baseline does not provide an upgrade path for existing staging or production databases.
+- If a release fails, verify application/schema compatibility and use an independently tested recovery or forward-fix plan. A database backup is not replaced by a migration rollback.
 
 ## Running the application
 
@@ -256,7 +231,7 @@ Provider usage is recorded in `aiUsageCalls`. Run `pnpm ai:usage` for this UTC m
 
 ### Assistant retention worker
 
-`pnpm worker:dev` also registers daily chat retention at 03:00 UTC. Restart an existing worker after upgrading. Cleanup expires private assistant threads after 90 days of inactivity, including their checkpoints and draft payloads, while preserving audits and usage accounting. `pnpm test:chat:retention` checks fictional rollback-only fixtures in the isolated test database. See [chat retention](chat-retention.md) for boundaries and production setup requirements.
+`pnpm worker:dev` also registers daily chat retention at 03:00 UTC. Restart an existing worker after upgrading. Cleanup expires private assistant threads after 90 days of inactivity, including draft payloads, while preserving audits and usage accounting. `pnpm test:chat:retention` checks fictional fixtures in its own disposable database and requires `CREATEDB`. See [chat retention](chat-retention.md) for boundaries and production setup requirements.
 
 ### Shared worker runtime
 

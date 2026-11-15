@@ -40,7 +40,7 @@ function Review(props: EstimateArchiveCardProps) {
     return current.visible && (decision === "confirm" ? current.canConfirm : decision === "cancel" ? current.canCancel : current.canOpen);
   }
   async function operate(decision: EstimateArchiveCardCommand["decision"]) {
-    if (lock.current || submitted || !props.onOperate || !props.context) return;
+    if (lock.current || props.pending || submitted || !props.onOperate || !props.context) return;
     if (!allowed(decision)) { setClock(Date.now()); setError(c.changed); return; }
     lock.current = true; setWorking(true); setError("");
     try {
@@ -61,9 +61,9 @@ function Review(props: EstimateArchiveCardProps) {
     <p role="status" className="m-0 text-sm leading-6">{review.issue}</p>
   </section>;
   const { view, state, operation } = review, { ticket } = view, copy = c[operation];
-  const active = state === "pending", busy = working || submitted !== null || !props.onOperate;
+  const active = state === "pending", busy = working || props.pending || submitted !== null || !props.onOperate;
   const button = "min-h-11 max-w-full cursor-pointer rounded-xl px-4 py-2 text-sm font-semibold whitespace-normal wrap-anywhere focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50";
-  return <section aria-labelledby={id} aria-busy={working} className={panel}>
+  return <section aria-labelledby={id} aria-busy={working || props.pending} className={panel}>
     <h3 id={id} className="m-0 text-lg font-semibold">{copy.title}</h3>
     <dl className="m-0 grid min-w-0 gap-4 text-sm">
       <div className="min-w-0"><dt className="font-semibold text-assistant-muted">{c.source}</dt>

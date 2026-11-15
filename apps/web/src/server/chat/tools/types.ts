@@ -1,6 +1,7 @@
-import type { ChatPageContext, ChatToolId, ChatSurfaceKey, LeadOperationId } from '@salesmora/contracts';
+import type { AuthorizationContext, ChatPageContext, ChatSurfaceKey, PermissionId } from '@salesmora/contracts';
+import type { Knex } from '@salesmora/data';
 import type { ToolResult } from '@salesmora/agent';
-import type { ChatIdentity } from '../store';
+import type { ChatIdentity, validateTurnEvidenceInTransaction } from '../store';
 
 export interface ChatToolContext {
   identity: ChatIdentity;
@@ -8,7 +9,12 @@ export interface ChatToolContext {
   turnId: string;
   pageContext: ChatPageContext;
   signal: AbortSignal;
-  /** Reloads session, turn evidence and tool permissions from authoritative server state. */
-  authorize: (tool: ChatToolId, operation?: LeadOperationId) => Promise<readonly ChatToolId[]>;
+  db: Knex.Transaction;
+  authority: AuthorizationContext;
+  turn: Awaited<ReturnType<typeof validateTurnEvidenceInTransaction>>;
+  enabledPermissions: readonly PermissionId[];
 }
+export type ChatToolRequestContext = Pick<ChatToolContext, 'identity' | 'surface' | 'turnId' | 'pageContext' | 'signal'> & {
+  sessionId: string;
+};
 export type ChatToolHandler = (context: ChatToolContext, args: unknown) => Promise<ToolResult>;

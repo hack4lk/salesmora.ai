@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { leadSearchInputSchema, leadSearchResultSchema, leadSearchNavigationSchema, leadSearchEvidenceSchema } from './lead-search';
+import { leadSearchInputSchema, leadSearchResultSchema, leadSearchSnapshotSchema, leadSearchNavigationSchema, leadSearchEvidenceSchema } from './lead-search';
 import { leadsQuerySchema, leadsProposeActionSchema, leadToolParameters } from './lead-capabilities';
 const id = '00000000-0000-4000-8000-000000000001';
 const filters = { query: '', stages: [], sources: [], ownerIds: [], created: 'any', from: '', to: '', attention: false, archived: false };
@@ -23,4 +23,13 @@ it('navigation is only saved result/row intent, and inherited query evidence is 
   expect(leadSearchNavigationSchema.safeParse({ workspaceId: id, resultId: id, leadId: id }).success).toBe(true);
   for (const extra of [{ filters }, { href: 'https://example.test' }, { role: 'owner' }]) expect(leadSearchNavigationSchema.safeParse({ workspaceId: id, resultId: id, ...extra }).success).toBe(false);
   expect(leadSearchEvidenceSchema.safeParse(Array(9).fill(id)).success).toBe(false);
+});
+it('accepts explicit snapshot clocks and legacy snapshots without silently adding a timestamp', () => {
+  const legacy = { filters, result: { id, scope: 'workspace', filterLabels: [], includeArchived: false, total: 0, rows: [] }, versions: [] };
+  expect(leadSearchSnapshotSchema.parse(legacy).result.asOf).toBeUndefined();
+  const snapshot = { ...legacy, ownerIds: [], result: { ...legacy.result, asOf: '2026-10-15T12:34:56.000Z' } };
+  expect(leadSearchSnapshotSchema.parse(snapshot).result.asOf).toBe(snapshot.result.asOf);
+  expect(leadSearchSnapshotSchema.safeParse({ ...snapshot, result: { ...snapshot.result, asOf: 'today' } }).success).toBe(false);
+  expect(leadSearchSnapshotSchema.safeParse({ ...snapshot, assignmentStamp: 'invalid' }).success).toBe(false);
+  expect(leadSearchSnapshotSchema.safeParse({ ...snapshot, ownerIds: Array(11).fill('fictional-user') }).success).toBe(false);
 });

@@ -40,13 +40,13 @@ function safeCount(value: unknown): number {
   return count;
 }
 
-async function readLifecycle(
+export async function jobLifecycleCounts(
   trx: Knex.Transaction,
-  query: JobLifecycleQuery,
+  period: JobLifecycleQuery['period'],
   auth: Awaited<ReturnType<typeof jobReportContext>>,
-): Promise<JobLifecycleResult> {
-  validateJobReportPeriod(query.period, auth.today);
-  const eventBase = jobStatusEvents(trx, auth, query.period);
+) {
+  validateJobReportPeriod(period, auth.today);
+  const eventBase = jobStatusEvents(trx, auth, period);
   const invalidEvent = await invalidJobStatusEvents(eventBase).first('a.id');
   if (invalidEvent) {
     throw new Error('Jobs report encountered invalid lifecycle transition evidence.');
@@ -65,7 +65,7 @@ async function readLifecycle(
   const createdQuery = applyJobReportPeriod(
     auth.query.clone(),
     'j."createdAt"',
-    query.period,
+    period,
     auth.timezone,
   );
   const createdRow = await createdQuery.clone().count<{ count: string }[]>({ count: 'j.id' }).first();
@@ -75,6 +75,15 @@ async function readLifecycle(
     canceled: safeCount(eventCounts?.canceled ?? 0),
     reopened: safeCount(eventCounts?.reopened ?? 0),
   };
+  return counts;
+}
+
+async function readLifecycle(
+  trx: Knex.Transaction,
+  query: JobLifecycleQuery,
+  auth: Awaited<ReturnType<typeof jobReportContext>>,
+): Promise<JobLifecycleResult> {
+  const counts = await jobLifecycleCounts(trx, query.period, auth);
   const evidenceTotal = counts[query.selectedView];
   const page = Math.min(query.page, Math.max(1, Math.ceil(evidenceTotal / query.pageSize)));
   const evidenceQuery = auth.query.clone();

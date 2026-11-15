@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 12, "column": 0}, "map": {"version":3,"sources":["file:///Users/lukasz/dev/salesmora.ai/apps/web/src/app/%28auth%29/reports/estimates/page.tsx"],"sourcesContent":["import { renderEstimateReportsPage } from '../../../../server/reports/read-page';\n\nexport const dynamic = 'force-dynamic';\nexport const metadata = { title: 'Estimates report | SalesMora' };\nexport default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {\n  return renderEstimateReportsPage(await searchParams);\n}\n"],"names":["dynamic","metadata","title","Page","searchParams"],"mappings":";;;;;;;;AAAA;;;;;;AAEO,MAAMA,UAAU;AAChB,MAAMC,WAAW;IAAEC,OAAO;AAA+B;AACjD,eAAeC,KAAK,EAAEC,YAAY,EAA4E;IAC3H,OAAO,IAAA,qLAAyB,EAAC,MAAMA;AACzC"}}]
-}

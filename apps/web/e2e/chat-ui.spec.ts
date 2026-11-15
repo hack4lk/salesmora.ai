@@ -83,7 +83,7 @@ test('retry reconciles a lost acceptance response without generating a duplicate
   await expect(page.getByRole('log')).toContainText('Streaming works 🌍.');
   expect(await db('chatTurns').where({ workspaceId: workspace })).toHaveLength(1);
 });
-test('saved assistant output is withheld after role/grant changes and checkpoints delete with their transcript', async ({ page }) => {
+test('saved assistant output is withheld after role/grant changes and its transcript can be deleted', async ({ page }) => {
   const workspace = await setup(page.context().request); await page.goto(`/home?workspace=${workspace}`); await open(page);
   await composer(page).fill('Hello'); await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Response complete.' })).toBeVisible();
@@ -92,8 +92,7 @@ test('saved assistant output is withheld after role/grant changes and checkpoint
   const response = await page.context().request.get(`/api/chat/threads?workspace=${workspace}&thread=${turn.threadId}`);
   const history = await response.json();
   expect(history.messages.find((message: { role: string }) => message.role === 'assistant').text).toContain('no longer available');
-  // Checkpoint metadata cannot restore hidden text and is deleted atomically with the thread.
-  await db('checkpoints').insert({ thread_id: turn.id, checkpoint_ns: '', checkpoint_id: 'fictional', checkpoint: JSON.stringify({ turnId: turn.id, phase: 'answered' }) });
   expect((await page.context().request.delete('/api/chat/threads', { headers, data: { workspaceId: workspace, threadId: turn.threadId } })).status()).toBe(200);
-  expect(await db('checkpoints').where({ thread_id: turn.id })).toHaveLength(0);
+  expect(await db('chatTurns').where({ id: turn.id })).toHaveLength(0);
+  expect(await db('chatMessages').where({ turnId: turn.id })).toHaveLength(0);
 });

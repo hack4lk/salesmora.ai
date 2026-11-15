@@ -20,9 +20,7 @@ import {
   readEstimateSharingReview,
   readEstimatesForChat,
 } from "@salesmora/data";
-import { readToolRegistry } from "@salesmora/agent";
-import { database } from "../../workspaces/store";
-import { enabledPermissions } from "../../authorization/permissions";
+import type { readToolRegistry } from "@salesmora/agent";
 import type { ChatToolHandler } from "./types";
 import { estimateSearchSnapshot, estimateAgingSnapshot } from "../estimate-results";
 import { readEstimateTurnContext, rememberEstimateRead } from "../store";
@@ -97,21 +95,21 @@ export async function prepareEstimateExportHandoff(
     sort: "updatedAt",
     direction: "desc",
   });
-  const db = database();
-  const preview = await previewEstimateExport(db, identity, enabledPermissions, {
+  const db = context.db;
+  const preview = await previewEstimateExport(db, identity, context.enabledPermissions, {
     query,
     columns: [...estimateExportColumns],
   });
   const read = await readEstimatesForChat(
     db,
     identity,
-    enabledPermissions,
+    context.enabledPermissions,
     filters,
   );
   if (preview.scope !== read.scope) {
     throw new Error("Estimate export and assistant scopes do not match.");
   }
-  const metadata = await readEstimateTurnContext(context.identity);
+  const metadata = await readEstimateTurnContext(context.identity, context.db);
   const snapshot = estimateSearchSnapshot(
     context.turnId,
     identity.workspaceId,
@@ -119,12 +117,12 @@ export async function prepareEstimateExportHandoff(
     filters,
     read,
   );
-  context.signal.throwIfAborted();
   await rememberEstimateRead(
     context.identity,
     context.turnId,
     metadata.stamp,
     snapshot,
+    context.db,
   );
   return {
     evidence: {
@@ -143,7 +141,7 @@ export async function prepareEstimateExportHandoff(
 }
 
 async function resolveEstimate(
-  db: ReturnType<typeof database>,
+  context: Parameters<ChatToolHandler>[0],
   identity: { userId: string; workspaceId: string },
   rawEstimateRef: string,
 ) {
@@ -159,9 +157,9 @@ async function resolveEstimate(
     exact = { estimateNumber };
   }
   const result = await readEstimatesForChat(
-    db,
+    context.db,
     identity,
-    enabledPermissions,
+    context.enabledPermissions,
     defaultFilters(),
     exact,
   );
@@ -173,16 +171,15 @@ const executeEstimateQuery = async (
   args: unknown,
   metadata: EstimateReadMetadata,
 ): Promise<ToolResult & { snapshot?: EstimateChatSnapshot }> => {
-  const { request } = readToolRegistry.estimates_query.inputSchema.parse(args);
-  await context.authorize("estimates_query");
+  const { request } = args as ReturnType<typeof readToolRegistry.estimates_query.inputSchema.parse>;
   const identity = {
     userId: context.identity.userId,
     workspaceId: context.identity.workspaceId,
   };
-  const db = database();
+  const db = context.db;
 
   if (request.operation === "search") {
-    const read = await readEstimatesForChat(db, identity, enabledPermissions, request.input);
+    const read = await readEstimatesForChat(db, identity, context.enabledPermissions, request.input);
     const snapshot = estimateSearchSnapshot(context.turnId, identity.workspaceId, "search", request.input, read);
     return {
       evidence: read,
@@ -208,13 +205,13 @@ const executeEstimateQuery = async (
         },
       };
     }
-    const read = await readEstimatesForChat(db, identity, enabledPermissions, filters);
+    const read = await readEstimatesForChat(db, identity, context.enabledPermissions, filters);
     const snapshot = estimateSearchSnapshot(context.turnId, identity.workspaceId, "list", filters, read);
     return { evidence: read, estimateResult: snapshot.result, snapshot };
   }
 
   if (request.operation === "aging") {
-    const read = await readEstimateAgingForChat(db, identity, enabledPermissions, request.input);
+    const read = await readEstimateAgingForChat(db, identity, context.enabledPermissions, request.input);
     const snapshot = estimateAgingSnapshot(context.turnId, identity.workspaceId, read);
     return { evidence: read, estimateResult: snapshot.result, snapshot };
   }
@@ -237,7 +234,7 @@ const executeEstimateQuery = async (
     const result = await readEstimatesForChat(
       db,
       identity,
-      enabledPermissions,
+      context.enabledPermissions,
       filters,
     );
     const query = estimateListQuerySchema.parse({
@@ -268,7 +265,7 @@ const executeEstimateQuery = async (
   }
 
   const reference = await resolveEstimate(
-    db,
+    context,
     identity,
     request.input.estimateRef,
   );
@@ -285,12 +282,12 @@ const executeEstimateQuery = async (
 
   if (operation === "get") {
     const [detail, lifecycle, sharing] = await Promise.all([
-      readEstimateAssistantDetail(db, identity, enabledPermissions, reference.id),
-      readEstimateLifecycle(db, identity, enabledPermissions, {
+      readEstimateAssistantDetail(db, identity, context.enabledPermissions, reference.id),
+      readEstimateLifecycle(db, identity, context.enabledPermissions, {
         workspaceId: identity.workspaceId,
         estimateId: reference.id,
       }),
-      readEstimateSharingReview(db, identity, enabledPermissions, reference.id),
+      readEstimateSharingReview(db, identity, context.enabledPermissions, reference.id),
     ]);
     return result(estimateDetailCard(metadata, detail, reference.parent, lifecycle, sharing));
   }
@@ -299,7 +296,7 @@ const executeEstimateQuery = async (
     const detail = await readEstimateAssistantDetail(
       db,
       identity,
-      enabledPermissions,
+      context.enabledPermissions,
       reference.id,
     );
     return result(estimateTotalsCard(metadata, detail));
@@ -309,11 +306,11 @@ const executeEstimateQuery = async (
     const family = await readEstimateRevisionFamily(
       db,
       identity,
-      enabledPermissions,
+      context.enabledPermissions,
       { workspaceId: identity.workspaceId, estimateId: reference.id },
     );
     if (family.revisions.length < 2) {
-      const detail = await readEstimateAssistantDetail(db, identity, enabledPermissions, reference.id);
+      const detail = await readEstimateAssistantDetail(db, identity, context.enabledPermissions, reference.id);
       return result(estimateComparisonCard(metadata, detail, null));
     }
     const [newerRevision, olderRevision] = family.revisions;
@@ -321,13 +318,13 @@ const executeEstimateQuery = async (
       readEstimateAssistantDetail(
         db,
         identity,
-        enabledPermissions,
+        context.enabledPermissions,
         newerRevision.id,
       ),
       readEstimateAssistantDetail(
         db,
         identity,
-        enabledPermissions,
+        context.enabledPermissions,
         olderRevision.id,
       ),
     ]);
@@ -335,17 +332,15 @@ const executeEstimateQuery = async (
   }
 
   const [editor, detail] = await Promise.all([
-    readEstimateEditor(db, identity, enabledPermissions, reference.id),
-    readEstimateAssistantDetail(db, identity, enabledPermissions, reference.id),
+    readEstimateEditor(db, identity, context.enabledPermissions, reference.id),
+    readEstimateAssistantDetail(db, identity, context.enabledPermissions, reference.id),
   ]);
   return result(estimateScopeCard(metadata, detail, editor.parent));
 };
 
 export const estimatesQuery: ChatToolHandler = async (context, args) => {
-  await context.authorize("estimates_query");
-  const metadata = await readEstimateTurnContext(context.identity);
+  const metadata = await readEstimateTurnContext(context.identity, context.db);
   const { snapshot, ...result } = await executeEstimateQuery(context, args, metadata);
-  context.signal.throwIfAborted();
-  await rememberEstimateRead(context.identity, context.turnId, metadata.stamp, snapshot);
+  await rememberEstimateRead(context.identity, context.turnId, metadata.stamp, snapshot, context.db);
   return result;
 };

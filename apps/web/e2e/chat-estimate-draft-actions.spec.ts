@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFixtureProposal } from "./proposal-fixture-store";
 import { expect, request as requests, test, type APIRequestContext, type Page } from "@playwright/test";
 import { createDatabase } from "@salesmora/data";
 import {
@@ -6,7 +7,7 @@ import {
   type EstimateDraftActionChatInput, type EstimateDraftActionChatTicket,
 } from "@salesmora/contracts";
 import { estimateProposalDigest } from "../../../packages/data/src/estimates/chat-proposals";
-import { down as rollbackEvidence } from "../../../packages/data/src/migrations/202610270004_estimate_draft_action_evidence";
+import { down as rollbackBaseline } from "../../../packages/data/src/baseline-migrations/202611150001_fresh_baseline";
 import { estimateDraftActionBinding } from "../src/features/assistant/estimate-result/estimate-draft-action-client";
 import { estimateDraftActionCardData as c } from "../src/features/estimates/estimate-draft-action-card/estimate-draft-action-card.data";
 
@@ -162,7 +163,7 @@ test("browser revision confirms frozen contents without sending or navigation, r
   await page.getByRole("button", { name: c.confirm.revise, exact: true }).click();
   await expect(page.getByText(c.confirmed.revise, { exact: true })).toBeVisible();
   expect(new URL(page.url()).pathname).toBe("/home");
-  const row = await db("chatEstimateDraftActions").where({ workspaceId }).orderBy("createdAt", "desc").first();
+  const row = await readFixtureProposal(db, "estimateDraftAction", { workspaceId });
   const receipt = row.payload.receipt;
   expect(receipt).toMatchObject({ number: saved.number, revision: 2, reused: false });
   expect(await db("estimate_share_tokens").where({ estimateId: saved.id }).select("*")).toEqual(tokensBefore);
@@ -275,7 +276,7 @@ test("changed saved destination invalidates receipt restoration and opening with
   expect((await operate(run.ticket)).status()).toBe(409);
   expect((await history(run.threadId)).turns[0].estimateDraftAction).toBeUndefined();
 });
-test("follow-up history inherits flattened confirmed action provenance, never private content, and migration retains it", async () => {
+test("follow-up history inherits confirmed action provenance and never private content", async () => {
   const saved = await source(), run = await propose(input(saved.id, "duplicate"), field);
   expect((await operate(run.ticket, "confirm", field)).status()).toBe(200);
   for (let count = 0; count < 2; count++) {
@@ -283,8 +284,9 @@ test("follow-up history inherits flattened confirmed action provenance, never pr
     expect(response.status()).toBe(200); expect(await response.text()).toContain("Verified confirmed Draft operation.");
   }
   const turns = await db("chatTurns").where({ threadId: run.threadId }).whereNot({ id: run.turnId }).select("*");
-  expect(turns.every(turn => JSON.stringify(turn.estimateDraftActionEvidence) === JSON.stringify([run.turnId]))).toBe(true);
-  await expect(rollbackEvidence(db)).rejects.toThrow("Retained Draft-action evidence");
+  expect(turns).toHaveLength(2);
+  expect(turns.every(turn => turn.historyEvidence.includes(run.turnId))).toBe(true);
+  await expect(rollbackBaseline()).rejects.toThrow("forward-only");
   const membership = await db("workspaceMemberships").where({ workspaceId, userId: fieldId }).first();
   await db("workspaceMemberships").where({ workspaceId, userId: fieldId }).delete();
   await db("workspaceMemberships").insert(membership);

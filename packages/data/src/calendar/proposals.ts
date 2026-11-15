@@ -4,10 +4,14 @@ import { calendarProposeSchema,calendarProposalDraftSchema,calendarProposalBindi
   type CalendarProposalTicket,type CalendarProposalStored,type CalendarProposalBinding,type AuthorizationContext,type PermissionId,type CalendarVisit } from '@salesmora/contracts';
 import { authorize,resolveAuthorizedCollectionScope,CalendarRevisionError,scheduledJobStatus } from '@salesmora/domain';
 import { withWorkspaceAuthorization,AuthorizationAccessError,type WorkspaceIdentity } from '../authorization/store';
-import { readCalendar,readCalendarVisit,readCalendarAdvisories } from './read';
+import { readCalendar,readCalendarVisitInTransaction,readCalendarAdvisories } from './read';
 import { scheduleCalendarVisit } from './commands';
 import { calendarChatStamp,readCalendarFocusForChat } from './chat';
 import { calendarProposalData as copy } from './proposals.data';
+import { admittedChatTurn, stageAdmittedChatTurn } from '../chat-request';
+import { proposalStorage } from '../proposal-storage';
+import { supersedeProposals } from '../chat-proposals';
+const storage = proposalStorage('calendar', calendarProposalStoredSchema);
 export class CalendarProposalConflictError extends Error { constructor() { super(copy.conflict); } }
 export class CalendarProposalValidationError extends Error {}
 type Row = WorkspaceIdentity & { id:string;turnId:string;threadId:string;state:'pending'|'confirmed'|'cancelled'|'superseded';payload:CalendarProposalStored };
@@ -42,30 +46,27 @@ function view(payload:CalendarProposalStored,state:CalendarProposalStored['draft
   const draft = { ...payload.draft,state,records:payload.draft.records.map(r => state === 'confirmed' && r.type === 'job' ? { ...r,status:scheduledJobStatus(r.status,payload.draft.to.scheduledDate) } : r) };
   return calendarProposalViewSchema.parse({ draft,context:{ ...calendarProposalBinding(payload.draft),records:payload.command.records,read:true,canSchedule:true } });
 }
-async function fullVisit(trx:Knex.Transaction,c:AuthorizationContext,id:string,enabled:readonly PermissionId[]) {
-  const visit = await readCalendarVisit(trx,identityFor(c),enabled,id);
+async function fullVisit(trx:Knex.Transaction,c:AuthorizationContext,id:string) {
+  const visit = await readCalendarVisitInTransaction(trx,c,id);
   if (!visit.canReschedule || !visit.review) throw new AuthorizationAccessError();
   return visit as CalendarVisit & { review:NonNullable<CalendarVisit['review']> };
 }
-async function checked(trx:Knex.Transaction,c:AuthorizationContext,row:Row,enabled:readonly PermissionId[],activeId?:string) {
+async function checked(trx:Knex.Transaction,c:AuthorizationContext,row:Row,activeId?:string) {
   await sourceTurn(trx,c,row,activeId);
   const payload = calendarProposalStoredSchema.parse(row.payload);
   if (payload.command.workspaceId !== c.workspaceId || payload.draft.id !== row.id || payload.draft.state !== row.state || payload.draft.inputHash !== inputHash(payload) || payload.authority !== await authority(trx,c)) throw new AuthorizationAccessError();
-  const current = await fullVisit(trx,c,payload.draft.visitId,enabled);
+  const current = await fullVisit(trx,c,payload.draft.visitId);
   const stamp = await calendarChatStamp(trx,c);
   if (row.state === 'confirmed') {
     if (!payload.receipt || payload.resultStamp !== stamp || current.revision !== payload.receipt.revision || current.scheduledDate !== payload.draft.to.scheduledDate || current.arrivalWindow !== payload.draft.to.arrivalWindow || refsDigest(current.review.records) !== refsDigest(payload.receipt.records)) throw new CalendarProposalConflictError();
   } else if (payload.stamp !== stamp || current.revision !== payload.draft.revision || refsDigest(current.review.records) !== refsDigest(payload.command.records)) throw new CalendarProposalConflictError();
   return payload;
 }
-async function audit(trx:Knex.Transaction,row:Row,action:string) {
-  await trx('chatCalendarProposalAudit').insert({ id:randomUUID(),workspaceId:row.workspaceId,actorId:row.userId,proposalId:row.id,action,inputHash:row.payload.draft.inputHash });
-}
 export async function proposeCalendarSchedule(db:Knex,identity:WorkspaceIdentity,enabled:readonly PermissionId[],turnId:string,raw:unknown,signal:AbortSignal):Promise<CalendarProposalTicket | { clarification:string;stamp:string }> {
   const input = calendarProposeSchema.parse(raw);
   return withWorkspaceAuthorization(db,identity,enabled,true,async (trx,c) => {
     signal.throwIfAborted(); const authorization = await authority(trx,c);
-    const turn = await trx('chatTurns').where({ ...identity,id:turnId }).first();
+    const turn = admittedChatTurn(identity, turnId) ?? await trx('chatTurns').where({ ...identity,id:turnId }).first();
     if (!turn || !['accepted','running'].includes(turn.state) || new Date(turn.leaseUntil).getTime() <= Date.now()) throw new AuthorizationAccessError();
     let ref = input.recordRef;
     if (!ref && turn.surfaceKey === 'calendar') {
@@ -85,7 +86,7 @@ export async function proposeCalendarSchedule(db:Knex,identity:WorkspaceIdentity
       const link = record && await trx('calendarVisitRecords').where({ workspaceId:identity.workspaceId,[job ? 'jobId' : 'workOrderId']:record.id }).whereNull('endedAt').first('visitId');
       if (!link) throw new AuthorizationAccessError(); visitId = link.visitId;
     }
-    const current = await fullVisit(trx,c,visitId,enabled);
+    const current = await fullVisit(trx,c,visitId);
     const clearing = input.operation === 'clear';
     const arrivalWindow = clearing ? null : input.windowMode === 'keep' || (!input.windowMode && input.arrivalWindow === null) ? current.arrivalWindow : input.arrivalWindow;
     if (current.scheduledDate === input.scheduledDate && current.arrivalWindow === arrivalWindow) return { clarification:clearing ? copy.alreadyUnscheduled : copy.unchanged,stamp:await calendarChatStamp(trx,c) };
@@ -105,25 +106,22 @@ export async function proposeCalendarSchedule(db:Knex,identity:WorkspaceIdentity
     const payload:CalendarProposalStored = { draft,command:{ workspaceId:identity.workspaceId,visitId,submissionId:id,expectedVisitVersion:current.review.expectedVisitVersion,records:current.review.records,schedule },authority:authorization,stamp:await calendarChatStamp(trx,c),receipt:null,resultStamp:null };
     draft.inputHash = inputHash(payload); calendarProposalStoredSchema.parse(payload);
     if (JSON.stringify(payload).length > 45000) return { clarification:copy.tooLarge,stamp:await calendarChatStamp(trx,c) };
-    const replaced:Row[] = await trx('chatCalendarProposals').where({ ...identity,threadId:turn.threadId,state:'pending' }).forUpdate();
-    for (const prior of replaced) {
-      prior.payload.draft.state = 'superseded'; prior.state = 'superseded';
-      await trx('chatCalendarProposals').where({ id:prior.id }).update({ state:prior.state,payload:JSON.stringify(prior.payload),resolvedAt:trx.fn.now() });await audit(trx,prior,'superseded');
-    }
-    const [row] = await trx('chatCalendarProposals').insert({ ...identity,id,turnId,threadId:turn.threadId,payload:JSON.stringify(payload) }).returning('*');
-    await audit(trx,row,'proposed');
+    const replaced = await supersedeProposals(trx,c,turn.threadId,'calendar',now.toISOString());
+    await storage.insert(trx,c,{ id:turnId,threadId:turn.threadId },payload);
     const old = calendarProposalEvidenceSchema.parse(turn.calendarProposalEvidence ?? []).filter(id => !replaced.some(p => p.id === id));
-    await trx('chatTurns').where({ ...identity,id:turnId }).update({ calendarProposalEvidence:JSON.stringify(calendarProposalEvidenceSchema.parse([...new Set([...old,id])])) });
+    const evidence = calendarProposalEvidenceSchema.parse([...new Set([...old,id])]);
+    if (!stageAdmittedChatTurn(identity, turnId, { calendarStamp: payload.stamp, calendarProposalEvidence: evidence }))
+      await trx('chatTurns').where({ ...identity,id:turnId }).update({ calendarStamp: payload.stamp, calendarProposalEvidence:JSON.stringify(evidence) });
     signal.throwIfAborted(); return { ...calendarProposalBinding(draft),state:'pending' as const };
   });
 }
 export async function readCalendarScheduleProposal(db:Knex,identity:WorkspaceIdentity,enabled:readonly PermissionId[],raw:unknown) {
   const binding = calendarProposalBindingSchema.parse(raw);
   return withWorkspaceAuthorization(db,identity,enabled,false,async (trx,c) => {
-    const row:Row|undefined = await trx('chatCalendarProposals').where({ ...identity,id:binding.proposalId }).first();
+    const row = await storage.read(trx,c,{ id:binding.proposalId });
     if (!row) throw new AuthorizationAccessError();
     if (digest(binding) !== digest(calendarProposalBinding(row.payload.draft))) throw new CalendarProposalConflictError();
-    const payload = await checked(trx,c,row,enabled);
+    const payload = await checked(trx,c,row);
     return view(payload,row.state === 'pending' && Date.parse(payload.draft.expiresAt) <= Date.now() ? 'expired' : row.state);
   });
 }
@@ -131,10 +129,10 @@ export async function operateCalendarScheduleProposal(db:Knex,identity:Workspace
   const binding = calendarProposalBindingSchema.parse(raw);
   if (!['confirm','cancel'].includes(decision)) throw new CalendarProposalValidationError(copy.reference);
   return withWorkspaceAuthorization(db,identity,enabled,true,async (trx,c) => {
-    const row:Row|undefined = await trx('chatCalendarProposals').where({ ...identity,id:binding.proposalId }).forUpdate().first();
+    const row = await storage.read(trx,c,{ id:binding.proposalId },true);
     if (!row) throw new AuthorizationAccessError();
     if (digest(binding) !== digest(calendarProposalBinding(row.payload.draft))) throw new CalendarProposalConflictError();
-    const payload = await checked(trx,c,row,enabled);
+    const payload = await checked(trx,c,row);
     if (row.state === 'confirmed' || row.state === 'cancelled') {
       if (decision !== (row.state === 'confirmed' ? 'confirm' : 'cancel')) throw new CalendarProposalConflictError();
       return view(payload);
@@ -143,29 +141,29 @@ export async function operateCalendarScheduleProposal(db:Knex,identity:Workspace
     if (decision === 'confirm') {
       try {
         const result = await scheduleCalendarVisit(trx,identity,enabled,payload.command,'assistant-confirmed');
-        const current = await fullVisit(trx,c,payload.draft.visitId,enabled);
+        const current = await fullVisit(trx,c,payload.draft.visitId);
         payload.receipt = { ...result,revision:current.revision };payload.resultStamp = await calendarChatStamp(trx,c);
       } catch (error) { if (error instanceof CalendarRevisionError) throw new CalendarProposalConflictError();throw error; }
     }
     row.state = decision === 'confirm' ? 'confirmed' : 'cancelled';payload.draft.state = row.state;
     calendarProposalStoredSchema.parse(payload);row.payload = payload;
-    await trx('chatCalendarProposals').where({ id:row.id }).update({ state:row.state,payload:JSON.stringify(payload),resolvedAt:trx.fn.now() });await audit(trx,row,row.state);
-    await checked(trx,c,row,enabled);return view(payload);
+    await storage.save(trx,c,row,payload,decision === 'confirm' ? 'confirmed' : 'cancelled');
+    await checked(trx,c,row);return view(payload);
   });
 }
-export async function calendarProposalEvidenceAllowed(trx:Knex.Transaction,c:AuthorizationContext,enabled:readonly PermissionId[],turn:{ id:string;threadId:string;calendarProposalEvidence?:unknown }) {
+export async function calendarProposalEvidenceAllowed(trx:Knex.Transaction,c:AuthorizationContext,_enabled:readonly PermissionId[],turn:{ id:string;threadId:string;calendarProposalEvidence?:unknown }) {
   for (const id of calendarProposalEvidenceSchema.parse(turn.calendarProposalEvidence ?? [])) {
-    const row:Row|undefined = await trx('chatCalendarProposals').where({ ...identityFor(c),threadId:turn.threadId,id }).first();
-    if (!row) return false;
-    try { const payload = await checked(trx,c,row,enabled,turn.id);
+    const row = await storage.read(trx,c,{ id });
+    if (!row || row.threadId !== turn.threadId) return false;
+    try { const payload = await checked(trx,c,row,turn.id);
       if (row.state === 'superseded' || (row.state === 'pending' && Date.parse(payload.draft.expiresAt) <= Date.now())) return false;
     } catch (error) { if (error instanceof AuthorizationAccessError || error instanceof CalendarProposalConflictError) return false;throw error; }
   }
   return true;
 }
-export async function visibleCalendarScheduleProposal(trx:Knex.Transaction,c:AuthorizationContext,enabled:readonly PermissionId[],turnId:string) {
-  const row:Row|undefined = await trx('chatCalendarProposals').where({ ...identityFor(c),turnId }).orderBy('createdAt','desc').orderBy('id','desc').first();
+export async function visibleCalendarScheduleProposal(trx:Knex.Transaction,c:AuthorizationContext,_enabled:readonly PermissionId[],turnId:string) {
+  const row = await storage.read(trx,c,{ turnId });
   if (!row) return undefined;
-  try { const payload = await checked(trx,c,row,enabled);return { ...calendarProposalBinding(payload.draft),state:row.state === 'pending' && Date.parse(payload.draft.expiresAt) <= Date.now() ? 'expired' as const : row.state }; }
+  try { const payload = await checked(trx,c,row);return { ...calendarProposalBinding(payload.draft),state:row.state === 'pending' && Date.parse(payload.draft.expiresAt) <= Date.now() ? 'expired' as const : row.state }; }
   catch (error) { if (error instanceof AuthorizationAccessError || error instanceof CalendarProposalConflictError) return undefined;throw error; }
 }

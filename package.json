@@ -23,6 +23,7 @@
     "test": "vitest run --passWithNoTests",
     "test:e2e": "pnpm --filter @salesmora/web test:e2e",
     "db:setup": "node scripts/setup-local.mjs",
+    "db:reset:demo": "pnpm --filter @salesmora/data exec node --import tsx ../../apps/web/src/server/demo/reset-local.mjs",
     "db:migrate": "pnpm --filter @salesmora/data migrate",
     "db:migrate:test": "pnpm --filter @salesmora/data migrate --test",
     "db:rollback:test": "pnpm --filter @salesmora/data migrate --test --rollback",

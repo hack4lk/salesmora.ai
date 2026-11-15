@@ -17,6 +17,7 @@ import { scopedLeadQuery } from '../leads/query';
 import { resolveLeadReportExportScope } from './lead-export-access';
 
 const openStages = ['new', 'contacted', 'estimate-sent'] as const;
+const inactivePredicate = `l."lastActivityAt" < CURRENT_TIMESTAMP - INTERVAL '7 days'`;
 const ageBands = ['0-7', '8-14', '15-30', '31+'] as const;
 const outcomeCoverage = 'Only surviving recorded stage transitions are counted. Historical stage changes were not backfilled.';
 
@@ -292,13 +293,7 @@ async function readIntake(
   if (query.trendBucket && (query.trendBucket < query.period.from || query.trendBucket > query.period.to)) {
     throw new RangeError('The selected intake trend date must be within the report period.');
   }
-  const cohort = applyPeriod(trx,
-    applyHistoricalArchive(applyFilters(trx, auth.scoped.clone(), filters, owners, auth.scope, context.userId),
-      auth.archiveVisibility),
-    query.period.from,
-    query.period.to,
-    auth.timezone,
-  );
+  const cohort = intakeCohort(trx, context, query.period, auth, filters, owners);
   const total = await countQuery(cohort.clone());
   const sourceRows = await cohort.clone()
     .select('l.source')
@@ -351,6 +346,47 @@ async function readIntake(
   });
 }
 
+function intakeCohort(
+  trx: Knex.Transaction, context: AuthorizationContext, period: { from: string; to: string },
+  auth: Awaited<ReturnType<typeof leadReportContext>>, filters: Filters, owners: readonly string[],
+) {
+  return applyPeriod(trx,
+    applyHistoricalArchive(applyFilters(trx, auth.scoped.clone(), filters, owners, auth.scope, context.userId),
+      auth.archiveVisibility),
+    period.from,
+    period.to,
+    auth.timezone,
+  );
+}
+
+async function pipelineCounts(trx: Knex.Transaction, base: Knex.QueryBuilder, asOf: Date) {
+  const rows = await base.clone().select('l.stage')
+    .count<{ stage: string; count: string; future: string }[]>({ count: 'l.id' })
+    .select(trx.raw(`COUNT(*) FILTER (WHERE l."createdAt" > ?) AS future`, [asOf])).groupBy('l.stage');
+  if (rows.some(row => safeCount(row.future) > 0)) throw new Error('Lead report encountered a future-created lead.');
+  return {
+    total: rows.reduce((total, row) => safeCount(total + safeCount(row.count)), 0),
+    stages: {
+      new: safeCount(rows.find(row => row.stage === 'new')?.count ?? 0),
+      contacted: safeCount(rows.find(row => row.stage === 'contacted')?.count ?? 0),
+      'estimate-sent': safeCount(rows.find(row => row.stage === 'estimate-sent')?.count ?? 0),
+    },
+  };
+}
+
+export async function readLeadOverviewInTransaction(
+  trx: Knex.Transaction, context: AuthorizationContext, period: { from: string; to: string },
+) {
+  const auth = await leadReportContext(trx, context);
+  validatePeriod({ period }, auth.today);
+  const filters = { stages: [], owners: [], sources: [] };
+  const created = await countQuery(intakeCohort(trx, context, period, auth, filters, []));
+  const base = applyCurrentOpen(auth.scoped.clone());
+  const { stages } = await pipelineCounts(trx, base, auth.asOf);
+  const inactive = await countQuery(base.clone().whereRaw(inactivePredicate));
+  return { ...resultContext(auth), created, stages, inactive };
+}
+
 function resultContext(auth: Awaited<ReturnType<typeof leadReportContext>>) {
   return {
     asOf: auth.asOf.toISOString(),
@@ -373,17 +409,7 @@ async function readPipeline(
   const base = applyCurrentOpen(applyFilters(
     trx, auth.scoped.clone(), filters, owners, auth.scope, context.userId,
   ));
-  const futureCreated = await base.clone().where('l.createdAt', '>', auth.asOf).first('l.id');
-  if (futureCreated) throw new Error('Lead report encountered a future-created lead.');
-  const total = await countQuery(base.clone());
-  const stageRows = await base.clone()
-    .select('l.stage')
-    .count<{ stage: string; count: string }[]>({ count: 'l.id' })
-    .groupBy('l.stage');
-  const stages = Object.fromEntries(openStages.map(stage => [
-    stage,
-    safeCount(stageRows.find(row => row.stage === stage)?.count ?? 0),
-  ]));
+  const { total, stages } = await pipelineCounts(trx, base, auth.asOf);
   const ageRows = await base.clone()
     .select(trx.raw(
       `CASE
@@ -538,7 +564,7 @@ async function readAttention(
   const base = applyCurrentOpen(applyFilters(
     trx, auth.scoped.clone(), filters, owners, auth.scope, context.userId,
   ));
-  const inactive = base.clone().whereRaw(`l."lastActivityAt" < CURRENT_TIMESTAMP - INTERVAL '7 days'`);
+  const inactive = base.clone().whereRaw(inactivePredicate);
   const unowned = base.clone().where(function () {
     this.whereNull('l.ownerId').orWhereNotExists(function () {
       this.select(trx.raw('1')).from('workspaceMemberships as ownerMembership')
@@ -547,7 +573,7 @@ async function readAttention(
     });
   });
   const combined = base.clone().where(function () {
-    this.whereRaw(`l."lastActivityAt" < CURRENT_TIMESTAMP - INTERVAL '7 days'`)
+    this.whereRaw(inactivePredicate)
       .orWhereNull('l.ownerId')
       .orWhereNotExists(function () {
         this.select(trx.raw('1')).from('workspaceMemberships as ownerMembership')
@@ -567,7 +593,7 @@ async function readAttention(
   const page = effectivePage(evidenceTotal, query.page, query.pageSize);
   const selection = attachLeadLabels(selected)
     .select(trx.raw(
-      `CASE WHEN l."lastActivityAt" < CURRENT_TIMESTAMP - INTERVAL '7 days'
+      `CASE WHEN ${inactivePredicate}
         THEN 'inactive' ELSE '' END AS "inactiveReason",
        CASE WHEN l."ownerId" IS NULL OR "reportMembership"."userId" IS NULL
         THEN 'unowned' ELSE '' END AS "unownedReason"`,

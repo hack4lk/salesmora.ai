@@ -5,8 +5,8 @@ import knex from 'knex';
 import { activityReportReadResultSchema, permissionIds } from '@salesmora/contracts';
 import { addCalendarDays } from '@salesmora/domain';
 import { AuthorizationAccessError, initializeWorkspacePolicy, withWorkspaceAuthorization } from '../authorization/store';
-import { replayMigrations } from '../migration-replay';
-import { down as rollbackTemplates } from '../migrations/202611120005_report_templates';
+import { migrateFreshBaseline } from '../baseline-runner';
+import { down as rollbackBaseline } from '../baseline-migrations/202611150001_fresh_baseline';
 import { createReportTemplateInTransaction, deleteReportTemplateInTransaction, listReportTemplatesInTransaction,
   ReportTemplateConflictError, runReportTemplateConfigurationInTransaction, runReportTemplateInTransaction,
   updateReportTemplateInTransaction } from './template';
@@ -25,7 +25,7 @@ const enabled = [...permissionIds];
 let created = false;
 try {
   await admin.raw('CREATE DATABASE ??', [name]); created = true;
-  await replayMigrations(db);
+  await migrateFreshBaseline(db);
   await db.transaction(async trx => {
     await trx('users').insert([owner, other].map(id => ({ id, name: 'Template fixture', email: `${id}@example.test`,
       termsVersion: 'fixture', termsAcceptedAt: new Date(), createdAt: new Date(), updatedAt: new Date() })));
@@ -81,7 +81,7 @@ try {
     { from: activity.report.today, to: activity.report.today });
   await assert.rejects(withIdentity(identity, true, (trx, context) =>
     deleteReportTemplateInTransaction(trx, context, saved.id, { workspaceId, version: saved.version })), ReportTemplateConflictError);
-  await assert.rejects(rollbackTemplates(db), /saved templates exist/);
+  await assert.rejects(rollbackBaseline(), /forward-only/);
   await withIdentity(identity, true, (trx, context) =>
     deleteReportTemplateInTransaction(trx, context, saved.id, { workspaceId, version: updated.version }));
   assert.deepEqual(await withIdentity(identity, false, (trx, context) => listReportTemplatesInTransaction(trx, context, 'activity')), []);

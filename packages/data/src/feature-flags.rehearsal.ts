@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createDatabase } from './database';
 import { createFeatureFlagReader } from './feature-flags';
+import knex from 'knex';
 
 const envFile = fileURLToPath(new URL('../../../.env.local', import.meta.url));
 if (existsSync(envFile)) process.loadEnvFile(envFile);
@@ -14,11 +15,24 @@ if (!url || url === process.env.DATABASE_URL || !new URL(url).pathname.endsWith(
 }
 
 const db = createDatabase(url);
+const singleConnection = knex({ client: 'pg', connection: url, pool: { min: 0, max: 1 }, acquireConnectionTimeout: 1000 });
 const rollback = Symbol('rollback');
 const workspaceId = randomUUID();
 const staffId = randomUUID();
 
 try {
+  const transactionReader = createFeatureFlagReader();
+  await singleConnection.transaction(async trx => {
+    assert.equal(await transactionReader(singleConnection, 'chat.enabled', workspaceId, trx), true,
+      'A cold flag check must reuse the held transaction connection, even with a one-connection pool');
+  });
+  let queries = 0;
+  const countQuery = () => { queries++; };
+  singleConnection.on('query', countQuery);
+  try {
+    assert.equal(await transactionReader(singleConnection, 'chat.enabled', workspaceId), true);
+    assert.equal(queries, 0, 'Transaction-backed checks retain the same root-database TTL cache');
+  } finally { singleConnection.removeListener('query', countQuery); }
   try {
     await db.transaction(async trx => {
       const now = new Date();
@@ -84,7 +98,7 @@ try {
   } catch (error) {
     if (error !== rollback) throw error;
   }
-  console.log('Feature flag rehearsal passed (global, plan/workspace precedence, expiry, 60-second cache, transactional cleanup).');
+  console.log('Feature flag rehearsal passed (single-connection transaction reads, shared cache, global, plan/workspace precedence, expiry, 60-second cache, transactional cleanup).');
 } finally {
-  await db.destroy();
+  await Promise.all([db.destroy(), singleConnection.destroy()]);
 }

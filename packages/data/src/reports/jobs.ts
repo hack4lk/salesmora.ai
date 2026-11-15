@@ -125,18 +125,7 @@ async function readWorkload(
   const active = auth.query.clone().whereIn('j.status', activeStatuses);
   await validateJobReportFilters(active, query.filters, trx);
   const filtered = applyJobReportFilters(active.clone(), query.filters);
-  const windowEnd = addCalendarDays(auth.today, 7);
-  const metricRow = await filtered.clone().select(trx.raw(
-    `COUNT(*) AS "active",
-     COUNT(*) FILTER (WHERE j."completionDeadline" < ?::date) AS "overdue",
-     COUNT(*) FILTER (WHERE j."completionDeadline" BETWEEN ?::date AND ?::date) AS "dueSoon",
-     COUNT(*) FILTER (WHERE j."completionDeadline" IS NULL) AS "noDeadline",
-     COUNT(*) FILTER (WHERE j."status" = 'waiting') AS "waiting",
-     COUNT(*) FILTER (WHERE j."primaryOwnerId" IS NULL) AS "unassigned"`,
-    [auth.today, auth.today, windowEnd],
-  )).first();
-  const counts = Object.fromEntries(metrics.map(metric => [metric, safeCount(metricRow?.[metric])])) as
-    Record<typeof metrics[number], number>;
+  const counts = await jobWorkloadCounts(trx, filtered, auth.today);
 
   const statusRows = await filtered.clone()
     .select('j.status')
@@ -259,6 +248,22 @@ async function readWorkload(
     evidenceTotal,
     rows,
   });
+}
+
+export async function jobWorkloadCounts(trx: Knex.Transaction, scoped: Knex.QueryBuilder, today: string) {
+  const filtered = scoped.clone().whereIn('j.status', activeStatuses);
+  const windowEnd = addCalendarDays(today, 7);
+  const metricRow = await filtered.clone().select(trx.raw(
+    `COUNT(*) AS "active",
+     COUNT(*) FILTER (WHERE j."completionDeadline" < ?::date) AS "overdue",
+     COUNT(*) FILTER (WHERE j."completionDeadline" BETWEEN ?::date AND ?::date) AS "dueSoon",
+     COUNT(*) FILTER (WHERE j."completionDeadline" IS NULL) AS "noDeadline",
+     COUNT(*) FILTER (WHERE j."status" = 'waiting') AS "waiting",
+     COUNT(*) FILTER (WHERE j."primaryOwnerId" IS NULL) AS "unassigned"`,
+    [today, today, windowEnd],
+  )).first();
+  return Object.fromEntries(metrics.map(metric => [metric, safeCount(metricRow?.[metric])])) as
+    Record<typeof metrics[number], number>;
 }
 
 export async function readJobWorkloadReportInTransaction(

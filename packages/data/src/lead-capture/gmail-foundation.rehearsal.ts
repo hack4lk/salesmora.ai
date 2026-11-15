@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import type { Knex } from 'knex';
 import { permissionIds } from '@salesmora/contracts';
 import { createDatabase } from '../database';
+import { migrateFreshBaseline } from '../baseline-runner';
+import { down as rollbackBaseline } from '../baseline-migrations/202611150001_fresh_baseline';
 import { AuthorizationAccessError, initializeWorkspacePolicy } from '../authorization/store';
 import { ADMIN_APP_ROLE, RUNTIME_LOGIN_ROLES, applyRuntimeGrants } from '../runtime-roles';
 import { createCaptureGmailCipher } from './gmail-credentials';
@@ -25,8 +27,6 @@ function runtime(role: string) {
 const web = runtime(RUNTIME_LOGIN_ROLES.web), worker = runtime(RUNTIME_LOGIN_ROLES.worker), admin = runtime(ADMIN_APP_ROLE);
 const identity = { workspaceId: randomUUID(), userId: `gmail-owner-${randomUUID()}` }, other = { workspaceId: randomUUID(), userId: `gmail-other-${randomUUID()}` };
 const sourceId = randomUUID(), websiteId = randomUUID(), accountId = randomUUID(), otherAccountId = randomUUID();
-const config = { directory: fileURLToPath(new URL('../migrations', import.meta.url)), loadExtensions: ['.ts'] };
-const migration = '202611050002_capture_gmail_foundation.ts';
 const cipher = createCaptureGmailCipher({ CAPTURE_GMAIL_ACTIVE_KEY_ID: 'test', CAPTURE_GMAIL_CREDENTIAL_KEYS: JSON.stringify({ test: randomBytes(32).toString('base64') }) });
 const binding = { environment: 'local' as const, workspaceId: identity.workspaceId, recordId: accountId };
 const envelope = cipher.sealTokens(binding, { refreshToken: 'fictional-refresh', accessToken: null, expiresAt: null, tokenType: 'Bearer', scopes: ['https://www.googleapis.com/auth/gmail.readonly'] });
@@ -37,17 +37,11 @@ async function rejects(work: (trx: Knex.Transaction) => Promise<unknown>, code: 
 }
 try {
   await owner.raw('CREATE DATABASE ??', [name]); created = true;
-  await db.migrate.latest(config);
-  await check('fresh replay, empty rollback and re-upgrade of owned migration', async () => {
-    await db.migrate.down({ ...config, name: '202611050004_capture_gmail_samples.ts' });
-    await db.migrate.down({ ...config, name: '202611050003_capture_gmail_connections.ts' });
-    await db.migrate.down({ ...config, name: migration });
-    assert.equal(await db.schema.hasTable('captureGmailAccounts'), false);
-    await db.migrate.up({ ...config, name: migration });
-    await db.migrate.up({ ...config, name: '202611050003_capture_gmail_connections.ts' });
-    await db.migrate.up({ ...config, name: '202611050004_capture_gmail_samples.ts' });
+  await migrateFreshBaseline(db);
+  await check('fresh baseline is forward-only and repeatable', async () => {
+    await assert.rejects(rollbackBaseline(), /forward-only/);
     assert.equal(await db.schema.hasTable('captureGmailAccounts'), true);
-    assert.equal((await db.migrate.latest(config))[1].length, 0);
+    assert.equal((await migrateFreshBaseline(db))[1].length, 0);
   });
   const now = new Date();
   for (const person of [identity, other]) {
@@ -141,7 +135,7 @@ try {
     await rejects(trx => trx('captureGmailMailboxState').where({ id: mailbox.id }).update({ historyId: 'not-a-cursor' }), '23514');
   });
   await check('retained data blocks rollback; workspace deletion cascades credentials and work', async () => {
-    await assert.rejects(db.migrate.down({ ...config, name: migration }), /Retained Gmail records/);
+    await assert.rejects(rollbackBaseline(), /forward-only/);
     assert.equal(await db.schema.hasTable('captureGmailAccounts'), true);
     await db('workspaces').where({ id: identity.workspaceId }).delete();
     for (const table of ['captureGmailAccounts', 'captureGmailCredentials', 'captureGmailOAuthAttempts', 'captureGmailMailboxState', 'captureGmailEligibilityWindows', 'captureGmailMessageJobs']) {

@@ -24,12 +24,16 @@ import {readEstimateCurrentReportInTransaction} from "../reports/estimate-curren
 import {readCalendarScheduledReportInTransaction} from "../reports/calendar-scheduled";
 import {addCalendarDays} from "@salesmora/domain";
 import {mutateCustomer,CustomerValidationError} from "../customers/store";
-import {down} from "../migrations/202610190001_jobs_foundation";
+import {migrateFreshBaseline} from "../baseline-runner";
+import {down as rollbackBaseline} from "../baseline-migrations/202611150001_fresh_baseline";
 const env=fileURLToPath(new URL("../../../../.env.local",import.meta.url));
 if(existsSync(env))process.loadEnvFile(env);
 const connection=process.env.TEST_DATABASE_URL;
 if(!connection||!new URL(connection).pathname.endsWith("_test")||connection===process.env.DATABASE_URL||!["localhost","127.0.0.1"].includes(new URL(connection).hostname))throw Error("Use the isolated local test database.");
-const db=createDatabase(connection),workspaceId=randomUUID(),otherWorkspace=randomUUID(),customerId=randomUUID();
+const name=`jobs_rehearsal_${randomUUID().replaceAll("-","")}_test`;
+const url=new URL(connection);url.pathname=`/${name}`;
+const owner=createDatabase(connection),db=createDatabase(url.toString()),workspaceId=randomUUID(),otherWorkspace=randomUUID(),customerId=randomUUID();
+let created=false;
 const users=Object.fromEntries(["owner","admin","office","field","teammate","other"].map(role=>[role,randomUUID()]));
 const enabled=[...permissionIds];
 const identity=(role="owner")=>({userId:users[role],workspaceId:role==="other"?otherWorkspace:workspaceId});
@@ -75,6 +79,8 @@ async function teamReport(userId:string,selectedWorkspaceId:string,
     }));
 }
 try{
+  await owner.raw("CREATE DATABASE ??",[name]);created=true;
+  await migrateFreshBaseline(db);
   await db.transaction(async trx=>{
     const now=new Date();
     await trx("users").insert(Object.entries(users).map(([role,id])=>({id,name:`Job fixture ${role}`,email:`${id}@example.test`,createdAt:now,updatedAt:now,termsVersion:"fixture",termsAcceptedAt:now})));
@@ -161,7 +167,8 @@ try{
     await change({action:"status",to:"canceled",cancellationReason:"duplicate",confirmed:true});
     await mutateCustomer(db,identity(),enabled,deletion);
     const row=await current();assert.equal(row.customerId,null);assert.equal(row.customerName,"Fictional Job Customer");assert.equal(row.status,"canceled");
-    await assert.rejects(db.transaction(down),/Retained job history/);
+    await assert.rejects(rollbackBaseline(),/forward-only/);
+    assert.equal((await current()).customerName,"Fictional Job Customer");
   });
   await check("tenant-safe source links, once-per-lead creation and retained source snapshots",async()=>{
     const customer=randomUUID(),foreignCustomer=randomUUID(),leadId=randomUUID();
@@ -927,6 +934,6 @@ try{
   });
   console.log(`PASS ${passed} Jobs foundation database journeys`);
 }finally{
-  await db("users").whereIn("id",Object.values(users)).delete();
   await db.destroy();
+  try{if(created)await owner.raw("DROP DATABASE ??",[name]);}finally{await owner.destroy();}
 }

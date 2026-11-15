@@ -1,4 +1,5 @@
 import type { Knex } from 'knex';
+import { legacyProposalSources } from './proposal-storage-authority';
 
 /** Group role that web and worker log-in roles inherit their tenant-data privileges from. */
 export const RUNTIME_GROUP = 'salesmora_runtime';
@@ -154,6 +155,11 @@ export async function applyRuntimeGrants(db: Knex) {
       }
     }
   }
+  for (const table of await existingTables(db, schema, ['chatProposalAudit'])) {
+    for (const role of [RUNTIME_GROUP, ...Object.values(RUNTIME_LOGIN_ROLES)].filter(name => roles.has(name))) {
+      await db.raw('REVOKE UPDATE, DELETE, TRUNCATE ON ?? FROM ??', [table, role]);
+    }
+  }
   // Remove inherited broad grants before assigning each Gmail runtime its explicit privileges.
   // Stable account identities and eligibility/message dedupe records are retained until workspace purge.
   for (const table of await existingTables(db, schema, Object.keys(GMAIL_RUNTIME_GRANTS))) {
@@ -201,6 +207,20 @@ export async function applyRuntimeGrants(db: Knex) {
       const columns = write.columns ? ` (${write.columns.map(() => '??').join(', ')})` : '';
       await db.raw(`GRANT ${write.privilege}${columns} ON ?? TO ??`, [...write.columns ?? [], write.table, ADMIN_APP_ROLE]);
       if (write.sequence) await db.raw('GRANT USAGE ON SEQUENCE ?? TO ??', [write.sequence, ADMIN_APP_ROLE]);
+    }
+  }
+  if ((await existingTables(db, schema, ['chatProposalStorage'])).length) {
+    const protectedRoles = [RUNTIME_GROUP, ...Object.values(RUNTIME_LOGIN_ROLES), ADMIN_APP_ROLE].filter(role => roles.has(role));
+    await db.raw('REVOKE ALL ON ?? FROM PUBLIC', ['chatProposalStorage']);
+    for (const role of protectedRoles) {
+      await db.raw('REVOKE ALL ON ?? FROM ??', ['chatProposalStorage', role]);
+      await db.raw('GRANT SELECT ON ?? TO ??', ['chatProposalStorage', role]);
+    }
+    if (await db('chatProposalStorage').where({ id: 1, store: 'canonical' }).first('id')) {
+      for (const table of await existingTables(db, schema, legacyProposalSources.flatMap(([, table, audit]) => audit ? [table, audit] : [table]))) {
+        await db.raw('REVOKE ALL ON ?? FROM PUBLIC', [table]);
+        for (const role of protectedRoles) await db.raw('REVOKE ALL ON ?? FROM ??', [table, role]);
+      }
     }
   }
 }

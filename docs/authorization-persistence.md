@@ -1,5 +1,7 @@
 # Authorization persistence and live role migration
 
+> Historical migration paths in this document refer to the prior release. Current fresh databases use the [curated baseline](../packages/data/src/baseline/); existing databases require a separately designed upgrade.
+
 Implemented October 12, 2026. This is the database/repository portion of steps 2–3 in the [authorization plan](authorization-permissions-plan.md). The four-role cutover and enforcement for existing application flows are now connected and applied to local development and test databases. See [live cutover notes](authorization-live-cutover.md). The Permissions editor and future resource adapters remain pending.
 
 ## What is implemented
@@ -9,11 +11,16 @@ Implemented October 12, 2026. This is the database/repository portion of steps 2
 - Version 1 defaults are a checked-in snapshot, not an import of mutable future defaults. Catalog entries still marked proposed or unavailable remain denied by the engine, even if the template includes a grant. Future changes to default templates do not overwrite saved workspace policies.
 - `authorizationAudit`: immutable records of migration seeding, new-workspace seeding and successful policy saves, including actor, before/after policy, revisions and timestamp. Updates/deletes are rejected. Workspace deletion is restricted while retained evidence exists; a future deletion workflow must define retention explicitly. These protections do not replace least-privilege production database credentials or protect against a database operator disabling triggers/truncating tables.
 - Deferred database invariants require exactly one Owner membership matching `workspaces.ownerId` and a persisted policy for each workspace. A valid ownership transfer updates all three facts within one transaction. No transfer endpoint is implemented here.
-- Workspace locks coordinate membership/grant/policy mutations with protected reads and Owner policy saves. Repositories reload current membership and policy on every call; there is no session-role cache or fallback to defaults.
+- Workspace locks coordinate membership/grant/policy mutations with protected reads and Owner policy saves. Standalone repository calls reload current membership and policy; there is no session-role cache or fallback to defaults. An admitted assistant answer explicitly uses a request-local authority snapshot, as described below.
+- Authority loading acquires the workspace lock first, then joins the active user, membership, policy head and all workspace role grants in one read. Full schema/policy and Owner consistency validation remains mandatory. A standalone authority load uses four driver calls including `BEGIN`/`COMMIT`, down from eight; missing policy or empty/invalid grants deny rather than seed defaults.
 
 ## Repository API
 
 All APIs require a server-authenticated identity and server-configured enabled permission IDs. Never accept these claims from a browser/model. Construct responses only after the repository transaction resolves.
+
+`withWorkspaceAuthorization` accepts an optional final `{ reuseNestedAuthority: true }` for a write/exclusive outer boundary. During that callback only, native readers receiving its exact transaction handle reuse the loaded authority; user/workspace mismatches deny and requested enabled permissions intersect with the held list. Narrowed nested scopes use an isolated savepoint so descendant readers cannot re-enable permissions. Writes always retain savepoints, including when domain failures are caught by a proposal adapter. Scope entries are removed in `finally`; other transactions, concurrent requests and later requests must load their own authority. Default standalone behavior is unchanged.
+
+The chat admission route additionally uses `withWorkspaceAuthoritySnapshot(db, context, run)` through `withChatRequest`. It reuses the already admitted identity/permissions for that answer without keeping a transaction or workspace lock across provider calls. Its database and identity must match exactly; nested permissions cannot widen. Session/user/permission revocation applies to the next HTTP request, not mid-answer. Stop and lease-guarded completion remain independent. Historical private results and explicit business confirmations are separate freshly authorized requests and never enter this scope.
 
 | API | Behavior |
 |---|---|
@@ -28,9 +35,9 @@ Denied/stale saves do not append a successful audit record. Safe denial logging,
 
 ## Rehearsal
 
-Run `pnpm test:authorization:db` with a configured local `TEST_DATABASE_URL` whose database name ends in `_test`. The runner creates a unique temporary schema, sets every fixture connection's search path exclusively to that schema, and removes it in `finally`. Existing development/test tables are not modified. Credentials are not logged.
+Run `pnpm test:authorization:db` with a configured local `TEST_DATABASE_URL` whose database name ends in `_test`. Its database role must have `CREATEDB`. The runner creates a unique temporary database, replays migrations there, and removes only that database in `finally`. A database rather than a scratch schema is required because current migrations explicitly target both `public` and `admin`. Existing development/test tables are not modified. Credentials are not logged.
 
-The 17 PostgreSQL checks cover:
+The 25 PostgreSQL checks cover:
 
 - Transactional migration rollback back to the original legacy rows, then successful role/invitation mapping and policy seeding.
 - Two tenants and different roles for the same person across workspaces; assigned-only Field lists/counts; workspace-wide Owner/Admin/Office lists including unassigned leads; denied nonmembers and unavailable features.
@@ -38,8 +45,11 @@ The 17 PostgreSQL checks cover:
 - Forced audit-write failure rolling back both grants and revision; membership mutations blocking behind protected-read locks.
 - Policy and membership revocation on the next request, corrupt-policy denial without reseeding, immutable audit rows, exactly-one-Owner and persisted-policy constraints.
 - Atomic ownership transfer removing the former Owner’s permission-management authority; transactional new-workspace initialization and missing/duplicate seed rejection.
+- Complete persisted-context equivalence across all four roles and exactly four standalone authority calls, suspension/deletion/missing-identity denial, and missing-policy/empty-grant denial before protected callbacks.
+- Opt-in nested reads with one authority load, identity denial and non-widening nested permissions, caught SQL-failure savepoint rollback, concurrent scope isolation, later-request revocation and rejection of reuse under a shared lock.
+- Request-local authority survives an in-flight revocation without reloading; a new request denies access. Different identities/tenants cannot reuse it.
 
-All 17 database checks, 289 pure-engine tests and 68 browser/API tests pass. Lint, typecheck, production and Storybook builds pass; selected role/navigation/Home stories pass desktop/mobile checks. A private development backup was restored into a disposable database, record fingerprints matched, and that copy migrated successfully before the local cutover.
+The current 25 database checks pass. At the original cutover, all 17 then-existing database checks, 289 pure-engine tests and 68 browser/API tests passed, along with lint, typecheck, production and Storybook builds and selected desktop/mobile role/navigation/Home stories. A private development backup was restored into a disposable database, record fingerprints matched, and that copy migrated successfully before the local cutover.
 
 ## Live cutover completed
 

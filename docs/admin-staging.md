@@ -1,5 +1,7 @@
 # Admin staging rollout
 
+> Historical migration paths in this document refer to the prior release. Current fresh databases use the [curated baseline](../packages/data/src/baseline/); existing databases require a separately designed upgrade.
+
 Status: authorized isolated release deployed; private-origin checks passed; first Super Admin enrolled and dashboard login confirmed by user; remaining acceptance checks pending. Backup/restore deferred for this staging release.
 Hostname approved: `admin-staging.salesmora.ai`.
 On November 3, the user configured the tunnel token privately, deployed `admin-tunnel`,
@@ -257,19 +259,19 @@ The later staging-only exception above now governs that gate.
 
 | Migration | Purpose | Proposed Admin release treatment |
 |---|---|---|
-| [202611010002_workspace_invitation_delivery.ts](../packages/data/src/migrations/202611010002_workspace_invitation_delivery.ts) | Durable Admin workspace invitation email delivery and identity grants | Include for existing workspace-management actions |
-| [202611010003_billing_webhook_workspace.ts](../packages/data/src/migrations/202611010003_billing_webhook_workspace.ts) | Nullable webhook workspace reference and index | Include for existing billing tooling; alters a customer billing table |
-| [202611010004_admin_billing_plan_change_grants.ts](../packages/data/src/migrations/202611010004_admin_billing_plan_change_grants.ts) | Reapply runtime grants for Admin billing plan changes | Include; review current grant helper, not just this thin migration |
-| [202611020001_admin_billing_recovery.ts](../packages/data/src/migrations/202611020001_admin_billing_recovery.ts) | Retry cancellation field and retained grace-extension evidence | Include for existing billing recovery; explicitly forward-only |
-| [202611030001_admin_workspace_export_requests.ts](../packages/data/src/migrations/202611030001_admin_workspace_export_requests.ts) | Export request metadata | Include schema prerequisite; exports remain disabled |
-| [202611030002_admin_workspace_export_worker.ts](../packages/data/src/migrations/202611030002_admin_workspace_export_worker.ts) | Export retry/artifact metadata | Include schema prerequisite; no export key/storage enablement |
-| [202611030003_admin_workspace_export_delivery.ts](../packages/data/src/migrations/202611030003_admin_workspace_export_delivery.ts) | Export notification fields, Owner functions, account-audit constraint and grants | Include schema prerequisite; modifies public audit constraint and web execute grants |
-| [202611040001_admin_ai_pricing.ts](../packages/data/src/migrations/202611040001_admin_ai_pricing.ts) | Admin pricing history | Include for existing AI usage tooling, not an Admin assistant |
-| [202611040002_admin_ai_budget_defaults.ts](../packages/data/src/migrations/202611040002_admin_ai_budget_defaults.ts) | Versioned budget defaults and narrow runtime reader | Include for existing platform settings; empty table seeds no token allowance |
-| [202611040003_admin_feature_flags.ts](../packages/data/src/migrations/202611040003_admin_feature_flags.ts) | Targeted flags and runtime reader | Include; seeds chat and estimate sharing enabled to preserve existing defaults |
-| [202611040004_admin_rollout_flags.ts](../packages/data/src/migrations/202611040004_admin_rollout_flags.ts) | Dynamic rollout CRUD table and boolean reader | Include; no flags seeded and unknown keys return false |
-| [202611040001_capture_assistant_reads.ts](../packages/data/src/migrations/202611040001_capture_assistant_reads.ts) | Customer chat capture result/stamp columns | Exclude from the proposed Admin release |
-| [202611040002_capture_assistant_setup.ts](../packages/data/src/migrations/202611040002_capture_assistant_setup.ts) | Customer capture setup proposals, samples and chat evidence | Exclude from the proposed Admin release |
+| 202611010002_workspace_invitation_delivery.ts (historical migration; see the prior release) | Durable Admin workspace invitation email delivery and identity grants | Include for existing workspace-management actions |
+| 202611010003_billing_webhook_workspace.ts (historical migration; see the prior release) | Nullable webhook workspace reference and index | Include for existing billing tooling; alters a customer billing table |
+| 202611010004_admin_billing_plan_change_grants.ts (historical migration; see the prior release) | Reapply runtime grants for Admin billing plan changes | Include; review current grant helper, not just this thin migration |
+| 202611020001_admin_billing_recovery.ts (historical migration; see the prior release) | Retry cancellation field and retained grace-extension evidence | Include for existing billing recovery; explicitly forward-only |
+| 202611030001_admin_workspace_export_requests.ts (historical migration; see the prior release) | Export request metadata | Include schema prerequisite; exports remain disabled |
+| 202611030002_admin_workspace_export_worker.ts (historical migration; see the prior release) | Export retry/artifact metadata | Include schema prerequisite; no export key/storage enablement |
+| 202611030003_admin_workspace_export_delivery.ts (historical migration; see the prior release) | Export notification fields, Owner functions, account-audit constraint and grants | Include schema prerequisite; modifies public audit constraint and web execute grants |
+| 202611040001_admin_ai_pricing.ts (historical migration; see the prior release) | Admin pricing history | Include for existing AI usage tooling, not an Admin assistant |
+| 202611040002_admin_ai_budget_defaults.ts (historical migration; see the prior release) | Versioned budget defaults and narrow runtime reader | Include for existing platform settings; empty table seeds no token allowance |
+| 202611040003_admin_feature_flags.ts (historical migration; see the prior release) | Targeted flags and runtime reader | Include; seeds chat and estimate sharing enabled to preserve existing defaults |
+| 202611040004_admin_rollout_flags.ts (historical migration; see the prior release) | Dynamic rollout CRUD table and boolean reader | Include; no flags seeded and unknown keys return false |
+| 202611040001_capture_assistant_reads.ts (historical migration; see the prior release) | Customer chat capture result/stamp columns | Exclude from the proposed Admin release |
+| 202611040002_capture_assistant_setup.ts (historical migration; see the prior release) | Customer capture setup proposals, samples and chat evidence | Exclude from the proposed Admin release |
 
 The three export migrations form a chain and supply tables used by the Admin data
 request views; schema presence must not be confused with export feature enablement.

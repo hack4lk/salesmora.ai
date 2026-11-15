@@ -13,15 +13,13 @@ import { draftCreateLead } from './create';
 import { draftChangeLeadStage } from './change-stage';
 import { getLeadPipelineSummary } from './pipeline-summary';
 import type { ChatToolHandler } from '../tools/types';
-/** All implemented Leads operations route to existing app use cases; no generic SQL execution. */
+/** The common tool runner authorizes the exact operation before dispatch. */
 const operations = { history: getLeadHistory, details: getLeadDetails, search: searchLeads, delete: draftDeleteLead, export_csv: draftExportLeads, set_archived: draftSetLeadArchived, add_note: draftAddLeadNote, assign: draftAssignLead, update_with_stage: draftUpdateLeadWithStage, update: draftUpdateLead, create: draftCreateLead, change_stage: draftChangeLeadStage, pipeline_summary: getLeadPipelineSummary } satisfies Record<LeadOperationId, ChatToolHandler>;
 export const leadsQuery: ChatToolHandler = async (context, raw) => {
   const { request } = leadsQuerySchema.parse(raw);
-  await context.authorize('leads_query', request.operation);
   return operations[request.operation](context, request.input);
 };
 export const leadsProposeAction: ChatToolHandler = async (context, raw) => {
   const { request } = leadsProposeActionSchema.parse(raw);
-  await context.authorize('leads_propose_action', request.operation);
   return operations[request.operation](context, request.input);
 };

@@ -6,10 +6,8 @@ import { activityReportExportInputSchema, financialReportExportInputSchema, busi
   permissionIds } from '@salesmora/contracts';
 import { initializeWorkspacePolicy, AuthorizationAccessError } from '../authorization/store';
 import { csvLine } from '../leads/csv';
-import { replayMigrations } from '../migration-replay';
-import { down as rollbackAudit } from '../migrations/202611120002_report_export_audit_activity';
-import { down as rollbackFinancialAudit } from '../migrations/202611120003_report_export_audit_financial';
-import { down as rollbackOverviewAudit } from '../migrations/202611120004_report_export_audit_overview';
+import { migrateFreshBaseline } from '../baseline-runner';
+import { down as rollbackBaseline } from '../baseline-migrations/202611150001_fresh_baseline';
 import { createActivityReportCSVExport, previewActivityReportExport } from './activity-export';
 import { createFinancialReportCSVExport, previewFinancialReportExport } from './financial-export';
 import { createBusinessOverviewCSVExport, previewBusinessOverviewExport, prepareBusinessOverviewExportInTransaction } from './business-overview-export';
@@ -40,7 +38,7 @@ async function drain(stream: ReadableStream<Uint8Array>) {
 }
 try {
   await admin.raw('CREATE DATABASE ??', [name]); created = true;
-  await replayMigrations(db);
+  await migrateFreshBaseline(db);
   const today = (await db.raw<{ rows: { today: string }[] }>(
     `SELECT to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS today`)).rows[0]!.today;
   await db.transaction(async trx => {
@@ -184,9 +182,7 @@ try {
   const stoppedReader = stopped.stream.getReader();
   await stoppedReader.read(); await stoppedReader.cancel(); stoppedReader.releaseLock();
   assert.equal((await stopped.completion).outcome, 'failed');
-  await assert.rejects(db.transaction(rollbackOverviewAudit), /violated by some row/);
-  await assert.rejects(db.transaction(rollbackFinancialAudit), /violated by some row/);
-  await assert.rejects(db.transaction(rollbackAudit), /violated by some row/);
+  await assert.rejects(rollbackBaseline(), /forward-only/);
   console.log('Activity, Financial and Overview CSV streaming, authority, audit, cancellation and rollback rehearsal passed.');
 } finally {
   await db.destroy();

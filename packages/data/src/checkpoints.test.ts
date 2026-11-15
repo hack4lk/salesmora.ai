@@ -7,7 +7,7 @@ vi.mock('@langchain/langgraph-checkpoint-postgres', () => ({ PostgresSaver: clas
   setup() { return captured.setup(); }
   end() { return this.pool.end(); }
 } }));
-import { createChatCheckpointer, setupChatCheckpoints } from './checkpoints';
+import { setupChatCheckpoints } from './checkpoints';
 describe('checkpoint migration targeting', () => {
   it('uses the active transaction target and password, never incomplete cloned Knex configuration or default PG settings', async () => {
     const client = { connectionParameters: { host: '127.0.0.1', port: 55432, user: 'salesmora', database: 'fictional_restore_test' }, password: 'fictional-test-password' };
@@ -16,6 +16,5 @@ describe('checkpoint migration targeting', () => {
     await setupChatCheckpoints(db);
     expect(captured.options.at(-1)).toMatchObject({ database: 'fictional_restore_test', password: 'fictional-test-password' });
     expect(releaseConnection).toHaveBeenCalledWith(client);
-    expect(() => createChatCheckpointer('')).toThrow('Checkpoint database is not configured');
   });
 });

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import knex from 'knex';
 import { leadSourceExportInputSchema, permissionIds, type EstimateFrozenSnapshot } from '@salesmora/contracts';
-import { replayMigrations } from '../migration-replay';
+import { migrateFreshBaseline } from '../baseline-runner';
 import { AuthorizationAccessError, initializeWorkspacePolicy } from '../authorization/store';
 import { createLeadSourceCSVExport, previewLeadSourceExport, ReportExportLimitError } from './lead-source-export';
 import { csvLine } from '../leads/csv';
@@ -46,7 +46,7 @@ async function drain(stream: ReadableStream<Uint8Array>) {
 try {
   await admin.raw('CREATE DATABASE ??', [databaseName]);
   created = true;
-  await replayMigrations(db);
+  await migrateFreshBaseline(db);
   let today = '';
   await db.transaction(async trx => {
     await trx('users').insert({

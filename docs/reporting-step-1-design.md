@@ -1,5 +1,7 @@
 # Reports step 1: contracts, access and query design
 
+> Historical migration paths in this document refer to the prior release. Current fresh databases use the [curated baseline](../packages/data/src/baseline/); existing databases require a separately designed upgrade.
+
 Status: **Design approved interactively, including the 366-day range and 32 MiB new-report CSV limits.** November 5, 2026.
 
 Parent: [Implementation plan](reporting-implementation-plan.md). Metric authority: [approved step 0 definitions and fixtures](reporting-step-0-discovery.md). This document specifies future implementation; it does not add executable contracts, routes, permissions, policy grants, migrations or report queries.
@@ -165,7 +167,7 @@ Validate the new enabled-scope dependencies with [existing policy validation](..
 
 Existing policies receive no new grants at feature rollout. Owners explicitly enable the new capabilities per role through the established permissions UI. Explain this availability in rollout guidance. New-workspace initializer/default fixtures must include the approved new defaults when implementation happens.
 
-Audit catalog/template/permission-setting changes through existing mechanisms; no runtime "missing grant => default allow." Do not use the [older broad backfill](../packages/data/src/migrations/202610190003_work_order_permissions.ts#L46) as a template for this opt-in decision.
+Audit catalog/template/permission-setting changes through existing mechanisms; no runtime "missing grant => default allow." Do not use the older broad backfill (historical migration; see the prior release) as a template for this opt-in decision.
 
 ## 5. Export authority and contracts
 

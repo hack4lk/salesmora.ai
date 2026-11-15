@@ -3,11 +3,11 @@ import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import knex from 'knex';
 import { permissionIds, teamReportExportInputSchema } from '@salesmora/contracts';
-import { replayMigrations } from '../migration-replay';
+import { migrateFreshBaseline } from '../baseline-runner';
 import { AuthorizationAccessError, initializeWorkspacePolicy } from '../authorization/store';
 import { createJob } from '../jobs/store';
 import { csvLine } from '../leads/csv';
-import { down as rollbackTeamAudit } from '../migrations/202611110001_report_export_audit_team';
+import { down as rollbackBaseline } from '../baseline-migrations/202611150001_fresh_baseline';
 import { createTeamReportCSVExport, previewTeamReportExport, ReportExportLimitError } from './team-export';
 
 process.loadEnvFile(fileURLToPath(new URL('../../../../.env.local', import.meta.url)));
@@ -39,7 +39,7 @@ async function drain(stream: ReadableStream<Uint8Array>) {
 }
 try {
   await admin.raw('CREATE DATABASE ??', [databaseName]); created = true;
-  await replayMigrations(db);
+  await migrateFreshBaseline(db);
   await db.transaction(async trx => {
     await trx('users').insert([owner, other].map(id => ({
       id, name: `Member ${id}`, email: `${id}@example.test`,
@@ -174,8 +174,8 @@ try {
     assert.equal((await result.completion).outcome, 'completed');
     assert.equal((await audit(result.id)).outcome, 'completed');
   });
-  await check('Team audit migration refuses rollback with retained evidence', async () => {
-    await assert.rejects(db.transaction(rollbackTeamAudit), /violated by some row/);
+  await check('Forward-only baseline preserves Team audit evidence', async () => {
+    await assert.rejects(rollbackBaseline(), /forward-only/);
     const result = await createTeamReportCSVExport(db, identity, enabled, jobs);
     await drain(result.stream);
     assert.equal((await audit(result.id)).outcome, 'completed');

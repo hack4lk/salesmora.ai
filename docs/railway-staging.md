@@ -1,5 +1,7 @@
 # Railway staging preparation
 
+> **Fresh-baseline compatibility:** The current migration command rejects historical Knex ledgers. Existing staging and production databases require a separately designed, verified upgrade or an explicitly approved rebuild. The baseline does not provide an in-place data migration; use the prior release for existing databases.
+
 The approved staging deployment now uses the existing Railway account. See the deployment record below for the live target and verified checks. Use the dedicated `staging` environment in the `salesmora` project with fictional accounts and CRM records. Do not attach existing unrelated Railway databases or copy local accounts, transcripts or credentials.
 
 ## Service layout

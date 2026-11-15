@@ -39,6 +39,7 @@ function ReadContent({ content, onOpen, onCopy }: { content: CaptureAssistantRea
 function Result({ reference, client, disabled = false, onRefresh, onOpen, onCopy }: CaptureAssistantResultProps) {
   const [view, setView] = useState<CaptureAssistantView | null>(null), [error, setError] = useState(''), [pending, setPending] = useState(false), [reviewOpen, setReviewOpen] = useState(false);
   const [clock, setClock] = useState(Date.now);
+  const root = useRef<HTMLElement>(null);
   const mounted = useRef(false), lock = useRef(false), sequence = useRef(0), active = useRef<AbortController | null>(null);
   async function load() {
     if (!mounted.current || disabled || lock.current) return;
@@ -89,7 +90,8 @@ function Result({ reference, client, disabled = false, onRefresh, onOpen, onCopy
   }
   const expired = view?.kind === 'proposal' && view.ticket.state === 'pending' && Date.parse(view.ticket.expiresAt) <= clock;
   const confirm = () => decide('confirm');
-  return <section aria-label={copy.title} aria-busy={pending || !view && !error && !disabled} className="grid min-w-0 gap-4 rounded-2xl border border-assistant-border bg-paper p-4 text-ink sm:p-5">
+  const container = () => root.current?.closest('dialog') ?? document.body;
+  return <section ref={root} aria-label={copy.title} aria-busy={pending || !view && !error && !disabled} className="grid min-w-0 gap-4 rounded-2xl border border-assistant-border bg-paper p-4 text-ink sm:p-5">
     {disabled || !view ? <><p role={error || disabled ? 'alert' : 'status'} className="m-0 text-sm leading-6">{disabled ? copy.unavailable : error || copy.loading}</p>{error && !disabled && <button type="button" className={`${button} justify-self-start`} disabled={pending} onClick={() => { void load(); }}>{copy.retry}</button>}</>
       : <>
         <p className="m-0 text-xs text-muted">{copy.captured}: <time dateTime={view.retrievedAt}>{new Date(view.retrievedAt).toLocaleString('en-US', { timeZone: 'UTC' })} UTC</time></p>
@@ -98,12 +100,12 @@ function Result({ reference, client, disabled = false, onRefresh, onOpen, onCopy
             : <>
               <h2 className="m-0 text-lg font-semibold wrap-anywhere">{view.title}</h2><p className="m-0 text-sm leading-6 text-muted">{copy.draftNotice}</p>
               {!reviewOpen ? <button type="button" className={`${button} justify-self-start`} disabled={pending} onClick={() => setReviewOpen(true)}>{copy.review}</button> : <>
-                {view.content.kind === 'source_action' && <CaptureSourceProjection view={view.content.view} pending={pending} onConfirm={confirm} onClose={() => setReviewOpen(false)} />}
+                {view.content.kind === 'source_action' && <CaptureSourceProjection view={view.content.view} pending={pending} container={container} onConfirm={confirm} onClose={() => setReviewOpen(false)} />}
                 {view.content.kind === 'setup' && <><CaptureSetupProjection view={view.content.view} /><button type="button" className={`${button} justify-self-start`} disabled={pending} onClick={() => { void confirm().catch(() => {}); }}>{pending ? copy.pending : view.title}</button></>}
                 {view.content.kind === 'fields' && <><CaptureFormFieldEditor value={view.content.value} canRead canEdit={false} readOnlyMessage={copy.fixedReview} onChange={() => {}} /><button type="button" className={`${button} justify-self-start`} disabled={pending} onClick={() => { void confirm().catch(() => {}); }}>{pending ? copy.pending : copy.confirm}</button></>}
                 {view.content.kind === 'workflow' && <><CaptureLeadWorkflow value={view.content.value} source={view.content.source} teammates={view.content.teammates} canRead canEdit={false} readOnlyMessage={copy.fixedReview} onChange={() => {}} /><button type="button" className={`${button} justify-self-start`} disabled={pending} onClick={() => { void confirm().catch(() => {}); }}>{pending ? copy.pending : copy.confirm}</button></>}
                 {view.content.kind === 'publication' && <><p className="m-0 text-sm text-muted">{copy.publicationNotice}</p><CaptureSetupReview draft={view.content.draft} value={view.content.timing} canRead canEdit={false} canLaunch pending={pending} timingReadOnly onChange={() => {}} onEdit={() => {}} onLaunch={confirm} /></>}
-                {view.content.kind === 'lifecycle' && <CapturePauseResumeDialog open action={view.content.action} source={view.content.source} canRead pending={pending} onClose={() => setReviewOpen(false)} onConfirm={confirm} />}
+                {view.content.kind === 'lifecycle' && <CapturePauseResumeDialog open action={view.content.action} source={view.content.source} canRead pending={pending} container={container} onClose={() => setReviewOpen(false)} onConfirm={confirm} />}
                 {view.content.kind === 'intake' && <IntakeDecisionReview review={view.content.review} canRead pending={pending} onBack={() => setReviewOpen(false)} onConfirm={async () => { await confirm(); return { ok: true }; }} />}
               </>}
               <div className="flex min-w-0 flex-wrap gap-3">{reviewOpen && view.content.kind !== 'lifecycle' && <button type="button" className={button} disabled={pending} onClick={() => setReviewOpen(false)}>{copy.close}</button>}<button type="button" className={button} disabled={pending} onClick={() => { void decide('cancel').catch(() => {}); }}>{copy.cancel}</button></div>

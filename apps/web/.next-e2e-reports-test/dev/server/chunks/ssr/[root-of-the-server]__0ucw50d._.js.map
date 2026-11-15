@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 12, "column": 0}, "map": {"version":3,"sources":["file:///Users/lukasz/dev/salesmora.ai/apps/web/src/app/%28auth%29/reports/page.tsx"],"sourcesContent":["import { renderReportCatalogPage } from '../../../server/reports/read-page';\n\nexport const dynamic = 'force-dynamic';\nexport const metadata = { title: 'Reports | SalesMora' };\nexport default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {\n  return renderReportCatalogPage(await searchParams);\n}\n"],"names":["dynamic","metadata","title","Page","searchParams"],"mappings":";;;;;;;;AAAA;;;;;;AAEO,MAAMA,UAAU;AAChB,MAAMC,WAAW;IAAEC,OAAO;AAAsB;AACxC,eAAeC,KAAK,EAAEC,YAAY,EAA4E;IAC3H,OAAO,IAAA,mLAAuB,EAAC,MAAMA;AACvC"}}]
-}

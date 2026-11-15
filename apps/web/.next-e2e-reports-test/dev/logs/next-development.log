@@ -1,4 +1,0 @@
-{"timestamp":"00:00:04.114","source":"Server","level":"LOG","message":"- Experiments (use with caution):"}
-{"timestamp":"00:00:04.114","source":"Server","level":"LOG","message":"  ⨯ turbopackFileSystemCacheForDev"}
-{"timestamp":"00:00:04.114","source":"Server","level":"LOG","message":""}
-{"timestamp":"00:00:07.333","source":"Server","level":"LOG","message":"○ Compiling /register ..."}

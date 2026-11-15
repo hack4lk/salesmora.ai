@@ -4,12 +4,12 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout } from 'node:timers/promises';
 import knex from 'knex';
 import { jobReportExportInputSchema, permissionIds } from '@salesmora/contracts';
-import { replayMigrations } from '../migration-replay';
+import { migrateFreshBaseline } from '../baseline-runner';
 import { AuthorizationAccessError, initializeWorkspacePolicy } from '../authorization/store';
 import { createJob } from '../jobs/store';
 import { csvLine } from '../leads/csv';
 import { createJobReportCSVExport, previewJobReportExport, ReportExportLimitError } from './job-export';
-import { down as rollbackJobsAudit } from '../migrations/202611100001_report_export_audit_jobs';
+import { down as rollbackBaseline } from '../baseline-migrations/202611150001_fresh_baseline';
 
 process.loadEnvFile(fileURLToPath(new URL('../../../../.env.local', import.meta.url)));
 const connection = process.env.TEST_DATABASE_URL;
@@ -41,7 +41,7 @@ async function drain(stream: ReadableStream<Uint8Array>) {
 }
 try {
   await admin.raw('CREATE DATABASE ??', [databaseName]); created = true;
-  await replayMigrations(db);
+  await migrateFreshBaseline(db);
   await db.transaction(async trx => {
     await trx('users').insert({ id: owner, name: 'Jobs CSV owner', email: `${owner}@example.test`,
       termsVersion: 'fixture', termsAcceptedAt: new Date(), createdAt: new Date(), updatedAt: new Date() });
@@ -168,11 +168,11 @@ try {
       await db('workspaceRolePolicies').where({ workspaceId, role: 'owner', permission: 'jobs.export' }).update({ scope: 'workspace' });
     }
   });
-  await check('Jobs audit rollback refuses retained evidence without changing the migrated constraint', async () => {
+  await check('Forward-only baseline preserves retained Jobs evidence and scope checks', async () => {
     const result = await createJobReportCSVExport(db, identity, enabled, input);
     await drain(result.stream);
     assert.equal((await result.completion).outcome, 'completed');
-    await assert.rejects(db.transaction(rollbackJobsAudit), /violated by some row/);
+    await assert.rejects(rollbackBaseline(), /forward-only/);
     const saved = await audit(result.id);
     assert.equal(saved.outcome, 'completed');
     await assert.rejects(db('reportExportAudit').insert({ ...saved, id: randomUUID(), scope: 'own' }), /check constraint/);

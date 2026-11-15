@@ -128,8 +128,6 @@ export async function processAccountDeletions(db: Knex, stripeFactory = stripeSa
           }
         }
         const threads = trx('chatThreads').where(query => { query.where({ userId: request.userId }); if (request.workspaceId) query.orWhere({ workspaceId: request.workspaceId }); }).select('id');
-        const turns = trx('chatTurns').whereIn('threadId', threads.clone()).select(trx.raw('id::text'));
-        for (const table of ['checkpoint_writes', 'checkpoint_blobs', 'checkpoints']) await trx(table).whereIn('thread_id', turns.clone()).delete();
         await trx('chatThreads').whereIn('id', threads.clone()).delete();
         // Shared business records survive teammate deletion; assignments must not block membership removal.
         await trx('leads').where({ ownerId: request.userId }).update({ ownerId: null });

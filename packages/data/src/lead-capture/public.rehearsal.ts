@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { CaptureDraftConfiguration, PermissionId } from '@salesmora/contracts';
 import { createDatabase } from '../database';
+import { migrateFreshBaseline } from '../baseline-runner';
 import { initializeWorkspacePolicy } from '../authorization/store';
 import { createCaptureDraft, beginCaptureRevision, saveCaptureDraft } from './store';
 import { readCapturePublicationReview, publishCaptureDraft, processCapturePublications } from './publication';
@@ -32,7 +33,7 @@ async function publish(identity: Identity, sourceId: string, scheduled = false) 
   return publishCaptureDraft(web, identity, enabled, { workspaceId: identity.workspaceId, sourceId, requestId: randomUUID(), expectedVersion: review.sourceVersion, draftVersion: review.draftVersion, configurationVersion: review.configurationVersion, baseApprovedVersion: review.baseApprovedVersion, confirmed: true, timing: scheduled ? { kind: 'scheduled', at: new Date(Date.now() + 60000).toISOString(), timezone: 'America/New_York' } : { kind: 'now' } }, delivery);
 }
 try {
-  await owner.raw('CREATE DATABASE ??', [name]); created = true; await db.migrate.latest({ directory: fileURLToPath(new URL('../migrations', import.meta.url)), loadExtensions: ['.ts'] });
+  await owner.raw('CREATE DATABASE ??', [name]); created = true; await migrateFreshBaseline(db);
   const identity = await workspace(), draft = await createCaptureDraft(web, identity, enabled, { workspaceId: identity.workspaceId, requestId: randomUUID(), name: 'PRIVATE SOURCE NAME', configuration });
   await publish(identity, draft.sourceId); const publication = await db('capturePublications').where({ sourceId: draft.sourceId }).first(); const key = publication.publicKey;
   await check('authorized installation uses persisted identity, fails closed without origin and denies other tenants', async () => {

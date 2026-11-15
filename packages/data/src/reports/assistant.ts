@@ -52,6 +52,15 @@ export async function readReportForAssistant(
   db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], args: unknown,
   pageContext: unknown, signal: AbortSignal,
 ) {
+  return withWorkspaceAuthorization(db, identity, enabled, false, (trx, context) =>
+    readReportForAssistantInTransaction(trx, context, args, pageContext, signal));
+}
+
+/** Reuse the caller's admitted authority instead of nesting a second authorization/read context. */
+export async function readReportForAssistantInTransaction(
+  trx: Knex.Transaction, context: AuthorizationContext, args: unknown,
+  pageContext: unknown, signal: AbortSignal,
+) {
   const input = reportAssistantToolInputSchema.parse(args);
   signal.throwIfAborted();
   const started = Date.now();
@@ -59,7 +68,6 @@ export async function readReportForAssistant(
     signal.throwIfAborted();
     if (Date.now() - started >= reportAssistantReadLimits.durationMs) throw new ReportAssistantLimitError();
   };
-  return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
     permit(context); checkActive();
     // SQL statements have a timeout; the delivery deadline is checked around the composed native read.
     await trx.raw(`SELECT set_config('statement_timeout', ?, true)`, [`${reportAssistantReadLimits.durationMs}ms`]);
@@ -88,11 +96,10 @@ export async function readReportForAssistant(
       ...(selection.area === 'overview' ? {} : { page: 1, pageSize: reportAssistantReadLimits.pageSize }) } });
     const native = reportNativeReadSchema.parse(await readReportSelectionInTransaction(trx, context, selection));
     checkActive();
-    if (native.read.workspaceId !== identity.workspaceId || native.read.viewerId !== identity.userId ||
+    if (native.read.workspaceId !== context.workspaceId || native.read.viewerId !== context.userId ||
       native.read.policyRevision !== context.policy.revision ||
       JSON.stringify(native.read.query) !== JSON.stringify(selection.query)) throw new Error('Report assistant read does not match the authorized request.');
     if (Buffer.byteLength(JSON.stringify(native), 'utf8') > reportAssistantReadLimits.bytes) throw new ReportAssistantLimitError();
     checkActive();
     return native;
-  });
 }

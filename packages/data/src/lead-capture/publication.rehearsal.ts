@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createDatabase } from '../database';
+import { migrateFreshBaseline } from '../baseline-runner';
 import { initializeWorkspacePolicy, AuthorizationAccessError } from '../authorization/store';
 import { RUNTIME_LOGIN_ROLES, ADMIN_APP_ROLE } from '../runtime-roles';
 import { capturePublicationReviewSchema, type PermissionId } from '@salesmora/contracts';
@@ -47,7 +48,7 @@ const publish = async (identity: Identity, sourceId: string, scheduled = false) 
 async function due(id: string) { await db.transaction(async trx => { await trx.raw('ALTER TABLE "capturePublicationTransitions" DISABLE TRIGGER capture_transition_immutable'); await trx('capturePublicationTransitions').where({ id }).update({ scheduledAt: new Date(Date.now()-1000) }); await trx.raw('ALTER TABLE "capturePublicationTransitions" ENABLE TRIGGER capture_transition_immutable'); }); }
 try {
  await owner.raw('CREATE DATABASE ??',[name]); created = true;
- await db.migrate.latest({ directory: fileURLToPath(new URL('../migrations',import.meta.url)), loadExtensions: ['.ts'] });
+ await migrateFreshBaseline(db);
  const a = await workspace(), one = await create(a), second = await create(a,'Second website');
  await check('pilot scope filters before reconciliation and due transition processing; read projections use supplied authority', async () => {
    const included=await workspace(), excluded=await workspace(), first=await create(included), other=await create(excluded);

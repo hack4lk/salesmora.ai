@@ -1,5 +1,7 @@
 # Account and workspace deletion
 
+> Historical migration paths in this document refer to the prior release. Current fresh databases use the [curated baseline](../packages/data/src/baseline/); existing databases require a separately designed upgrade.
+
 Implemented locally on October 13, 2026. No staging release in this section. This is a user-confirmed permanent action, with immediate access revocation and no recovery/undo endpoint.
 
 ## Behavior
@@ -14,7 +16,7 @@ The deletion worker runs independently of AI/help ingestion and billing flags, e
 
 An uncertain customer creation is recovered using its original idempotency key only inside the safe 23-hour window. Missing/changed mappings, unavailable provider configuration or provider failure leave the request pending with a generic retry marker. The worker retries after one minute; it does not delete the customer mapping or claim purge completion while cancellation is unverified. A crash after cancellation is safe: the next attempt reads current provider state before purging. Multiple workers serialize on the billing/workspace/request locks.
 
-After provider cancellation is verified, a database transaction deletes transcripts, action drafts and LangGraph checkpoint rows, workspace leads/services/invitations/policies, checkout/plan-change/subscription mappings and workspace token overrides. Personal deletion removes the user's private chat/checkpoints across memberships, clears their lead assignments while preserving shared leads, and removes their user, credentials, sessions and memberships. The request becomes completed only after this purge commits.
+After provider cancellation is verified, a database transaction deletes transcripts, action drafts, workspace leads/services/invitations/policies, checkout/plan-change/subscription mappings and workspace token overrides. Personal deletion removes the user's private chat across memberships, clears their lead assignments while preserving shared leads, and removes their user, credentials, sessions and memberships. The request becomes completed only after this purge commits. The staged graph-checkpoint retirement migration refuses to remove tables containing retained rows; see [chat retention](chat-retention.md).
 
 ## Retained data and scope
 

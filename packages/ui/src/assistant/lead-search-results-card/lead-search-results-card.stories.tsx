@@ -31,6 +31,15 @@ export const Review: Story = { play: async ({ canvasElement }) => {
   const c = within(canvasElement); await expect(c.getByRole('status')).toHaveTextContent(copy.count(3, 3));
   await expect(c.getByRole('button', { name: copy.openLead(copy.stories.number, copy.stories.name) })).toBeEnabled();
 } };
+export const TimestampedSnapshot: Story = {
+  args: { result: { ...result, asOf: '2026-10-15T12:34:56.000Z' } },
+  play: async ({ canvasElement }) => {
+    const time = canvasElement.querySelector('time');
+    await expect(time).toHaveAttribute('dateTime', '2026-10-15T12:34:56.000Z');
+    await expect(time).toHaveTextContent('UTC');
+    await expect(within(canvasElement).getByText(copy.snapshot)).toBeVisible();
+  },
+};
 export const OpenLead: Story = { play: async ({ canvasElement, args }) => {
   const c = within(canvasElement); await userEvent.click(c.getByRole('button', { name: copy.openLead(copy.stories.number, copy.stories.name) }));
   await expect(args.onOpenLead).toHaveBeenCalledWith(result.rows[0].id); await expect(args.onOpenList).not.toHaveBeenCalled();

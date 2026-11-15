@@ -7,7 +7,6 @@ import { createDatabase, initializeWorkspacePolicy, withWorkspaceAuthorization, 
   readReportSnapshotForAssistant, reportAssistantEvidenceAllowed, reportAssistantSnapshotMatches,
   ReportAssistantStaleError, ReportAssistantLimitError } from '@salesmora/data';
 import type { Knex } from '@salesmora/data';
-import { availableChatTools, authorizeChatTool, liveChatTools } from '@salesmora/agent';
 
 process.loadEnvFile(fileURLToPath(new URL('../../../../../.env.local', import.meta.url)));
 const connection = process.env.TEST_DATABASE_URL;
@@ -35,6 +34,9 @@ try {
       id, name: 'Report evidence fixture', email: `${id}@example.test`, termsVersion: 'fixture',
       termsAcceptedAt: new Date(), createdAt: new Date(), updatedAt: new Date(),
     })));
+    const sessionId = randomUUID();
+    await trx('sessions').insert({ id: sessionId, userId: owner, token: randomUUID(),
+      expiresAt: new Date(Date.now() + 120000), createdAt: new Date(), updatedAt: new Date() });
     await trx('workspaces').insert([
       { id: workspaceId, ownerId: owner }, { id: otherWorkspace, ownerId: outsider },
     ].map(row => ({ ...row, businessName: 'Evidence fixture', businessType: 'test',
@@ -362,11 +364,7 @@ try {
       const { turn: live } = await store.acceptTurn(identity, { ...request, clientTurnId: randomUUID(), surfaceKey: 'reports' });
       const execute = createChatToolExecutor({
         identity, turnId: live.id, surface: 'reports', pageContext: live.pageContext, signal: new AbortController().signal,
-        authorize: async tool => {
-          const context = await store.validateTurnEvidence(identity, live.id);
-          if (tool && !authorizeChatTool(context, 'reports', tool, liveChatTools).allowed) throw new AuthorizationAccessError();
-          return availableChatTools(context, 'reports', liveChatTools);
-        },
+        sessionId,
       });
       const result = await execute('reports_query', { request: { mode: 'current_report' } });
       assert(result.reportResult);

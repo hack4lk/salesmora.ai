@@ -6,8 +6,8 @@ import { estimateReportExportInputSchema, permissionIds, type EstimateFrozenSnap
 import { initializeWorkspacePolicy, AuthorizationAccessError } from '../authorization/store';
 import { estimateSnapshotHash } from '../estimates/sharing-paper';
 import { csvLine } from '../leads/csv';
-import { replayMigrations } from '../migration-replay';
-import { down as rollbackAudit } from '../migrations/202611120001_report_export_audit_estimates';
+import { migrateFreshBaseline } from '../baseline-runner';
+import { down as rollbackBaseline } from '../baseline-migrations/202611150001_fresh_baseline';
 import { createEstimateReportCSVExport, previewEstimateReportExport } from './estimate-export';
 
 process.loadEnvFile(fileURLToPath(new URL('../../../../.env.local', import.meta.url)));
@@ -34,7 +34,7 @@ async function drain(stream: ReadableStream<Uint8Array>) {
 }
 try {
   await admin.raw('CREATE DATABASE ??', [name]); created = true;
-  await replayMigrations(db);
+  await migrateFreshBaseline(db);
   const today = (await db.raw<{ rows: { today: string }[] }>(
     `SELECT to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS today`)).rows[0]!.today;
   const snapshot: EstimateFrozenSnapshot = {
@@ -110,7 +110,7 @@ try {
     if (previousBytes === undefined) delete process.env.REPORT_EXPORT_BYTE_LIMIT;
     else process.env.REPORT_EXPORT_BYTE_LIMIT = previousBytes;
   }
-  await assert.rejects(db.transaction(rollbackAudit), /violated by some row/);
+  await assert.rejects(rollbackBaseline(), /forward-only/);
   console.log('Estimate CSV stream, authorization, audit, limits, cancellation and rollback rehearsal passed.');
 } finally {
   await db.destroy();

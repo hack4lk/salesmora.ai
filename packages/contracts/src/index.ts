@@ -51,6 +51,7 @@ export * from './authorization/schemas';
 export * from './chat';
 export * from './knowledge';
 export * from './chat-actions';
+export * from './chat-proposals';
 export * from './ai-usage';
 export { workspaceAIUsageSchema, type WorkspaceAIUsage } from './workspace-ai-usage';
 export * from './billing';

@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { initializeWorkspacePolicy, createDatabase, captureDraftFingerprint, publishCaptureDraft, processCapturePublications, changeCaptureLifecycle, createAIUsageRecorder } from '@salesmora/data';
+import { migrateFreshBaseline } from '@salesmora/data/baseline-runner';
 import { recordGmailWorkerReadiness } from '@salesmora/data/lead-capture/gmail-delivery';
 import { openGmailEligibilityWindow, claimGmailMailbox, commitGmailHistoryPage, claimGmailMessage, beginGmailRecovery } from '@salesmora/data/lead-capture/gmail-sync-store';
 import { commitGmailIntake } from '@salesmora/data/lead-capture/gmail-ingestion';
@@ -48,10 +49,8 @@ function message(f: Fixture, id: string, patch: Record<string, unknown> = {}) { 
 function dependencies(f: Fixture, ids = ['one']): GmailCaptureDependencies { return { grant: async () => 'fictional-access', sync: { profile: async () => ({ historyId: '200' }), history: async () => ({ historyId: '200', history: [{ id: '150', messagesAdded: ids.map(id => ({ message: { id, labelIds: ['INBOX'] } })) }] }), recovery: async () => ({ messages: ids.map(id => ({ id })) }) }, messages: () => ({ list: async () => [], metadata: async () => ({}), message: async (_token, id) => message(f, id) }), extract: async () => extraction }; }
 async function due(f: Fixture) { await db('captureGmailMailboxState').where({ workspaceId: f.workspaceId }).update({ nextSyncAt: new Date(0) }); }
 try {
-  await owner.raw('CREATE DATABASE ??', [name]); created = true; await db.migrate.latest({ directory: fileURLToPath(new URL('../../../packages/data/src/migrations', import.meta.url)), loadExtensions: ['.ts'] });
-  await check('empty synchronization migration rolls back and reapplies without granting unrelated access', async () => {
-    const config = { directory: fileURLToPath(new URL('../../../packages/data/src/migrations', import.meta.url)), loadExtensions: ['.ts'], name: '202611050005_capture_gmail_sync.ts' };
-    await db.migrate.down(config); await db.migrate.up(config);
+  await owner.raw('CREATE DATABASE ??', [name]); created = true; await migrateFreshBaseline(db);
+  await check('fresh baseline keeps synchronization and narrow access intact', async () => {
     await assert.rejects(worker('captureGmailOAuthAttempts').select('id'));
   });
   await check('confirmed launch and scheduled activation open one version-bound window before worker intake', async () => {

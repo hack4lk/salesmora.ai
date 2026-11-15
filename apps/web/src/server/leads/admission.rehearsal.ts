@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createDatabase, initializeWorkspacePolicy, loadWorkspaceAuthorization, PlanCapacityError } from '@salesmora/data';
+import { migrateFreshBaseline } from '@salesmora/data/baseline-runner';
 import { leadSchema, leadDraftReviewSchema } from '@salesmora/contracts';
 
 const env = fileURLToPath(new URL('../../../../../.env.local', import.meta.url));
@@ -19,7 +20,7 @@ let created = false, checks = 0;
 async function check(name: string, run: () => Promise<void>) { await run(); checks++; console.log(`PASS ${name}`); }
 try {
   await owner.raw('CREATE DATABASE ??', [databaseName]); created = true;
-  await db.migrate.latest({ directory: fileURLToPath(new URL('../../../../../packages/data/src/migrations', import.meta.url)), loadExtensions: ['.ts'] });
+  await migrateFreshBaseline(db);
   process.env.DATABASE_URL = appURL.toString(); process.env.BILLING_SANDBOX_ENABLED = 'true';
   const { createLead, LeadConflictError } = await import('./store');
   const { enabledPermissions } = await import('../authorization/permissions');
@@ -67,7 +68,7 @@ try {
     assert.equal(confirmed.state, 'confirmed'); assert.ok(confirmed.leadId); assert.equal(confirmed.leadId, repeated.leadId); chatLeadId = confirmed.leadId;
     assert.equal((await db('leads').where({ workspaceId })).length, 2);
     assert.equal((await db('workspaceLeadAdmissions').where({ workspaceId })).length, 2);
-    assert.equal((await db('chatActionAudit').where({ draftId: proposal.id, action: 'draft.confirmed' })).length, 1);
+    assert.equal((await db('chatProposalAudit').where({ family: 'action', proposalId: proposal.id, action: 'draft.confirmed' })).length, 1);
   });
   await check('new creation uses the shared monthly limit while successful manual/chat retries remain safe', async () => {
     await db('workspaceLeadAdmissions').insert(Array.from({ length: 98 }, () => ({ workspaceId, leadId: randomUUID() })));

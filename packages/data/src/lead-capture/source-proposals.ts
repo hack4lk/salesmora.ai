@@ -1,14 +1,17 @@
 import { supersedeCaptureProposals } from './proposal-supersession';
 import { randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
-import { resolveCaptureLocalTime, captureSourceInputSchema, captureSourceProposalViewSchema, captureSetupReferenceSchema, captureAssistantProposalDecisionSchema, type CaptureSourceInput, type CaptureSourceProposalView, type AuthorizationContext, type PermissionId } from '@salesmora/contracts';
+import { captureSourceProposalStoredSchema, resolveCaptureLocalTime, captureSourceInputSchema, captureSourceProposalViewSchema, captureSetupReferenceSchema, captureAssistantProposalDecisionSchema, type CaptureSourceInput, type CaptureSourceProposalView, type AuthorizationContext, type PermissionId } from '@salesmora/contracts';
 import { authorize } from '@salesmora/domain';
 import { withWorkspaceAuthorization, AuthorizationAccessError, type WorkspaceIdentity } from '../authorization/store';
 import { captureDraftFingerprint, readCaptureSource, CaptureDraftConflictError, CaptureDraftValidationError } from './store';
 import { captureChatStamp } from './assistant-read';
+import { admittedChatTurn, stageAdmittedChatTurn } from '../chat-request';
 import { prepareGmailActivation, publishCaptureDraft, cancelCapturePublication, changeCapturePublication, CapturePublicationError, unavailableCaptureDelivery, type CaptureDeliveryAuthority } from './publication';
 import { changeCaptureLifecycle } from './lifecycle';
 import { duplicateCaptureSource } from './duplicate';
+import { proposalStorage } from '../proposal-storage';
+const storage = proposalStorage('captureSource', captureSourceProposalStoredSchema);
 type Stored = {
   view: CaptureSourceProposalView;
   input: CaptureSourceInput;
@@ -38,7 +41,6 @@ function checked(row: Row) { const payload = row.payload; captureSourceProposalV
   throw conflict(); return payload; }
 async function now(trx: Knex.Transaction) { return new Date((await trx.raw('SELECT statement_timestamp() AS now')).rows[0].now); }
 function visible(row: Row, at: Date) { const view = checked(row).view; return captureSourceProposalViewSchema.parse({ ...view, ticket: { ...view.ticket, state: row.state === 'pending' && Date.parse(view.ticket.expiresAt) <= at.getTime() ? 'expired' : row.state } }); }
-async function audit(trx: Knex.Transaction, row: Row, action: string) { await trx('chatCaptureSourceAudit').insert({ id: randomUUID(), workspaceId: row.workspaceId, actorId: row.userId, proposalId: row.id, operation: row.payload.input.operation, action, inputHash: row.payload.view.ticket.inputHash }); }
 async function current(trx: Knex.Transaction, context: AuthorizationContext, row: Row, deliveryStamp: string) {
   const payload = checked(row), target = payload.view.ticket.target;
   if (target.kind !== 'source')
@@ -73,10 +75,10 @@ export async function proposeCaptureSource(db: Knex, identity: WorkspaceIdentity
   const input = parsed.data;
   return withWorkspaceAuthorization(db, identity, enabled, true, async (trx, context) => {
     signal.throwIfAborted();
-    const turn = await trx('chatTurns').where({ ...identity, id: turnId }).first(), at = await now(trx);
+    const turn = admittedChatTurn(identity, turnId) ?? await trx('chatTurns').where({ ...identity, id: turnId }).first(), at = await now(trx);
     if (!turn || !['accepted', 'running'].includes(turn.state) || new Date(turn.leaseUntil) <= at)
       throw conflict();
-    const repeated: Row | undefined = await trx('chatCaptureSourceProposals').where({ ...identity, requestId: turnId }).first();
+    const repeated = await storage.read(trx, context, { requestId: turnId });
     if (repeated) {
       const prior = await current(trx, context, repeated, deliveryStamp);
       if (captureDraftFingerprint(prior.input) !== captureDraftFingerprint(input))
@@ -136,16 +138,13 @@ export async function proposeCaptureSource(db: Knex, identity: WorkspaceIdentity
     captureSourceProposalViewSchema.parse(payload.view);
     if (JSON.stringify(payload).length > 100000)
       throw new CaptureDraftValidationError();
-    await supersedeCaptureProposals(trx, identity, turn.threadId, at, 'setup');
-    const old: Row[] = await trx('chatCaptureSourceProposals').where({ ...identity, threadId: turn.threadId, state: 'pending' }).update({ state: 'superseded', resolvedAt: at }).returning('*');
-    for (const row of old)
-      await audit(trx, row, 'superseded');
-    const [row] = await trx('chatCaptureSourceProposals').insert({ ...identity, id, requestId: turnId, turnId, threadId: turn.threadId, payload: JSON.stringify(payload) }).returning('*');
+    await supersedeCaptureProposals(trx, context, turn.threadId, at);
+    await storage.insert(trx, context, { id: turnId, threadId: turn.threadId }, payload, turnId);
     const evidence = [...new Set([...(turn.captureSourceEvidence ?? []), id])];
     if (evidence.length > 7)
       throw conflict();
-    await trx('chatTurns').where({ ...identity, id: turnId }).update({ captureSourceEvidence: JSON.stringify(evidence) });
-    await audit(trx, row, 'prepared');
+    if (!stageAdmittedChatTurn(identity, turnId, { captureSourceEvidence: evidence }))
+      await trx('chatTurns').where({ ...identity, id: turnId }).update({ captureSourceEvidence: JSON.stringify(evidence) });
     signal.throwIfAborted();
     return payload.view;
   });
@@ -154,7 +153,7 @@ export async function readCaptureSourceProposal(db: Knex, identity: WorkspaceIde
   const input = captureSetupReferenceSchema.parse(raw);
   if (input.workspaceId !== identity.workspaceId)
     throw new AuthorizationAccessError();
-  return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => { const row: Row | undefined = await trx('chatCaptureSourceProposals').where({ ...identity, id: input.proposalId }).first(); if (!row || checked(row).view.ticket.inputHash !== input.inputHash || !await trx('chatTurns').where({ ...identity, id: row.turnId, state: 'completed' }).first('id'))
+  return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => { const row = await storage.read(trx, context, { id: input.proposalId }); if (!row || checked(row).view.ticket.inputHash !== input.inputHash || !await trx('chatTurns').where({ ...identity, id: row.turnId, state: 'completed' }).first('id'))
     throw new AuthorizationAccessError(); await current(trx, context, row, deliveryStamp); return visible(row, await now(trx)); });
 }
 export async function decideCaptureSourceProposal(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], raw: unknown, authority: CaptureDeliveryAuthority = unavailableCaptureDelivery, deliveryStamp = '') {
@@ -176,7 +175,7 @@ export async function decideCaptureSourceProposal(db: Knex, identity: WorkspaceI
     }
   }
   const outcome = await withWorkspaceAuthorization(db, identity, enabled, true, async (trx, context) => {
-    const row: Row | undefined = await trx('chatCaptureSourceProposals').where({ ...identity, id: input.proposalId }).forUpdate().first();
+    const row = await storage.read(trx, context, { id: input.proposalId }, true);
     if (!row || checked(row).view.ticket.inputHash !== input.inputHash || !await trx('chatTurns').where({ ...identity, id: row.turnId, state: 'completed' }).first('id'))
       throw new AuthorizationAccessError();
     const payload = await current(trx, context, row, deliveryStamp), at = await now(trx), desired = input.decision === 'confirm' ? 'confirmed' : 'cancelled';
@@ -223,8 +222,7 @@ export async function decideCaptureSourceProposal(db: Knex, identity: WorkspaceI
       }
     }
     payload.view.ticket.state = desired;
-    await trx('chatCaptureSourceProposals').where({ id: row.id }).update({ state: desired, payload: JSON.stringify(payload), resolvedAt: at });
-    await audit(trx, row, desired);
+    await storage.save(trx, context, row, payload, desired, at);
     return captureSourceProposalViewSchema.parse(payload.view);
   });
   if ('error' in outcome) throw outcome.error;
@@ -234,7 +232,7 @@ export async function captureSourceEvidenceAllowed(trx: Knex.Transaction, contex
   if (ids.length > 7 || new Set(ids).size !== ids.length)
     return false;
   for (const id of ids) {
-    const row: Row | undefined = await trx('chatCaptureSourceProposals').where({ workspaceId: context.workspaceId, userId: context.userId, id }).first();
+    const row = await storage.read(trx, context, { id });
     if (!row)
       return false;
     try {
@@ -249,7 +247,7 @@ export async function captureSourceEvidenceAllowed(trx: Knex.Transaction, contex
   return true;
 }
 export async function visibleCaptureSourceTicket(trx: Knex.Transaction, context: AuthorizationContext, turnId: string, deliveryStamp = '') {
-  const row: Row | undefined = await trx('chatCaptureSourceProposals').where({ workspaceId: context.workspaceId, userId: context.userId, turnId }).orderBy('createdAt', 'desc').first();
+  const row = await storage.read(trx, context, { turnId });
   if (!row)
     return undefined;
   try {

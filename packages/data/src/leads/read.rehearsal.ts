@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import knex from 'knex';
 import { leadListQuerySchema, leadEditableFields, type LeadReportQuery, type UpdateLeadInput, type PermissionId } from '@salesmora/contracts';
 import { resolveLeadChatContext, leadChatEvidenceAllowed, leadChatPipelineCounts } from './chat-context';
+import { searchChatLeads, chatSearchSnapshotAllowed, leadSearchEvidenceAllowed } from './chat-search';
 import { initializeWorkspacePolicy, loadWorkspaceAuthorization, withWorkspaceAuthorization } from '../authorization/store';
 import { readLeadReportInTransaction } from '../reports/leads';
 import { readLeadReportWithAuthorityInTransaction } from '../reports/lead-read';
@@ -17,8 +18,7 @@ import { setLeadArchived, LeadArchiveConflictError } from './archive';
 import { assignLead, LeadAssignmentConflictError } from './assign';
 import { readNotifications, markNotificationRead, readNotificationPreferences, saveNotificationPreferences } from '../notifications/store';
 import { processAssignmentEmails } from '../notifications/delivery';
-import { up as readModel } from '../migrations/202610150001_leads_read_model';
-import { replayMigrations } from '../migration-replay';
+import { migrateFreshBaseline } from '../baseline-runner';
 import { AuthorizationAccessError } from '../authorization/store';
 import { readLeads, readLead } from './read';
 import { moveLeadStage, LeadStageConflictError } from './stage';
@@ -46,20 +46,18 @@ async function check(name: string, run: () => Promise<void>) { await run(); chec
 try {
   await admin.raw('CREATE DATABASE ??', [databaseName]);
   databaseCreated = true;
-  // Legacy leads are seeded before the authorization and read-model migrations; every later migration then runs on top.
-  await replayMigrations(db, { through: '202610110003_leads' });
+  await migrateFreshBaseline(db);
   await db('users').insert(['owner', 'admin', 'office', 'field', 'outsider', 'other-owner'].map(id => ({ id, name: id, email: `${id}@example.test`, createdAt: new Date(), updatedAt: new Date(), termsVersion: 'test', termsAcceptedAt: new Date() })));
-  await db('workspaces').insert([{ id: a, ownerId: 'owner' }, { id: b, ownerId: 'other-owner' }].map(row => ({ ...row, businessName: 'Test business', businessType: 'test', postalCode: '', serviceRange: '' })));
-  await db('workspaceMemberships').insert([{ workspaceId: a, userId: 'owner', role: 'owner', profile: 'office' }, { workspaceId: a, userId: 'admin', role: 'admin', profile: 'office' }, { workspaceId: a, userId: 'office', role: 'member', profile: 'office' }, { workspaceId: a, userId: 'field', role: 'member', profile: 'field' }, { workspaceId: b, userId: 'other-owner', role: 'owner', profile: 'office' }]);
-  const base = { createdBy: 'owner', submissionHash: 'test', name: 'Example customer', email: 'customer@example.test', phone: '(212) 555-0134', service: 'Repair', address: 'Willow Street', details: 'secret-unsearchable', notes: 'secret-unsearchable', source: 'website' };
-  await db('leads').insert(ids.map((id, index) => ({ ...base, id, submissionId: randomUUID(), workspaceId: index === 62 ? b : a, createdBy: index === 62 ? 'other-owner' : 'owner', ownerId: index === 62 ? null : index % 3 === 0 ? 'field' : index % 3 === 1 ? 'office' : null, stage: index === 0 ? 'in-progress' : 'new', createdAt: new Date('2026-10-10T12:00:00Z') })));
-  await replayMigrations(db, { after: '202610110003_leads', through: '202610140006_lead_admission_tracking' });
-  await check('failed migration transaction restores legacy stages and columns', async () => {
-    const abort = new Error('rollback'); await assert.rejects(db.transaction(async trx => { await readModel(trx); throw abort; }), error => error === abort);
-    assert.equal(await db.schema.hasColumn('leads', 'leadNumber'), false); assert.equal((await db('leads').where({ id: ids[0] }).first()).stage, 'in-progress');
+  await db.transaction(async trx => {
+    await trx('workspaces').insert([{ id: a, ownerId: 'owner' }, { id: b, ownerId: 'other-owner' }].map(row => ({ ...row, businessName: 'Test business', businessType: 'test', postalCode: '', serviceRange: '' })));
+    await trx('workspaceMemberships').insert([{ workspaceId: a, userId: 'owner', role: 'owner' }, { workspaceId: a, userId: 'admin', role: 'admin' }, { workspaceId: a, userId: 'office', role: 'office' }, { workspaceId: a, userId: 'field', role: 'field' }, { workspaceId: b, userId: 'other-owner', role: 'owner' }]);
+    await initializeWorkspacePolicy(trx, { workspaceId: a, userId: 'owner' });
+    await initializeWorkspacePolicy(trx, { workspaceId: b, userId: 'other-owner' });
   });
-  await replayMigrations(db, { after: '202610140006_lead_admission_tracking' });
-  await check('migration preserves records, numbers, dates, versions and creation history', async () => {
+  const base = { createdBy: 'owner', submissionHash: 'test', name: 'Example customer', email: 'customer@example.test', phone: '(212) 555-0134', service: 'Repair', address: 'Willow Street', details: 'secret-unsearchable', notes: 'secret-unsearchable', source: 'website' };
+  const createdAt = new Date('2026-10-10T12:00:00Z');
+  await db('leads').insert(ids.map((id, index) => ({ ...base, id, submissionId: randomUUID(), workspaceId: index === 62 ? b : a, createdBy: index === 62 ? 'other-owner' : 'owner', ownerId: index === 62 ? null : index % 3 === 0 ? 'field' : index % 3 === 1 ? 'office' : null, stage: index === 0 ? 'estimate-sent' : 'new', createdAt, updatedAt: createdAt, lastActivityAt: createdAt })));
+  await check('created records have unique numbers, dates, versions and creation history', async () => {
     const rows = await db('leads').where({ workspaceId: a }); assert.equal(rows.length, 62); assert.equal(new Set(rows.map(row => row.leadNumber)).size, 62);
     assert(rows.every(row => row.version === 1 && +row.updatedAt === +row.createdAt && +row.lastActivityAt === +row.createdAt));
     assert.equal(rows.find(row => row.id === ids[0]).stage, 'estimate-sent'); assert.equal(Number((await db('leadActivity').count('* as n').first())?.n), 63);
@@ -74,6 +72,67 @@ try {
     await assert.rejects(readLead(db, { userId: 'field', workspaceId: a }, enabled, ids[1]), AuthorizationAccessError);
     await assert.rejects(readLead(db, { userId: 'owner', workspaceId: a }, enabled, ids[62]), AuthorizationAccessError);
     await assert.rejects(read('outsider'), AuthorizationAccessError);
+  });
+  await check('timestamped search preserves historical facts while rechecking current scope, rows and owners', async () => {
+    const rollback = new Error('search snapshot rollback');
+    await assert.rejects(db.transaction(async trx => {
+      const owner = await loadWorkspaceAuthorization(trx, { userId: 'owner', workspaceId: a }, enabled);
+      const field = await loadWorkspaceAuthorization(trx, { userId: 'field', workspaceId: a }, enabled);
+      const filters = { query: '', stages: [], sources: [], ownerIds: [], created: 'any' as const, from: '', to: '', attention: false, archived: false };
+      const snapshot = await searchChatLeads(trx, owner, randomUUID(), filters);
+      assert(snapshot.result.asOf);
+      const legacy = structuredClone(snapshot);
+      delete legacy.result.asOf; delete legacy.assignmentStamp; delete legacy.ownerIds;
+      assert.equal(await chatSearchSnapshotAllowed(trx, owner, legacy), false);
+      assert.equal(await chatSearchSnapshotAllowed(trx, owner, snapshot), true);
+      const queries: string[] = [];
+      const validated = new Map<string, boolean>();
+      const onQuery = (query: { sql: string }) => queries.push(query.sql);
+      trx.on('query', onQuery);
+      try {
+        assert.equal(await leadSearchEvidenceAllowed(trx, owner, [snapshot.result.id], {
+          id: snapshot.result.id, leadSearchSnapshot: snapshot,
+        }, validated), true);
+        const firstCalls = queries.length;
+        assert.equal(await leadSearchEvidenceAllowed(trx, owner, [snapshot.result.id], undefined, validated), true);
+        assert.equal(queries.length, firstCalls, 'Inherited references reuse validation only within the history transaction');
+      } finally { trx.removeListener('query', onQuery); }
+      assert.equal(queries.length, 2, 'One membership read and one scoped ID read, without rereading the saved turn');
+      assert(queries.every(sql => !/count\(|order by|timezone/i.test(sql)), 'No repeated count, filtered window or clock query');
+      await trx('leads').where({ id: snapshot.result.rows[0].id }).update({ stage: 'contacted', version: 2 });
+      assert.equal(await chatSearchSnapshotAllowed(trx, owner, snapshot), true, 'Ordinary edits do not erase a historical snapshot');
+      assert.equal(await chatSearchSnapshotAllowed(trx, owner, legacy), false, 'Legacy snapshots retain strict validation');
+      assert.equal(await chatSearchSnapshotAllowed(trx, field, snapshot), false, 'Workspace totals never become assigned totals');
+      const empty = await searchChatLeads(trx, owner, randomUUID(), { ...filters, query: 'no-match-fictional-snapshot' });
+      assert.equal(empty.result.total, 0);
+      await trx('leads').where({ id: ids[1] }).update({ name: 'no-match-fictional-snapshot' });
+      assert.equal(await chatSearchSnapshotAllowed(trx, owner, empty), true, 'An empty historical result stays a snapshot');
+      const assigned = await searchChatLeads(trx, field, randomUUID(), filters);
+      const outsideWindow = ids.find(id => !assigned.result.rows.some(row => row.id === id) &&
+        ids.indexOf(id) % 3 === 0 && id !== ids[62])!;
+      await trx('leads').where({ id: outsideWindow }).update({ ownerId: 'office' });
+      assert.equal(await chatSearchSnapshotAllowed(trx, field, assigned), false, 'Assignment loss outside the ten rows invalidates scoped totals');
+      await trx('leads').where({ id: outsideWindow }).update({ ownerId: 'field' });
+      assert.equal(await chatSearchSnapshotAllowed(trx, field, assigned), false,
+        'Truncated assigned totals cannot prove retained access to every original counted source');
+      await trx('leads').where({ id: assigned.result.rows[0].id }).update({ archivedAt: new Date() });
+      assert.equal(await chatSearchSnapshotAllowed(trx, field, assigned), false, 'Archived rows require current archive access');
+      const removedOwner = snapshot.ownerIds![0];
+      assert(removedOwner);
+      await trx('workspaceMemberships').where({ workspaceId: a, userId: removedOwner }).delete();
+      assert.equal(await chatSearchSnapshotAllowed(trx, owner, snapshot), false, 'Former member names are not re-released');
+      const nextRequest = new Map<string, boolean>();
+      assert.equal(await leadSearchEvidenceAllowed(trx, owner, [snapshot.result.id], {
+        id: snapshot.result.id, leadSearchSnapshot: snapshot,
+      }, nextRequest), false, 'A later request revalidates the same snapshot and denies revocation');
+      queries.length = 0;
+      trx.on('query', onQuery);
+      try {
+        assert.equal(await leadSearchEvidenceAllowed(trx, owner, [snapshot.result.id], undefined, nextRequest), false);
+        assert.equal(queries.length, 0, 'Denied shared evidence is also reused within one request');
+      } finally { trx.removeListener('query', onQuery); }
+      throw rollback;
+    }), error => error === rollback);
   });
   await check('search handles normalized phones, literal wildcards, and excludes notes/details', async () => {
     assert.equal((await read('owner', { q: '212-555' })).total, 62); assert.equal((await read('owner', { q: 'willow' })).total, 62);
@@ -321,16 +380,26 @@ try {
     const threadId = randomUUID(), turnId = randomUUID(), draftId = randomUUID();
     await db('chatThreads').insert({ id: threadId, workspaceId: a, userId: 'owner' });
     await db('chatTurns').insert({ id: turnId, threadId, workspaceId: a, userId: 'owner', clientTurnId: randomUUID(), requestHash: 'test', surfaceKey: 'home', state: 'completed', leaseUntil: new Date() });
-    await db('chatActionDrafts').insert({ id: draftId, turnId, threadId, workspaceId: a, userId: 'owner', lead: { name: 'Private proposal payload' }, inputHash: 'test', accessHash: 'test', state: 'confirmed', leadId: id, expiresAt: new Date() });
+    const hash = 'a'.repeat(64);
+    await db('chatProposals').insert({
+      family: 'action', id: draftId, turnId, threadId, workspaceId: a, userId: 'owner', payloadVersion: 1,
+      inputHash: hash, state: 'confirmed', expiresAt: new Date(), createdAt: new Date(),
+      payload: JSON.stringify({ actionType: 'lead.create', capability: 'leads.create', lead: { name: 'Private proposal payload' }, accessHash: hash, leadId: id }),
+    });
     const derivedTurn = randomUUID(), derivedDraft = randomUUID();
     await db('chatTurns').insert({ id: derivedTurn, threadId, workspaceId: a, userId: 'owner', clientTurnId: randomUUID(), requestHash: 'derived', surfaceKey: 'lead.detail', state: 'completed', leaseUntil: new Date(), leadEvidence: JSON.stringify([{ id, version: row.version }]) });
-    await db('chatActionDrafts').insert({ id: derivedDraft, turnId: derivedTurn, threadId, workspaceId: a, userId: 'owner', lead: { name: 'Context-derived private proposal' }, inputHash: 'derived', accessHash: 'derived', state: 'pending', expiresAt: new Date() });
+    await db('chatProposals').insert({
+      family: 'action', id: derivedDraft, turnId: derivedTurn, threadId, workspaceId: a, userId: 'owner', payloadVersion: 1,
+      inputHash: hash, state: 'pending', expiresAt: new Date(), createdAt: new Date(),
+      payload: JSON.stringify({ actionType: 'lead.create', capability: 'leads.create', lead: { name: 'Context-derived private proposal' }, accessHash: hash }),
+    });
     const input = { submissionId: randomUUID(), expectedVersion: row.version, typedConfirmation: `LD-${String(row.leadNumber).padStart(4, '0')}` };
     assert.equal((await readLead(db, { userId: 'owner', workspaceId: a }, enabled, id)).lead.canDelete, true);
     await remove(id, input); await remove(id, input);
-    for (const table of ['leads', 'leadActivity', 'chatActionDrafts', 'assignmentNotifications']) assert.equal(await db(table).where(table === 'leads' ? { id } : { leadId: id }).first(), undefined);
+    for (const table of ['leads', 'leadActivity', 'assignmentNotifications']) assert.equal(await db(table).where(table === 'leads' ? { id } : { leadId: id }).first(), undefined);
+    assert.equal(await db('chatProposals').where({ family: 'action', id: draftId }).first(), undefined);
     assert.equal(await db('assignmentEmailOutbox').where({ id: notification.id }).first(), undefined);
-    assert.equal(await db('chatActionDrafts').where({ id: derivedDraft }).first(), undefined);
+    assert.equal(await db('chatProposals').where({ family: 'action', id: derivedDraft }).first(), undefined);
     assert(await db('workspaceLeadAdmissions').where({ leadId: id }).first());
     const audit = await db('leadDeletionAudit').where({ id: input.submissionId }).first();
     assert.equal(audit.actorId, 'owner'); assert.equal(audit.leadNumber, row.leadNumber); assert(!('name' in audit));

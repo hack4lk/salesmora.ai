@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout } from 'node:timers/promises';
 import knex from 'knex';
 import { leadReportExportInputSchema, permissionIds } from '@salesmora/contracts';
-import { replayMigrations } from '../migration-replay';
+import { migrateFreshBaseline } from '../baseline-runner';
 import { initializeWorkspacePolicy, AuthorizationAccessError } from '../authorization/store';
 import { createLeadReportCSVExport, previewLeadReportExport, ReportExportLimitError } from './lead-export';
 import { csvLine } from '../leads/csv';
@@ -30,7 +30,7 @@ async function check(name: string, run: () => Promise<void>) {
 }
 try {
   await admin.raw('CREATE DATABASE ??', [databaseName]); created = true;
-  await replayMigrations(db);
+  await migrateFreshBaseline(db);
   await db.transaction(async trx => {
     await trx('users').insert({ id: owner, name: 'CSV fixture owner', email: `${owner}@example.test`,
       termsVersion: 'fixture', termsAcceptedAt: new Date(), createdAt: new Date(), updatedAt: new Date() });

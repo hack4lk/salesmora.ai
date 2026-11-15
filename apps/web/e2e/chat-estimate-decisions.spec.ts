@@ -273,7 +273,7 @@ test("follow-up answers inherit checked decision receipt evidence and redact aft
   expect(followup.status()).toBe(200);
   expect(await followup.text()).toContain("Verified recorded decision receipt.");
   const latest = await db("chatTurns").where({ workspaceId, threadId: run.threadId }).orderBy("createdAt", "desc").first();
-  expect(latest.estimateDecisionEvidence).toEqual([run.turnId]);
+  expect(latest.historyEvidence).toContain(run.turnId);
   const membership = await db("workspaceMemberships").where({ workspaceId, userId: fieldId }).first();
   await db("workspaceMemberships").where({ workspaceId, userId: fieldId }).delete();
   await db("workspaceMemberships").insert(membership);

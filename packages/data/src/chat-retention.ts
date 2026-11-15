@@ -26,10 +26,6 @@ export async function cleanupExpiredChat(db: Knex, batchSize = 100) {
       // Skip busy workspaces; the next scheduled batch can retry them.
       if (!await trx('workspaces').where({ id: candidate.workspaceId }).forUpdate().skipLocked().first('id')) return 0;
       if (!await eligible(trx).where('thread.id', candidate.id).where('thread.workspaceId', candidate.workspaceId).first('thread.id')) return 0;
-      const turnIds = trx('chatTurns').where({ threadId: candidate.id, workspaceId: candidate.workspaceId }).select(trx.raw('id::text'));
-      for (const table of ['checkpoint_writes', 'checkpoint_blobs', 'checkpoints']) {
-        await trx(table).whereIn('thread_id', turnIds.clone()).delete();
-      }
       // FK cascades delete turns, messages and draft payloads. Audit/usage have no FK.
       return Number(await trx('chatThreads').where({ id: candidate.id, workspaceId: candidate.workspaceId }).delete());
     });

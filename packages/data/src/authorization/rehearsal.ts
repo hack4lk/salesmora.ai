@@ -6,56 +6,195 @@ import { fileURLToPath } from 'node:url';
 import knex from 'knex';
 import { createDefaultWorkspacePolicy } from '@salesmora/domain';
 import type { PermissionId, WorkspacePolicy } from '@salesmora/contracts';
-import { up as authorization } from '../migrations/202610120001_authorization';
-import { replayMigrations } from '../migration-replay';
-import { initializeWorkspacePolicy, saveWorkspacePolicy, listAuthorizedLeads, authorizedLeadPipelineCounts, AuthorizationAccessError, AuthorizationConflictError } from './store';
+import { migrateFreshBaseline } from '../baseline-runner';
+import { initializeWorkspacePolicy, loadWorkspaceAuthorization, withWorkspaceAuthorization, withWorkspaceAuthoritySnapshot, saveWorkspacePolicy, listAuthorizedLeads, authorizedLeadPipelineCounts, AuthorizationAccessError, AuthorizationConflictError, WorkspaceSuspendedError } from './store';
 
 const envFile = fileURLToPath(new URL('../../../../.env.local', import.meta.url));
 if (existsSync(envFile)) process.loadEnvFile(envFile);
 const connection = process.env.TEST_DATABASE_URL;
-if (!connection || !new URL(connection).pathname.endsWith('_test')) throw new Error('Authorization rehearsal requires TEST_DATABASE_URL ending in _test.');
-const schema = `authorization_rehearsal_${randomUUID().replaceAll('-', '')}`;
+if (!connection || connection === process.env.DATABASE_URL || !new URL(connection).pathname.endsWith('_test') ||
+  !['localhost', '127.0.0.1'].includes(new URL(connection).hostname))
+  throw new Error('Authorization rehearsal requires a separate local TEST_DATABASE_URL ending in _test.');
+const database = `authorization_rehearsal_${randomUUID().replaceAll('-', '')}_test`;
+const isolatedConnection = new URL(connection);
+isolatedConnection.pathname = `/${database}`;
 const admin = knex({ client: 'pg', connection });
-const db = knex({ client: 'pg', connection: { connectionString: connection, options: `-c search_path=${schema},public` }, pool: { min: 0, max: 5 } });
+const db = knex({ client: 'pg', connection: isolatedConnection.toString(), pool: { min: 0, max: 5 } });
+let created = false;
 let checks = 0;
 async function check(name: string, run: () => Promise<void>) { await run(); checks++; console.log(`PASS ${name}`); }
 const a = randomUUID(), b = randomUUID();
 const features: PermissionId[] = ['leads.read', 'leads.update', 'leads.stage.update', 'permissions.read', 'permissions.manage'];
-const identity = (userId: string, workspaceId = a) => ({ userId, workspaceId });
+const identity = (userId: string, workspaceId: string = a) => ({ userId, workspaceId });
 const nextPolicy = (revision: number): WorkspacePolicy => createDefaultWorkspacePolicy(a, revision);
 try {
-  await admin.raw('CREATE SCHEMA ??', [schema]);
-  // Legacy data is seeded just before the authorization cutover; every later migration then runs on top of it.
-  await replayMigrations(db, { through: '202610110003_leads' });
+  await admin.raw('CREATE DATABASE ??', [database]);
+  created = true;
+  await migrateFreshBaseline(db);
   const now = new Date();
   await db('users').insert(['owner', 'admin', 'office', 'field', 'outsider', 'second-owner'].map(id => ({ id, name: id, email: `${id}@example.test`, createdAt: now, updatedAt: now, termsVersion: 'test', termsAcceptedAt: now })));
-  await db('workspaces').insert([{ id: a, ownerId: 'owner' }, { id: b, ownerId: 'second-owner' }].map(row => ({ ...row, businessName: 'Fictional workspace', businessType: 'test', postalCode: '', serviceRange: '' })));
-  await db('workspaceMemberships').insert([
-    { workspaceId: a, userId: 'owner', role: 'owner', profile: 'office' },
-    { workspaceId: a, userId: 'admin', role: 'admin', profile: 'field' },
-    { workspaceId: a, userId: 'office', role: 'member', profile: 'office' },
-    { workspaceId: a, userId: 'field', role: 'member', profile: 'field' },
-    { workspaceId: b, userId: 'second-owner', role: 'owner', profile: 'office' },
-    { workspaceId: b, userId: 'field', role: 'member', profile: 'office' },
-  ]);
-  await db('workspaceInvitations').insert(['office', 'field'].map(profile => ({ id: randomUUID(), workspaceId: a, email: `${profile}-invite@example.test`, role: 'member', profile, status: 'queued' })));
+  await db.transaction(async trx => {
+    await trx('workspaces').insert([{ id: a, ownerId: 'owner' }, { id: b, ownerId: 'second-owner' }].map(row => ({ ...row, businessName: 'Fictional workspace', businessType: 'test', postalCode: '', serviceRange: '' })));
+    await trx('workspaceMemberships').insert([
+      { workspaceId: a, userId: 'owner', role: 'owner' },
+      { workspaceId: a, userId: 'admin', role: 'admin' },
+      { workspaceId: a, userId: 'office', role: 'office' },
+      { workspaceId: a, userId: 'field', role: 'field' },
+      { workspaceId: b, userId: 'second-owner', role: 'owner' },
+      { workspaceId: b, userId: 'field', role: 'office' },
+    ]);
+    await initializeWorkspacePolicy(trx, identity('owner'));
+    await initializeWorkspacePolicy(trx, identity('second-owner', b));
+  });
+  await db('workspaceInvitations').insert(['office', 'field'].map(role => ({ id: randomUUID(), workspaceId: a, email: `${role}-invite@example.test`, role, inviterId: 'owner', status: 'queued' })));
   await db('leads').insert([
     { workspaceId: a, ownerId: 'field', stage: 'new' },
     { workspaceId: a, ownerId: 'office', stage: 'contacted' },
     { workspaceId: a, ownerId: null, stage: 'new' },
     { workspaceId: b, ownerId: null, stage: 'new' },
   ].map((row, i) => ({ ...row, id: randomUUID(), createdBy: null, submissionId: randomUUID(), submissionHash: `test-${i}`, name: `Fictional lead ${i}`, email: '', phone: '', service: '', address: '', details: '', notes: '', source: 'other' })));
-  const original = await db('workspaceMemberships').orderBy(['workspaceId', 'userId']);
-  await check('migration transaction rollback restores legacy memberships and removes new tables', async () => {
-    const rollback = new Error('rehearsed rollback');
-    await assert.rejects(db.transaction(async trx => { await authorization(trx); throw rollback; }), error => error === rollback);
-    assert.deepEqual(await db('workspaceMemberships').orderBy(['workspaceId', 'userId']), original);
-    assert.equal(await db.schema.hasTable('workspacePolicies'), false);
-  });
-  await replayMigrations(db, { after: '202610110003_leads' });
-  // Later migrations advance the policy and append audit rows; checks are relative to the replayed state.
   const base = (await db('workspacePolicies').where({ workspaceId: a }).first()).revision as number;
   const audits = (await db('authorizationAudit').where({ workspaceId: a })).length;
+  await check('joined authority matches persisted context for every role and uses four calls including transaction control', async () => {
+    const policy = await db('workspacePolicies').where({ workspaceId: a }).first('revision');
+    const grants = await db('workspaceRolePolicies').where({ workspaceId: a }).select('role', 'permission', 'scope');
+    const byGrant = (x: { role: string; permission: string }, y: { role: string; permission: string }) =>
+      x.role.localeCompare(y.role) || x.permission.localeCompare(y.permission);
+    for (const role of ['owner', 'admin', 'office', 'field']) {
+      const statements: string[] = [];
+      const record = (query: { sql: string }) => { statements.push(query.sql); };
+      db.on('query', record);
+      let context;
+      try { context = await loadWorkspaceAuthorization(db, identity(role), features); }
+      finally { db.removeListener('query', record); }
+      assert.equal(statements.length, 4);
+      assert.match(statements[0], /^BEGIN/i);
+      assert.match(statements[1], /for share/i);
+      assert.match(statements[2], /left join "workspaceRolePolicies"/);
+      assert.match(statements[3], /^COMMIT/i);
+      assert.deepEqual({ ...context, policy: { ...context.policy, grants: [...context.policy.grants].sort(byGrant) } }, {
+        ...identity(role), ownerUserId: 'owner', membership: { ...identity(role), role },
+        policy: { workspaceId: a, revision: policy.revision, grants: [...grants].sort(byGrant) }, enabledPermissions: features,
+      });
+    }
+  });
+  await check('request authority is reused without reloads, isolated by identity, and expires before the next request', async () => {
+    const captured = await loadWorkspaceAuthorization(db, identity('field'), features);
+    const statements: string[] = [];
+    const record = (query: { sql: string }) => statements.push(query.sql);
+    await db('users').where({ id: 'field' }).update({ suspendedAt: new Date(), suspendedReason: 'Fictional request snapshot check' });
+    try {
+      db.on('query', record);
+      await withWorkspaceAuthoritySnapshot(db, captured, async () => {
+        for (let index = 0; index < 2; index++) await withWorkspaceAuthorization(db, identity('field'), features, false, async (trx, current) => {
+          assert.deepEqual(current, captured);
+          await withWorkspaceAuthorization(trx, identity('field'), ['leads.read'], false, async (_nested, narrowed) => {
+            assert.deepEqual(narrowed.enabledPermissions, ['leads.read']);
+          });
+        });
+        await assert.rejects(withWorkspaceAuthorization(db, identity('owner'), features, false, async () => {}), AuthorizationAccessError);
+        await assert.rejects(withWorkspaceAuthorization(db, identity('field', b), features, false, async () => {}), AuthorizationAccessError);
+      });
+      assert.equal(statements.filter(sql => /workspaceRolePolicies|for share|for update/.test(sql)).length, 0);
+      db.removeListener('query', record);
+      await assert.rejects(loadWorkspaceAuthorization(db, identity('field'), features), AuthorizationAccessError);
+    } finally {
+      db.removeListener('query', record);
+      await db('users').where({ id: 'field' }).update({ suspendedAt: null, suspendedReason: null });
+    }
+  });
+  await check('scoped nested reads reuse one authority load and transaction', async () => {
+    const statements: string[] = [];
+    const record = (query: { sql: string }) => statements.push(query.sql);
+    db.on('query', record);
+    try {
+      await withWorkspaceAuthorization(db, identity('owner'), features, true, async (trx, context) => {
+        for (let index = 0; index < 3; index++)
+          await withWorkspaceAuthorization(trx, identity('owner'), features, false, async (nested, current) => {
+            assert.equal(nested, trx);
+            assert.deepEqual(current, context);
+          });
+      }, { reuseNestedAuthority: true });
+    } finally { db.removeListener('query', record); }
+    assert.equal(statements.length, 4);
+    assert.match(statements[1], /for update/i);
+    assert.equal(statements.filter(sql => sql.includes('left join "workspaceRolePolicies"')).length, 1);
+  });
+  await check('scoped authority cannot change identity or widen feature permissions through nested readers', async () => {
+    await withWorkspaceAuthorization(db, identity('owner'), features, true, async trx => {
+      await assert.rejects(withWorkspaceAuthorization(trx, identity('field'), features, false, async () => {}),
+        AuthorizationAccessError);
+      await assert.rejects(withWorkspaceAuthorization(trx, identity('owner', b), features, true, async () => {}),
+        AuthorizationAccessError);
+      await withWorkspaceAuthorization(trx, identity('owner'), ['leads.read'], false, async (nested, context) => {
+        assert.deepEqual(context.enabledPermissions, ['leads.read']);
+        await withWorkspaceAuthorization(nested, identity('owner'), features, false, async (_next, current) => {
+          assert.deepEqual(current.enabledPermissions, ['leads.read']);
+        });
+      });
+      await withWorkspaceAuthorization(trx, identity('owner'), features, false, async (_next, current) => {
+        assert.deepEqual(current.enabledPermissions, features);
+      });
+    }, { reuseNestedAuthority: true });
+  });
+  await check('caught native write/SQL failures roll back to savepoints without poisoning the tool transaction', async () => {
+    await withWorkspaceAuthorization(db, identity('owner'), features, true, async trx => {
+      const before = await trx('workspaces').where({ id: a }).first('businessName');
+      await assert.rejects(withWorkspaceAuthorization(trx, identity('owner'), features, true, async nested => {
+        await nested('workspaces').where({ id: a }).update({ businessName: 'Must roll back' });
+        await nested.raw('select missing_scoped_authority_test_column');
+      }), /missing_scoped_authority_test_column/);
+      assert.equal((await trx('workspaces').where({ id: a }).first('businessName')).businessName, before.businessName);
+      await withWorkspaceAuthorization(trx, identity('owner'), features, false, async (nested, context) => {
+        assert.equal(nested, trx);
+        assert.equal(context.userId, 'owner');
+      });
+    }, { reuseNestedAuthority: true });
+  });
+  await check('authority scopes are isolated concurrently and never reused by a later request', async () => {
+    await Promise.all([['owner', a], ['second-owner', b]].map(async ([userId, workspaceId]) =>
+      withWorkspaceAuthorization(db, identity(userId, workspaceId), features, true, async (trx, context) => {
+        await new Promise(resolve => setTimeout(resolve, 10));
+        await withWorkspaceAuthorization(trx, identity(userId, workspaceId), features, false, async (_nested, current) => {
+          assert.equal(current.userId, context.userId);
+          assert.equal(current.workspaceId, context.workspaceId);
+        });
+      }, { reuseNestedAuthority: true })));
+    await db('users').where({ id: 'owner' }).update({ suspendedAt: new Date(), suspendedReason: 'Fictional scope test' });
+    try {
+      await assert.rejects(withWorkspaceAuthorization(db, identity('owner'), features, true, async () => {},
+        { reuseNestedAuthority: true }), AuthorizationAccessError);
+    } finally { await db('users').where({ id: 'owner' }).update({ suspendedAt: null, suspendedReason: null }); }
+    await assert.rejects(withWorkspaceAuthorization(db, identity('owner'), features, false, async () => {},
+      { reuseNestedAuthority: true }), /exclusive workspace lock/);
+  });
+  await check('joined authority denies suspended/deleting identities and retains workspace suspension error', async () => {
+    for (const column of ['suspendedAt', 'deletionRequestedAt']) {
+      await db('users').where({ id: 'office' }).update({ [column]: new Date(), ...(column === 'suspendedAt' ? { suspendedReason: 'Fictional authorization test' } : {}) });
+      try { await assert.rejects(loadWorkspaceAuthorization(db, identity('office'), features), AuthorizationAccessError); }
+      finally { await db('users').where({ id: 'office' }).update({ [column]: null, ...(column === 'suspendedAt' ? { suspendedReason: null } : {}) }); }
+    }
+    for (const column of ['suspendedAt', 'deletionRequestedAt']) {
+      await db('workspaces').where({ id: a }).update({ [column]: new Date(), ...(column === 'suspendedAt' ? { suspendedReason: 'Fictional authorization test' } : {}) });
+      try {
+        await assert.rejects(loadWorkspaceAuthorization(db, identity('owner'), features),
+          column === 'suspendedAt' ? WorkspaceSuspendedError : AuthorizationAccessError);
+      } finally { await db('workspaces').where({ id: a }).update({ [column]: null, ...(column === 'suspendedAt' ? { suspendedReason: null } : {}) }); }
+    }
+    await assert.rejects(loadWorkspaceAuthorization(db, identity('missing-user'), features), AuthorizationAccessError);
+    await assert.rejects(loadWorkspaceAuthorization(db, identity('owner', randomUUID()), features), AuthorizationAccessError);
+  });
+  await check('missing policy or empty grants deny before protected work without default fallback', async () => {
+    let invoked = false;
+    for (const table of ['workspacePolicies', 'workspaceRolePolicies']) {
+      await assert.rejects(db.transaction(async trx => {
+        await trx(table).where({ workspaceId: a }).delete();
+        await withWorkspaceAuthorization(trx, identity('owner'), features, false, async () => { invoked = true; });
+      }), AuthorizationAccessError);
+    }
+    assert.equal(invoked, false);
+    await loadWorkspaceAuthorization(db, identity('owner'), features);
+  });
   await check('members and pending invitations map predictably; Admin remains Admin', async () => {
     const rows = await db('workspaceMemberships').where({ workspaceId: a }).select('userId', 'role');
     assert.deepEqual(Object.fromEntries(rows.map(row => [row.userId, row.role])), { owner: 'owner', admin: 'admin', office: 'office', field: 'field' });
@@ -119,7 +258,7 @@ try {
     const writer = await db.transaction();
     let pending: Promise<number> | undefined;
     try {
-      await reader('workspaces').where({ id: a }).forShare().first();
+      await withWorkspaceAuthorization(reader, identity('owner'), features, false, async () => {});
       const readerPid = (await reader.raw('SELECT pg_backend_pid() AS pid')).rows[0].pid;
       const writerPid = (await writer.raw('SELECT pg_backend_pid() AS pid')).rows[0].pid;
       pending = writer('workspaceMemberships').where(identity('office')).update({ role: 'field' }).then(count => count);
@@ -193,5 +332,5 @@ try {
   console.log(`Authorization PostgreSQL rehearsal: ${checks} checks passed. Development database untouched.`);
 } finally {
   await db.destroy();
-  try { await admin.raw('DROP SCHEMA IF EXISTS ?? CASCADE', [schema]); } finally { await admin.destroy(); }
+  try { if (created) await admin.raw('DROP DATABASE ??', [database]); } finally { await admin.destroy(); }
 }

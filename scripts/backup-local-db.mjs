@@ -37,7 +37,7 @@ if (process.argv.includes('--rehearse')) {
       env: { ...process.env, TEST_DATABASE_URL: testURL.href }, stdio: ['ignore', 'pipe', 'pipe'],
     });
     const checkpointTables = docker(['psql', '-U', 'salesmora', '-d', target, '-At', '-v', 'ON_ERROR_STOP=1', '-c', "SELECT count(*) FROM pg_tables WHERE schemaname = 'public' AND tablename IN ('checkpoints','checkpoint_blobs','checkpoint_writes','checkpoint_migrations')"]).toString().trim();
-    assert.equal(checkpointTables, '4', 'Checkpoint setup must target the restored database');
+    assert.equal(checkpointTables, '0', 'Retired graph checkpoint tables must be absent from the restored database');
     const invalid = docker(['psql', '-U', 'salesmora', '-d', target, '-At', '-v', 'ON_ERROR_STOP=1', '-c', `SELECT count(*) FROM workspaces w WHERE (SELECT count(*) FROM "workspaceMemberships" m WHERE m."workspaceId" = w.id AND m.role = 'owner' AND m."userId" = w."ownerId") <> 1 OR NOT EXISTS (SELECT 1 FROM "workspacePolicies" p WHERE p."workspaceId" = w.id)`]).toString().trim();
     assert.equal(invalid, '0');
     const profiles = docker(['psql', '-U', 'salesmora', '-d', target, '-At', '-c', `SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN ('workspaceMemberships', 'workspaceInvitations') AND column_name = 'profile'`]).toString().trim();

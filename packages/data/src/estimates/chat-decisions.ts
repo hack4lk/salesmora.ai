@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { estimateProposalStorage } from "./proposal-storage";
 import type { Knex } from "knex";
 import {
   chatPageContextSchema, estimateDecisionChatBindingSchema, estimateDecisionChatCommand,
@@ -10,8 +11,9 @@ import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIde
 import { EstimateDraftConflictError, EstimateDraftValidationError, readEstimateParentInTransaction } from "./drafts";
 import { readEstimateDecisionReviewInTransaction, recordEstimateDecisionInTransaction } from "./decisions";
 import { estimateChatStamp } from "./chat-evidence";
+import { rememberEstimateProposalEvidence } from "./chat-proposals";
 import {
-  estimateProposalAuthority as authority, estimateProposalDigest as digest, estimateProposalIdentity as owned,
+  estimateProposalAuthority as authority, estimateProposalDigest as digest,
   estimateProposalTurn as activeTurn, resolveEstimateProposalId, supersedeEstimateProposals,
 } from "./chat-proposals";
 
@@ -31,12 +33,6 @@ export function estimateDecisionChatBinding(ticket: EstimateDecisionChatTicket):
 function inputHash(payload: EstimateDecisionChatStored) {
   const ticket = Object.fromEntries(Object.entries(payload.ticket).filter(([key]) => key !== "state" && key !== "inputHash"));
   return digest({ ticket, review: payload.review, value: payload.value, stamp: payload.stamp });
-}
-async function audit(trx: Knex.Transaction, row: Row, action: string) {
-  await trx("chatEstimateDecisionAudit").insert({
-    id: randomUUID(), workspaceId: row.workspaceId, actorId: row.userId,
-    proposalId: row.id, action, inputHash: row.payload.ticket.inputHash,
-  });
 }
 async function reviewFor(trx: Knex.Transaction, context: AuthorizationContext, estimateId: string) {
   const decision = await readEstimateDecisionReviewInTransaction(trx, context, estimateId);
@@ -153,19 +149,14 @@ export async function proposeEstimateChatDecision(
     const estimateId = await resolveEstimateProposalId(trx, context.workspaceId, ref);
     const payload = await prepare(trx, context, estimateId, request);
     await supersedeEstimateProposals(trx, context, turn);
-    const [row] = await trx("chatEstimateDecisions").insert({
-      ...owned(context), id: payload.ticket.id, turnId: turn.id, threadId: turn.threadId,
-      payload: JSON.stringify(payload), createdAt: trx.raw("clock_timestamp()"),
-    }).returning("*");
-    await audit(trx, row, "proposed");
-    await trx("chatTurns").where({ id: turn.id }).update({ estimateStamp: payload.stamp });
+    await estimateProposalStorage.estimateDecision.insert(trx, context, turn, payload);
+    await rememberEstimateProposalEvidence(trx, context, turn.id, payload.stamp, 'estimateDecisionEvidence');
     signal.throwIfAborted();
     return payload.ticket;
   });
 }
 export async function visibleEstimateChatDecision(trx: Knex.Transaction, context: AuthorizationContext, turnId: string) {
-  const row: Row | undefined = await trx("chatEstimateDecisions").where({ ...owned(context), turnId })
-    .orderBy("createdAt", "desc").orderBy("id", "desc").first();
+  const row = await estimateProposalStorage.estimateDecision.read(trx, context, { turnId });
   if (!row) return undefined;
   try { return await visible(trx, context, row); }
   catch (error) {
@@ -178,7 +169,7 @@ export async function readEstimateChatDecision(
 ) {
   const binding = estimateDecisionChatBindingSchema.parse(raw);
   return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
-    const row: Row | undefined = await trx("chatEstimateDecisions").where({ ...identity, id: binding.proposalId }).first();
+    const row = await estimateProposalStorage.estimateDecision.read(trx, context, { id: binding.proposalId });
     if (!row) throw new AuthorizationAccessError();
     checkedBinding(row, binding);
     await activeTurn(trx, context, row.turnId, true);
@@ -191,7 +182,7 @@ export async function operateEstimateChatDecision(
 ) {
   const binding = estimateDecisionChatBindingSchema.parse(raw);
   return withWorkspaceAuthorization(db, identity, enabled, true, async (trx, context) => {
-    const row: Row | undefined = await trx("chatEstimateDecisions").where({ ...identity, id: binding.proposalId }).forUpdate().first();
+    const row = await estimateProposalStorage.estimateDecision.read(trx, context, { id: binding.proposalId }, true);
     if (!row) throw new AuthorizationAccessError();
     checkedBinding(row, binding);
     await activeTurn(trx, context, row.turnId, true);
@@ -211,15 +202,12 @@ export async function operateEstimateChatDecision(
       payload.receipt = await recordEstimateDecisionInTransaction(trx, context, command, "assistant-confirmed");
     }
     payload.ticket.state = decision === "confirm" ? "confirmed" : "cancelled";
-    await trx("chatEstimateDecisions").where({ id: row.id }).update({
-      state: payload.ticket.state, payload: JSON.stringify(payload), resolvedAt: trx.fn.now(),
-    });
-    await audit(trx, row, payload.ticket.state);
+    await estimateProposalStorage.estimateDecision.save(trx, context, row, payload, decision === "confirm" ? "confirmed" : "cancelled");
     return { view: publicView(payload) };
   });
 }
 export async function estimateDecisionChatEvidenceAllowed(trx: Knex.Transaction, context: AuthorizationContext, turnId: string) {
-  const row: Row | undefined = await trx("chatEstimateDecisions").where({ ...owned(context), turnId }).orderBy("createdAt", "desc").first();
+  const row = await estimateProposalStorage.estimateDecision.read(trx, context, { turnId });
   if (!row) return true;
   try {
     const payload = await checkedPayload(trx, context, row);
