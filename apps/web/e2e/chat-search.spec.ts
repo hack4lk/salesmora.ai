@@ -80,25 +80,28 @@ test('navigation only resolves owned completed search results and filters, never
   expect((await clients.owner.post('/api/chat/leads/navigation', { headers: { Origin: 'https://evil.test' }, data: { workspaceId, resultId: id } })).status()).toBe(403);
   const anon = await requests.newContext({ baseURL: origin }); expect((await anon.post('/api/chat/leads/navigation', { headers, data: { workspaceId, resultId: id } })).status()).toBe(401); await anon.dispose();
 });
-test('edits, assignment loss, deletion, owner label changes and new matches invalidate stored search text/card/navigation', async () => {
+test('ordinary edits preserve timestamped searches while assignment loss and deletion deny access', async () => {
   const run = await send('field');
   await db('leads').where({ id: ids[0] }).update({ ownerId: users.owner }).increment('version', 1);
   const old = await history('field', run.accepted.threadId); expect(old.turns[0].searchResult).toBeUndefined(); expect(old.messages.filter((row: { role: string }) => row.role === 'assistant').every((row: { text: string }) => !row.text.includes('Search Customer'))).toBe(true);
   expect((await navigate('field', run.accepted.turnId, ids[0])).status()).toBe(403);
   await db('leads').where({ id: ids[0] }).update({ ownerId: users.field }).increment('version', 1);
-  const edited = await send(); await db('leads').where({ id: ids[0] }).increment('version', 1); expect((await history('owner', edited.accepted.threadId)).turns[0].searchResult).toBeUndefined();
-  const label = await send(); await db('users').where({ id: users.field }).update({ name: 'Renamed Field' }); expect((await navigate('owner', label.accepted.turnId)).status()).toBe(403); await db('users').where({ id: users.field }).update({ name: 'Search field' });
+  const edited = await send(); await db('leads').where({ id: ids[0] }).increment('version', 1); expect((await history('owner', edited.accepted.threadId)).turns[0].searchResult).toEqual(edited.result);
+  expect(edited.result.asOf).toBeTruthy();
+  const label = await send(); await db('users').where({ id: users.field }).update({ name: 'Renamed Field' }); expect((await navigate('owner', label.accepted.turnId)).status()).toBe(200); await db('users').where({ id: users.field }).update({ name: 'Search field' });
   const count = await send(); const extra = randomUUID(); await db('leads').insert({ id: extra, workspaceId, createdBy: users.owner, ownerId: null, name: 'Search Customer extra', submissionId: randomUUID(), submissionHash: 'search-extra', email: '', phone: '', service: 'Fixture', address: '', details: '', notes: '', stage: 'new', source: 'website' });
-  expect((await history('owner', count.accepted.threadId)).turns[0].searchResult).toBeUndefined(); await db('leads').where({ id: extra }).delete();
+  expect((await history('owner', count.accepted.threadId)).turns[0].searchResult).toEqual(count.result); await db('leads').where({ id: extra }).delete();
   const deleted = await send('owner', { mode: 'filters', filters: { ...filters, query: 'Search Customer 25', archived: true } }); await db('leads').where({ id: ids[25] }).delete(); expect((await navigate('owner', deleted.accepted.turnId)).status()).toBe(403);
 });
-test('empty searches and follow-up answers inherit collection freshness and invalidate when a match appears', async () => {
+test('empty searches and follow-up answers preserve their timestamp when a new match appears', async () => {
   const run = await send('owner', { mode: 'filters', filters: { ...filters, query: 'Future Unique Search' } }); expect(run.result.total).toBe(0);
   const follow = await send('owner', undefined, { threadId: run.accepted.threadId, message: 'fixture:search-history' });
   expect((await db('chatTurns').where({ id: follow.accepted.turnId }).first()).leadSearchEvidence).toEqual([run.accepted.turnId]);
   const extra = randomUUID(); await db('leads').insert({ id: extra, workspaceId, createdBy: users.owner, ownerId: null, name: 'Future Unique Search', submissionId: randomUUID(), submissionHash: 'search-future', email: '', phone: '', service: 'Fixture', address: '', details: '', notes: '', stage: 'new', source: 'website' });
-  const saved = await history('owner', run.accepted.threadId); expect(saved.turns.every((row: { searchResult?: unknown; searchEvidence: string[] }) => !row.searchResult && !row.searchEvidence.length)).toBe(true);
-  expect(saved.messages.filter((row: { role: string }) => row.role === 'assistant').every((row: { text: string }) => !row.text.includes('authorized-lead-search'))).toBe(true); await db('leads').where({ id: extra }).delete();
+  const saved = await history('owner', run.accepted.threadId);
+  expect(saved.turns.find((row: { id: string }) => row.id === run.accepted.turnId).searchResult).toEqual(run.result);
+  expect(saved.turns.every((row: { searchEvidence: string[] }) => row.searchEvidence.includes(run.accepted.turnId))).toBe(true);
+  expect(saved.messages.filter((row: { role: string }) => row.role === 'assistant').every((row: { text: string }) => row.text.includes('authorized-lead-search'))).toBe(true); await db('leads').where({ id: extra }).delete();
 });
 test('revoking read permission hides results and denies future search and navigation', async () => {
   const run = await send('field'); const grants = await db('workspaceRolePolicies').where({ workspaceId, role: 'field' }).whereNot({ permission: 'assistant.use' });
@@ -106,11 +109,11 @@ test('revoking read permission hides results and denies future search and naviga
   try { expect((await history('field', run.accepted.threadId)).turns[0].searchResult).toBeUndefined(); expect((await navigate('field', run.accepted.turnId)).status()).toBe(403); const denied = await send('field'); expect(denied.events.at(-1).code).toBe('access_denied'); }
   finally { await db('workspaceRolePolicies').insert(grants); }
 });
-test('pending mutation confirmation rechecks inherited search evidence', async () => {
+test('pending mutation confirmation still rechecks the exact current target version', async () => {
   const found = await send();
   const proposal = await send('owner', undefined, { threadId: found.accepted.threadId, message: `fixture:stage-ref:${ids[0]}` });
   const action = proposal.events.find(event => event.type === 'action.proposed')?.action; expect(action).toBeTruthy();
-  await db('leads').where({ id: ids[1] }).increment('version', 1);
+  await db('leads').where({ id: ids[0] }).increment('version', 1);
   expect((await clients.owner.post('/api/chat/actions', { headers, data: { workspaceId, draftId: action.id, inputHash: action.inputHash, decision: 'confirm' } })).status()).toBe(403);
 });
 test('live assistant card restores, opens the matching filtered list and opens a record', async ({ page }) => {
@@ -126,32 +129,58 @@ test('live assistant card restores, opens the matching filtered list and opens a
   await card.getByRole('button', { name: /Open LD-.*Search Customer 00/ }).click(); await expect(page).toHaveURL(new RegExp(`/leads/${ids[0]}`)); await expect(page.getByRole('dialog')).not.toBeVisible();
 });
 
-test('a new match during an empty-result stream prevents later deltas and card release', async () => {
+test('a new match during an empty-result stream preserves the timestamped answer and card', async () => {
   const query = 'Stream future search', clientTurnId = randomUUID();
-  const pending = clients.owner.post('/api/chat/turns', { headers, data: { workspaceId, clientTurnId, surfaceKey: 'home', message: `fixture:search-slow:${JSON.stringify({ mode: 'filters', filters: { ...filters, query } })}` } });
-  let turn;
-  for (let attempt = 0; attempt < 200; attempt++) {
-    turn = await db('chatTurns as t').join('chatMessages as m', 'm.turnId', 't.id').where({ 't.clientTurnId': clientTurnId, 'm.role': 'assistant' }).where('m.text', '<>', '').select('t.id', 't.threadId').first();
-    if (turn) break;
-    await new Promise(resolve => setTimeout(resolve, 25));
-  }
-  expect(turn).toBeTruthy();
+  const cookies = (await clients.owner.storageState()).cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
+  const response = await fetch(`${origin}/api/chat/turns`, { method: 'POST',
+    headers: { ...headers, Cookie: cookies, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId, clientTurnId, surfaceKey: 'home',
+      message: `fixture:search-slow:${JSON.stringify({ mode: 'filters', filters: { ...filters, query } })}` }),
+  });
+  expect(response.status).toBe(200);
+  if (!response.body) throw Error('Missing search stream.');
+  const reader = response.body.getReader(), decoder = new TextDecoder();
   const extra = randomUUID();
-  await db.transaction(async trx => { await trx('workspaces').where({ id: workspaceId }).forUpdate().first(); await trx('leads').insert({ id: extra, workspaceId, createdBy: users.owner, ownerId: null, name: query, submissionId: randomUUID(), submissionHash: 'search-stream', email: '', phone: '', service: 'Fixture', address: '', details: '', notes: '', stage: 'new', source: 'website' }); });
-  const response = await pending, text = await response.text(); expect(text).toContain('access_denied'); expect(text).not.toContain('Search fixture complete.'); expect(text).not.toContain('leads.results');
-  expect((await history('owner', turn.threadId)).turns[0].searchResult).toBeUndefined();
-  await db('leads').where({ id: extra }).delete();
+  let buffer = '', transcript = '', inserted = false, threadId: string | undefined;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      transcript += chunk; buffer += chunk;
+      let end;
+      while ((end = buffer.indexOf('\n\n')) >= 0) {
+        const frame = buffer.slice(0, end); buffer = buffer.slice(end + 2);
+        if (!frame.startsWith('data:')) continue;
+        const event = JSON.parse(frame.slice(5));
+        if (event.type === 'turn.accepted') threadId = event.threadId;
+        if (event.type === 'message.delta' && !inserted) {
+          await db.transaction(async trx => {
+            await trx('workspaces').where({ id: workspaceId }).forUpdate().first();
+            await trx('leads').insert({ id: extra, workspaceId, createdBy: users.owner, ownerId: null, name: query, submissionId: randomUUID(), submissionHash: 'search-stream', email: '', phone: '', service: 'Fixture', address: '', details: '', notes: '', stage: 'new', source: 'website' });
+          });
+          inserted = true;
+        }
+      }
+    }
+    expect(inserted).toBe(true);
+    expect(transcript).toContain('turn.completed'); expect(transcript).toContain('Search fixture complete.');
+    expect(transcript).toContain('leads.results'); expect(transcript).not.toContain('access_denied');
+    expect((await history('owner', threadId!)).turns[0].searchResult.total).toBe(0);
+  } finally { await reader.cancel(); await db('leads').where({ id: extra }).delete(); }
 });
-test('stale card navigation clears cached results and displays a fresh-search message', async ({ page }) => {
-  await page.context().addCookies((await clients.owner.storageState()).cookies);
+test('assignment-revoked card navigation clears cached results and displays a fresh-search message', async ({ page }) => {
+  await page.context().addCookies((await clients.field.storageState()).cookies);
   await page.goto(`/home?workspace=${workspaceId}`); await page.getByRole('button', { name: 'SalesMora assistant How can I help?', exact: true }).click();
   await page.getByRole('textbox', { name: 'Ask the SalesMora assistant' }).fill(`fixture:search:${JSON.stringify({ mode: 'filters', filters })}`);
   await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
   const card = page.getByRole('region', { name: 'Lead search results', exact: true }); await expect(card).toBeVisible();
-  await db('leads').where({ id: ids[0] }).increment('version', 1);
-  await card.getByRole('button', { name: 'Open matching Leads list', exact: true }).click();
-  await expect(card).not.toBeVisible(); await expect(page.getByRole('dialog').getByRole('alert')).toContainText('Ask the assistant to search again.');
-  await expect(page).toHaveURL(/\/home\?/);
+  await db('leads').where({ id: ids[0] }).update({ ownerId: users.owner }).increment('version', 1);
+  try {
+    await card.getByRole('button', { name: 'Open matching Leads list', exact: true }).click();
+    await expect(card).not.toBeVisible(); await expect(page.getByRole('dialog').getByRole('alert')).toContainText('Ask the assistant to search again.');
+    await expect(page).toHaveURL(/\/home\?/);
+  } finally { await db('leads').where({ id: ids[0] }).update({ ownerId: users.field }).increment('version', 1); }
 });
 
 test('former or foreign owner references display no private teammate name and remain in unassigned filters', async () => {

@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { CaptureDraftConfiguration, CapturePublicSubmission, CaptureSubmissionContext, PermissionId } from '@salesmora/contracts';
 import { createDatabase } from '../database';
+import { migrateFreshBaseline } from '../baseline-runner';
 import { initializeWorkspacePolicy } from '../authorization/store';
 import { createCaptureDraft } from './store';
 import { readCapturePublicationReview, publishCaptureDraft } from './publication';
@@ -50,7 +51,7 @@ async function verify(value: Input) {
   assert.equal(await recordCaptureChallengeVerification(web, ready.tokenHash, ready.verificationId, new Date(Date.now() + 290000)), true); return ready.tokenHash;
 }
 try {
-  await owner.raw('CREATE DATABASE ??', [name]); created = true; await db.migrate.latest({ directory: fileURLToPath(new URL('../migrations', import.meta.url)), loadExtensions: ['.ts'] }); process.env.BILLING_SANDBOX_ENABLED = 'true';
+  await owner.raw('CREATE DATABASE ??', [name]); created = true; await migrateFreshBaseline(db); process.env.BILLING_SANDBOX_ENABLED = 'true';
   await check('automatic admission records one immutable receipt, lead, custom answers, consent, stage and tags', async () => {
     const f = await fixture(), value = input(f); assert.equal((await accept(value)).state, 'accepted');
     const lead = await db('leads').where({ workspaceId: f.identity.workspaceId }).first(); assert.equal(lead.service, 'Repair'); assert.equal(lead.stage, 'contacted'); assert.equal(lead.createdBy, null);

@@ -11,15 +11,19 @@ import {
   AUDIT_PREPARATION_LIMITS, AUDIT_PREPARATION_LOCK, assertAuditWorkerRole, prepareAdminAuditArchive,
 } from './admin-audit-preparation';
 import { ADMIN_APP_ROLE, AUDIT_WORKER_ROLE, applyAuditWorkerGrants, RUNTIME_LOGIN_ROLES } from './runtime-roles';
-import { up, down } from './migrations/202610300009_admin_audit_preparation';
+import { migrateFreshBaseline } from './baseline-runner';
 
 const envFile = fileURLToPath(new URL('../../../.env.local', import.meta.url));
 if (existsSync(envFile)) process.loadEnvFile(envFile);
-const ownerURL = process.env.TEST_DATABASE_URL;
-if (!ownerURL || !new URL(ownerURL).pathname.endsWith('_test') || ownerURL === process.env.DATABASE_URL ||
-  !['localhost', '127.0.0.1'].includes(new URL(ownerURL).hostname)) {
+const testURL = process.env.TEST_DATABASE_URL;
+if (!testURL || !new URL(testURL).pathname.endsWith('_test') || testURL === process.env.DATABASE_URL ||
+  !['localhost', '127.0.0.1'].includes(new URL(testURL).hostname)) {
   throw new Error('Use the isolated local test database.');
 }
+const database = `audit_preparation_${randomUUID().replaceAll('-', '')}_test`;
+const isolated = new URL(testURL); isolated.pathname = `/${database}`;
+const ownerURL = isolated.toString();
+const admin = createDatabase(testURL);
 const owner = createDatabase(ownerURL);
 const worker = knex({
   client: 'pg', connection: ownerURL, pool: {
@@ -31,32 +35,19 @@ const worker = knex({
 });
 const ledgerId = randomUUID();
 let createdRole = false;
+let created = false;
 let lockConnection: Awaited<ReturnType<typeof owner.client.acquireConnection>> | undefined;
 let jobId: string | undefined;
 let triggerCreated = false;
 
 try {
+  await admin.raw('CREATE DATABASE ??', [database]); created = true;
   const alreadyProvisioned = await owner('pg_roles').where({ rolname: AUDIT_WORKER_ROLE }).first('rolname');
   if (!alreadyProvisioned) {
     await owner.raw(`CREATE ROLE ${AUDIT_WORKER_ROLE} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT`);
     createdRole = true;
   }
-  // Migration up/down and grants are proved transactionally without touching other migrations.
-  await owner.transaction(async trx => {
-    if (await trx.schema.withSchema('admin').hasTable('auditArchiveJobs')) {
-      assert.equal((await trx.withSchema('admin').table('auditArchiveJobs').count<{ count: string }[]>('* AS count'))[0].count, '0',
-        'The isolated rehearsal must not overwrite existing archive jobs.');
-      await down(trx);
-    }
-    await up(trx);
-    await down(trx);
-    await up(trx);
-    await trx.rollback();
-  });
-  await owner.migrate.up({
-    name: '202610300009_admin_audit_preparation.ts',
-    directory: fileURLToPath(new URL('./migrations', import.meta.url)), loadExtensions: ['.ts'],
-  });
+  await migrateFreshBaseline(owner);
   await applyAuditWorkerGrants(owner);
   assert.equal((await verifyAdminAuditChain(owner)).valid, true);
   await assert.rejects(assertAuditWorkerRole(owner), /dedicated/);
@@ -294,7 +285,7 @@ try {
     assert.equal(report.copied, false);
     assert.equal(report.externallyVerified, false);
   }
-  console.log('Audit preparation database rehearsal passed (migration replay, least privilege, no-events, tampering/baseline preservation, 50,000/50,001, oversize/deadline, deterministic retries, durable failure/recovery, concurrency).');
+  console.log('Audit preparation database rehearsal passed (fresh baseline, least privilege, no-events, tampering/baseline preservation, 50,000/50,001, oversize/deadline, deterministic retries, durable failure/recovery, concurrency).');
 } finally {
   if (lockConnection) {
     await owner.raw('SELECT pg_advisory_unlock(hashtextextended(?, 0))', [AUDIT_PREPARATION_LOCK]).connection(lockConnection);
@@ -314,4 +305,5 @@ try {
     await owner.raw(`DROP ROLE ${AUDIT_WORKER_ROLE}`);
   }
   await owner.destroy();
+  try { if (created) await admin.raw('DROP DATABASE ??', [database]); } finally { await admin.destroy(); }
 }

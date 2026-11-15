@@ -10,5 +10,6 @@ export type EstimateArchiveCardProps = {
   context: EstimateArchiveCardContext | null;
   grants: EstimateArchiveCardGrants;
   disabled?: boolean;
+  pending?: boolean;
   onOperate?: (command: EstimateArchiveCardCommand) => Promise<EstimateDraftOperationResult>;
 };

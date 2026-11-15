@@ -125,11 +125,21 @@ export const SharedChatLifecycle: Story = { args: argsFor(captureAssistantPropos
   const body = within(canvasElement.ownerDocument.body);
   await userEvent.click(body.getByRole('button', { name: 'SalesMora assistant How can I help?' }));
   await userEvent.click(await body.findByRole('button', { name: copy.review }));
-  await expect(await body.findByRole('alertdialog')).toBeVisible();
+  await waitFor(() => expect(body.getByRole('alertdialog')).toBeVisible());
   await userEvent.keyboard('{Escape}');
-  await expect(body.queryByRole('alertdialog')).not.toBeInTheDocument();
+  await waitFor(() => expect(body.queryByRole('alertdialog')).not.toBeInTheDocument());
   await expect(body.getByRole('button', { name: 'Close chat' })).toBeVisible();
   await expect(args.client.decide).not.toHaveBeenCalled();
+} };
+export const SharedChatLifecycleConfirm: Story = { args: argsFor(captureAssistantProposalFixture('lifecycle')), render: args => <ChatPreview {...args} />, play: async ({ canvasElement, args }) => {
+  const body = within(canvasElement.ownerDocument.body);
+  await userEvent.click(body.getByRole('button', { name: 'SalesMora assistant How can I help?' }));
+  await userEvent.click(await body.findByRole('button', { name: copy.review }));
+  const dialog = await body.findByRole('alertdialog');
+  await expect(dialog.closest('dialog')).not.toBeNull();
+  await userEvent.click(within(dialog).getByRole('button', { name: lifecycleCopy.confirm.pause }));
+  await expect(await body.findByText(copy.stories.paused)).toBeVisible();
+  await expect(args.client.decide).toHaveBeenCalledTimes(1);
 } };
 export const RefreshedAccessDenied: Story = {
   args: { client: { ...mockClient(proposal), read: fn<CaptureAssistantClient['read']>().mockResolvedValueOnce(proposal).mockRejectedValue(new Error('403')) } },

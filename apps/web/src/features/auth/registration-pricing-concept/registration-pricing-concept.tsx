@@ -20,7 +20,7 @@ export function RegistrationPricingConcept({ variant, initialPlan = 'free', onSu
   const [complete, setComplete] = useState(false);
   const plan = copy.plans.find(item => item.id === selected)!;
   const paid = selected !== 'free';
-  const button = 'cursor-pointer rounded-xl bg-primary px-6 py-3 font-semibold text-white hover:bg-primary-dark focus-visible:focus-ring';
+  const button = 'seafoam-action cursor-pointer rounded-xl px-6 py-3 text-sm font-semibold hover:bg-none hover:bg-seafoam-dark focus-visible:focus-ring';
   const secondary = 'cursor-pointer rounded-xl border border-line bg-paper px-4 py-3 font-semibold text-primary hover:bg-canvas focus-visible:focus-ring';
 
   function options(compact = false) {

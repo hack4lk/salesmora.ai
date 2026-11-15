@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { estimateProposalStorage } from "./proposal-storage";
 import type { Knex } from "knex";
 import {
   estimateDraftChatContentSchema, estimateDraftChatProposeSchema, estimateDraftChatStoredSchema,
@@ -16,8 +17,9 @@ import {
   EstimateDraftConflictError, EstimateDraftValidationError, type EstimateEditorSeed,
 } from "./drafts";
 import { estimateChatStamp } from "./chat-evidence";
+import { rememberEstimateProposalEvidence } from "./chat-proposals";
 import {
-  estimateProposalDigest as digest, estimateProposalIdentity as identityFor,
+  estimateProposalDigest as digest,
   estimateProposalAuthority as authority, estimateProposalTurn as activeTurn,
   resolveEstimateProposalId, supersedeEstimateProposals,
 } from "./chat-proposals";
@@ -29,8 +31,10 @@ type Row = WorkspaceIdentity & {
 };
 type Request = ReturnType<typeof estimateDraftChatRequestSchema.parse>;
 const conflict = (message = "This proposal changed or expired. Request a fresh review.") => new EstimateDraftConflictError(message);
-async function catalogStamp(trx: Knex.Transaction, workspaceId: string) {
-  const rows = await trx("materialCatalog").where({ workspaceId }).orderBy("id")
+async function catalogStamp(trx: Knex.Transaction, workspaceId: string, proposed: EstimateDraftChatContent) {
+  const ids = [...new Set(proposed.items.flatMap(line => line.catalog ? [line.catalog.id] : []))].sort();
+  if (!ids.length) return digest([]);
+  const rows = await trx("materialCatalog").where({ workspaceId }).whereIn("id", ids).orderBy("id")
     .select("id", trx.raw("xmin::text AS version"));
   return digest(rows);
 }
@@ -101,12 +105,6 @@ function inputHash(payload: EstimateDraftChatStored) {
     values: payload.values, stamp: payload.stamp, catalogStamp: payload.catalogStamp,
   });
 }
-async function audit(trx: Knex.Transaction, row: Row, action: string) {
-  await trx("chatEstimateDraftAudit").insert({
-    id: randomUUID(), workspaceId: row.workspaceId, actorId: row.userId, proposalId: row.id,
-    action, inputHash: row.payload.view.draft.inputHash,
-  });
-}
 async function seedFor(trx: Knex.Transaction, context: AuthorizationContext, draft: EstimateDraftChatView["draft"]) {
   const seed = draft.actionType === "estimate.update"
     ? await readEstimateEditorInTransaction(trx, context, draft.estimate.id)
@@ -143,7 +141,7 @@ async function current(trx: Knex.Transaction, context: AuthorizationContext, row
   if (draft.parent.version !== await parentVersion(trx, context, draft.parent.type, draft.parent.id) ||
       (draft.actionType === "estimate.update" && seed.estimate?.version !== draft.estimate.expectedVersion) ||
       payload.stamp !== await estimateChatStamp(trx, context) ||
-      payload.catalogStamp !== await catalogStamp(trx, context.workspaceId)) throw conflict();
+      payload.catalogStamp !== await catalogStamp(trx, context.workspaceId, draft.proposed)) throw conflict();
   await noOpenEstimate(trx, context, draft, seed.today);
   return { payload, seed };
 }
@@ -187,30 +185,25 @@ async function insert(
   };
   const payload: EstimateDraftChatStored = {
     view, values: values(seed, proposed, context.userId), stamp: await estimateChatStamp(trx, context),
-    catalogStamp: await catalogStamp(trx, context.workspaceId),
+    catalogStamp: await catalogStamp(trx, context.workspaceId, proposed),
   };
   draft.inputHash = inputHash(payload);
   view.context.inputHash = draft.inputHash;
   const parsed = estimateDraftChatStoredSchema.safeParse(payload);
   if (!parsed.success) throw new EstimateDraftValidationError("This complete proposal is too large or invalid. Use the manual editor.");
   await supersedeEstimateProposals(trx, context, turn);
-  const [row] = await trx("chatEstimateDrafts").insert({
-    ...identityFor(context), id, turnId: turn.id, threadId: turn.threadId, payload: JSON.stringify(parsed.data),
-    createdAt: trx.raw("clock_timestamp()"),
-  }).returning("*");
-  await audit(trx, row, "proposed");
-  await trx("chatTurns").where({ id: turn.id }).update({ estimateStamp: payload.stamp });
+  await estimateProposalStorage.estimateDraft.insert(trx, context, turn, parsed.data);
+  await rememberEstimateProposalEvidence(trx, context, turn.id, payload.stamp);
   return estimateDraftChatViewSchema.parse(view);
 }
 
 export async function estimateDraftChatEvidenceAllowed(trx: Knex.Transaction, context: AuthorizationContext, turnId: string) {
-  const row: Row | undefined = await trx("chatEstimateDrafts").where({ ...identityFor(context), turnId })
-    .orderBy("createdAt", "desc").first();
+  const row = await estimateProposalStorage.estimateDraft.read(trx, context, { turnId });
   if (!row) return true;
   const payload = estimateDraftChatStoredSchema.parse(row.payload);
   try {
     return payload.view.draft.authorizationVersion === await authority(trx, context) &&
-      payload.catalogStamp === await catalogStamp(trx, context.workspaceId) &&
+      payload.catalogStamp === await catalogStamp(trx, context.workspaceId, payload.view.draft.proposed) &&
       (row.state !== "pending" || Date.parse(payload.view.draft.expiresAt) > Date.now());
   } catch (error) {
     if (error instanceof AuthorizationAccessError) return false;
@@ -328,7 +321,7 @@ export async function proposeEstimateChatDraft(
 }
 
 export async function visibleEstimateChatDraft(trx: Knex.Transaction, context: AuthorizationContext, turnId: string) {
-  const row: Row | undefined = await trx("chatEstimateDrafts").where({ ...identityFor(context), turnId }).orderBy("createdAt", "desc").orderBy("id", "desc").first();
+  const row = await estimateProposalStorage.estimateDraft.read(trx, context, { turnId });
   if (!row) return undefined;
   try {
     const parsed = estimateDraftChatStoredSchema.parse(row.payload);
@@ -354,7 +347,7 @@ export async function operateEstimateChatDraft(
   db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], request: Request, decision: "confirm" | "cancel" | "editor" | "open",
 ) {
   return withWorkspaceAuthorization(db, identity, enabled, true, async (trx, context) => {
-    const row: Row | undefined = await trx("chatEstimateDrafts").where({ ...identity, id: request.proposalId }).forUpdate().first();
+    const row = await estimateProposalStorage.estimateDraft.read(trx, context, { id: request.proposalId }, true);
     if (!row) throw new AuthorizationAccessError();
     await activeTurn(trx, context, row.turnId, true);
     if (!requestMatches(row.payload.view.draft, request)) throw conflict();
@@ -385,10 +378,7 @@ export async function operateEstimateChatDraft(
       payload.resultStamp = await estimateChatStamp(trx, context);
     }
     payload.view.draft.state = decision === "confirm" ? "confirmed" : "cancelled";
-    await trx("chatEstimateDrafts").where({ id: row.id }).update({
-      state: payload.view.draft.state, payload: JSON.stringify(payload), resolvedAt: trx.fn.now(),
-    });
-    await audit(trx, row, decision === "confirm" ? "confirmed" : "cancelled");
+    await estimateProposalStorage.estimateDraft.save(trx, context, row, payload, decision === "confirm" ? "confirmed" : "cancelled");
     return { view: payload.view };
   });
 }
@@ -397,7 +387,7 @@ export async function readEstimateChatDraftEditor(
   db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], id: string,
 ) {
   return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
-    const row: Row | undefined = await trx("chatEstimateDrafts").where({ ...identity, id }).first();
+    const row = await estimateProposalStorage.estimateDraft.read(trx, context, { id });
     if (!row || !["pending", "confirmed"].includes(row.state)) throw new AuthorizationAccessError();
     await activeTurn(trx, context, row.turnId, true);
     if (row.state === "confirmed") {
@@ -416,7 +406,7 @@ export async function refreshEstimateChatDraft(
 ) {
   const proposed = estimateDraftChatContentSchema.parse(rawContent);
   return withWorkspaceAuthorization(db, identity, enabled, true, async (trx, context) => {
-    const row: Row | undefined = await trx("chatEstimateDrafts").where({ ...identity, id: request.proposalId }).forUpdate().first();
+    const row = await estimateProposalStorage.estimateDraft.read(trx, context, { id: request.proposalId }, true);
     if (!row || row.state !== "pending") throw new AuthorizationAccessError();
     if (!requestMatches(row.payload.view.draft, request)) throw conflict();
     const turn = await activeTurn(trx, context, row.turnId, true);

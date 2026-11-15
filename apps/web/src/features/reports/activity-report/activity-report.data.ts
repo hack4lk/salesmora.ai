@@ -1,0 +1,35 @@
+import type { ActivityAction, ActivityDomain } from './activity-report.validation';
+
+export const activityReportData = {
+  title: 'CRM activity history',
+  count: 'Authorized activity events',
+  domainLabel: 'Record type',
+  actionLabel: 'Action type',
+  actorLabel: 'Actor',
+  filtersHelp: 'Choose multiple values within a facet (OR); facets combine with AND. Empty selections mean every event in your current authorized scope.',
+  ordering: 'Events are ordered newest first. Equal timestamps use a stable domain and event ID order.',
+  detail: 'Summaries are safe descriptions of the event. Open the linked record for details; raw change payloads and private note content are not shown here.',
+  denied: 'Your current access does not allow CRM activity reports.',
+  invalid: 'CRM activity could not be displayed because the filters, authorized facets, event summaries or ordered evidence are inconsistent. Retry the report.',
+  domains: {
+    lead: 'Lead',
+    customer: 'Customer',
+    job: 'Job',
+    estimate: 'Estimate',
+    'work-order': 'Work Order',
+  } satisfies Record<ActivityDomain, string>,
+  actions: {
+    created: 'Created',
+    updated: 'Updated',
+    archived: 'Archived',
+    'stage-changed': 'Stage changed',
+    'assignment-changed': 'Assignment changed',
+    'status-changed': 'Status changed',
+    'deadline-changed': 'Deadline changed',
+    'visit-changed': 'Visit changed',
+    sent: 'Sent',
+    'decision-recorded': 'Decision recorded',
+    completed: 'Completed',
+  } satisfies Record<ActivityAction, string>,
+  noOptions: 'No currently authorized activity filters are available.',
+} as const;

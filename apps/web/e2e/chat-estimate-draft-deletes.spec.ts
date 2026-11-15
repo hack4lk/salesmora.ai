@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFixtureProposal, readFixtureProposalAudit } from "./proposal-fixture-store";
 import { expect, request as requests, test, type APIRequestContext, type Page } from "@playwright/test";
 import { createDatabase } from "@salesmora/data";
 import {
@@ -210,10 +211,10 @@ test("the connected card requires the exact number and restores only the checked
   ]) expect(JSON.stringify(commands)).not.toContain(privateValue);
   expect(await db("estimates").where({ id: saved.id }).first("id")).toBeUndefined();
   expect(await db("estimate_items").where({ estimateId: saved.id })).toHaveLength(0);
-  const proposal = await db("chatEstimateDraftDeletes").where({ id: run.ticket.id }).first();
+  const proposal = await readFixtureProposal(db, "estimateDraftDelete", { id: run.ticket.id });
   expect(proposal.state).toBe("confirmed");
-  expect(await db("chatEstimateDraftDeleteAudit").where({ proposalId: run.ticket.id }).orderBy("createdAt")
-    .then(rows => rows.map(row => row.action))).toEqual(["proposed", "confirmed"]);
+  expect((await readFixtureProposalAudit(db, "estimateDraftDelete", run.ticket.id))
+    .map(row => row.action)).toEqual(["proposed", "confirmed"]);
 
   const restored = await history(run.threadId);
   expect(restored.turns.find((turn: { id: string }) => turn.id === run.turnId).estimateDraftDelete.state)
@@ -227,6 +228,13 @@ test("the connected card requires the exact number and restores only the checked
   } });
   expect(followup.status()).toBe(200);
   expect(await followup.text()).toContain("Verified confirmed Draft deletion.");
+  await db("jobs").where({ workspaceId, id: saved.parentId }).delete();
+  const unavailable = await owner.post("/api/chat/turns", { headers, data: {
+    workspaceId, threadId: run.threadId, surfaceKey: "home", clientTurnId: randomUUID(),
+    message: "fixture:estimate-draft-delete-history",
+  } });
+  expect(unavailable.status()).toBe(200);
+  expect(await unavailable.text()).toContain("No verified confirmed Draft deletion.");
 });
 
 test("private reviews are owned and cancellation or a mismatched number never deletes", async () => {

@@ -13,13 +13,16 @@ import { readCalendar, readCalendarVisit, readCalendarAdvisories } from "./read"
 import { CalendarSharedReviewRequiredError } from "./sync";
 import { readNotifications, markNotificationRead, readNotificationPreferences, saveNotificationPreferences } from "../notifications/store";
 import { processVisitEmails } from "../notifications/visits";
-import { up as reconcile } from "../migrations/202610210003_calendar_reconcile";
+import { migrateFreshBaseline } from "../baseline-runner";
 const env = fileURLToPath(new URL("../../../../.env.local", import.meta.url));
 if (existsSync(env)) process.loadEnvFile(env);
 const connection = process.env.TEST_DATABASE_URL;
 if (!connection || !new URL(connection).pathname.endsWith("_test") || connection === process.env.DATABASE_URL ||
     !["localhost", "127.0.0.1"].includes(new URL(connection).hostname)) throw Error("Use the isolated local test database.");
-const db = createDatabase(connection), workspaceId = randomUUID(), customerId = randomUUID();
+const name = `calendar_commands_${randomUUID().replaceAll("-", "")}_test`;
+const url = new URL(connection); url.pathname = `/${name}`;
+const owner = createDatabase(connection), db = createDatabase(url.toString()), workspaceId = randomUUID(), customerId = randomUUID();
+let created = false;
 const users = { owner: randomUUID(), field: randomUUID(), crew: randomUUID(), admin: randomUUID() };
 const identity = (role: keyof typeof users = "owner") => ({ workspaceId, userId: users[role] });
 const enabled = [...permissionIds];
@@ -41,6 +44,8 @@ async function orderChange(extra: Record<string, unknown>) {
   return mutateWorkOrder(db, identity(), enabled, { workspaceId, workOrderId: orderId, submissionId: randomUUID(), expectedVersion: (await source("workOrders", orderId)).version, ...extra });
 }
 try {
+  await owner.raw("CREATE DATABASE ??", [name]); created = true;
+  await migrateFreshBaseline(db);
   await db.transaction(async trx => {
     const now = new Date();
     await trx("users").insert(Object.entries(users).map(([role, id]) => ({ id, name: `Calendar fixture ${role}`, email: `${id}@example.test`, createdAt: now, updatedAt: now, termsVersion: "fixture", termsAcceptedAt: now })));
@@ -207,11 +212,12 @@ try {
     assert.deepEqual(await source("jobs", parent.jobId), before);
     await assert.rejects(readJob(db, identity("crew"), enabled, parent.jobId), AuthorizationAccessError);
   });
-  await check("reconciliation refreshes stale independent baselines without altering source rows", async () => {
-    await db("jobs").where({ workspaceId, id: jobId }).update({ scheduledDate: "2026-11-08" });
-    const before = await source("jobs", jobId);
-    await db.transaction(trx => reconcile(trx));
-    assert.deepEqual(await source("jobs", jobId), before);
+  await check("scheduling updates an independent visit and its source together", async () => {
+    await scheduleCalendarVisit(db, identity(), enabled, {
+      ...await review(await active("jobId", jobId)),
+      schedule: { scheduledDate: "2026-11-08", arrivalWindow: null },
+    });
+    assert.equal((await source("jobs", jobId)).scheduledDate, "2026-11-08");
     const visit = await db("calendarVisits").where({ id: await active("jobId", jobId) }).select(db.raw(`to_char("scheduledDate",'YYYY-MM-DD') AS date`)).first();
     assert.equal(visit.date, "2026-11-08");
   });
@@ -369,9 +375,6 @@ try {
   });
   console.log(`Calendar commands rehearsal passed (${passed} checks).`);
 } finally {
-  await db("workOrders").where({ workspaceId }).delete();
-  await db("jobs").where({ workspaceId }).delete();
-  await db("workspaces").where({ id: workspaceId }).delete();
-  await db("users").whereIn("id", Object.values(users)).delete();
   await db.destroy();
+  try { if (created) await owner.raw("DROP DATABASE ??", [name]); } finally { await owner.destroy(); }
 }

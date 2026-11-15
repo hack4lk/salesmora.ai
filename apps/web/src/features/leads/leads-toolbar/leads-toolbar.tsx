@@ -83,7 +83,7 @@ export function LeadsToolbar({ values, owners, viewerId, access, disabled = fals
       </div>
       <div className="flex flex-wrap gap-3">
         {access.canExport && <button type="button" disabled={disabled} className={`${actionClass} border-line bg-paper text-primary hover:bg-canvas`} onClick={() => { if (!disabled && access.canExport) onExport(); }}><FileDownloadOutlined aria-hidden="true"/>{copy.export}</button>}
-        {access.canCreate && <button type="button" disabled={disabled} className={`${actionClass} border-primary bg-primary text-paper hover:bg-primary-dark disabled:border-line disabled:bg-canvas`} onClick={() => { if (!disabled && access.canCreate) onAdd(); }}><AddOutlined aria-hidden="true"/>{copy.add}</button>}
+        {access.canCreate && <button type="button" disabled={disabled} className={`${actionClass} seafoam-action enabled:hover:bg-none enabled:hover:bg-seafoam-dark disabled:bg-none disabled:border-line disabled:bg-canvas disabled:text-muted`} onClick={() => { if (!disabled && access.canCreate) onAdd(); }}><AddOutlined aria-hidden="true"/>{copy.add}</button>}
       </div>
     </div>
     <FilterBar activeFilters={chips} disabled={disabled} onRemove={remove} onClearAll={() => change({ ...emptyLeadsToolbarValues, view: values.view })}>

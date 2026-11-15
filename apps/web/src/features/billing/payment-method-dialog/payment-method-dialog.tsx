@@ -2,7 +2,7 @@
 import { useId, useState, type ReactNode } from 'react';
 import Dialog from '@mui/material/Dialog';
 import type { WorkspaceRole } from '@salesmora/contracts';
-import { FormFeedback } from '@salesmora/ui';
+import { CloseOutlined, FormFeedback } from '@salesmora/ui';
 import { paymentMethodDialogData as copy } from './payment-method-dialog.data';
 
 export type PaymentMethodState = 'editing' | 'saving' | 'saved' | 'error' | 'authenticating' | 'recovering' | 'recovered' | 'payment-failed';
@@ -23,7 +23,7 @@ export interface PaymentMethodDialogProps {
   onChangeCard?: () => void;
 }
 const secondary = 'inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-line bg-paper px-4 py-3 text-sm font-semibold text-primary hover:bg-canvas focus-visible:focus-ring disabled:cursor-not-allowed disabled:text-muted';
-const primary = 'inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white hover:bg-primary-dark focus-visible:focus-ring disabled:cursor-not-allowed disabled:bg-line disabled:text-muted';
+const primary = 'seafoam-action inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold hover:bg-none hover:bg-seafoam-dark focus-visible:focus-ring disabled:cursor-not-allowed disabled:bg-none disabled:bg-line disabled:text-muted';
 
 /** Inject Stripe fields and verified states through an adapter; Storybook supplies fictional callbacks. */
 export function PaymentMethodDialog({ open, viewerRole, state = 'editing', card, recovery, cardForm, verificationForm, canSave = false, stripeActive = false, outstandingPayment = false, onClose, onSave, onPay, onChangeCard }: PaymentMethodDialogProps) {
@@ -40,7 +40,7 @@ export function PaymentMethodDialog({ open, viewerRole, state = 'editing', card,
     onClose={(_event, reason) => { if (reason !== 'backdropClick') close(); }}
     slotProps={{ transition: { onExited: () => setConsent(false) }, backdrop: { className: 'bg-ink/50' }, paper: { 'aria-labelledby': `${id}-title`, 'aria-describedby': `${id}-description`, className: 'm-4 min-w-0 rounded-2xl bg-paper text-ink sm:m-8' } }}>
     <div className="grid min-w-0 gap-6 p-6 sm:p-8" aria-busy={busy}>
-      <header><div className="flex flex-wrap items-start justify-between gap-3"><h2 id={`${id}-title`} className="m-0 text-2xl font-semibold text-ink">{title}</h2><button type="button" aria-label={copy.close} disabled={busy} onClick={close} className={secondary}>{copy.closeLabel}</button></div><p id={`${id}-description`} className="mb-0 mt-3 text-sm leading-6 text-muted">{copy.description}</p></header>
+      <header><div className="flex flex-wrap items-start justify-between gap-3"><h2 id={`${id}-title`} className="m-0 text-2xl font-semibold text-ink">{title}</h2><button type="button" aria-label={copy.close} disabled={busy} onClick={close} className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-line text-primary hover:bg-canvas focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50"><CloseOutlined aria-hidden="true" /></button></div><p id={`${id}-description`} className="mb-0 mt-3 text-sm leading-6 text-muted">{copy.description}</p></header>
       <section aria-labelledby={`${id}-current`} className="rounded-xl border border-line bg-canvas p-4"><h3 id={`${id}-current`} className="m-0 text-sm font-semibold text-muted">{copy.current}</h3><p className="mb-0 mt-2 font-semibold text-ink">{card ? `${card.brand} · ${card.last4}` : copy.noCard}</p>{card && <p className="mb-0 mt-1 text-sm text-muted">{copy.expires} {String(card.expMonth).padStart(2, '0')}/{card.expYear}</p>}</section>
       {!owner ? <p className="m-0 text-sm leading-6 text-muted">{copy.readOnly}</p> : <>
         {editing && <form onSubmit={event => { event.preventDefault(); if (!busy && canSave && consent) onSave(); }} className="grid gap-5">

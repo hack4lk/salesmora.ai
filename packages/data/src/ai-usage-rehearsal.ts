@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createDatabase } from './database';
+import { createDatabaseMeasurement } from './database-metrics';
 import {
   createAIUsageRecorder,
   configureWorkspaceAIBudget,
@@ -11,6 +12,7 @@ import {
   workspaceAIAllowance,
 } from './ai-usage';
 import { AIBudgetExceededError } from '@salesmora/contracts';
+import { getWorkspacePlan } from '@salesmora/domain';
 process.loadEnvFile(fileURLToPath(new URL('../../../.env.local', import.meta.url)));
 const target = process.env.TEST_DATABASE_URL;
 if (process.env.NODE_ENV === 'production' || !target || !['localhost', '127.0.0.1'].includes(new URL(target).hostname) || !new URL(target).pathname.endsWith('_test') || target === process.env.DATABASE_URL) throw Error('Usage rehearsal requires the isolated local test database');
@@ -51,6 +53,31 @@ try {
   assert.equal((await workspaceAIAllowance(trx, randomUUID())).monthlyTokens, defaultMonthlyAITokens(),
     'A versioned reset falls back to the environment default.');
 
+  const billingWorkspace = randomUUID(), billingUser = randomUUID();
+  await trx('users').insert({ id: billingUser, name: 'Fictional usage billing', email: `${billingUser}@example.test`,
+    createdAt: new Date(), updatedAt: new Date(), termsVersion: 'test', termsAcceptedAt: new Date() });
+  await trx('workspaces').insert({ id: billingWorkspace, ownerId: billingUser,
+    businessName: 'Fictional usage billing', businessType: 'test', postalCode: '', serviceRange: '' });
+  const at = new Date('2026-10-15T12:00:00Z');
+  await trx('workspaceSubscriptions').insert({ workspaceId: billingWorkspace, catalogVersion: '2026-10-13-v1',
+    plan: 'premium', status: 'active', paidThrough: new Date('2026-11-15T12:00:00Z'), transitionUntil: null });
+  const originalBilling = process.env.BILLING_SANDBOX_ENABLED;
+  try {
+    process.env.BILLING_SANDBOX_ENABLED = 'false';
+    assert.equal((await workspaceAIAllowance(trx, billingWorkspace, at)).monthlyTokens, defaultMonthlyAITokens());
+    process.env.BILLING_SANDBOX_ENABLED = 'true';
+    assert.equal((await workspaceAIAllowance(trx, billingWorkspace, at)).monthlyTokens, getWorkspacePlan('premium').limits.aiTokensPerMonth);
+    await trx('workspaceSubscriptions').where({ workspaceId: billingWorkspace }).update({ transitionUntil: new Date('2026-10-16T12:00:00Z') });
+    assert.equal((await workspaceAIAllowance(trx, billingWorkspace, at)).monthlyTokens, defaultMonthlyAITokens());
+    await trx('workspaceSubscriptions').where({ workspaceId: billingWorkspace }).update({ transitionUntil: at, paidThrough: at });
+    assert.equal((await workspaceAIAllowance(trx, billingWorkspace, at)).monthlyTokens, getWorkspacePlan('free').limits.aiTokensPerMonth);
+    await configureWorkspaceAIBudgetInTransaction(trx, billingWorkspace, 123);
+    assert.equal((await workspaceAIAllowance(trx, billingWorkspace, at)).monthlyTokens, 123);
+  } finally {
+    if (originalBilling === undefined) delete process.env.BILLING_SANDBOX_ENABLED;
+    else process.env.BILLING_SANDBOX_ENABLED = originalBilling;
+  }
+
   const identity = { workspaceId: randomUUID(), userId: 'fictional-usage-user', turnId: randomUUID() };
   const recorder = createAIUsageRecorder(trx, identity);
   const finish = await recorder.start('fictional-model', 'answer', 100);
@@ -80,6 +107,14 @@ try {
   await configureWorkspaceAIBudget(db, workspaceId, 100);
   const first = createAIUsageRecorder(db, { workspaceId, userId: 'fictional-one' });
   const second = createAIUsageRecorder(db, { workspaceId, userId: 'fictional-two' });
+  const reservationMetrics = createDatabaseMeasurement();
+  const measuredFinish = await reservationMetrics.run(() => first.start('fictional-model', 'answer', 1));
+  assert.equal(reservationMetrics.snapshot().totals.calls, 5, 'Reservation uses BEGIN, lock, allowance, insert and COMMIT');
+  const finalizationMetrics = createDatabaseMeasurement();
+  await finalizationMetrics.run(() => measuredFinish({ outcome: 'completed', tokens: {
+    inputTokens: 0, outputTokens: 0, totalTokens: 0, cachedInputTokens: 0, reasoningTokens: 0,
+  } }));
+  assert.equal(finalizationMetrics.snapshot().totals.calls, 1, 'Settlement and budget lock share one atomic statement');
   const attempts = await Promise.allSettled([first.start('fictional-model', 'answer', 60), second.start('fictional-model', 'answer', 60)]);
   assert.equal(attempts.filter(item => item.status === 'fulfilled').length, 1);
   const rejected = attempts.find(item => item.status === 'rejected') as PromiseRejectedResult;

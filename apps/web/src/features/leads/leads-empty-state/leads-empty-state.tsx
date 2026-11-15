@@ -28,7 +28,7 @@ export function LeadsEmptyState({ variant, scope, canCreate, disabled = false, o
       <p id={`${id}-description`} className="m-0 text-base leading-6 text-muted wrap-anywhere">{description}</p>
     </div>
     {action && <button type="button" disabled={disabled} onClick={() => { if (!disabled) action(); }}
-      className={`inline-flex min-h-11 max-w-full cursor-pointer items-center justify-center gap-2 rounded-xl border px-5 py-3 text-base font-semibold focus-visible:focus-ring disabled:cursor-not-allowed disabled:border-line disabled:bg-line disabled:text-muted ${filtered ? 'border-line bg-paper text-primary hover:bg-canvas' : 'border-primary bg-primary text-white hover:bg-primary-dark'}`}>
+      className={`inline-flex min-h-11 max-w-full cursor-pointer items-center justify-center gap-2 rounded-xl border px-5 py-3 text-base font-semibold focus-visible:focus-ring disabled:cursor-not-allowed disabled:border-line disabled:bg-none disabled:bg-line disabled:text-muted ${filtered ? 'border-line bg-paper text-primary hover:bg-canvas' : 'seafoam-action enabled:hover:bg-none enabled:hover:bg-seafoam-dark'}`}>
       {!filtered && <AddOutlined aria-hidden="true"/>}{filtered ? copy.clear : copy.add}
     </button>}
   </section>;

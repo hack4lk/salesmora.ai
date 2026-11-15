@@ -1,0 +1,15 @@
+export const estimateDecisionsReportData = {
+  title: 'Estimate decisions',
+  help: 'About Estimate decisions',
+  accepted: 'Accepted quotes',
+  declined: 'Declined quotes',
+  rate: 'Acceptance among currently effective decided quotes',
+  value: 'Accepted pre-tax value',
+  definition: 'Each authorized estimate family contributes its latest issued revision and latest effective decision version. Filter by the stored customer decision date, not when staff recorded or corrected it. Resends and superseded decisions do not add quotes.',
+  restatement: 'Earlier periods can restate after a correction or a newly issued revision. A new issued revision without a decision removes the superseded decision from this denominator. This is not an immutable historical-as-reported or issued-cohort funnel.',
+  money: 'Accepted value uses validated frozen subtotal minus discount, before sales tax. Customer tax-inclusive total is separate. Deposits do not reduce accepted value. These are quoted commitments, not revenue, payments or profit; no current catalog or business-setting recalculation.',
+  archives: 'Archived effective decisions remain historical outcomes; drafts and voided quotes do not contribute. Authorization still applies to every family and monetary field.',
+  empty: 'No currently effective accepted or declined decisions in this period; acceptance has no denominator.',
+  moneyDenied: 'Accepted monetary values are unavailable under current financial and estimate-price access.',
+  invalid: 'Estimate decisions could not be displayed because the period, distinct families, decisions, frozen values or evidence are inconsistent. Retry the report.',
+};

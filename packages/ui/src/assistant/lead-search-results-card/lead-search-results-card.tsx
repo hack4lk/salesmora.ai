@@ -9,6 +9,7 @@ export interface LeadSearchResultRow {
 export interface LeadSearchResultSet {
   id: string; scope: 'workspace' | 'assigned'; filterLabels: readonly string[];
   includeArchived: boolean; total: number; rows: readonly LeadSearchResultRow[];
+  asOf?: string;
 }
 export interface LeadSearchResultsCardProps {
   result?: LeadSearchResultSet;
@@ -50,6 +51,9 @@ export function LeadSearchResultsCard({ result, state = 'ready', disabled = fals
       {result!.total > rows.length && <p className="mt-4 mb-0 text-sm leading-6 text-assistant-muted">{copy.more}</p>}
       {onOpenList && <button type="button" disabled={disabled} onClick={() => onOpenList(result!.id)} className="mt-4 min-h-11 cursor-pointer rounded-xl border border-assistant-border px-4 py-2 text-sm font-semibold text-assistant-accent focus-visible:focus-ring disabled:cursor-default disabled:opacity-50">{copy.openList}</button>}
       <p className="mt-3 mb-0 text-xs leading-5 text-assistant-muted">{copy.snapshot}</p>
+      {result!.asOf && <p className="mt-1 mb-0 text-xs leading-5 text-assistant-muted">
+        {copy.asOf} <time dateTime={result!.asOf}>{new Date(result!.asOf).toLocaleString('en-US', { timeZone: 'UTC' })} UTC</time>
+      </p>}
     </>}
   </section>;
 }

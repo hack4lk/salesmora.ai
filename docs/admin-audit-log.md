@@ -1,5 +1,7 @@
 # Admin audit log
 
+> Historical migration paths in this document refer to the prior release. Current fresh databases use the [curated baseline](../packages/data/src/baseline/); existing databases require a separately designed upgrade.
+
 The **Audit log** link in the separate admin home opens `/audit`. The log is not
 a customer route and does not accept customer sessions. Cloudflare Access and a
 valid admin password-plus-factor session remain required.
@@ -194,7 +196,7 @@ credentials only through a secret manager/approved environment configuration,
 never through chat or command logs. The command does not print object contents,
 passwords, URL values or raw database exceptions.
 
-[The preparation migration](../packages/data/src/migrations/202610300009_admin_audit_preparation.ts)
+The preparation migration (historical migration; see the prior release)
 adds `admin.auditArchiveJobs` and `admin.auditArchiveAttempts`. It must be
 reviewed/applied by the owner separately before running the CLI; the CLI cannot
 migrate or provision itself. Normal role provisioning accepts the optional
@@ -407,7 +409,7 @@ enabled. The preparation CLI still performs preparation only.
 
 ### Separate privileges and state
 
-[The publication migration](../packages/data/src/migrations/202610310001_admin_audit_publication.ts)
+The publication migration (historical migration; see the prior release)
 adds current copy rows, numbered copy attempts and verifier observations:
 
 - `auditArchiveCopies`: fixed ledger/target/sequence scope, current

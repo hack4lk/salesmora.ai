@@ -11,14 +11,15 @@ import { captureConfigurationRows } from '../../lead-capture/connected/capture-a
 import { captureConnectedData as copy } from '../../lead-capture/connected/capture-connected.data';
 function wall(at: string, timezone: string) { const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(at)).map(part => [part.type, part.value])); return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`; }
 /** Frozen server review using the same canonical dialogs and publication review as manual actions. */
-export function CaptureSourceProjection({ view, pending, onConfirm, onClose }: {
+export function CaptureSourceProjection({ view, pending, container, onConfirm, onClose }: {
   view: CaptureSourceProposalView;
   pending: boolean;
+  container: () => HTMLElement;
   onConfirm: () => Promise<void>;
   onClose: () => void;
 }) {
   const source = view.source.detail.source, op = view.ticket.operation, business = view.source.business, approved = view.source.detail.approved;
-  const common = { open: true, canRead: true, pending, onClose, onConfirm: async () => onConfirm() };
+  const common = { open: true, canRead: true, pending, container, onClose, onConfirm: async () => onConfirm() };
   const timing = view.timing?.kind === 'scheduled' ? { mode: 'scheduled' as const, localDateTime: wall(view.timing.at, view.timing.timezone) } : { mode: 'now' as const, localDateTime: '' };
   if (op === 'publish')
     return <CaptureSetupReview draft={captureReviewFrom(view.source)} value={timing} canRead canEdit={false} canLaunch={view.ready} pending={pending} timingReadOnly onChange={() => { }} onEdit={() => { }} onLaunch={onConfirm}/>;
@@ -37,5 +38,5 @@ export function CaptureSourceProjection({ view, pending, onConfirm, onClose }: {
     return <p role="alert">The pending launch is unavailable. Request a fresh review.</p>;
   if (op === 'change_schedule')
     return <CaptureLaunchChangeDialog {...common} timingReadOnly value={timing} onChange={() => { }} source={{ ...source, pendingRevision: source.status === 'active', scheduledAt: schedule.at, timezone: schedule.timezone, canChange: true, readiness: view.ready ? 'ready' : 'blocked', reason: view.checks.filter(check => !check.ready).map(check => copy.readiness[check.code]).join(' ') }}/>;
-  return <CaptureCancelLaunchDialog open source={source} pendingLaunch={schedule} canCancel={view.ready} pending={pending} onClose={onClose} onConfirm={onConfirm}/>;
+  return <CaptureCancelLaunchDialog open source={source} pendingLaunch={schedule} canCancel={view.ready} pending={pending} container={container} onClose={onClose} onConfirm={onConfirm}/>;
 }

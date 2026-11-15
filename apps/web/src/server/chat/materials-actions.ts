@@ -3,9 +3,10 @@ import { randomUUID } from "node:crypto";
 import { availableMaterialOperations } from "@salesmora/agent";
 import { AuthorizationAccessError, MaterialValidationError, materialAccess, readMaterials, type Knex } from "@salesmora/data";
 import { materialsProposeSchema, workOrderChatResultSchema, type AuthorizationContext, type MaterialView, type MaterialsPropose, type WorkOrderChatDraft, type WorkOrderChatResult } from "@salesmora/contracts";
-import { authorizedWorkspace, enabledPermissions } from "../authorization/permissions";
-import { Declined, base, blank, clip, identityFor, storeDraft, turnFor } from "./work-orders-actions";
+import { enabledPermissions } from "../authorization/permissions";
+import { Declined, base, blank, clip, identityFor, storeDraft } from "./work-orders-actions";
 import type { ChatToolHandler } from "./tools/types";
+import { stageChatEvidence } from "./request-context";
 
 const cents = (dollars: number) => Math.round(dollars * 100);
 const money = (value: number | null) => (value === null ? "Not set" : `$${(value / 100).toFixed(2)}`);
@@ -90,25 +91,23 @@ async function prepare(trx: Knex.Transaction, context: AuthorizationContext, req
 
 export const materialsPropose: ChatToolHandler = async (context, args) => {
   const request = materialsProposeSchema.parse(args);
-  const workOrderResult = await authorizedWorkspace(context.identity.userId, context.identity.workspaceId, true, async (trx, authority) => {
-    context.signal.throwIfAborted();
-    const turn = await turnFor(trx, authority, context.turnId);
-    let output: WorkOrderChatResult;
-    try {
-      if (!availableMaterialOperations(authority).includes(request.operation)) throw new Declined("You don't have permission to do that.");
-      const { payload, review } = await prepare(trx, authority, request, randomUUID());
-      output = await storeDraft(trx, authority, turn, payload, review, "Review the catalog change. Nothing has been saved.");
-    } catch (error) {
-      if (error instanceof Declined) output = { ...blank("outcome", error.message), records: error.records };
-      else if (error instanceof MaterialValidationError) output = blank("outcome", error.message);
-      else if (error instanceof AuthorizationAccessError) output = blank("outcome", "I can't find that catalog item.");
-      else throw error;
-    }
-    output.turnId = turn.id;
-    const parsed = workOrderChatResultSchema.parse(output);
-    await trx("chatTurns").where({ id: turn.id }).update({ workOrderResult: JSON.stringify(parsed) });
-    context.signal.throwIfAborted();
-    return parsed;
-  });
+  const { db: trx, authority, turn } = context;
+  context.signal.throwIfAborted();
+  let output: WorkOrderChatResult;
+  try {
+    if (!availableMaterialOperations(authority).includes(request.operation)) throw new Declined("You don't have permission to do that.");
+    const { payload, review } = await prepare(trx, authority, request, randomUUID());
+    output = await storeDraft(trx, authority, turn, payload, review, "Review the catalog change. Nothing has been saved.");
+  } catch (error) {
+    if (error instanceof Declined) output = { ...blank("outcome", error.message), records: error.records };
+    else if (error instanceof MaterialValidationError) output = blank("outcome", error.message);
+    else if (error instanceof AuthorizationAccessError) output = blank("outcome", "I can't find that catalog item.");
+    else throw error;
+  }
+  output.turnId = turn.id;
+  const workOrderResult = workOrderChatResultSchema.parse(output);
+  if (!stageChatEvidence(context.identity, turn.id, { workOrderResult }))
+    await trx("chatTurns").where({ id: turn.id }).update({ workOrderResult: JSON.stringify(workOrderResult) });
+  context.signal.throwIfAborted();
   return { workOrderResult, evidence: { type: "materials-proposal", result: workOrderResult, saved: false, requiresExplicitConfirmation: !!workOrderResult.draft } };
 };

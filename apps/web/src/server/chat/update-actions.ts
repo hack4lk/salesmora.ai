@@ -1,14 +1,15 @@
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Knex } from '@salesmora/data';
-import { AuthorizationAccessError, leadChatTurnEvidenceAllowed, updateLeadInTransaction, moveLeadStageInTransaction, leadOrigin } from '@salesmora/data';
+import { AuthorizationAccessError, leadChatTurnEvidenceAllowed, updateLeadInTransaction, moveLeadStageInTransaction, leadOrigin, leadProposalStorage } from '@salesmora/data';
 import { leadUpdateDraftPayloadSchema, leadUpdateDraftReviewSchema, leadEditValuesSchema, leadEditableFields, type AuthorizationContext, type LeadUpdateDraftInput, type LeadUpdateWithStageDraftInput, type LeadUpdateDraftPayload } from '@salesmora/contracts';
 import { authorizeLeadOperation } from '@salesmora/agent';
 import { authorize, resolveAuthorizedCollectionScope } from '@salesmora/domain';
 import { authorizedWorkspace } from '../authorization/permissions';
 import { chatAccessHash } from './access-hash';
 import { ChatActionConflict } from './action-errors';
-import type { ChatIdentity } from './store';
+import { validateTurnEvidenceInTransaction, type ChatIdentity } from './store';
+import { stageChatEvidence } from './request-context';
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 interface UpdateRow extends ChatIdentity {
   id: string; turnId: string; threadId: string; inputHash: string; accessHash: string;
@@ -19,10 +20,6 @@ function review(row: UpdateRow) {
   const payload = { lead: parsed.lead, changes: parsed.changes, ...(parsed.stage ? { stage: parsed.stage } : {}) };
   return leadUpdateDraftReviewSchema.parse({ actionType: 'lead.update', id: row.id, inputHash: row.inputHash,
     expiresAt: new Date(row.expiresAt).toISOString(), state: row.state === 'pending' && new Date(row.expiresAt).getTime() <= Date.now() ? 'expired' : row.state, ...payload });
-}
-async function audit(trx: Knex.Transaction, row: UpdateRow, action: string) {
-  await trx('chatActionAudit').insert({ id: randomUUID(), workspaceId: row.workspaceId, actorId: row.userId, draftId: row.id,
-    inputHash: row.inputHash, action, actionType: 'lead.update', leadId: row.updatePayload.lead.id });
 }
 async function leadQuery(trx: Knex.Transaction, context: AuthorizationContext) {
   const scope = resolveAuthorizedCollectionScope(context, 'leads.read');
@@ -38,13 +35,13 @@ function canEdit(context: AuthorizationContext, lead: { id: string; ownerId: str
     resource: { kind: 'lead', id: lead.id, workspaceId: context.workspaceId, ownerId: lead.ownerId } }).allowed && (!stage || authorize(context, { permission: 'leads.stage.update',
     resource: { kind: 'lead', id: lead.id, workspaceId: context.workspaceId, ownerId: lead.ownerId } }).allowed);
 }
-export async function proposeUpdateDraft(identity: ChatIdentity, turnId: string, input: LeadUpdateDraftInput | LeadUpdateWithStageDraftInput, signal: AbortSignal) {
+export async function proposeUpdateDraft(identity: ChatIdentity, turnId: string, input: LeadUpdateDraftInput | LeadUpdateWithStageDraftInput, signal: AbortSignal, db?: Knex) {
   const stageInput = 'stage' in input ? input.stage : undefined;
   return authorizedWorkspace(identity.userId, identity.workspaceId, true, async (trx, context) => {
     signal.throwIfAborted();
-    const turn = await trx('chatTurns').where({ ...identity, id: turnId }).first();
+    const turn = await validateTurnEvidenceInTransaction(trx, context, turnId);
     if (!turn || !authorizeLeadOperation(context, turn.surfaceKey, stageInput ? 'update_with_stage' : 'update').allowed ||
-      turn.accessHash !== chatAccessHash(context) || !await leadChatTurnEvidenceAllowed(trx, context, turn)) throw new AuthorizationAccessError();
+      turn.accessHash !== chatAccessHash(context)) throw new AuthorizationAccessError();
     if (!['accepted', 'running'].includes(turn.state) || new Date(turn.leaseUntil).getTime() <= Date.now()) throw new ChatActionConflict();
     const ref = input.leadRef || (turn.surfaceKey === 'lead.detail' ? turn.pageContext?.recordRefs?.[0]?.id : undefined);
     if (!ref) return { type: 'lead-update-target-required', saved: false };
@@ -68,18 +65,18 @@ export async function proposeUpdateDraft(identity: ChatIdentity, turnId: string,
     const payload = leadUpdateDraftPayloadSchema.parse({ lead: { id: lead.id, number: `LD-${String(lead.leadNumber).padStart(4, '0')}`, name: String(lead.name).slice(0, 200) }, expectedVersion: lead.version, changes, ...(stage ? { stage } : {}) });
     // Keep the exact review within the stream frame budget; never truncate a reviewed value.
     if (JSON.stringify(payload).length > 48000) return { type: 'lead-update-too-large', saved: false, nextStep: 'Use the manual lead editor for this change.' };
-    const prior = await trx('chatActionDrafts').where({ turnId }).first();
+    const prior = await leadProposalStorage.read(trx, context, { turnId });
     if (prior) { if (prior.actionType !== 'lead.update' || prior.inputHash !== hash(payload)) throw new ChatActionConflict(); return { action: review(prior) }; }
     const evidence = new Map<string, { id: string; version: number }>(turn.leadEvidence.map((source: { id: string; version: number }) => [source.id, source]));
     evidence.set(lead.id, { ...evidence.get(lead.id), id: lead.id, version: lead.version });
     if (evidence.size > 50) throw new ChatActionConflict();
-    await trx('chatTurns').where({ id: turnId }).update({ leadEvidence: JSON.stringify([...evidence.values()]) });
-    const old = await trx('chatActionDrafts').where({ ...identity, threadId: turn.threadId, state: 'pending' }).update({ state: 'superseded', resolvedAt: trx.fn.now() }).returning('*');
-    for (const row of old) await trx('chatActionAudit').insert({ id: randomUUID(), workspaceId: identity.workspaceId, actorId: identity.userId, draftId: row.id, inputHash: row.inputHash, action: 'draft.superseded', actionType: row.actionType });
-    const [row] = await trx('chatActionDrafts').insert({ ...identity, id: randomUUID(), turnId, threadId: turn.threadId, capability: 'leads.update', actionType: 'lead.update',
-      lead: {}, updatePayload: payload, inputHash: hash(payload), accessHash: chatAccessHash(context), expiresAt: new Date(Date.now() + 900000) }).returning('*');
-    await audit(trx, row, 'draft.proposed'); signal.throwIfAborted(); return { action: review(row) };
-  });
+    if (!stageChatEvidence(identity, turnId, { leadEvidence: [...evidence.values()] }))
+      await trx('chatTurns').where({ id: turnId }).update({ leadEvidence: JSON.stringify([...evidence.values()]) });
+    await leadProposalStorage.supersede(trx, context, turn.threadId);
+    const row = await leadProposalStorage.insert(trx, context, { id: randomUUID(), turnId, threadId: turn.threadId, capability: 'leads.update', actionType: 'lead.update',
+      lead: {}, updatePayload: payload, inputHash: hash(payload), accessHash: chatAccessHash(context), expiresAt: new Date(Date.now() + 900000) });
+    signal.throwIfAborted(); return { action: review(row) };
+  }, db);
 }
 export async function visibleUpdateDraft(trx: Knex.Transaction, context: AuthorizationContext, row: UpdateRow) {
   const { query } = await leadQuery(trx, context);
@@ -118,7 +115,6 @@ export async function resolveUpdateDraft(trx: Knex.Transaction, context: Authori
     await trx('chatTurns').where({ id: row.turnId }).update({ leadEvidence: JSON.stringify(turn.leadEvidence.map((source: { id: string; version: number }) => source.id === payload.lead.id ? { ...source, version } : source)) });
   }
   const state = decision === 'confirm' ? 'confirmed' : 'cancelled';
-  await trx('chatActionDrafts').where({ id: row.id }).update({ state, resolvedAt: trx.fn.now() });
-  await audit(trx, row, `draft.${state}`);
+  await leadProposalStorage.save(trx, context, row, state);
   return review({ ...row, state });
 }

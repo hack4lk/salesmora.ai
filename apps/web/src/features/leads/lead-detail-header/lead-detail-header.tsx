@@ -41,7 +41,7 @@ export function LeadDetailHeader({ lead, permissions, backHref, now, timezone, p
         </div>
       </div>
       <div role="group" aria-label={copy.record} className="flex min-w-0 flex-wrap items-center gap-3 lg:max-w-lg lg:justify-end">
-        {permissions.canEdit && onEdit && <button type="button" disabled={pending} onClick={() => { if (!pending && permissions.canEdit) onEdit(lead); }} className={`${button} border-primary bg-primary text-white hover:bg-primary-dark`}>{copy.edit}</button>}
+        {permissions.canEdit && onEdit && <button type="button" disabled={pending} onClick={() => { if (!pending && permissions.canEdit) onEdit(lead); }} className={`${button} seafoam-action enabled:hover:bg-none enabled:hover:bg-seafoam-dark disabled:bg-none disabled:bg-line disabled:text-muted`}>{copy.edit}</button>}
         {!lead.archived && permissions.canCreateEstimate && (onCreateEstimate
           ? <button type="button" disabled={pending} onClick={() => { if (!pending) onCreateEstimate(); }} className={`${button} border-line bg-paper text-primary hover:bg-canvas`}>{copy.estimate}</button>
           : unavailable(copy.estimate, copy.comingSoon, true))}

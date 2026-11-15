@@ -6,6 +6,8 @@ import { ConnectedCaptureRead } from '../capture-result/connected-capture-read';
 import type { CaptureChatTicket } from '@salesmora/contracts';
 import { ConnectedCalendarSchedule } from '../calendar-schedule-draft-card/connected-calendar-schedule';
 import { ConnectedCalendarResult } from "../calendar-results-card/connected-calendar-result";
+import { ConnectedReportResult } from '../report-result/connected-report-result';
+import { ReportResult } from '../report-result/report-result';
 import { ConnectedCustomerResult } from "../customer-result/customer-result";
 import { ConnectedWorkOrderResult } from "../work-order-result/work-order-result";
 import { ConnectedEstimateResult } from "../estimate-result/estimate-result";
@@ -31,6 +33,7 @@ import type {
   EstimateArchiveChatTicket,
   EstimateDraftDeleteChatTicket,
   EstimateConversionChatTicket,
+  ReportAssistantTicket,
 } from "@salesmora/contracts";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -84,6 +87,9 @@ export function ConnectedAssistant({
       captureResult?: CaptureChatTicket;
       calendarProposal?: CalendarProposalTicket;
       calendarTurnId?: string;
+      reportResult?: ReportAssistantTicket;
+      reportTurnId?: string;
+      reportStatus?: 'ready' | 'restricted';
       workOrderResult?: WorkOrderChatResult;
       estimateResult?: EstimateChatResult;
       estimateDraft?: EstimateDraftChatView;
@@ -144,6 +150,9 @@ export function ConnectedAssistant({
             captureResult: message.role === "assistant" ? state?.captureResult : undefined,
             calendarResult: message.role === "assistant" ? state?.calendarResult : undefined,
             calendarTurnId: message.role === "assistant" ? message.turnId : undefined,
+            reportResult: message.role === 'assistant' ? state?.reportResult : undefined,
+            reportTurnId: message.role === 'assistant' ? message.turnId : undefined,
+            reportStatus: message.role === 'assistant' ? state?.reportStatus : undefined,
             customerResult:
               message.role === "assistant" ? state?.customerResult : undefined,
             workOrderResult:
@@ -306,6 +315,7 @@ export function ConnectedAssistant({
       ...(workspaceAssistant?.pageContext?.captureContext ? { captureContext: workspaceAssistant.pageContext.captureContext } : {}),
       ...(workspaceAssistant?.pageContext?.calendarVisit ? { calendarVisit:workspaceAssistant.pageContext.calendarVisit } : {}),
       ...(workspaceAssistant?.pageContext?.calendarFilters ? { calendarFilters: workspaceAssistant.pageContext.calendarFilters } : {}),
+      ...(workspaceAssistant?.pageContext?.reportContext ? { reportContext: workspaceAssistant.pageContext.reportContext } : {}),
       ...(workspaceAssistant?.pageContext?.estimateFilters
         ? { estimateFilters: workspaceAssistant.pageContext.estimateFilters }
         : {}),
@@ -326,6 +336,7 @@ export function ConnectedAssistant({
         estimateFilters: request.estimateFilters,
         calendarFilters: request.calendarFilters,
         calendarVisit: request.calendarVisit,
+        reportContext: request.reportContext,
       }) ===
       JSON.stringify({
         captureSetup: workspaceAssistant?.readCaptureSetup(),
@@ -336,6 +347,7 @@ export function ConnectedAssistant({
         estimateFilters: selected?.estimateFilters,
         calendarFilters: selected?.calendarFilters,
         calendarVisit: selected?.calendarVisit,
+        reportContext: selected?.reportContext,
       });
     setPendingContextLabel(
       sameContext
@@ -343,7 +355,7 @@ export function ConnectedAssistant({
         : request.recordRefs?.length ||
             request.uiState ||
             request.customerFilters ||
-            request.estimateFilters || request.calendarFilters || request.calendarVisit
+            request.estimateFilters || request.calendarFilters || request.calendarVisit || request.reportContext
           ? copy.previousContext
           : undefined,
     );
@@ -361,6 +373,7 @@ export function ConnectedAssistant({
     ]);
     setRunStatus("thinking");
     let terminal = false;
+    let accessDenied = false;
     let result: { ok: true } | { ok: false; message: string } = {
       ok: false,
       message: copy.interrupted,
@@ -376,6 +389,8 @@ export function ConnectedAssistant({
         terminal = true; // Known rejection: no accepted run to reconcile.
         if (response.status === 409 && (await response.json().catch(() => null))?.error === 'calendar_context_changed') throw Error(copy.calendarContextChanged);
         if ([401, 403].includes(response.status)) {
+          accessDenied = true;
+          setMessages([]);
           setBlocked(true);
           throw Error(copy.denied);
         }
@@ -422,6 +437,10 @@ export function ConnectedAssistant({
                   : item,
               ),
             );
+            break;
+          case 'report.result':
+            setMessages(current => current.map(item => item.id === localAssistant
+              ? { ...item, reportResult: event.result, reportTurnId: event.turnId, reportStatus: 'ready' } : item));
             break;
           case "sources":
             setMessages((current) =>
@@ -559,7 +578,11 @@ export function ConnectedAssistant({
           case "turn.failed":
             terminal = true;
             setRunStatus("failed");
-            if (event.code === "access_denied") setBlocked(true);
+            if (event.code === "access_denied") {
+              accessDenied = true;
+              setMessages([]);
+              setBlocked(true);
+            }
             result = {
               ok: false,
               message:
@@ -600,7 +623,7 @@ export function ConnectedAssistant({
         );
       }
       turn.current = undefined;
-      if (terminal && thread.current && mounted.current && !blocked)
+      if (terminal && thread.current && mounted.current && !blocked && !accessDenied)
         await restore(thread.current).catch(() => {});
     }
     return result;
@@ -713,6 +736,7 @@ export function ConnectedAssistant({
       messages={messages}
       renderMessageSupplement={(message) => {
         const calendar = messages.find(item => item.id === message.id);
+        const report = calendar;
         const customer = messages.find(
           (item) => item.id === message.id,
         )?.customerResult;
@@ -731,13 +755,23 @@ export function ConnectedAssistant({
         const estimateArchive = messages.find(item => item.id === message.id)?.estimateArchive;
         const estimateDraftDelete = messages.find(item => item.id === message.id)?.estimateDraftDelete;
         const estimateConversion = messages.find(item => item.id === message.id)?.estimateConversion;
-        if (!captureSource && !captureSetup && !capture && !calendar?.calendarProposal && !calendar?.calendarResult && !customer && !workOrder && !estimate && !estimateDraft && !estimateSharing && !estimateDecision && !estimateDraftAction && !estimateVoid && !estimateArchive && !estimateDraftDelete && !estimateConversion) return null;
+        if (!report?.reportResult && !report?.reportStatus && !captureSource && !captureSetup && !capture && !calendar?.calendarProposal && !calendar?.calendarResult && !customer && !workOrder && !estimate && !estimateDraft && !estimateSharing && !estimateDecision && !estimateDraftAction && !estimateVoid && !estimateArchive && !estimateDraftDelete && !estimateConversion) return null;
         return <div className="grid min-w-0 gap-4">
           {captureSource && <ConnectedCaptureSource ticket={captureSource} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} onSaved={captureSaved} />}
           {captureSetup && <ConnectedCaptureSetup ticket={captureSetup} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} apply={workspaceAssistant?.applyCaptureSetup} onSaved={captureSaved} />}
           {capture && <ConnectedCaptureRead ticket={capture} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} onNavigate={href => { workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href); }} />}
           {calendar?.calendarProposal && <ConnectedCalendarSchedule ticket={calendar.calendarProposal} workspaceId={workspaceId} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} onRefresh={async () => { if (thread.current) await restore(thread.current);router.refresh(); }}/>}
           {calendar?.calendarResult && calendar.calendarTurnId && <ConnectedCalendarResult key={`${workspaceId}:${calendar.calendarTurnId}:${calendar.calendarResult.id}`} result={calendar.calendarResult} workspaceId={workspaceId} turnId={calendar.calendarTurnId} disabled={blocked || runStatus === 'thinking' || runStatus === 'streaming'} onNavigate={href => { workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href); }}/>}
+          {report?.reportResult && report.reportTurnId ? <ConnectedReportResult
+            key={`${workspaceId}:${report.reportTurnId}:${report.reportResult.id}`}
+            ticket={report.reportResult} workspaceId={workspaceId} turnId={report.reportTurnId}
+            disabled={blocked || runStatus === 'thinking' || runStatus === 'streaming'}
+            onInvalidated={() => {
+              setMessages(current => current.map(item => item.reportStatus
+                ? { ...item, text: copy.reportChanged, reportStatus: 'restricted' } : item));
+            }}
+            onNavigate={href => { workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href); }} />
+            : report?.reportStatus === 'restricted' ? <ReportResult state="stale" /> : null}
 
           {workOrder && (
             <ConnectedWorkOrderResult

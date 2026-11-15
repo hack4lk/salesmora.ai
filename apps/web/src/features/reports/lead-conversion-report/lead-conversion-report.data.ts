@@ -1,0 +1,16 @@
+export const leadConversionReportData = {
+  title: 'Lead-to-job conversion',
+  help: 'About lead-to-job conversion',
+  cohort: 'Leads created in period',
+  converted: 'Converted leads',
+  rate: 'Creation-cohort conversion',
+  definition: 'Distinct authorized leads created in the selected period with at least one surviving authorized linked Job as of the snapshot, divided by authorized leads created in that period.',
+  timing: 'Linked Jobs may have been created after the reporting period. Canceled Jobs still prove creation. Won stage alone is not job conversion.',
+  caution: 'Recent cohorts have had less time to convert. This is conversion as of now, not historical conversion as of the period end.',
+  archives: 'Authorized archived leads remain in the creation cohort. Deleted leads and deleted Jobs do not prove surviving conversion.',
+  permission: 'Converted leads and the rate are withheld because current permissions cannot prove complete supporting lead and Job access. No hidden linkage is exposed.',
+  empty: 'No leads were created in this authorized cohort; the conversion rate has no denominator.',
+  evidence: 'Converted creation-cohort leads',
+  evidenceDefinition: 'One row per converted lead, even when multiple Jobs are linked. The Job evidence field summarizes surviving authorized linked Jobs; record navigation opens lead evidence.',
+  invalid: 'Lead conversion could not be displayed because the counts or supporting evidence are inconsistent. Retry the report.',
+};

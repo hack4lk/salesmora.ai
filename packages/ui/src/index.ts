@@ -5,6 +5,8 @@ export { PasswordField, type PasswordFieldProps } from './forms/password-field/p
 export { BrandProvider } from './styles/brand-provider';
 export { salesmoraTheme } from './styles/theme';
 export { SubmitButton, type SubmitButtonProps } from './forms/submit-button/submit-button';
+export { SeafoamButton, type SeafoamButtonProps } from './forms/seafoam-button/seafoam-button';
+export { SeafoamOutlineButton, type SeafoamOutlineButtonProps } from './forms/seafoam-outline-button/seafoam-outline-button';
 export { TermsAcceptance, type TermsAcceptanceProps } from './forms/terms-acceptance/terms-acceptance';
 export { FormFeedback, type FormFeedbackProps } from './forms/form-feedback/form-feedback';
 export { WorkspaceNavigation, type WorkspaceNavigationAuthorizedPage, type WorkspaceNavigationProps, type WorkspaceNavigationPage } from './layout/workspace-navigation/workspace-navigation';
@@ -14,6 +16,7 @@ export { MoreHorizOutlined } from './icons';
 export { AssistantPanel, type AssistantPanelProps, type AssistantMessage } from './assistant/assistant-panel/assistant-panel';
 export { LeadDraftCard, type LeadDraftProposal, type LeadDraftCardProps } from './assistant/lead-draft-card/lead-draft-card';
 export { DataTable, type DataTableProps, type DataTableColumn } from './data-display/data-table/data-table';
+export { ProgressSteps, type ProgressStepsProps, type ProgressStep } from './data-display/progress-steps/progress-steps';
 export { SideDrawer, type SideDrawerProps } from './layout/side-drawer/side-drawer';
 export { ConfirmDialog, type ConfirmDialogProps } from './feedback/confirm-dialog/confirm-dialog';
 export { StatusBadge, type StatusBadgeProps, type StatusBadgeTone } from './data-display/status-badge/status-badge';

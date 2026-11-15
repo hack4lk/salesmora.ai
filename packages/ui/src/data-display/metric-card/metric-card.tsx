@@ -1,5 +1,5 @@
 'use client';
-import { Fragment, useId } from 'react';
+import { Fragment, useId, type ReactNode } from 'react';
 import { metricCardData as copy } from './metric-card.data';
 
 export interface MetricCardProps {
@@ -7,6 +7,9 @@ export interface MetricCardProps {
   /** Actual count supplied by the host. Missing/invalid values are never represented as zero. */
   value?: number;
   description?: string;
+  headerAction?: ReactNode;
+  labelAdornment?: ReactNode;
+  labelPosition?: 'above' | 'below' | 'beside';
   /** Host-formatted value (for example money). Replaces the numeric count when present. */
   displayValue?: string;
   state?: 'ready' | 'loading' | 'error';
@@ -18,21 +21,40 @@ export interface MetricCardProps {
 const format = new Intl.NumberFormat('en-US');
 
 /** Presentational count only. The host owns authorization, aggregation and filter semantics. */
-export function MetricCard({ label, value, displayValue, description, state = 'ready', onSelect, selected = false, className = '' }: MetricCardProps) {
+export function MetricCard({ label, value, displayValue, description, headerAction, labelAdornment, labelPosition = 'above', state = 'ready', onSelect, selected = false, className = '' }: MetricCardProps) {
   const id = useId();
   const formatted = typeof displayValue === 'string' && displayValue.trim() !== '';
   const valid = formatted || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0);
   const unavailable = state !== 'loading' && (state === 'error' || !valid);
+  const metricValue = <div className={labelPosition === 'above' ? 'mt-3' : 'min-w-0 max-w-full'}>
+    <div className="flex min-w-0 items-center gap-1">
+      {state === 'loading' ? <span aria-hidden="true" className="block h-10 w-24 max-w-full rounded-lg bg-line motion-safe:animate-pulse"/> :
+        unavailable ? <p aria-hidden="true" className="m-0 min-w-0 text-heading-lg font-semibold text-muted">{copy.placeholder}</p> :
+        <p className="m-0 min-w-0 text-heading-lg font-semibold tabular-nums text-ink wrap-anywhere">{formatted ? displayValue : format.format(value!).split(',').map((group, index, groups) => <Fragment key={index}>{group}{index < groups.length - 1 && <>{','}<wbr/></>}</Fragment>)}</p>}
+    </div>
+    {(state === 'loading' || unavailable) && <p role="status" className="mb-0 mt-3 text-sm leading-6 text-muted">{state === 'loading' ? copy.loading : copy.unavailable}</p>}
+  </div>;
   return <div role="group" aria-labelledby={`${id}-label`} aria-describedby={description?.trim() ? `${id}-description` : undefined} aria-busy={state === 'loading'} className={`relative min-w-0 rounded-2xl border bg-paper p-6 ${selected ? 'border-primary ring-2 ring-primary' : 'border-line'} ${onSelect ? 'hover:bg-canvas' : ''} ${className}`}>
     {onSelect && <button type="button" aria-pressed={selected} aria-label={label.trim() || copy.fallbackLabel} disabled={state !== 'ready'} onClick={onSelect} className="absolute inset-0 cursor-pointer rounded-2xl focus-visible:focus-ring disabled:cursor-not-allowed"/>}
-    <p id={`${id}-label`} className="m-0 text-sm font-semibold text-muted wrap-anywhere">{label.trim() || copy.fallbackLabel}</p>
-    {state === 'loading' ? <>
-      <span aria-hidden="true" className="mt-3 block h-10 w-24 rounded-lg bg-line motion-safe:animate-pulse"/>
-      <p role="status" className="mb-0 mt-3 text-sm leading-6 text-muted">{copy.loading}</p>
-    </> : unavailable ? <>
-      <p aria-hidden="true" className="mb-0 mt-3 text-heading-lg font-semibold text-muted">{copy.placeholder}</p>
-      <p role="status" className="mb-0 mt-3 text-sm leading-6 text-muted">{copy.unavailable}</p>
-    </> : formatted ? <p className="mb-0 mt-3 text-heading-lg font-semibold tabular-nums text-ink wrap-anywhere">{displayValue}</p> : <p className="mb-0 mt-3 text-heading-lg font-semibold tabular-nums text-ink wrap-anywhere">{format.format(value!).split(',').map((group, index, groups) => <Fragment key={index}>{group}{index < groups.length - 1 && <>{','}<wbr/></>}</Fragment>)}</p>}
+    {labelPosition !== 'above' ? <div className="flex min-w-0 items-start justify-between gap-3">
+      <div className={labelPosition === 'beside' ? 'flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0' : 'min-w-0 flex-1'}>
+        {metricValue}
+        <div className="flex min-w-0 max-w-full shrink-0 items-center gap-1">
+          <p id={`${id}-label`} className="m-0 min-w-0 text-sm font-semibold text-muted wrap-anywhere">{label.trim() || copy.fallbackLabel}</p>
+          {labelAdornment && <div className="relative z-10 shrink-0">{labelAdornment}</div>}
+        </div>
+      </div>
+      {headerAction && <div className="relative z-10 max-w-[45%] shrink-0">{headerAction}</div>}
+    </div> : <>
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-1">
+          <p id={`${id}-label`} className="m-0 min-w-0 text-sm font-semibold text-muted wrap-anywhere">{label.trim() || copy.fallbackLabel}</p>
+          {labelAdornment && <div className="relative z-10 shrink-0">{labelAdornment}</div>}
+        </div>
+        {headerAction && <div className="relative z-10 max-w-[45%] shrink-0">{headerAction}</div>}
+      </div>
+      {metricValue}
+    </>}
     {description?.trim() && <p id={`${id}-description`} className="mb-0 mt-3 text-sm leading-6 text-muted wrap-anywhere">{description}</p>}
   </div>;
 }

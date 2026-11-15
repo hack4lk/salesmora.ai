@@ -27,6 +27,16 @@ export const Owner: Story = {play:async({canvasElement,args})=>{
 }};
 export const Admin: Story = {args:{user:{...meta.args.user,role:'admin'}}};
 export const FullWidth: Story = {args:{contentWidth:'full'}};
+export const ReportsNavigation: Story = {
+  args: { authorizedPages: ['home', 'reports'] },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement), toggle = c.queryByRole('button', { name: nav.open });
+    if (toggle) await userEvent.click(toggle);
+    if (process.env.NODE_ENV === 'development') {
+      await expect(c.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/reports?workspace=fictional-workspace');
+    }
+  },
+};
 export const Field: Story = {args:{user:{...meta.args.user,role:'field'}},play:async({canvasElement})=>{
   const c=within(canvasElement); const toggle=c.queryByRole('button',{name:nav.open}); if(toggle)await userEvent.click(toggle);
   await expect(c.getByRole('link',{name:'Settings'})).toHaveAttribute('href','/settings?workspace=fictional-workspace');

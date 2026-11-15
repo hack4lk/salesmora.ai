@@ -1,29 +1,20 @@
 import { calendarChatData as copy } from './chat.data';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
 import { calendarVisitReferenceSchema, calendarChatVisitSchema, calendarChatQuerySchema, calendarChatContextSchema, calendarChatResultSchema, calendarAvailabilityResultSchema, calendarQuerySchema, type AuthorizationContext, type CalendarQuery, type PermissionId } from '@salesmora/contracts';
 import { resolveAuthorizedCollectionScope, authorize, addCalendarDays, calendarWeekStart, calendarDateCandidates } from '@salesmora/domain';
 import { withWorkspaceAuthorization, AuthorizationAccessError, type WorkspaceIdentity } from '../authorization/store';
 import { readCalendar, readCalendarVisit } from './read';
+import { assistantAuthorityStamp } from '../authorization/evidence-stamp';
 export class CalendarFocusUnavailableError extends AuthorizationAccessError {}
 function permit(context: AuthorizationContext) {
   const scope = resolveAuthorizedCollectionScope(context, 'calendar.read');
   if (!authorize(context, { permission: 'assistant.use' }).allowed || !scope.allowed || !['workspace','own_assigned'].includes(scope.scope)) throw new AuthorizationAccessError();
 }
-/** Conservative workspace fingerprint. Never returned to the model; changes invalidate dependent history. */
-export async function calendarChatStamp(trx: Knex.Transaction, context: AuthorizationContext) {
+/** Historical authorization binding, never a confirmation version check. */
+export async function calendarChatStamp(_trx: Knex.Transaction, context: AuthorizationContext) {
   permit(context);
-  const { rows } = await trx.raw(`SELECT md5(coalesce(string_agg(v, '|' ORDER BY v), '')) AS stamp FROM (
-    SELECT 'j:' || id::text || ':' || xmin::text AS v FROM jobs WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 'team:' || "jobId"::text || ':' || "userId" || ':' || xmin::text FROM "jobTeamMembers" WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 'wo:' || id::text || ':' || xmin::text FROM "workOrders" WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 'crew:' || "workOrderId"::text || ':' || "userId" || ':' || xmin::text FROM "workOrderCrew" WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 'v:' || id::text || ':' || xmin::text FROM "calendarVisits" WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 'r:' || id::text || ':' || xmin::text FROM "calendarVisitRecords" WHERE "workspaceId"=:workspace
-    UNION ALL SELECT 'member:' || m."userId" || ':' || m.xmin::text || ':' || u.xmin::text FROM "workspaceMemberships" m JOIN users u ON u.id=m."userId" WHERE m."workspaceId"=:workspace
-    UNION ALL SELECT 'w:' || xmin::text || ':' || (now() AT TIME ZONE timezone)::date::text FROM workspaces WHERE id=:workspace
-  ) evidence`, { workspace: context.workspaceId });
-  return createHash('sha256').update(JSON.stringify([context.userId, rows[0].stamp])).digest('hex');
+  return assistantAuthorityStamp(context, 'calendar');
 }
 export async function calendarChatEvidenceAllowed(trx: Knex.Transaction, context: AuthorizationContext, stamp?: string | null) {
   if (!stamp) return true;
@@ -75,12 +66,15 @@ export async function readCalendarForChat(db: Knex, identity: WorkspaceIdentity,
   });
 }
 export async function calendarChatClock(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[]) {
-  return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
-    permit(context);
-    const workspace = await trx('workspaces').where({ id: context.workspaceId }).first('timezone');
-    const today = (await trx.raw(`SELECT to_char(current_timestamp AT TIME ZONE ?, 'YYYY-MM-DD') AS today`, [workspace.timezone])).rows[0].today;
-    return { timezone: workspace.timezone as string, today: today as string };
-  });
+  return withWorkspaceAuthorization(db, identity, enabled, false, calendarChatClockInTransaction);
+}
+export async function calendarChatClockInTransaction(trx: Knex.Transaction, context: AuthorizationContext) {
+  permit(context);
+  const workspace = await trx('workspaces').where({ id: context.workspaceId })
+    .select('timezone', trx.raw(`to_char(current_timestamp AT TIME ZONE timezone, 'YYYY-MM-DD') AS today`))
+    .first<{ timezone: string; today: string }>();
+  if (!workspace) throw new AuthorizationAccessError();
+  return workspace;
 }
 
 /** Selected visit identity is intent only; project current scoped data and bind its evidence before generation. */

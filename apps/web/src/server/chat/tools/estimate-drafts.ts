@@ -6,13 +6,10 @@ import {
   EstimateDraftValidationError, EstimateDraftConflictError,
 } from "@salesmora/data";
 import { estimateProposeChatSchema } from "@salesmora/contracts";
-import { database } from "../../workspaces/store";
-import { enabledPermissions } from "../../authorization/permissions";
 import type { ChatToolHandler } from "./types";
 import { prepareEstimateExportHandoff } from "./estimates";
 
 export const estimatesPropose: ChatToolHandler = async (context, args) => {
-  await context.authorize("estimates_propose_action");
   const parsed = estimateProposeChatSchema.parse(args);
   let view;
   if (parsed.request.operation === "export") {
@@ -21,7 +18,7 @@ export const estimatesPropose: ChatToolHandler = async (context, args) => {
   if (parsed.request.operation === "convert") {
     try {
       const ticket = await proposeEstimateChatConversion(
-        database(), context.identity, enabledPermissions, context.turnId, parsed, context.signal,
+        context.db, context.identity, context.enabledPermissions, context.turnId, parsed, context.signal,
       );
       return {
         estimateConversion: ticket,
@@ -46,7 +43,7 @@ export const estimatesPropose: ChatToolHandler = async (context, args) => {
   if (parsed.request.operation === "delete-draft") {
     try {
       const ticket = await proposeEstimateChatDraftDelete(
-        database(), context.identity, enabledPermissions, context.turnId, parsed, context.signal,
+        context.db, context.identity, context.enabledPermissions, context.turnId, parsed, context.signal,
       );
       return {
         estimateDraftDelete: ticket,
@@ -70,7 +67,7 @@ export const estimatesPropose: ChatToolHandler = async (context, args) => {
   if (parsed.request.operation === "archive" || parsed.request.operation === "restore") {
     try {
       const ticket = await proposeEstimateChatArchive(
-        database(), context.identity, enabledPermissions, context.turnId, parsed, context.signal,
+        context.db, context.identity, context.enabledPermissions, context.turnId, parsed, context.signal,
       );
       return {
         estimateArchive: ticket,
@@ -91,7 +88,7 @@ export const estimatesPropose: ChatToolHandler = async (context, args) => {
   }
   try {
     if (parsed.request.operation === "void") {
-      const ticket = await proposeEstimateChatVoid(database(), context.identity, enabledPermissions, context.turnId, parsed, context.signal);
+      const ticket = await proposeEstimateChatVoid(context.db, context.identity, context.enabledPermissions, context.turnId, parsed, context.signal);
       return {
         estimateVoid: ticket,
         evidence: {
@@ -103,7 +100,7 @@ export const estimatesPropose: ChatToolHandler = async (context, args) => {
       };
     }
     if (["revise", "duplicate"].includes(parsed.request.operation)) {
-      const ticket = await proposeEstimateChatDraftAction(database(), context.identity, enabledPermissions, context.turnId, parsed, context.signal);
+      const ticket = await proposeEstimateChatDraftAction(context.db, context.identity, context.enabledPermissions, context.turnId, parsed, context.signal);
       return {
         estimateDraftAction: ticket,
         evidence: {
@@ -115,7 +112,7 @@ export const estimatesPropose: ChatToolHandler = async (context, args) => {
       };
     }
     if (["decision", "correct-decision"].includes(parsed.request.operation)) {
-      const ticket = await proposeEstimateChatDecision(database(), context.identity, enabledPermissions, context.turnId, parsed, context.signal);
+      const ticket = await proposeEstimateChatDecision(context.db, context.identity, context.enabledPermissions, context.turnId, parsed, context.signal);
       return {
         estimateDecision: ticket,
         evidence: {
@@ -126,7 +123,7 @@ export const estimatesPropose: ChatToolHandler = async (context, args) => {
       };
     }
     if (["send", "publish", "resend"].includes(parsed.request.operation)) {
-      const ticket = await proposeEstimateChatShare(database(), context.identity, enabledPermissions, context.turnId, parsed, context.signal);
+      const ticket = await proposeEstimateChatShare(context.db, context.identity, context.enabledPermissions, context.turnId, parsed, context.signal);
       return {
         estimateSharing: ticket,
         evidence: {
@@ -137,7 +134,7 @@ export const estimatesPropose: ChatToolHandler = async (context, args) => {
       };
     }
     view = await proposeEstimateChatDraft(
-      database(), context.identity, enabledPermissions, context.turnId, args, context.signal,
+      context.db, context.identity, context.enabledPermissions, context.turnId, args, context.signal,
     );
   } catch (error) {
     if (!(error instanceof EstimateDraftValidationError || error instanceof EstimateDraftConflictError)) throw error;

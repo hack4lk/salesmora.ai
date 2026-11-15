@@ -1,14 +1,14 @@
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Knex } from '@salesmora/data';
-import { AuthorizationAccessError, createLeadCSVExport, leadChatTurnEvidenceAllowed, previewLeadExportInTransaction } from '@salesmora/data';
+import { AuthorizationAccessError, createLeadCSVExport, leadChatTurnEvidenceAllowed, previewLeadExportInTransaction, leadProposalStorage } from '@salesmora/data';
 import { chatPageContextSchema, leadExportSchema, leadExportDraftPayloadSchema, leadExportDraftReviewSchema, type AuthorizationContext, type LeadExportDraftInput, type LeadExportDraftPayload } from '@salesmora/contracts';
 import { authorizeLeadOperation } from '@salesmora/agent';
 import { authorizedWorkspace, enabledPermissions } from '../authorization/permissions';
 import { database } from '../workspaces/store';
 import { chatAccessHash } from './access-hash';
 import { ChatActionConflict } from './action-errors';
-import type { ChatIdentity } from './store';
+import { validateTurnEvidenceInTransaction, type ChatIdentity } from './store';
 import { chatExportData as copy } from './export-actions.data';
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 interface ExportRow extends ChatIdentity {
@@ -20,10 +20,6 @@ function review(row: ExportRow) {
   return leadExportDraftReviewSchema.parse({ actionType: 'lead.export', id: row.id, inputHash: row.inputHash,
     expiresAt: new Date(row.expiresAt).toISOString(), state: row.state === 'pending' && new Date(row.expiresAt).getTime() <= Date.now() ? 'expired' : row.state,
     ...payload.preview, filterLabels: payload.filterLabels, includeArchived: payload.filters.archived });
-}
-async function audit(trx: Knex.Transaction, row: ExportRow, action: string) {
-  await trx('chatActionAudit').insert({ id: randomUUID(), workspaceId: row.workspaceId, actorId: row.userId, draftId: row.id,
-    inputHash: row.inputHash, action, actionType: 'lead.export' });
 }
 async function currentTurn(trx: Knex.Transaction, context: AuthorizationContext, row: ExportRow) {
   const turn = await trx('chatTurns').where({ workspaceId: context.workspaceId, userId: context.userId, id: row.turnId }).first();
@@ -52,11 +48,11 @@ async function labels(trx: Knex.Transaction, context: AuthorizationContext, filt
   if (filters.attention) result.push(copy.attention);
   return result;
 }
-export async function proposeExportDraft(identity: ChatIdentity, turnId: string, input: LeadExportDraftInput, signal: AbortSignal) {
+export async function proposeExportDraft(identity: ChatIdentity, turnId: string, input: LeadExportDraftInput, signal: AbortSignal, db?: Knex) {
   return authorizedWorkspace(identity.userId, identity.workspaceId, true, async (trx, context) => {
     signal.throwIfAborted();
-    const turn = await trx('chatTurns').where({ ...identity, id: turnId }).first();
-    if (!turn || !authorizeLeadOperation(context, turn.surfaceKey, 'export_csv').allowed || turn.accessHash !== chatAccessHash(context) || !await leadChatTurnEvidenceAllowed(trx, context, turn)) throw new AuthorizationAccessError();
+    const turn = await validateTurnEvidenceInTransaction(trx, context, turnId);
+    if (!authorizeLeadOperation(context, turn.surfaceKey, 'export_csv').allowed || turn.accessHash !== chatAccessHash(context)) throw new AuthorizationAccessError();
     if (!['accepted', 'running'].includes(turn.state) || new Date(turn.leaseUntil).getTime() <= Date.now()) throw new ChatActionConflict();
     const page = chatPageContextSchema.parse(turn.pageContext);
     if (input.mode === 'current_filters' && (turn.surfaceKey !== 'leads.list' || !page.uiState)) return { type: 'lead-export-filters-required', saved: false };
@@ -64,14 +60,13 @@ export async function proposeExportDraft(identity: ChatIdentity, turnId: string,
     if (filters.query.length === 1) return { type: 'lead-export-filters-required', saved: false };
     const preview = await previewLeadExportInTransaction(trx, context, { workspaceId: identity.workspaceId, filters });
     const payload = leadExportDraftPayloadSchema.parse({ filters, preview, filterLabels: await labels(trx, context, filters) });
-    const prior = await trx('chatActionDrafts').where({ turnId }).first();
+    const prior = await leadProposalStorage.read(trx, context, { turnId });
     if (prior) { if (prior.actionType !== 'lead.export' || prior.inputHash !== hash(payload)) throw new ChatActionConflict(); return { action: review(prior) }; }
-    const old = await trx('chatActionDrafts').where({ ...identity, threadId: turn.threadId, state: 'pending' }).update({ state: 'superseded', resolvedAt: trx.fn.now() }).returning('*');
-    for (const row of old) await trx('chatActionAudit').insert({ id: randomUUID(), workspaceId: identity.workspaceId, actorId: identity.userId, draftId: row.id, inputHash: row.inputHash, action: 'draft.superseded', actionType: row.actionType });
-    const [row] = await trx('chatActionDrafts').insert({ ...identity, id: randomUUID(), turnId, threadId: turn.threadId, capability: 'leads.export', actionType: 'lead.export',
-      lead: {}, exportPayload: payload, inputHash: hash(payload), accessHash: chatAccessHash(context), expiresAt: new Date(Date.now() + 900000) }).returning('*');
-    await audit(trx, row, 'draft.proposed'); signal.throwIfAborted(); return { action: review(row) };
-  });
+    await leadProposalStorage.supersede(trx, context, turn.threadId);
+    const row = await leadProposalStorage.insert(trx, context, { id: randomUUID(), turnId, threadId: turn.threadId, capability: 'leads.export', actionType: 'lead.export',
+      lead: {}, exportPayload: payload, inputHash: hash(payload), accessHash: chatAccessHash(context), expiresAt: new Date(Date.now() + 900000) });
+    signal.throwIfAborted(); return { action: review(row) };
+  }, db);
 }
 export async function visibleExportDraft(trx: Knex.Transaction, context: AuthorizationContext, row: ExportRow) {
   try { await currentTurn(trx, context, row); return review(row); }
@@ -91,25 +86,24 @@ export async function resolveExportDraft(trx: Knex.Transaction, context: Authori
   if (decision !== 'cancel') throw new ChatActionConflict();
   await decisionReady(trx, context, row, inputHash, false);
   if (row.state !== 'cancelled') {
-    await trx('chatActionDrafts').where({ id: row.id }).update({ state: 'cancelled', resolvedAt: trx.fn.now() });
-    await audit(trx, row, 'draft.cancelled');
+    await leadProposalStorage.save(trx, context, row, 'cancelled');
   }
   return review({ ...row, state: 'cancelled' });
 }
 /** Filter payload never comes from the browser. Both export transactions reauthorize the sealed proposal. */
 export async function downloadExportDraft(identity: ChatIdentity, draftId: string, inputHash: string, signal: AbortSignal) {
   const payload = await authorizedWorkspace(identity.userId, identity.workspaceId, false, async (trx, context) => {
-    const row = await trx('chatActionDrafts').where({ ...identity, id: draftId, actionType: 'lead.export' }).first();
-    if (!row) throw new AuthorizationAccessError();
+    const row = await leadProposalStorage.read(trx, context, { id: draftId });
+    if (row?.actionType !== 'lead.export') throw new AuthorizationAccessError();
     await decisionReady(trx, context, row, inputHash, true);
     return leadExportDraftPayloadSchema.parse(row.exportPayload);
   });
   const load = async (trx: Knex.Transaction, context: AuthorizationContext) => {
-    const row = await trx('chatActionDrafts').where({ ...identity, id: draftId, actionType: 'lead.export' }).forUpdate().first();
-    if (!row) throw new AuthorizationAccessError();
+    const row = await leadProposalStorage.read(trx, context, { id: draftId }, true);
+    if (row?.actionType !== 'lead.export') throw new AuthorizationAccessError();
     await decisionReady(trx, context, row, inputHash, true);
     if (hash(leadExportDraftPayloadSchema.parse(row.exportPayload)) !== hash(payload)) throw new ChatActionConflict();
-    return row as ExportRow;
+    return row;
   };
   return createLeadCSVExport(database(), identity, enabledPermissions, { workspaceId: identity.workspaceId, filters: payload.filters }, signal, {
     beforeRead: async (trx, context) => { await load(trx, context); },
@@ -117,8 +111,7 @@ export async function downloadExportDraft(identity: ChatIdentity, draftId: strin
       const row = await load(trx, context);
       if (preview.count !== payload.preview.count || preview.scope !== payload.preview.scope || preview.rowLimit !== payload.preview.rowLimit) throw new ChatActionConflict();
       if (row.state === 'pending') {
-        await trx('chatActionDrafts').where({ id: row.id }).update({ state: 'confirmed', resolvedAt: trx.fn.now() });
-        await audit(trx, row, 'draft.confirmed');
+        await leadProposalStorage.save(trx, context, row, 'confirmed');
       }
     },
   });

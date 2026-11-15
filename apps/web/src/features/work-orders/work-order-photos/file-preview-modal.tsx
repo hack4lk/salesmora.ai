@@ -119,7 +119,7 @@ export function FilePreviewModal({
             <button
               onClick={handleDownload}
               disabled={isLoading}
-              className="px-4 py-2 text-sm font-medium bg-primary text-white rounded disabled:opacity-50"
+              className="seafoam-action rounded px-4 py-2 text-sm font-semibold enabled:hover:bg-none enabled:hover:bg-seafoam-dark disabled:opacity-50"
             >
               {isLoading ? 'Downloading...' : 'Download'}
             </button>

@@ -1,5 +1,7 @@
 # Admin console: Step 0 (Prerequisites) implementation plan
 
+> Historical migration paths in this document refer to the prior release. Current fresh databases use the [curated baseline](../packages/data/src/baseline/); existing databases require a separately designed upgrade.
+
 Status: **Approved** (October 28, 2026). All open decisions were accepted as recommended. Parent plan: [admin-console-plan.md](admin-console-plan.md) §10, step 0.
 
 Step 0 changes only the existing apps and shared packages. Nothing in `apps/admin` is created yet. When it's done:

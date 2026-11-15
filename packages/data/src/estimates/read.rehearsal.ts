@@ -59,12 +59,8 @@ import {
   proposeEstimateChatDraftAction, readEstimateChatDraftAction, visibleEstimateChatDraftAction,
 } from "./chat-draft-actions";
 import { withWorkspaceAuthorization } from "../authorization/store";
-import { down as rollbackDraftActionMigration } from "../migrations/202610270003_estimate_chat_draft_actions";
-import { down as rollbackVoidMigration } from "../migrations/202610270005_estimate_chat_voids";
-import { down as rollbackArchiveMigration } from "../migrations/202610270007_estimate_chat_archives";
-import { down as rollbackDraftDeleteMigration } from "../migrations/202610270012_estimate_chat_draft_deletes";
-import { down as rollbackDraftDeleteEvidenceMigration } from "../migrations/202610270013_estimate_draft_delete_evidence";
-import { down as rollbackConversionMigration } from "../migrations/202610270014_estimate_chat_conversions";
+import { migrateFreshBaseline } from "../baseline-runner";
+import { down as rollbackBaseline } from "../baseline-migrations/202611150001_fresh_baseline";
 import {
   estimateConversionChatBinding,
   estimateConversionChatEvidenceAllowed,
@@ -124,7 +120,12 @@ if (
   throw Error("Use the isolated local test database.");
 }
 
-const db = createDatabase(connection);
+const database = `estimate_read_${randomUUID().replaceAll("-", "")}_test`;
+const isolated = new URL(connection);
+isolated.pathname = `/${database}`;
+const owner = createDatabase(connection);
+const db = createDatabase(isolated.toString());
+let created = false;
 const workspaceId = randomUUID();
 const users = { owner: randomUUID(), field: randomUUID(), office: randomUUID() };
 const customerId = randomUUID();
@@ -391,6 +392,9 @@ async function addEstimate(input: {
 }
 
 try {
+  await owner.raw("CREATE DATABASE ??", [database]);
+  created = true;
+  await migrateFreshBaseline(db);
   await db.transaction(async (trx) => {
     const now = new Date();
     await trx("users").insert(
@@ -673,21 +677,21 @@ try {
     await db("estimates").where({ workspaceId, id: expiringEstimate.id }).update({ totalCents: 20000 });
   });
 
-  await check("assistant epoch detects changes even for empty results and revoked Job assignment", async () => {
+  await check("assistant authority stamp remains stable across ordinary Job and Estimate edits", async () => {
     const stamp = await withWorkspaceAuthorization(db, identity("field"), enabled, false, estimateChatStamp);
     await withWorkspaceAuthorization(db, identity("field"), enabled, false, async (trx, context) => {
       assert.equal(await estimateChatEvidenceAllowed(trx, context, stamp), true);
     });
     await db("jobs").where({ workspaceId, id: jobId }).update({ primaryOwnerId: users.owner });
     await withWorkspaceAuthorization(db, identity("field"), enabled, false, async (trx, context) => {
-      assert.equal(await estimateChatEvidenceAllowed(trx, context, stamp), false);
+      assert.equal(await estimateChatEvidenceAllowed(trx, context, stamp), true);
     });
     await db("jobs").where({ workspaceId, id: jobId }).update({ primaryOwnerId: users.field });
     const current = await withWorkspaceAuthorization(db, identity(), enabled, false, estimateChatStamp);
     assert.notEqual(current, stamp);
     await db("estimates").where({ workspaceId, id: expiringEstimate.id }).update({ name: "New epoch name" });
     await withWorkspaceAuthorization(db, identity(), enabled, false, async (trx, context) => {
-      assert.equal(await estimateChatEvidenceAllowed(trx, context, current), false);
+      assert.equal(await estimateChatEvidenceAllowed(trx, context, current), true);
     });
     await db("estimates").where({ workspaceId, id: expiringEstimate.id }).update({ name: "Expiring estimate" });
   });
@@ -819,18 +823,24 @@ try {
     await check("assistant Draft confirmation rolls back Estimate, receipt and proposal if durable audit fails", async () => {
       const fixture = await assistantDraftFixture();
       const constraint = `assistant_draft_audit_${randomUUID().replaceAll("-", "")}`;
-      await db.raw(`ALTER TABLE "chatEstimateDraftAudit" ADD CONSTRAINT "${constraint}" CHECK ("workspaceId" <> '${workspaceId}'::uuid OR action <> 'confirmed') NOT VALID`);
+      await db.raw(
+        `ALTER TABLE "chatProposalAudit" ADD CONSTRAINT ?? CHECK (family <> 'estimateDraft' OR action <> 'confirmed') NOT VALID`,
+        [constraint],
+      );
       try {
-        await assert.rejects(operateEstimateChatDraft(db, identity(), enabled, assistantDraftBinding(fixture.view), "confirm"));
+        await assert.rejects(
+          operateEstimateChatDraft(db, identity(), enabled, assistantDraftBinding(fixture.view), "confirm"),
+          new RegExp(constraint),
+        );
         assert.equal((await db("estimates").where({ workspaceId, jobId: fixture.parentId })).length, 0);
-        assert.equal((await db("chatEstimateDrafts").where({ id: fixture.view.draft.id }).first()).state, "pending");
+        assert.equal((await db("chatProposals").where({ family: "estimateDraft", id: fixture.view.draft.id }).first()).state, "pending");
         assert.equal((await db("estimate_operation_receipts").where({ workspaceId, submissionId: fixture.view.draft.id })).length, 0);
-      } finally { await db.raw(`ALTER TABLE "chatEstimateDraftAudit" DROP CONSTRAINT "${constraint}"`); }
+      } finally { await db.raw('ALTER TABLE "chatProposalAudit" DROP CONSTRAINT ??', [constraint]); }
       const result = await operateEstimateChatDraft(db, identity(), enabled, assistantDraftBinding(fixture.view), "confirm");
       assert.equal(result.view.draft.state, "confirmed");
       assert.equal((await db("estimate_activity").where({ estimateId: result.view.receipt!.id }).first()).source, "assistant-confirmed");
     });
-    await check("assistant Draft proposals are invalidated by membership replacement and catalog changes", async () => {
+    await check("assistant Draft proposals reject membership replacement but tolerate unrelated catalog changes", async () => {
       const fixture = await assistantDraftFixture("office");
       const membership = await db("workspaceMemberships").where({ workspaceId, userId: users.office }).first();
       await db("workspaceMemberships").where({ workspaceId, userId: users.office }).delete();
@@ -838,8 +848,10 @@ try {
       await assert.rejects(operateEstimateChatDraft(db, identity("office"), enabled, assistantDraftBinding(fixture.view), "confirm"), AuthorizationAccessError);
       const second = await assistantDraftFixture(), materialId = randomUUID();
       await db("materialCatalog").insert({ id: materialId, workspaceId, name: "Epoch fixture", unit: "each", priceCents: 100 });
-      await assert.rejects(operateEstimateChatDraft(db, identity(), enabled, assistantDraftBinding(second.view), "confirm"), EstimateDraftConflictError);
-      assert.equal((await db("estimates").where({ workspaceId }).whereIn("jobId", [fixture.parentId, second.parentId])).length, 0);
+      const confirmed = await operateEstimateChatDraft(db, identity(), enabled, assistantDraftBinding(second.view), "confirm");
+      assert.equal(confirmed.view.draft.state, "confirmed");
+      assert.equal((await db("estimates").where({ workspaceId, jobId: fixture.parentId })).length, 0);
+      assert.equal((await db("estimates").where({ workspaceId, jobId: second.parentId })).length, 1);
       await db("materialCatalog").where({ id: materialId }).delete();
     });
     await check("assistant user-price proof rejects numeric claims not found in the actual owned user message", async () => {
@@ -3334,7 +3346,7 @@ try {
     assert.equal((await operateEstimateChatShare(db, identity(), enabled, run.binding, "open", false)).href, `/estimates/${draft.id}?workspace=${workspaceId}`);
     await db("estimate_deliveries").where({ estimateId: draft.id }).update({ status: "sent", sentAt: new Date(), attemptCount: 1 });
     assert.equal((await readEstimateChatShare(db, identity(), enabled, run.binding)).ticket.state, "confirmed");
-    assert.equal((await db("chatEstimateShareAudit").where({ proposalId: run.ticket.id, action: "confirmed" })).length, 1);
+    assert.equal((await db("chatProposalAudit").where({ family: "estimateSharing", proposalId: run.ticket.id, action: "confirmed" })).length, 1);
   });
   await check("assistant Publish creates no email; Resend replaces a recipient proposal without changing frozen paper", async () => {
     const draft = await sharingDraft("assistant-publish@example.test");
@@ -3364,17 +3376,23 @@ try {
     const draft = await sharingDraft("assistant-rollback@example.test");
     const run = await sharingAssistant("send", draft.id);
     const constraint = `assistant_share_audit_${randomUUID().replaceAll("-", "")}`;
-    await db.raw(`ALTER TABLE "chatEstimateShareAudit" ADD CONSTRAINT "${constraint}" CHECK ("workspaceId" <> '${workspaceId}'::uuid OR action <> 'confirmed') NOT VALID`);
+    await db.raw(
+      `ALTER TABLE "chatProposalAudit" ADD CONSTRAINT ?? CHECK (family <> 'estimateSharing' OR action <> 'confirmed') NOT VALID`,
+      [constraint],
+    );
     try {
-      await assert.rejects(operateEstimateChatShare(db, identity(), enabled, run.binding, "confirm", false));
+      await assert.rejects(
+        operateEstimateChatShare(db, identity(), enabled, run.binding, "confirm", false),
+        new RegExp(constraint),
+      );
       for (const table of ["estimate_snapshots", "estimate_share_tokens", "estimate_deliveries", "estimate_operation_receipts"]) {
         const query = db(table).where({ estimateId: draft.id });
         if (table === "estimate_operation_receipts") query.where({ submissionId: run.ticket.id });
         assert.equal((await query).length, 0, table);
       }
       assert.equal((await db("estimates").where({ id: draft.id }).first()).status, "draft");
-      assert.equal((await db("chatEstimateShares").where({ id: run.ticket.id }).first()).state, "pending");
-    } finally { await db.raw(`ALTER TABLE "chatEstimateShareAudit" DROP CONSTRAINT "${constraint}"`); }
+      assert.equal((await db("chatProposals").where({ family: "estimateSharing", id: run.ticket.id }).first()).state, "pending");
+    } finally { await db.raw('ALTER TABLE "chatProposalAudit" DROP CONSTRAINT ??', [constraint]); }
     assert.equal((await operateEstimateChatShare(db, identity(), enabled, run.binding, "confirm", false)).view.ticket.state, "confirmed");
   });
   await check("assistant sharing checks exact expiry, ownership, hash, permission, parent changes and current-page identity", async () => {
@@ -3439,14 +3457,14 @@ try {
       changes: { name: "Refined assistant intent", scope: null, message: null, paymentTerms: null, termsNote: null,
         validUntil: null, discount: null, taxRate: null, deposit: null, items: null },
     } }, new AbortController().signal);
-    assert.equal((await db("chatEstimateShares").where({ id: run.ticket.id }).first()).state, "superseded");
+    assert.equal((await db("chatProposals").where({ family: "estimateSharing" }).where({ id: run.ticket.id }).first()).state, "superseded");
     await db("chatTurns").where({ id: run.turnId }).update({ state: "completed" });
     await assert.rejects(operateEstimateChatShare(db, identity(), enabled, run.binding, "confirm", false), EstimateDraftConflictError);
     await db("chatTurns").where({ id: run.turnId }).update({ state: "running" });
     const final = await proposeEstimateChatShare(db, identity(), enabled, run.turnId,
       { request: { operation: "send", estimateRef: draft.id } }, new AbortController().signal);
     await db("chatTurns").where({ id: run.turnId }).update({ state: "completed" });
-    assert.equal((await db("chatEstimateDrafts").where({ id: next.draft.id }).first()).state, "superseded");
+    assert.equal((await db("chatProposals").where({ family: "estimateDraft" }).where({ id: next.draft.id }).first()).state, "superseded");
     assert.equal((await operateEstimateChatShare(db, identity(), enabled, estimateShareChatBinding(final), "cancel", false)).view.ticket.state, "cancelled");
     assert.equal((await db("estimate_deliveries").where({ estimateId: draft.id })).length, 0);
     assert.equal((await db("estimates").where({ id: draft.id }).first()).name, "Sharing fixture");
@@ -3516,7 +3534,7 @@ try {
     assert.equal((await db("estimate_decisions").where({ estimateId: command.estimateId })).length, 1);
     assert.equal((await db("estimateNotifications").where({ estimateId: command.estimateId, event: "decision_recorded", userId: users.field })).length, 1);
     assert.equal((await db("estimate_activity").where({ estimateId: command.estimateId, type: "decision-recorded" }).first()).source, "assistant-confirmed");
-    assert.equal((await db("chatEstimateDecisionAudit").where({ proposalId: run.ticket.id, action: "confirmed" })).length, 1);
+    assert.equal((await db("chatProposalAudit").where({ family: "estimateDecision" }).where({ proposalId: run.ticket.id, action: "confirmed" })).length, 1);
     assert.equal((await operateEstimateChatDecision(db, identity(), enabled, run.binding, "open")).href, `/estimates/${command.estimateId}?workspace=${workspaceId}`);
     assert.equal((await readEstimateChatDecision(db, identity(), enabled, run.binding)).ticket.state, "confirmed");
     const history = await readEstimateLifecycle(db, identity(), enabled, { workspaceId, estimateId: command.estimateId });
@@ -3595,7 +3613,7 @@ try {
     const deliveries = await db("estimate_deliveries").where({ estimateId: command.estimateId });
     const activity = await db("estimate_activity").where({ estimateId: command.estimateId });
     const constraint = `assistant_decision_audit_${randomUUID().replaceAll("-", "")}`;
-    await db.raw(`ALTER TABLE "chatEstimateDecisionAudit" ADD CONSTRAINT "${constraint}" CHECK ("workspaceId" <> '${workspaceId}'::uuid OR action <> 'confirmed') NOT VALID`);
+    await db.raw(`ALTER TABLE "chatProposalAudit" ADD CONSTRAINT "${constraint}" CHECK ("workspaceId" <> '${workspaceId}'::uuid OR action <> 'confirmed') NOT VALID`);
     try {
       await assert.rejects(operateEstimateChatDecision(db, identity(), enabled, run.binding, "confirm"), /check constraint/);
       assert.deepEqual(await db("estimates").where({ id: command.estimateId }).first(), estimateBefore);
@@ -3604,8 +3622,8 @@ try {
       assert.equal((await db("estimate_decisions").where({ estimateId: command.estimateId })).length, 0);
       assert.equal((await db("estimateNotifications").where({ estimateId: command.estimateId, event: "decision_recorded" })).length, 0);
       assert.equal((await db("estimate_operation_receipts").where({ submissionId: run.ticket.id })).length, 0);
-      assert.equal((await db("chatEstimateDecisions").where({ id: run.ticket.id }).first()).state, "pending");
-    } finally { await db.raw(`ALTER TABLE "chatEstimateDecisionAudit" DROP CONSTRAINT "${constraint}"`); }
+      assert.equal((await db("chatProposals").where({ family: "estimateDecision" }).where({ id: run.ticket.id }).first()).state, "pending");
+    } finally { await db.raw(`ALTER TABLE "chatProposalAudit" DROP CONSTRAINT "${constraint}"`); }
     assert.equal((await operateEstimateChatDecision(db, identity(), enabled, run.binding, "confirm")).view.ticket.state, "confirmed");
   });
   await check("assistant decisions retain the Field initial-decision scope but never grant Field correction", async () => {
@@ -3682,18 +3700,18 @@ try {
     const sharing = await proposeEstimateChatShare(db, identity(), enabled, run.turnId, {
       request: { operation: "publish", estimateRef: draft.id },
     }, new AbortController().signal);
-    assert.equal((await db("chatEstimateDecisions").where({ id: run.ticket.id }).first()).state, "superseded");
+    assert.equal((await db("chatProposals").where({ family: "estimateDecision" }).where({ id: run.ticket.id }).first()).state, "superseded");
     const second = await decisionAssistant(command.estimateId, {}, "owner", run);
-    assert.equal((await db("chatEstimateShares").where({ id: sharing.id }).first()).state, "superseded");
+    assert.equal((await db("chatProposals").where({ family: "estimateSharing" }).where({ id: sharing.id }).first()).state, "superseded");
     await db("chatTurns").where({ id: run.turnId }).update({ state: "running" });
     const drafted = await proposeEstimateChatDraft(db, identity(), enabled, run.turnId, { request: {
       operation: "update", estimateRef: draft.id, parentType: null, parentRef: null,
       changes: { name: "Cross-family intent", scope: null, message: null, paymentTerms: null, termsNote: null,
         validUntil: null, discount: null, taxRate: null, deposit: null, items: null },
     } }, new AbortController().signal);
-    assert.equal((await db("chatEstimateDecisions").where({ id: second.ticket.id }).first()).state, "superseded");
+    assert.equal((await db("chatProposals").where({ family: "estimateDecision" }).where({ id: second.ticket.id }).first()).state, "superseded");
     const third = await decisionAssistant(command.estimateId, {}, "owner", run);
-    assert.equal((await db("chatEstimateDrafts").where({ id: drafted.draft.id }).first()).state, "superseded");
+    assert.equal((await db("chatProposals").where({ family: "estimateDraft" }).where({ id: drafted.draft.id }).first()).state, "superseded");
     await assert.rejects(operateEstimateChatDecision(db, identity(), enabled, second.binding, "confirm"), EstimateDraftConflictError);
     await operateEstimateChatDecision(db, identity(), enabled, third.binding, "cancel");
     assert.equal((await db("estimate_decisions").where({ estimateId: command.estimateId })).length, 0);
@@ -3730,9 +3748,9 @@ try {
     });
     await assert.rejects(operateEstimateChatDecision(db, identity(), enabled, correction.binding, "confirm"), EstimateDraftConflictError);
     const next = await decisionAssistant(command.estimateId, { operation: "correct-decision", reason: "Current correction" });
-    const row = await db("chatEstimateDecisions").where({ id: next.ticket.id }).first();
+    const row = await db("chatProposals").where({ family: "estimateDecision" }).where({ id: next.ticket.id }).first();
     row.payload.value.note = "Unreviewed replacement";
-    await db("chatEstimateDecisions").where({ id: next.ticket.id }).update({ payload: JSON.stringify(row.payload) });
+    await db("chatProposals").where({ family: "estimateDecision" }).where({ id: next.ticket.id }).update({ payload: JSON.stringify(row.payload) });
     await assert.rejects(readEstimateChatDecision(db, identity(), enabled, next.binding), EstimateDraftConflictError);
     await assert.rejects(operateEstimateChatDecision(db, identity(), enabled, next.binding, "confirm"), EstimateDraftConflictError);
     assert.equal((await db("estimate_decisions").where({ estimateId: command.estimateId })).length, 2);
@@ -3814,7 +3832,7 @@ try {
     assert.equal((await db("estimate_deliveries").where({ estimateId: resultId })).length, 0);
     assert.equal((await db("estimateNotifications").where({ estimateId: resultId })).length, 0);
     assert.equal((await db("estimate_activity").where({ estimateId: resultId, type: "revision-created" }).first()).source, "assistant-confirmed");
-    assert.equal((await db("chatEstimateDraftActionAudit").where({ proposalId: run.ticket.id, action: "confirmed" })).length, 1);
+    assert.equal((await db("chatProposalAudit").where({ family: "estimateDraftAction" }).where({ proposalId: run.ticket.id, action: "confirmed" })).length, 1);
     assert.equal((await readEstimateSharingReview(db, identity(), enabled, resultId)).revision!.requiresPaymentLinkReview, true);
     assert.equal((await readEstimateChatDraftAction(db, identity(), enabled, run.binding)).receipt?.id, resultId);
     assert.equal((await operateEstimateChatDraftAction(db, identity(), enabled, run.binding, "open")).href, `/estimates/${resultId}?workspace=${workspaceId}`);
@@ -3886,7 +3904,7 @@ try {
     await db("chatTurns").where({ id: copy.turnId }).update({ surfaceKey: "home" });
     await assert.rejects(proposeEstimateChatDraftAction(db, identity(), enabled, copy.turnId,
       { request: { operation: "revise", estimateRef: null } }, new AbortController().signal), EstimateDraftValidationError);
-    assert.equal((await db("chatEstimateDraftActions").where({ id: page.id }).first()).state, "pending");
+    assert.equal((await db("chatProposals").where({ family: "estimateDraftAction" }).where({ id: page.id }).first()).state, "pending");
   });
   await check("assistant creation intent cannot silently become reuse after manual Revise or accept changed pending edits", async () => {
     const command = await revisionFixture(), run = await draftActionAssistant("revise", command.estimateId);
@@ -3958,9 +3976,9 @@ try {
     await db("chatTurns").where({ id: run.turnId }).update({ state: "running" });
     await assert.rejects(readEstimateChatDraftAction(db, identity(), enabled, run.binding), EstimateDraftConflictError);
     await db("chatTurns").where({ id: run.turnId }).update({ state: "completed" });
-    const row = await db("chatEstimateDraftActions").where({ id: run.ticket.id }).first();
+    const row = await db("chatProposals").where({ family: "estimateDraftAction" }).where({ id: run.ticket.id }).first();
     row.payload.review.values.scope = "Not reviewed";
-    await db("chatEstimateDraftActions").where({ id: run.ticket.id }).update({ payload: JSON.stringify(row.payload) });
+    await db("chatProposals").where({ family: "estimateDraftAction" }).where({ id: run.ticket.id }).update({ payload: JSON.stringify(row.payload) });
     await assert.rejects(readEstimateChatDraftAction(db, identity(), enabled, run.binding), EstimateDraftConflictError);
     await assert.rejects(operateEstimateChatDraftAction(db, identity(), enabled, run.binding, "confirm"), EstimateDraftConflictError);
   });
@@ -3988,12 +4006,12 @@ try {
       const run = await draftActionAssistant(operation === "reuse" ? "revise" : operation, command.estimateId);
       const before = await draftActionBusinessSnapshot();
       const constraint = `assistant_draft_action_audit_${randomUUID().replaceAll("-", "")}`;
-      await db.raw(`ALTER TABLE "chatEstimateDraftActionAudit" ADD CONSTRAINT "${constraint}" CHECK ("workspaceId" <> '${workspaceId}'::uuid OR action <> 'confirmed') NOT VALID`);
+      await db.raw(`ALTER TABLE "chatProposalAudit" ADD CONSTRAINT "${constraint}" CHECK ("workspaceId" <> '${workspaceId}'::uuid OR action <> 'confirmed') NOT VALID`);
       try {
         await assert.rejects(operateEstimateChatDraftAction(db, identity(), enabled, run.binding, "confirm"), /check constraint/);
         assert.deepEqual(await draftActionBusinessSnapshot(), before);
-        assert.equal((await db("chatEstimateDraftActions").where({ id: run.ticket.id }).first()).state, "pending");
-      } finally { await db.raw(`ALTER TABLE "chatEstimateDraftActionAudit" DROP CONSTRAINT "${constraint}"`); }
+        assert.equal((await db("chatProposals").where({ family: "estimateDraftAction" }).where({ id: run.ticket.id }).first()).state, "pending");
+      } finally { await db.raw(`ALTER TABLE "chatProposalAudit" DROP CONSTRAINT "${constraint}"`); }
       assert.equal((await operateEstimateChatDraftAction(db, identity(), enabled, run.binding, "confirm")).view.ticket.state, "confirmed");
     }
   });
@@ -4012,14 +4030,14 @@ try {
   await check("all four Estimate proposal families supersede each other and invalid Draft action preparation preserves intent", async () => {
     const command = await revisionFixture(), source = await sharingDraft(), run = await decisionAssistant(command.estimateId);
     const action = await draftActionAssistant("revise", command.estimateId, "owner", run);
-    assert.equal((await db("chatEstimateDecisions").where({ id: run.ticket.id }).first()).state, "superseded");
+    assert.equal((await db("chatProposals").where({ family: "estimateDecision" }).where({ id: run.ticket.id }).first()).state, "superseded");
     await db("chatTurns").where({ id: run.turnId }).update({ state: "running" });
     await assert.rejects(proposeEstimateChatDraftAction(db, identity(), enabled, run.turnId,
       { request: { operation: "revise", estimateRef: randomUUID() } }, new AbortController().signal), AuthorizationAccessError);
-    assert.equal((await db("chatEstimateDraftActions").where({ id: action.ticket.id }).first()).state, "pending");
+    assert.equal((await db("chatProposals").where({ family: "estimateDraftAction" }).where({ id: action.ticket.id }).first()).state, "pending");
     const share = await proposeEstimateChatShare(db, identity(), enabled, run.turnId,
       { request: { operation: "publish", estimateRef: source.id } }, new AbortController().signal);
-    assert.equal((await db("chatEstimateDraftActions").where({ id: action.ticket.id }).first()).state, "superseded");
+    assert.equal((await db("chatProposals").where({ family: "estimateDraftAction" }).where({ id: action.ticket.id }).first()).state, "superseded");
     await db("chatTurns").where({ id: run.turnId }).update({ state: "completed" });
     assert.equal((await readEstimateChatDraftAction(db, identity(), enabled, action.binding)).ticket.state, "superseded");
     assert.equal(await withWorkspaceAuthorization(db, identity(), enabled, false, (trx, context) =>
@@ -4027,18 +4045,18 @@ try {
     await db("chatTurns").where({ id: run.turnId }).update({ state: "running" });
     const next = await proposeEstimateChatDraftAction(db, identity(), enabled, run.turnId,
       { request: { operation: "duplicate", estimateRef: source.id } }, new AbortController().signal);
-    assert.equal((await db("chatEstimateShares").where({ id: share.id }).first()).state, "superseded");
+    assert.equal((await db("chatProposals").where({ family: "estimateSharing" }).where({ id: share.id }).first()).state, "superseded");
     const drafted = await proposeEstimateChatDraft(db, identity(), enabled, run.turnId, { request: {
       operation: "update", estimateRef: source.id, parentType: null, parentRef: null,
       changes: { name: "Current Draft intent", scope: null, message: null, paymentTerms: null, termsNote: null,
         validUntil: null, discount: null, taxRate: null, deposit: null, items: null },
     } }, new AbortController().signal);
-    assert.equal((await db("chatEstimateDraftActions").where({ id: next.id }).first()).state, "superseded");
+    assert.equal((await db("chatProposals").where({ family: "estimateDraftAction" }).where({ id: next.id }).first()).state, "superseded");
     const final = await proposeEstimateChatDraftAction(db, identity(), enabled, run.turnId,
       { request: { operation: "duplicate", estimateRef: source.id } }, new AbortController().signal);
-    assert.equal((await db("chatEstimateDrafts").where({ id: drafted.draft.id }).first()).state, "superseded");
+    assert.equal((await db("chatProposals").where({ family: "estimateDraft" }).where({ id: drafted.draft.id }).first()).state, "superseded");
     await decisionAssistant(command.estimateId, {}, "owner", run);
-    assert.equal((await db("chatEstimateDraftActions").where({ id: final.id }).first()).state, "superseded");
+    assert.equal((await db("chatProposals").where({ family: "estimateDraftAction" }).where({ id: final.id }).first()).state, "superseded");
     await assert.rejects(operateEstimateChatDraftAction(db, identity(), enabled, action.binding, "confirm"), EstimateDraftConflictError);
     assert.equal((await db("estimates").where({ id: source.id }).first()).name, "Sharing fixture");
   });
@@ -4074,7 +4092,8 @@ try {
           changes: { name: "Replacement Draft review", scope: null, message: null, paymentTerms: null, termsNote: null,
             validUntil: null, discount: null, taxRate: null, deposit: null, items: null },
         } }, new AbortController().signal);
-        assert.deepEqual((await db("chatTurns").where({ id: turnId }).first())[field], [retainedId]);
+        const expected = sourceKind === nextKind ? [retainedId, turnId] : [retainedId];
+        assert.deepEqual((await db("chatTurns").where({ id: turnId }).first())[field], expected, `${sourceKind} replaced by ${nextKind}`);
         assert.deepEqual((await db("chatTurns").where({ id: dependentId }).first())[field], [prior.turnId, retainedId]);
       }
     }
@@ -4151,7 +4170,8 @@ try {
         });
       }
       for (const decision of ["confirm", "open"] as const) {
-        await assert.rejects(operateEstimateChatDraftAction(db, identity(), enabled, run.binding, decision), EstimateDraftConflictError);
+        await assert.rejects(operateEstimateChatDraftAction(db, identity(), enabled, run.binding, decision),
+          deleted ? AuthorizationAccessError : EstimateDraftConflictError);
       }
       assert.equal(await withWorkspaceAuthorization(db, identity(), enabled, false, (trx, context) =>
         visibleEstimateChatDraftAction(trx, context, run.turnId)), undefined);
@@ -4168,7 +4188,7 @@ try {
     await db("jobs").where({ id: jobId }).increment("version", 1);
     await assert.rejects(readEstimateChatDraftAction(db, identity(), enabled, copy.binding), EstimateDraftConflictError);
     await db("chatTurns").where({ id: copy.turnId }).update({ state: "running" });
-    const before = await db("chatEstimateDraftActions").where({ workspaceId });
+    const before = await db("chatProposals").where({ family: "estimateDraftAction" }).where({ workspaceId });
     const controller = new AbortController(); controller.abort();
     await assert.rejects(proposeEstimateChatDraftAction(db, identity(), enabled, copy.turnId,
       { request: { operation: "duplicate", estimateRef: command.estimateId } }, controller.signal), { name: "AbortError" });
@@ -4178,9 +4198,9 @@ try {
     await db("chatTurns").where({ id: copy.turnId }).update({ surfaceKey: "settings", leaseUntil: new Date(Date.now() + 60000) });
     await assert.rejects(proposeEstimateChatDraftAction(db, identity(), enabled, copy.turnId,
       { request: { operation: "duplicate", estimateRef: command.estimateId } }, new AbortController().signal), AuthorizationAccessError);
-    assert.deepEqual(await db("chatEstimateDraftActions").where({ workspaceId }), before);
+    assert.deepEqual(await db("chatProposals").where({ family: "estimateDraftAction" }).where({ workspaceId }), before);
   });
-  await check("assistant Draft actions bind the exact revision counter and retain metadata-only audits across guarded rollback", async () => {
+  await check("assistant Draft actions bind the exact revision counter and retain metadata-only audits with a forward-only baseline", async () => {
     const command = await revisionFixture(), run = await draftActionAssistant("revise", command.estimateId);
     await db("workspaceEstimateRevisionCounters").where({
       workspaceId, estimateNumber: Number(run.ticket.source.number.slice(4)),
@@ -4189,13 +4209,13 @@ try {
     const next = await draftActionAssistant("revise", command.estimateId);
     assert.equal(next.ticket.plan.revision, 3);
     assert.equal((await operateEstimateChatDraftAction(db, identity(), enabled, next.binding, "confirm")).view.receipt?.revision, 3);
-    await assert.rejects(rollbackDraftActionMigration(db), /Retained Estimate Draft action proposals/);
-    const audits = await db("chatEstimateDraftActionAudit").where({ workspaceId });
+    await assert.rejects(rollbackBaseline(), /forward-only/);
+    const audits = await db("chatProposalAudit").where({ family: "estimateDraftAction" }).where({ workspaceId });
     assert.ok(audits.length > 0);
     for (const audit of audits) {
-      assert.deepEqual(Object.keys(audit).sort(), ["action", "actorId", "createdAt", "id", "inputHash", "proposalId", "workspaceId"]);
+      assert.deepEqual(Object.keys(audit).sort(), ["action", "actorId", "createdAt", "details", "family", "id", "inputHash", "proposalId", "sourceId", "sourceTable", "workspaceId"]);
     }
-    assert.equal(await db.schema.hasTable("chatEstimateDraftActions"), true);
+    assert.equal(await db.schema.hasTable("chatProposals"), true);
   });
   async function voidAssistant(
     estimateRef: string | null, reason: string | null = "Customer requested withdrawal", role: keyof typeof users = "owner",
@@ -4233,7 +4253,7 @@ try {
     }
     await assert.rejects(operateEstimateChatVoid(db, identity(), enabled, run.binding, "confirm"), EstimateDraftConflictError);
     assert.deepEqual(await draftActionBusinessSnapshot(), before);
-    assert.deepEqual((await db("chatEstimateVoidAudit").where({ proposalId: run.ticket.id }).orderBy("createdAt")).map(row => row.action),
+    assert.deepEqual((await db("chatProposalAudit").where({ family: "estimateVoid" }).where({ proposalId: run.ticket.id }).orderBy("createdAt")).map(row => row.action),
       ["proposed", "cancelled"]);
   });
   await check("assistant Void missing reasons are explicit and cannot confirm; invented reasons cannot replace pending intent", async () => {
@@ -4246,7 +4266,7 @@ try {
     await assert.rejects(proposeEstimateChatVoid(db, identity(), enabled, run.turnId,
       { request: { operation: "void", estimateRef: command.estimateId, reason: "Invented withdrawal reason" } },
       new AbortController().signal), EstimateDraftValidationError);
-    assert.equal((await db("chatEstimateVoids").where({ id: run.ticket.id }).first()).state, "pending");
+    assert.equal((await db("chatProposals").where({ family: "estimateVoid" }).where({ id: run.ticket.id }).first()).state, "pending");
     assert.deepEqual(await draftActionBusinessSnapshot(), before);
     await db("chatTurns").where({ id: run.turnId }).update({ state: "completed" });
     await operateEstimateChatVoid(db, identity(), enabled, run.binding, "cancel");
@@ -4288,7 +4308,7 @@ try {
     const withdrawal = history.events.find(event => event.kind === "voided");
     assert.equal(withdrawal?.source.type, "chat");
     assert.equal((await db("estimate_operation_receipts").where({ submissionId: run.ticket.id })).length, 1);
-    assert.equal((await db("chatEstimateVoidAudit").where({ proposalId: run.ticket.id, action: "confirmed" })).length, 1);
+    assert.equal((await db("chatProposalAudit").where({ family: "estimateVoid" }).where({ proposalId: run.ticket.id, action: "confirmed" })).length, 1);
     assert.deepEqual(await readPublicEstimate(db, link.path.slice(3), publicRequester), { state: "withdrawn" });
   });
   await check("assistant Void preserves the exact trimmed 500-character user quote, including interior whitespace", async () => {
@@ -4354,8 +4374,8 @@ try {
     await db("chatTurns").where({ id: run.turnId }).update({ state: "completed" });
     const threadId = randomUUID();
     await db("chatThreads").insert({ id: threadId, ...identity() });
-    await db("chatEstimateVoids").where({ id: run.ticket.id }).update({ threadId });
-    await assert.rejects(readEstimateChatVoid(db, identity(), enabled, run.binding), AuthorizationAccessError);
+    await assert.rejects(db("chatProposals").where({ family: "estimateVoid", id: run.ticket.id }).update({ threadId }), { code: "23503" });
+    assert.equal((await readEstimateChatVoid(db, identity(), enabled, run.binding)).ticket.id, run.ticket.id);
   });
   await check("assistant Void exact proposal expiry blocks confirm/cancel/open and invalidates evidence", async () => {
     const command = await revisionFixture(), run = await voidAssistant(command.estimateId), now = Date.now;
@@ -4377,14 +4397,14 @@ try {
   await check("assistant Void detects tampered private reason, readiness, row state and source evidence", async () => {
     for (const mutation of ["reason", "readiness", "state", "parent", "date"] as const) {
       const command = await revisionFixture(), run = await voidAssistant(command.estimateId);
-      const row = await db("chatEstimateVoids").where({ id: run.ticket.id }).first();
+      const row = await db("chatProposals").where({ family: "estimateVoid" }).where({ id: run.ticket.id }).first();
       if (mutation === "reason") {
         row.payload.review.reason = "Unreviewed replacement";
-        await db("chatEstimateVoids").where({ id: run.ticket.id }).update({ payload: JSON.stringify(row.payload) });
+        await db("chatProposals").where({ family: "estimateVoid" }).where({ id: run.ticket.id }).update({ payload: JSON.stringify(row.payload) });
       } else if (mutation === "readiness") {
         row.payload.canConfirm = false;
-        await db("chatEstimateVoids").where({ id: run.ticket.id }).update({ payload: JSON.stringify(row.payload) });
-      } else if (mutation === "state") await db("chatEstimateVoids").where({ id: run.ticket.id }).update({ state: "confirmed" });
+        await db("chatProposals").where({ family: "estimateVoid" }).where({ id: run.ticket.id }).update({ payload: JSON.stringify(row.payload) });
+      } else if (mutation === "state") await db("chatProposals").where({ family: "estimateVoid" }).where({ id: run.ticket.id }).update({ state: "confirmed" });
       else if (mutation === "parent") await db("jobs").where({ id: jobId }).increment("version", 1);
       else await db("estimates").where({ id: command.estimateId }).update({ validUntil: localDate(-1) });
       await assert.rejects(readEstimateChatVoid(db, identity(), enabled, run.binding));
@@ -4413,12 +4433,12 @@ try {
     const { estimateId } = await queueEmail(), run = await voidAssistant(estimateId);
     const before = await draftActionBusinessSnapshot();
     const constraint = `assistant_void_audit_${randomUUID().replaceAll("-", "")}`;
-    await db.raw(`ALTER TABLE "chatEstimateVoidAudit" ADD CONSTRAINT "${constraint}" CHECK ("workspaceId" <> '${workspaceId}'::uuid OR action <> 'confirmed') NOT VALID`);
+    await db.raw(`ALTER TABLE "chatProposalAudit" ADD CONSTRAINT "${constraint}" CHECK ("workspaceId" <> '${workspaceId}'::uuid OR action <> 'confirmed') NOT VALID`);
     try {
       await assert.rejects(operateEstimateChatVoid(db, identity(), enabled, run.binding, "confirm"), /check constraint/);
       assert.deepEqual(await draftActionBusinessSnapshot(), before);
-      assert.equal((await db("chatEstimateVoids").where({ id: run.ticket.id }).first()).state, "pending");
-    } finally { await db.raw(`ALTER TABLE "chatEstimateVoidAudit" DROP CONSTRAINT "${constraint}"`); }
+      assert.equal((await db("chatProposals").where({ family: "estimateVoid" }).where({ id: run.ticket.id }).first()).state, "pending");
+    } finally { await db.raw(`ALTER TABLE "chatProposalAudit" DROP CONSTRAINT "${constraint}"`); }
     assert.equal((await operateEstimateChatVoid(db, identity(), enabled, run.binding, "confirm")).view.ticket.state, "confirmed");
   });
   await check("assistant Void pending and confirmed outcomes reject same-role membership replacement", async () => {
@@ -4487,10 +4507,10 @@ try {
         changes: { name: "Replace withdrawal intent", scope: null, message: null, paymentTerms: null, termsNote: null,
           validUntil: null, discount: null, taxRate: null, deposit: null, items: null },
       } }, new AbortController().signal);
-      assert.equal((await db("chatEstimateVoids").where({ id: first.ticket.id }).first()).state, "superseded");
+      assert.equal((await db("chatProposals").where({ family: "estimateVoid" }).where({ id: first.ticket.id }).first()).state, "superseded");
       const next = await voidAssistant(command.estimateId, "Replacement reason", "owner", first);
-      const table = { draft: "chatEstimateDrafts", share: "chatEstimateShares", decision: "chatEstimateDecisions", "draft-action": "chatEstimateDraftActions" }[kind];
-      assert.equal((await db(table).where({ turnId: first.turnId }).where({ state: "pending" })).length, 0);
+      const family = { draft: "estimateDraft", share: "estimateSharing", decision: "estimateDecision", "draft-action": "estimateDraftAction" }[kind];
+      assert.equal((await db("chatProposals").where({ family, turnId: first.turnId, state: "pending" })).length, 0);
       await assert.rejects(operateEstimateChatVoid(db, identity(), enabled, first.binding, "confirm"), EstimateDraftConflictError);
       await operateEstimateChatVoid(db, identity(), enabled, next.binding, "cancel");
       assert.equal((await db("estimate_activity").where({ estimateId: command.estimateId, type: "voided" })).length, 0);
@@ -4499,7 +4519,7 @@ try {
   await check("assistant Void aborted, unleased or unsupported turns cannot persist a proposal", async () => {
     const command = await revisionFixture(), run = await voidAssistant(command.estimateId);
     await db("chatTurns").where({ id: run.turnId }).update({ state: "running" });
-    const before = await db("chatEstimateVoids").where({ workspaceId }).orderBy("id");
+    const before = await db("chatProposals").where({ family: "estimateVoid" }).where({ workspaceId }).orderBy("id");
     const controller = new AbortController(); controller.abort();
     const input = { request: { operation: "void", estimateRef: command.estimateId, reason: null } };
     await assert.rejects(proposeEstimateChatVoid(db, identity(), enabled, run.turnId, input, controller.signal), { name: "AbortError" });
@@ -4507,7 +4527,7 @@ try {
     await assert.rejects(proposeEstimateChatVoid(db, identity(), enabled, run.turnId, input, new AbortController().signal), EstimateDraftConflictError);
     await db("chatTurns").where({ id: run.turnId }).update({ surfaceKey: "settings", leaseUntil: new Date(Date.now() + 60000) });
     await assert.rejects(proposeEstimateChatVoid(db, identity(), enabled, run.turnId, input, new AbortController().signal), AuthorizationAccessError);
-    assert.deepEqual(await db("chatEstimateVoids").where({ workspaceId }).orderBy("id"), before);
+    assert.deepEqual(await db("chatProposals").where({ family: "estimateVoid" }).where({ workspaceId }).orderBy("id"), before);
   });
   await check("assistant Void confirmed evidence survives proposal expiry only while current saved state and grants agree", async () => {
     const command = await revisionFixture(), run = await voidAssistant(command.estimateId), now = Date.now;
@@ -4521,15 +4541,15 @@ try {
         estimateVoidChatEvidenceAllowed(trx, context, run.turnId)), false);
     } finally { Date.now = now; }
   });
-  await check("assistant Void retains only metadata audit columns and guards migration rollback over retained intent", async () => {
-    await assert.rejects(rollbackVoidMigration(db), /Retained Estimate Void proposals/);
-    const audits = await db("chatEstimateVoidAudit").where({ workspaceId });
+  await check("assistant Void retains metadata-only audit and the baseline refuses rollback", async () => {
+    await assert.rejects(rollbackBaseline(), /forward-only/);
+    const audits = await db("chatProposalAudit").where({ family: "estimateVoid" }).where({ workspaceId });
     assert.ok(audits.length > 0);
     for (const audit of audits) {
-      assert.deepEqual(Object.keys(audit).sort(), ["action", "actorId", "createdAt", "id", "inputHash", "proposalId", "workspaceId"]);
+      assert.deepEqual(Object.keys(audit).sort(), ["action", "actorId", "createdAt", "details", "family", "id", "inputHash", "proposalId", "sourceId", "sourceTable", "workspaceId"]);
       assert.equal(JSON.stringify(audit).includes("Customer requested withdrawal"), false);
     }
-    assert.equal(await db.schema.hasTable("chatEstimateVoids"), true);
+    assert.equal(await db.schema.hasTable("chatProposals"), true);
   });
   async function archiveAssistant(
     operation: "archive" | "restore", estimateRef: string | null, role: keyof typeof users = "owner",
@@ -4613,7 +4633,7 @@ try {
       }
       await assert.rejects(operateEstimateChatArchive(db, identity(), enabled, run.binding, "confirm"), EstimateDraftConflictError);
       assert.deepEqual(await draftActionBusinessSnapshot(), before);
-      assert.deepEqual((await db("chatEstimateArchiveAudit").where({ proposalId: run.ticket.id }).orderBy("createdAt")).map(row => row.action),
+      assert.deepEqual((await db("chatProposalAudit").where({ family: "estimateArchive" }).where({ proposalId: run.ticket.id }).orderBy("createdAt")).map(row => row.action),
         ["proposed", "cancelled"]);
     }
   });
@@ -4649,7 +4669,7 @@ try {
       assert.deepEqual(activity[0].changes, {});
       assert.equal((await readEstimateLifecycle(db, identity(), enabled, { workspaceId, estimateId })).events.find(event => event.kind === type)?.source.type, "chat");
       assert.equal((await db("estimate_operation_receipts").where({ submissionId: run.ticket.id, operation })).length, 1);
-      assert.equal((await db("chatEstimateArchiveAudit").where({ proposalId: run.ticket.id, action: "confirmed" })).length, 1);
+      assert.equal((await db("chatProposalAudit").where({ family: "estimateArchive" }).where({ proposalId: run.ticket.id, action: "confirmed" })).length, 1);
       const after = await draftActionBusinessSnapshot();
       for (const table of Object.keys(original).filter(table => !["estimates", "estimate_activity", "estimate_operation_receipts"].includes(table))) {
         assert.deepEqual(after[table], original[table], table);
@@ -4680,7 +4700,7 @@ try {
       await assert.rejects(archiveAssistant("archive", active.id, "owner", run), EstimateDraftValidationError);
     }
     await assert.rejects(archiveAssistant("restore", source.estimateId, "owner", run), EstimateDraftValidationError);
-    assert.equal((await db("chatEstimateArchives").where({ id: run.ticket.id }).first()).state, "pending");
+    assert.equal((await db("chatProposals").where({ family: "estimateArchive" }).where({ id: run.ticket.id }).first()).state, "pending");
     assert.equal((await db("estimate_operation_receipts").where({ submissionId: run.ticket.id })).length, 0);
     const after = await draftActionBusinessSnapshot();
     for (const table of Object.keys(before).filter(table => table !== "estimates")) assert.deepEqual(after[table], before[table]);
@@ -4753,8 +4773,8 @@ try {
     await db("chatTurns").where({ id: run.turnId }).update({ state: "completed" });
     const threadId = randomUUID();
     await db("chatThreads").insert({ id: threadId, ...identity() });
-    await db("chatEstimateArchives").where({ id: run.ticket.id }).update({ threadId });
-    await assert.rejects(readEstimateChatArchive(db, identity(), enabled, run.binding), AuthorizationAccessError);
+    await assert.rejects(db("chatProposals").where({ family: "estimateArchive", id: run.ticket.id }).update({ threadId }), { code: "23503" });
+    assert.equal((await readEstimateChatArchive(db, identity(), enabled, run.binding)).ticket.id, run.ticket.id);
   });
   await check("assistant Archive/Restore exact expiry boundary blocks confirm/cancel/Open and withholds evidence", async () => {
     const source = await archiveFixture();
@@ -4777,19 +4797,18 @@ try {
       assert.equal((await db("estimate_operation_receipts").where({ submissionId: run.ticket.id })).length, 0);
     }
   });
-  await check("assistant Archive/Restore detect private review, row state, source, parent and date changes before confirmation", async () => {
-    for (const mutation of ["review", "state", "parent", "source", "date"] as const) {
+  await check("assistant Archive/Restore detect private review, row state, source and parent changes before confirmation", async () => {
+    for (const mutation of ["review", "state", "parent", "source"] as const) {
       const source = await archiveFixture(), run = await archiveAssistant("archive", source.estimateId);
-      const row = await db("chatEstimateArchives").where({ id: run.ticket.id }).first();
+      const row = await db("chatProposals").where({ family: "estimateArchive" }).where({ id: run.ticket.id }).first();
       if (mutation === "review") {
         row.payload.review.recipientName = "Unreviewed recipient";
-        await db("chatEstimateArchives").where({ id: run.ticket.id }).update({ payload: JSON.stringify(row.payload) });
-      } else if (mutation === "state") await db("chatEstimateArchives").where({ id: run.ticket.id }).update({ state: "confirmed" });
+        await db("chatProposals").where({ family: "estimateArchive" }).where({ id: run.ticket.id }).update({ payload: JSON.stringify(row.payload) });
+      } else if (mutation === "state") await db("chatProposals").where({ family: "estimateArchive" }).where({ id: run.ticket.id }).update({ state: "confirmed" });
       else if (mutation === "parent") await db("jobs").where({ id: jobId }).increment("version", 1);
-      else await db("estimates").where({ id: source.estimateId }).update(mutation === "source"
-        ? { recipientName: "Changed after preparation" } : { validUntil: localDate(-1) });
-      await assert.rejects(readEstimateChatArchive(db, identity(), enabled, run.binding));
-      await assert.rejects(operateEstimateChatArchive(db, identity(), enabled, run.binding, "confirm"));
+      else await db("estimates").where({ id: source.estimateId }).update({ recipientName: "Changed after preparation" });
+      await assert.rejects(readEstimateChatArchive(db, identity(), enabled, run.binding), mutation);
+      await assert.rejects(operateEstimateChatArchive(db, identity(), enabled, run.binding, "confirm"), mutation);
       assert.equal((await db("estimate_activity").where({ estimateId: source.estimateId, type: "archived" })).length, 0);
     }
   });
@@ -4798,12 +4817,12 @@ try {
     for (const operation of ["archive", "restore"] as const) {
       const run = await archiveAssistant(operation, source.estimateId), before = await draftActionBusinessSnapshot();
       const constraint = `assistant_archive_audit_${randomUUID().replaceAll("-", "")}`;
-      await db.raw(`ALTER TABLE "chatEstimateArchiveAudit" ADD CONSTRAINT "${constraint}" CHECK ("workspaceId" <> '${workspaceId}'::uuid OR action <> 'confirmed') NOT VALID`);
+      await db.raw(`ALTER TABLE "chatProposalAudit" ADD CONSTRAINT "${constraint}" CHECK ("workspaceId" <> '${workspaceId}'::uuid OR action <> 'confirmed') NOT VALID`);
       try {
         await assert.rejects(operateEstimateChatArchive(db, identity(), enabled, run.binding, "confirm"), /check constraint/);
         assert.deepEqual(await draftActionBusinessSnapshot(), before);
-        assert.equal((await db("chatEstimateArchives").where({ id: run.ticket.id }).first()).state, "pending");
-      } finally { await db.raw(`ALTER TABLE "chatEstimateArchiveAudit" DROP CONSTRAINT "${constraint}"`); }
+        assert.equal((await db("chatProposals").where({ family: "estimateArchive" }).where({ id: run.ticket.id }).first()).state, "pending");
+      } finally { await db.raw(`ALTER TABLE "chatProposalAudit" DROP CONSTRAINT "${constraint}"`); }
       assert.equal((await operateEstimateChatArchive(db, identity(), enabled, run.binding, "confirm")).view.ticket.state, "confirmed");
     }
   });
@@ -4935,11 +4954,11 @@ try {
         changes: { name: "Replacement intent", scope: null, message: null, paymentTerms: null, termsNote: null,
           validUntil: null, discount: null, taxRate: null, deposit: null, items: null },
       } }, new AbortController().signal);
-      assert.equal((await db("chatEstimateArchives").where({ id: first.ticket.id }).first()).state, "superseded");
+      assert.equal((await db("chatProposals").where({ family: "estimateArchive" }).where({ id: first.ticket.id }).first()).state, "superseded");
       const next = await archiveAssistant("archive", closed.estimateId, "owner", first);
-      const table = { draft: "chatEstimateDrafts", share: "chatEstimateShares", decision: "chatEstimateDecisions",
-        "draft-action": "chatEstimateDraftActions", void: "chatEstimateVoids", archive: "chatEstimateArchives" }[kind];
-      assert.equal((await db(table).where({ turnId: first.turnId, state: "pending" })).length, kind === "archive" ? 1 : 0);
+      const family = { draft: "estimateDraft", share: "estimateSharing", decision: "estimateDecision",
+        "draft-action": "estimateDraftAction", void: "estimateVoid", archive: "estimateArchive" }[kind];
+      assert.equal((await db("chatProposals").where({ family, turnId: first.turnId, state: "pending" })).length, kind === "archive" ? 1 : 0);
       await assert.rejects(operateEstimateChatArchive(db, identity(), enabled, first.binding, "confirm"), EstimateDraftConflictError);
       assert.equal(await withWorkspaceAuthorization(db, identity(), enabled, false, (trx, context) =>
         estimateArchiveChatEvidenceAllowed(trx, context, first.turnId)), true);
@@ -4949,7 +4968,7 @@ try {
   await check("assistant Archive/Restore aborted, unleased or unsupported preparations cannot replace pending intent", async () => {
     const source = await archiveFixture(), run = await archiveAssistant("archive", source.estimateId);
     await db("chatTurns").where({ id: run.turnId }).update({ state: "running" });
-    const before = await db("chatEstimateArchives").where({ workspaceId }).orderBy("id");
+    const before = await db("chatProposals").where({ family: "estimateArchive" }).where({ workspaceId }).orderBy("id");
     const controller = new AbortController(); controller.abort();
     const input = { request: { operation: "archive", estimateRef: source.estimateId } };
     await assert.rejects(proposeEstimateChatArchive(db, identity(), enabled, run.turnId, input, controller.signal), { name: "AbortError" });
@@ -4957,7 +4976,7 @@ try {
     await assert.rejects(proposeEstimateChatArchive(db, identity(), enabled, run.turnId, input, new AbortController().signal), EstimateDraftConflictError);
     await db("chatTurns").where({ id: run.turnId }).update({ surfaceKey: "settings", leaseUntil: new Date(Date.now() + 60000) });
     await assert.rejects(proposeEstimateChatArchive(db, identity(), enabled, run.turnId, input, new AbortController().signal), AuthorizationAccessError);
-    assert.deepEqual(await db("chatEstimateArchives").where({ workspaceId }).orderBy("id"), before);
+    assert.deepEqual(await db("chatProposals").where({ family: "estimateArchive" }).where({ workspaceId }).orderBy("id"), before);
   });
   await check("assistant Archive/Restore confirmed results survive proposal expiry only while current saved state and grants agree", async () => {
     const source = await archiveFixture();
@@ -4998,11 +5017,11 @@ try {
   });
   await check("assistant Archive/Restore preparation and cancellation audit failures roll back supersession and proposal resolution", async () => {
     const source = await archiveFixture(), run = await archiveAssistant("archive", source.estimateId);
-    const before = await draftActionBusinessSnapshot(), proposals = await db("chatEstimateArchives").where({ workspaceId }).orderBy("id");
+    const before = await draftActionBusinessSnapshot(), proposals = await db("chatProposals").where({ family: "estimateArchive" }).where({ workspaceId }).orderBy("id");
     await db("chatTurns").where({ id: run.turnId }).update({ state: "running" });
     for (const action of ["proposed", "cancelled"]) {
       const constraint = `assistant_archive_atomic_${randomUUID().replaceAll("-", "")}`;
-      await db.raw(`ALTER TABLE "chatEstimateArchiveAudit" ADD CONSTRAINT "${constraint}" CHECK ("workspaceId" <> '${workspaceId}'::uuid OR action <> '${action}') NOT VALID`);
+      await db.raw(`ALTER TABLE "chatProposalAudit" ADD CONSTRAINT "${constraint}" CHECK ("workspaceId" <> '${workspaceId}'::uuid OR action <> '${action}') NOT VALID`);
       try {
         if (action === "proposed") {
           await assert.rejects(proposeEstimateChatArchive(db, identity(), enabled, run.turnId,
@@ -5011,10 +5030,10 @@ try {
           await db("chatTurns").where({ id: run.turnId }).update({ state: "completed" });
           await assert.rejects(operateEstimateChatArchive(db, identity(), enabled, run.binding, "cancel"), /check constraint/);
         }
-        assert.deepEqual(await db("chatEstimateArchives").where({ workspaceId }).orderBy("id"), proposals);
-        assert.equal((await db("chatEstimateArchiveAudit").where({ proposalId: run.ticket.id })).length, 1);
+        assert.deepEqual(await db("chatProposals").where({ family: "estimateArchive" }).where({ workspaceId }).orderBy("id"), proposals);
+        assert.equal((await db("chatProposalAudit").where({ family: "estimateArchive" }).where({ proposalId: run.ticket.id })).length, 1);
         assert.deepEqual(await draftActionBusinessSnapshot(), before);
-      } finally { await db.raw(`ALTER TABLE "chatEstimateArchiveAudit" DROP CONSTRAINT "${constraint}"`); }
+      } finally { await db.raw(`ALTER TABLE "chatProposalAudit" DROP CONSTRAINT "${constraint}"`); }
     }
     assert.equal((await operateEstimateChatArchive(db, identity(), enabled, run.binding, "cancel")).view.ticket.state, "cancelled");
   });
@@ -5034,28 +5053,28 @@ try {
     await assert.rejects(operateEstimateChatArchive(db, identity(), enabled, prior.binding, "confirm"), EstimateDraftConflictError);
     await operateEstimateChatArchive(db, identity(), enabled, next.binding, "cancel");
     const fresh = await archiveAssistant("archive", closed.estimateId, "owner", next);
-    assert.equal((await db("chatEstimateArchives").where({ id: next.ticket.id }).first()).state, "cancelled");
+    assert.equal((await db("chatProposals").where({ family: "estimateArchive" }).where({ id: next.ticket.id }).first()).state, "cancelled");
     await operateEstimateChatArchive(db, identity(), enabled, fresh.binding, "cancel");
   });
   await check("assistant Archive/Restore reject substituted saved-result timestamps without returning fabricated receipts", async () => {
     const source = await archiveFixture(), run = await archiveAssistant("archive", source.estimateId);
     await operateEstimateChatArchive(db, identity(), enabled, run.binding, "confirm");
-    const row = await db("chatEstimateArchives").where({ id: run.ticket.id }).first();
+    const row = await db("chatProposals").where({ family: "estimateArchive" }).where({ id: run.ticket.id }).first();
     row.payload.receipt.updatedAt = new Date(Date.parse(row.payload.receipt.updatedAt) + 1).toISOString();
-    await db("chatEstimateArchives").where({ id: run.ticket.id }).update({ payload: JSON.stringify(row.payload) });
+    await db("chatProposals").where({ family: "estimateArchive" }).where({ id: run.ticket.id }).update({ payload: JSON.stringify(row.payload) });
     await assert.rejects(readEstimateChatArchive(db, identity(), enabled, run.binding), EstimateDraftConflictError);
     await assert.rejects(operateEstimateChatArchive(db, identity(), enabled, run.binding, "open"), EstimateDraftConflictError);
     assert.equal(await withWorkspaceAuthorization(db, identity(), enabled, false, (trx, context) =>
       estimateArchiveChatEvidenceAllowed(trx, context, run.turnId)), false);
   });
-  await check("assistant Archive/Restore retain metadata-only audit and guard migration rollback over retained proposals", async () => {
-    await assert.rejects(rollbackArchiveMigration(db), /Retained Estimate Archive\/Restore proposals/);
-    const audits = await db("chatEstimateArchiveAudit").where({ workspaceId });
+  await check("assistant Archive/Restore retain metadata-only audit and the baseline refuses rollback", async () => {
+    await assert.rejects(rollbackBaseline(), /forward-only/);
+    const audits = await db("chatProposalAudit").where({ family: "estimateArchive" }).where({ workspaceId });
     assert.ok(audits.length > 0);
     for (const audit of audits) {
-      assert.deepEqual(Object.keys(audit).sort(), ["action", "actorId", "createdAt", "id", "inputHash", "proposalId", "workspaceId"]);
+      assert.deepEqual(Object.keys(audit).sort(), ["action", "actorId", "createdAt", "details", "family", "id", "inputHash", "proposalId", "sourceId", "sourceTable", "workspaceId"]);
     }
-    assert.equal(await db.schema.hasTable("chatEstimateArchives"), true);
+    assert.equal(await db.schema.hasTable("chatProposals"), true);
   });
   await check("assistant Draft deletion resolves a null reference from the selected Estimate page", async () => {
     const draft = await sharingDraft();
@@ -5100,7 +5119,7 @@ try {
     const cancel = { workspaceId, request: run.binding, decision: "cancel" as const };
     assert.equal((await operateEstimateChatDraftDelete(db, identity(), enabled, cancel)).view.ticket.state, "cancelled");
     assert.equal((await operateEstimateChatDraftDelete(db, identity(), enabled, cancel)).view.ticket.state, "cancelled");
-    assert.deepEqual(await db("chatEstimateDraftDeleteAudit").where({ proposalId: run.ticket.id }).orderBy("createdAt")
+    assert.deepEqual(await db("chatProposalAudit").where({ family: "estimateDraftDelete" }).where({ proposalId: run.ticket.id }).orderBy("createdAt")
       .then(rows => rows.map(row => row.action)), ["proposed", "cancelled"]);
     assert.deepEqual(await draftActionBusinessSnapshot(), before);
   });
@@ -5144,14 +5163,14 @@ try {
       workspaceId, request: run.binding, decision: "confirm", typedConfirmation: run.ticket.estimate.number,
     }), EstimateDraftConflictError);
     assert.equal((await db("estimates").where({ id: draft.id }).first()).name, "Changed after deletion review");
-    assert.equal((await db("chatEstimateDraftDeletes").where({ id: run.ticket.id }).first()).state, "pending");
+    assert.equal((await db("chatProposals").where({ family: "estimateDraftDelete" }).where({ id: run.ticket.id }).first()).state, "pending");
   });
   await check("assistant Draft deletion shares pending-intent supersession with Archive/Restore in both directions", async () => {
     const draft = await sharingDraft();
     const pendingDelete = await draftDeleteAssistant(draft.id);
     const closed = await archiveFixture();
     const archive = await archiveAssistant("archive", closed.estimateId, "owner", pendingDelete);
-    assert.equal((await db("chatEstimateDraftDeletes").where({ id: pendingDelete.ticket.id }).first()).state, "superseded");
+    assert.equal((await db("chatProposals").where({ family: "estimateDraftDelete" }).where({ id: pendingDelete.ticket.id }).first()).state, "superseded");
     await assert.rejects(operateEstimateChatDraftDelete(db, identity(), enabled, {
       workspaceId, request: pendingDelete.binding, decision: "confirm",
       typedConfirmation: pendingDelete.ticket.estimate.number,
@@ -5162,7 +5181,7 @@ try {
     const nextClosed = await archiveFixture();
     const pendingArchive = await archiveAssistant("archive", nextClosed.estimateId);
     const deletion = await draftDeleteAssistant(nextDraft.id, "owner", pendingArchive);
-    assert.equal((await db("chatEstimateArchives").where({ id: pendingArchive.ticket.id }).first()).state, "superseded");
+    assert.equal((await db("chatProposals").where({ family: "estimateArchive" }).where({ id: pendingArchive.ticket.id }).first()).state, "superseded");
     await assert.rejects(operateEstimateChatArchive(db, identity(), enabled, pendingArchive.binding, "confirm"), EstimateDraftConflictError);
     await operateEstimateChatDraftDelete(db, identity(), enabled, {
       workspaceId, request: deletion.binding, decision: "cancel",
@@ -5190,7 +5209,7 @@ try {
     await db("chatTurns").where({ id: run.turnId }).update({
       estimateDraftDeleteEvidence: JSON.stringify([run.turnId]),
     });
-    await assert.rejects(rollbackDraftDeleteEvidenceMigration(db), /Retained Draft-deletion evidence/);
+    await assert.rejects(rollbackBaseline(), /forward-only/);
   });
   await check("assistant Draft-deletion history evidence clears when a newer Archive supersedes it", async () => {
     const draft = await sharingDraft();
@@ -5211,19 +5230,19 @@ try {
     const archive = await archiveAssistant("archive", closed.estimateId, "owner", {
       turnId, threadId: pending.threadId,
     });
-    assert.equal((await db("chatEstimateDraftDeletes").where({ id: pending.ticket.id }).first()).state, "superseded");
+    assert.equal((await db("chatProposals").where({ family: "estimateDraftDelete" }).where({ id: pending.ticket.id }).first()).state, "superseded");
     assert.deepEqual((await db("chatTurns").where({ id: turnId }).first()).estimateDraftDeleteEvidence, []);
     await operateEstimateChatArchive(db, identity(), enabled, archive.binding, "cancel");
   });
-  await check("assistant Draft deletion keeps metadata-only audit and guards rollback over retained proposals", async () => {
-    await assert.rejects(rollbackDraftDeleteMigration(db), /Retained Estimate Draft deletion proposals/);
-    const audits = await db("chatEstimateDraftDeleteAudit").where({ workspaceId });
+  await check("assistant Draft deletion keeps metadata-only audit and the baseline refuses rollback", async () => {
+    await assert.rejects(rollbackBaseline(), /forward-only/);
+    const audits = await db("chatProposalAudit").where({ family: "estimateDraftDelete" }).where({ workspaceId });
     assert.ok(audits.length > 0);
     for (const audit of audits) {
-      assert.deepEqual(Object.keys(audit).sort(), ["action", "actorId", "createdAt", "id", "inputHash", "proposalId", "workspaceId"]);
+      assert.deepEqual(Object.keys(audit).sort(), ["action", "actorId", "createdAt", "details", "family", "id", "inputHash", "proposalId", "sourceId", "sourceTable", "workspaceId"]);
       assert.equal(JSON.stringify(audit).includes("Customer"), false);
     }
-    assert.equal(await db.schema.hasTable("chatEstimateDraftDeletes"), true);
+    assert.equal(await db.schema.hasTable("chatProposals"), true);
   });
   await check("assistant conversion opens only the separately confirmed Job form and rechecks every binding", async () => {
     const fixture = await acceptedLeadConversionFixture();
@@ -5243,7 +5262,7 @@ try {
     assert.equal(opened.view.ticket.state, "pending");
     assert.equal(Number((await db("jobs").where({ workspaceId }).count({ n: "*" }).first())?.n ?? 0),
       Number(beforeJobs?.n ?? 0));
-    assert.equal((await db("chatEstimateConversionAudit").where({
+    assert.equal((await db("chatProposalAudit").where({ family: "estimateConversion" }).where({
       proposalId: run.ticket.id, action: "review-opened",
     })).length, 1);
     await assert.rejects(readEstimateChatConversion(db, identity("field"), enabled, run.binding), AuthorizationAccessError);
@@ -5309,18 +5328,18 @@ try {
     const replacement = await conversionAssistant(third.estimateId, "owner", {
       turnId: nextTurn, threadId: prior.threadId,
     });
-    assert.equal((await db("chatEstimateConversions").where({ id: prior.ticket.id }).first()).state, "superseded");
-    assert.deepEqual((await db("chatTurns").where({ id: nextTurn }).first()).estimateConversionEvidence, []);
+    assert.equal((await db("chatProposals").where({ family: "estimateConversion" }).where({ id: prior.ticket.id }).first()).state, "superseded");
+    assert.deepEqual((await db("chatTurns").where({ id: nextTurn }).first()).estimateConversionEvidence, [nextTurn]);
     assert.equal(replacement.ticket.state, "pending");
-    await assert.rejects(rollbackConversionMigration(db), /Retained Estimate conversion proposals/);
-    assert.equal(await db.schema.hasTable("chatEstimateConversions"), true);
-    assert.equal(await db.schema.hasTable("chatEstimateConversionAudit"), true);
+    await assert.rejects(rollbackBaseline(), /forward-only/);
+    assert.equal(await db.schema.hasTable("chatProposals"), true);
+    assert.equal(await db.schema.hasTable("chatProposalAudit"), true);
     assert.equal(await db.schema.hasColumn("chatTurns", "estimateConversionEvidence"), true);
-    assert.ok(await db("chatEstimateConversions").where({ workspaceId }).first("id"));
-    const audits = await db("chatEstimateConversionAudit").where({ workspaceId });
+    assert.ok(await db("chatProposals").where({ family: "estimateConversion" }).where({ workspaceId }).first("id"));
+    const audits = await db("chatProposalAudit").where({ family: "estimateConversion" }).where({ workspaceId });
     assert.ok(audits.length > 0);
     for (const audit of audits) {
-      assert.deepEqual(Object.keys(audit).sort(), ["action", "actorId", "createdAt", "id", "inputHash", "proposalId", "workspaceId"]);
+      assert.deepEqual(Object.keys(audit).sort(), ["action", "actorId", "createdAt", "details", "family", "id", "inputHash", "proposalId", "sourceId", "sourceTable", "workspaceId"]);
       assert.equal(JSON.stringify(audit).includes("Customer"), false);
     }
   });
@@ -5364,11 +5383,11 @@ try {
   });
   console.log(`PASS ${passed} estimate database journeys`);
 } finally {
-  await db("rateLimits").whereIn("key", rateLimitKeys).delete();
-  await db("estimate_operation_receipts").where({ workspaceId }).delete();
-  await db("estimates").where({ workspaceId }).delete();
-  await db("workspaces").where({ id: workspaceId }).delete();
-  await db("users").whereIn("id", Object.values(users)).delete();
   rehearsalStorage.close();
   await db.destroy();
+  try {
+    if (created) await owner.raw("DROP DATABASE ??", [database]);
+  } finally {
+    await owner.destroy();
+  }
 }

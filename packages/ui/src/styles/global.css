@@ -15,6 +15,9 @@
   --color-primary: #3b6fa5;
   --color-primary-dark: #315c8a;
   --color-seafoam: #7ccbb7;
+  --color-seafoam-light: #b2e9db;
+  --color-seafoam-pale: #d4f3e9;
+  --color-seafoam-dark: #63ad99;
   --color-ink: #23384d;
   --color-muted: #52677b;
   --color-canvas: #f4f8fc;
@@ -67,6 +70,10 @@
 
 @utility focus-ring {
   @apply outline-3 outline-solid outline-primary outline-offset-4;
+}
+
+@utility seafoam-action {
+  @apply border-seafoam-light bg-seafoam-light bg-linear-110 from-seafoam-pale to-seafoam-light text-ink shadow-sm;
 }
 
 @utility letter-paper {

@@ -17,6 +17,7 @@ import {
   readWorkOrderDetail,
   readWorkOrderRecord,
   readWorkOrders,
+  workOrderProposalStorage,
   type Knex,
 } from "@salesmora/data";
 import {
@@ -33,6 +34,7 @@ import { authorizedWorkspace, enabledPermissions } from "../authorization/permis
 import { chatAccessHash } from "./access-hash";
 import type { ChatIdentity } from "./store";
 import type { ChatToolHandler } from "./tools/types";
+import { admittedChatRequest, stageChatEvidence } from "./request-context";
 
 const canonical = (value: unknown): unknown =>
   Array.isArray(value)
@@ -55,7 +57,7 @@ export class Declined extends Error {
 export const blank = (kind: WorkOrderChatResult["kind"], title: string): WorkOrderChatResult => ({ kind, title: clip(title, 300), records: [] });
 
 export async function turnFor(trx: Knex.Transaction, context: AuthorizationContext, id: string, active = true) {
-  const turn = await trx("chatTurns").where({ ...identityFor(context), id }).first();
+  const turn = admittedChatRequest(context, id)?.turn ?? await trx("chatTurns").where({ ...identityFor(context), id }).first();
   if (!turn || turn.accessHash !== chatAccessHash(context) || !authorize(context, { permission: "assistant.use" }).allowed) throw new AuthorizationAccessError();
   if (active && (!["accepted", "running"].includes(turn.state) || new Date(turn.leaseUntil).getTime() <= Date.now())) throw new WorkOrderConflictError("Conversation interrupted.");
   return turn;
@@ -257,42 +259,36 @@ async function prepareAndStore(trx: Knex.Transaction, context: AuthorizationCont
 
 /** Stores a prepared proposal and supersedes any other pending one in the thread. Shared with the materials assistant tool. */
 export async function storeDraft(trx: Knex.Transaction, context: AuthorizationContext, turn: Awaited<ReturnType<typeof turnFor>>, payload: Record<string, unknown>, review: WorkOrderChatDraft, title: string): Promise<WorkOrderChatResult> {
-  const identity = identityFor(context);
   review.inputHash = hash(payload);
   const parsed = workOrderChatDraftSchema.parse(review);
-  for (const table of ["chatWorkOrderDrafts", "chatCustomerDrafts", "chatActionDrafts"])
-    await trx(table).where({ ...identity, threadId: turn.threadId, state: "pending" }).update({ state: "superseded", resolvedAt: trx.fn.now() });
-  await trx("chatWorkOrderDrafts").insert({ ...identity, id: review.id, turnId: turn.id, threadId: turn.threadId, inputHash: parsed.inputHash, accessHash: chatAccessHash(context),
-    payload: JSON.stringify(payload), review: JSON.stringify(parsed), expiresAt: new Date(parsed.expiresAt) });
+  await workOrderProposalStorage.insert(trx, context, turn, { accessHash: chatAccessHash(context), payload, review: parsed });
   return { ...blank("proposal", title), draft: parsed };
 }
 
 export const workOrdersPropose: ChatToolHandler = async (context, args) => {
   const request = workOrdersProposeSchema.parse(args);
-  const workOrderResult = await authorizedWorkspace(context.identity.userId, context.identity.workspaceId, true, async (trx, authority) => {
-    context.signal.throwIfAborted();
-    const turn = await turnFor(trx, authority, context.turnId);
-    let output: WorkOrderChatResult;
-    try {
-      if (!availableWorkOrderOperations(authority).includes(request.operation)) throw new Declined("You don't have permission to do that.");
-      output = await prepareAndStore(trx, authority, turn, request);
-    } catch (error) {
-      if (error instanceof Declined) output = { ...blank("outcome", error.message), records: error.records };
-      else if (error instanceof WorkOrderValidationError) output = blank("outcome", error.message);
-      else throw error;
-    }
-    output.turnId = turn.id;
-    const parsed = workOrderChatResultSchema.parse(output);
-    await trx("chatTurns").where({ id: turn.id }).update({ workOrderResult: JSON.stringify(parsed) });
-    context.signal.throwIfAborted();
-    return parsed;
-  });
+  const { db: trx, authority, turn } = context;
+  context.signal.throwIfAborted();
+  let output: WorkOrderChatResult;
+  try {
+    if (!availableWorkOrderOperations(authority).includes(request.operation)) throw new Declined("You don't have permission to do that.");
+    output = await prepareAndStore(trx, authority, turn, request);
+  } catch (error) {
+    if (error instanceof Declined) output = { ...blank("outcome", error.message), records: error.records };
+    else if (error instanceof WorkOrderValidationError) output = blank("outcome", error.message);
+    else throw error;
+  }
+  output.turnId = turn.id;
+  const workOrderResult = workOrderChatResultSchema.parse(output);
+  if (!stageChatEvidence(context.identity, turn.id, { workOrderResult }))
+    await trx("chatTurns").where({ id: turn.id }).update({ workOrderResult: JSON.stringify(workOrderResult) });
+  context.signal.throwIfAborted();
   return { workOrderResult, evidence: { type: "work-order-proposal", result: workOrderResult, saved: false, requiresExplicitConfirmation: !!workOrderResult.draft } };
 };
 
 export async function resolveWorkOrderDraft(identity: ChatIdentity, input: { draftId: string; inputHash: string; decision: "confirm" | "cancel" }) {
   return authorizedWorkspace(identity.userId, identity.workspaceId, true, async (trx, context) => {
-    const row = await trx("chatWorkOrderDrafts").where({ ...identity, id: input.draftId }).forUpdate().first();
+    const row = await workOrderProposalStorage.read(trx, context, { id: input.draftId }, true);
     if (!row || !authorize(context, { permission: "assistant.use" }).allowed || row.accessHash !== chatAccessHash(context)) throw new AuthorizationAccessError();
     if (row.inputHash !== input.inputHash || hash(row.payload) !== input.inputHash) throw new WorkOrderConflictError();
     const turn = await turnFor(trx, context, row.turnId, false);
@@ -318,7 +314,7 @@ export async function resolveWorkOrderDraft(identity: ChatIdentity, input: { dra
         }
       } else if (row.payload.kind === "material") {
         const wanted = row.payload.input.action === "create" || row.payload.input.action === "propose" ? "create" : row.payload.input.action === "update" ? "edit" : "archive";
-        if (!availableMaterialOperations(context).includes(wanted === "archive" && row.payload.input.archived === false ? "restore" : wanted)) throw new AuthorizationAccessError();
+        if (!availableMaterialOperations(context).includes(row.payload.input.action === "archive" && row.payload.input.archived === false ? "restore" : wanted)) throw new AuthorizationAccessError();
         try {
           await mutateMaterial(trx, identity, enabledPermissions, row.payload.input, { source: "assistant-confirmed" });
         } catch (error) {
@@ -332,12 +328,12 @@ export async function resolveWorkOrderDraft(identity: ChatIdentity, input: { dra
           const record = await readWorkOrderRecord(trx, identity, enabledPermissions, created.workOrderId);
           review.workOrder = { id: record.id, number: record.number, title: clip(record.title, 200) };
         } else if (row.payload.kind === "export") csv = await exportWorkOrders(trx, identity, enabledPermissions, row.payload.input);
-        else await mutateWorkOrder(trx, identity, enabledPermissions, row.payload.input, { source: "assistant-confirmed" });
+        else if (row.payload.kind === "mutation") await mutateWorkOrder(trx, identity, enabledPermissions, row.payload.input, { source: "assistant-confirmed" });
       }
     }
     const state = input.decision === "confirm" ? "confirmed" : "canceled";
     const draft = workOrderChatDraftSchema.parse({ ...review, state });
-    await trx("chatWorkOrderDrafts").where({ id: row.id }).update({ state, resolvedAt: trx.fn.now(), review: JSON.stringify(draft) });
+    await workOrderProposalStorage.save(trx, context, row, draft, state);
     const output = workOrderChatResultSchema.parse({ turnId: row.turnId, ...blank("proposal", `${row.payload.kind === "material" ? "Catalog" : "Work order"} change ${state}.`), draft });
     await trx("chatTurns").where({ id: row.turnId }).update({ workOrderResult: JSON.stringify(output) });
     return { draft, csv, csvName: row.payload.kind === "material-export" ? "materials.csv" : "work-orders.csv" };
@@ -349,8 +345,8 @@ export async function visibleWorkOrderResult(trx: Knex.Transaction, context: Aut
   if (!turn.workOrderResult || !(availableWorkOrderOperations(context).length || availableMaterialOperations(context).length)) return undefined;
   const data = workOrderChatResultSchema.parse(turn.workOrderResult);
   if (data.draft) {
-    const row = await trx("chatWorkOrderDrafts").where({ turnId: turn.id, id: data.draft.id }).first();
-    if (!row) return undefined;
+    const row = await workOrderProposalStorage.read(trx, context, { id: data.draft.id });
+    if (!row || row.turnId !== turn.id) return undefined;
     data.draft = workOrderChatDraftSchema.parse({ ...row.review, state: row.state === "pending" && new Date(row.expiresAt).getTime() <= Date.now() ? "expired" : row.state });
   }
   return data;

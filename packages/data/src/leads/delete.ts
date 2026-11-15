@@ -38,8 +38,10 @@ export async function deleteLeadInTransaction(trx: Knex.Transaction, context: Au
     await trx('leadDeletionAudit').insert({ id: input.submissionId, workspaceId: identity.workspaceId, leadId: lead.id, leadNumber: lead.leadNumber, actorId: identity.userId, requestHash });
     // Confirmed creation proposals contain a copy of the lead. Remove those payloads;
     // immutable, non-content chat audit evidence and private conversations retain their policy.
-    await trx('chatActionDrafts').where({ workspaceId: identity.workspaceId }).andWhere(function () {
-      this.where({ leadId: lead.id }).orWhereIn('turnId', trx('chatTurns').where({ workspaceId: identity.workspaceId })
+    const proposals = trx('chatProposals').where({ workspaceId: identity.workspaceId, family: 'action' });
+    await proposals.andWhere(function () {
+      this.whereRaw("payload->>'leadId' = ?", [lead.id]);
+      this.orWhereIn('turnId', trx('chatTurns').where({ workspaceId: identity.workspaceId })
         .whereRaw('"leadEvidence" @> ?::jsonb', [JSON.stringify([{ id: lead.id }])]).select('id'));
     }).delete();
     const removed = await trx('leads').where({ id: lead.id, workspaceId: identity.workspaceId, version: input.expectedVersion }).delete();

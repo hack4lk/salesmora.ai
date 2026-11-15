@@ -25,18 +25,19 @@ Compose owns the `salesmora` project, `salesmora-postgres-1` container, and `sal
 # Stop the database while preserving accounts.
 docker compose --env-file .env.local stop postgres
 
-# Restart and apply pending migrations.
+# Restart and apply pending migrations to a fresh-baseline database.
 corepack pnpm db:setup
 ```
 
-Keep the Compose volume to preserve accounts. Five signup attempts per minute share the local rate-limit bucket; wait a minute if manual testing reaches that limit.
+Keep the Compose volume to preserve accounts. The migration command now supports **fresh databases only**: it rejects databases with the historical Knex ledger instead of upgrading or resetting them. This includes existing local, staging, and production databases. Preserve their data and use the prior migration release until an appropriate migration or an explicitly approved rebuild is available; do not deploy this baseline over them. `db:setup` migrates both the application and test databases, so it will also stop if either has a historical ledger. Five signup attempts per minute share the local rate-limit bucket; wait a minute if manual testing reaches that limit.
 
 ## Implementation boundaries
 
 | Location | Responsibility |
 |---|---|
 | `packages/contracts/src/registration.ts` | Shared Zod input contract and limits |
-| `packages/data/src/migrations/` | Knex-owned schema history, including reversal |
+| `packages/data/src/baseline-migrations/` and `packages/data/src/baseline/` | Forward-only fresh database baseline and its domain definitions |
+| `packages/data/src/baseline/schema-reference.json` | Fingerprints of the retired historical schema used to verify fresh-baseline equivalence |
 | `packages/data/src/database.ts` | PostgreSQL pool and Knex connection factories |
 | `apps/web/src/server/auth/` | Better Auth configuration and session checks |
 | `apps/web/src/app/api/auth/[...all]/route.ts` | Library HTTP handler, including origin checks and rate limits |
@@ -65,8 +66,8 @@ Acceptance version/time and onboarding status come from the server. Submitted ve
 
 ```bash
 corepack pnpm db:migrate
-corepack pnpm db:rollback:test
 corepack pnpm db:migrate:test
+corepack pnpm --filter @salesmora/data test:baseline-schema
 corepack pnpm --filter @salesmora/web exec playwright install chromium
 corepack pnpm test:e2e
 corepack pnpm lint
@@ -75,7 +76,7 @@ corepack pnpm build
 corepack pnpm storybook:build
 ```
 
-Rollback is restricted to the disposable `_test` database. The migration passed latest → rollback → latest. Production migrations belong in a controlled deployment step, not web startup.
+The baseline is forward-only; `db:rollback:test` refuses to run. Rebuild a disposable database only after explicitly approving data deletion. The baseline rehearsal creates and deletes uniquely named temporary databases and compares against historical migrations; it does not reset the existing application or test database. Production migrations belong in a controlled deployment step, not web startup.
 
 Playwright starts a separate Next.js instance on **3002**, with its own build directory, using **salesmora_test**. Tests refuse the development database URL and clear only the disposable test database. The normal app can stay on 3000. One test deliberately forces credential storage to fail; its database error in test-server logs is expected.
 

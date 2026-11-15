@@ -1,5 +1,5 @@
 export const jobButton='min-h-11 max-w-full cursor-pointer rounded-xl border border-line bg-paper px-4 py-2 text-sm font-semibold text-primary wrap-anywhere hover:bg-canvas focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50';
-export const jobPrimary='min-h-11 max-w-full cursor-pointer rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-paper wrap-anywhere hover:bg-primary-dark focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50';
+export const jobPrimary='seafoam-action min-h-11 max-w-full cursor-pointer rounded-xl px-4 py-2 text-sm font-semibold wrap-anywhere enabled:hover:bg-none enabled:hover:bg-seafoam-dark focus-visible:focus-ring disabled:cursor-not-allowed disabled:bg-none disabled:bg-line disabled:text-muted disabled:opacity-50';
 export const jobPanel='min-w-0 rounded-2xl border border-line bg-paper p-5 text-ink sm:p-6';
 export const jobInput='min-h-11 w-full min-w-0 rounded-xl border border-line bg-paper px-3 py-2 text-base text-ink focus-visible:focus-ring disabled:cursor-not-allowed disabled:bg-canvas';
 export const jobLabel='grid min-w-0 gap-2 text-sm font-semibold text-ink';

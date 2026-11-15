@@ -61,7 +61,7 @@ export function HomeOverview({
           {copy.roles[role]}
         </span>
       </header>
-      {!empty && canCreateLead && createLeadHref && <a href={createLeadHref} className="inline-flex min-h-11 w-fit items-center justify-center rounded-xl bg-primary px-6 py-3 font-semibold text-paper hover:bg-primary-dark focus-visible:focus-ring">{copy.leads.action}</a>}
+      {!empty && canCreateLead && createLeadHref && <a href={createLeadHref} className="seafoam-action inline-flex min-h-11 w-fit items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold hover:bg-none hover:bg-seafoam-dark focus-visible:focus-ring">{copy.leads.action}</a>}
       {empty && (
         <div className="min-w-0 rounded-2xl border border-line bg-paper p-6 sm:p-8">
           <p className="m-0 text-xs font-bold tracking-widest text-success uppercase">
@@ -87,11 +87,11 @@ export function HomeOverview({
                 <p className="mb-0 mt-2 text-sm leading-6 text-muted">
                   {item.description}
                 </p>
-                {item.href ? <a href={item.href} className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-paper hover:bg-primary-dark focus-visible:focus-ring">{item.action}</a> : <button
+                {item.href ? <a href={item.href} className="seafoam-action mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold hover:bg-none hover:bg-seafoam-dark focus-visible:focus-ring">{item.action}</a> : <button
                   type="button"
                   disabled={!item.onCreate}
                   onClick={item.onCreate}
-                  className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-paper hover:bg-primary-dark focus-visible:focus-ring disabled:cursor-not-allowed disabled:bg-line disabled:text-muted"
+                  className="seafoam-action mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold enabled:hover:bg-none enabled:hover:bg-seafoam-dark focus-visible:focus-ring disabled:cursor-not-allowed disabled:bg-none disabled:bg-line disabled:text-muted"
                 >
                   {item.action}
                   {!item.onCreate && (

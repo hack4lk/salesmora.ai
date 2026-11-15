@@ -22,7 +22,7 @@ function ReviewApproval({ disabled, onApprove, label }: { disabled: boolean; onA
   const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (checked && !disabled) onApprove(); };
   return <form className="grid gap-4" onSubmit={submit}>
     <label className="flex min-h-11 items-start gap-3 text-sm leading-6"><input type="checkbox" checked={checked} disabled={disabled} className="mt-1 size-5 shrink-0 accent-primary focus-visible:focus-ring" onChange={event => setChecked(event.target.checked)} /><span>{copy.confirm}</span></label>
-    <button type="submit" disabled={disabled || !checked} className="min-h-11 max-w-full cursor-pointer justify-self-start rounded-xl border border-primary bg-primary px-4 py-2 text-sm font-semibold text-paper wrap-anywhere focus-visible:focus-ring enabled:hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-50">{label}</button>
+    <button type="submit" disabled={disabled || !checked} className="seafoam-action min-h-11 max-w-full cursor-pointer justify-self-start rounded-xl px-4 py-2 text-sm font-semibold wrap-anywhere focus-visible:focus-ring enabled:hover:bg-none enabled:hover:bg-seafoam-dark disabled:cursor-not-allowed disabled:bg-none disabled:opacity-50">{label}</button>
   </form>;
 }
 export function CaptureSetupReview({ draft, value, canRead, canEdit, canLaunch, pending = false, onChange, onEdit, onLaunch, now = Date.now, timingReadOnly = false }: CaptureSetupReviewProps) {

@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { readFixtureProposal } from "./proposal-fixture-store";
 import { expect, request as requests, test, type APIRequestContext, type Page } from "@playwright/test";
 import { createDatabase } from "@salesmora/data";
 import { chatStreamEventSchema, estimateVoidChatResponseSchema, type EstimateVoidChatTicket } from "@salesmora/contracts";
 import { estimateProposalDigest } from "../../../packages/data/src/estimates/chat-proposals";
-import { down as rollbackEvidence } from "../../../packages/data/src/migrations/202610270006_estimate_void_evidence";
+import { down as rollbackBaseline } from "../../../packages/data/src/baseline-migrations/202611150001_fresh_baseline";
 import { estimateVoidBinding } from "../src/features/assistant/estimate-result/estimate-void-client";
 import { estimateVoidCardData as c } from "../src/features/estimates/estimate-void-card/estimate-void-card.data";
 
@@ -164,7 +165,7 @@ test("missing reason stays read-only and unconfirmable in the real assistant", a
   await show(page, input(saved.id, null));
   await expect(page.getByText(c.missingReason, { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: c.confirm, exact: true })).toBeDisabled();
-  const row = await db("chatEstimateVoids").where({ workspaceId }).orderBy("createdAt", "desc").first();
+  const row = await readFixtureProposal(db, "estimateVoid", { workspaceId });
   expect((await operate(row.payload.ticket)).status()).toBe(422);
   await page.getByRole("button", { name: c.cancel, exact: true }).click();
   await expect(page.getByText(c.cancelled, { exact: true })).toBeVisible();
@@ -183,7 +184,7 @@ test("browser confirms Published withdrawal using metadata only, restores receip
   await expect(page).toHaveURL(/\/home\?/);
   expect(commands).toHaveLength(1);
   expect(JSON.stringify(commands)).not.toContain(reason);
-  const row = await db("chatEstimateVoids").where({ workspaceId }).orderBy("createdAt", "desc").first();
+  const row = await readFixtureProposal(db, "estimateVoid", { workspaceId });
   expect(commands[0]).toEqual(data(row.payload.ticket));
   expect((await db("estimates").where({ id: saved.id }).first()).status).toBe("void");
   await page.reload();
@@ -271,7 +272,7 @@ test("later archive withholds saved receipt restoration and opening without anot
   expect((await history(run.threadId)).turns[0].estimateVoid).toBeUndefined();
   expect(await db("estimate_activity").where({ estimateId: saved.id, type: "voided" })).toHaveLength(1);
 });
-test("confirmed follow-ups retain flattened checked provenance and migration refuses retained evidence", async () => {
+test("confirmed follow-ups retain checked provenance and redact after access revocation", async () => {
   const saved = await source(), run = await propose(input(saved.id), office);
   expect((await operate(run.ticket, "confirm", office)).status()).toBe(200);
   for (let count = 0; count < 2; count++) {
@@ -279,16 +280,21 @@ test("confirmed follow-ups retain flattened checked provenance and migration ref
   }
   const turns = await db("chatTurns").where({ threadId: run.threadId }).whereNot({ id: run.turnId });
   expect(turns).toHaveLength(2);
-  for (const turn of turns) expect(turn.estimateVoidEvidence).toEqual([run.turnId]);
+  for (const turn of turns) expect(turn.historyEvidence).toContain(run.turnId);
   const restored = await history(run.threadId, office);
   expect(JSON.stringify(restored.turns)).not.toContain(reason);
   expect(JSON.stringify(restored.turns)).not.toContain("Private frozen recipient");
-  await expect(rollbackEvidence(db)).rejects.toThrow("Retained Void evidence");
-  await replaceMembership();
-  const redacted = await history(run.threadId, office);
-  expect(redacted.turns.every((turn: { estimateVoidEvidence: string[] }) => turn.estimateVoidEvidence.length === 0)).toBe(true);
-  expect(redacted.messages.filter((entry: { role: string }) => entry.role === "assistant")
-    .every((entry: { text: string }) => !entry.text.includes("Verified confirmed withdrawal."))).toBe(true);
+  await expect(rollbackBaseline()).rejects.toThrow("forward-only");
+  await db("workspaceMemberships").where({ workspaceId, userId: officeId }).update({ role: "field" });
+  try {
+    await db("jobs").where({ workspaceId, id: saved.parentId }).update({ primaryOwnerId: ownerId }).increment("version", 1);
+    const redacted = await history(run.threadId, office);
+    expect(redacted.turns.every((turn: { estimateVoidEvidence: string[] }) => turn.estimateVoidEvidence.length === 0)).toBe(true);
+    expect(redacted.messages.filter((entry: { role: string }) => entry.role === "assistant")
+      .every((entry: { text: string }) => !entry.text.includes("Verified confirmed withdrawal."))).toBe(true);
+  } finally {
+    await db("workspaceMemberships").where({ workspaceId, userId: officeId }).update({ role: "office" });
+  }
 });
 test("membership revocation during inherited streaming blocks later claims and redacts restored follow-ups", async () => {
   const saved = await source(), run = await propose(input(saved.id), office);

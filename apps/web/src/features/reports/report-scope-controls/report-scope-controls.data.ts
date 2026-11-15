@@ -1,0 +1,16 @@
+export const reportScopeControlsData = {
+  title: 'Report and scope',
+  help: 'About report scope',
+  description: 'Choose a supporting view and narrow its authorized records. Changing these settings does not run or save a report.',
+  view: 'Supporting view',
+  assignment: 'Assignment / actor',
+  unavailable: 'Unavailable selection',
+  denied: 'You do not have access to configure this report.',
+  loading: 'Loading report options...',
+  failed: 'Report options could not be loaded. Try again.',
+  retry: 'Try again',
+  empty: 'No supporting views are available with your current access.',
+  invalid: 'A saved selection is no longer available. Choose an available value before running the report.',
+  current: 'As of now. A reporting-period filter does not apply to this view.',
+  period: 'Uses the reporting period.',
+} as const;

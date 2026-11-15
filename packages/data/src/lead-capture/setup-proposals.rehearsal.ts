@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createDatabase } from '../database';
+import { migrateFreshBaseline } from '../baseline-runner';
+import { down as rollbackBaseline } from '../baseline-migrations/202611150001_fresh_baseline';
 import { initializeWorkspacePolicy, AuthorizationAccessError } from '../authorization/store';
 import { createCaptureDraft, saveCaptureDraft, readCaptureSource, CaptureDraftConflictError, CaptureDraftValidationError } from './store';
 import { proposeCaptureSetup, decideCaptureSetupProposal, readCaptureSetupProposal, prepareCaptureSetupSampleApproval } from './setup-proposals';
@@ -10,11 +12,19 @@ import { publishCaptureDraft, readCapturePublicationReview } from './publication
 import { captureDraftFingerprint } from './store';
 import { captureSetupFindingIssues } from './setup-samples';
 import { initialCaptureSetupConfiguration, permissionIds, type CaptureSetupInput, type CaptureSetupView, type CaptureSetupContext, type CaptureDraftConfiguration } from '@salesmora/contracts';
+import { withCanonicalProposalStorage } from '../chat-proposals';
+const canonical = true;
+const proposalTable = canonical ? 'chatProposals' : 'chatCaptureSetupProposals';
+const auditTable = canonical ? 'chatProposalAudit' : 'chatCaptureSetupAudit';
 const env = fileURLToPath(new URL('../../../../.env.local', import.meta.url)); if (existsSync(env)) process.loadEnvFile(env);
 const connection = process.env.TEST_DATABASE_URL;
 if (!connection || !new URL(connection).pathname.endsWith('_test') || connection === process.env.DATABASE_URL || !['localhost', '127.0.0.1'].includes(new URL(connection).hostname)) throw Error('A separate local test connection is required.');
 const owner = createDatabase(connection), name = `capture_setup_${randomUUID().replaceAll('-', '')}_test`, url = new URL(connection); url.pathname = `/${name}`;
 const db = createDatabase(url.toString()), runtimeURL = new URL(url); runtimeURL.searchParams.set('options', '-c role=salesmora_web'); const runtime = createDatabase(runtimeURL.toString());
+const legacyQueries: string[] = [];
+runtime.on('query', ({ sql }: { sql: string }) => {
+  if (canonical && /"chatCapture(?:Setup|Source)(?:Proposals|Audit)"/.test(sql)) legacyQueries.push(sql);
+});
 const identity = { workspaceId: randomUUID(), userId: `setup-${randomUUID()}` }, stranger = { ...identity, userId: `stranger-${randomUUID()}` };
 const empty: CaptureSetupInput = { operation: 'create_source', sourceId: null, name: null, sourceType: null, fields: null, contactRequired: null, workflow: null, brief: null, content: null, rules: null, mappings: null, findings: null };
 const signal = new AbortController().signal;
@@ -36,17 +46,27 @@ async function snapshot(sourceId: string): Promise<CaptureSetupContext> {
 }
 let created = false, checks = 0;
 async function check(label: string, work: () => Promise<void>) { await work(); console.log(`PASS ${label}`); checks++; }
+const run = async () => {
 try {
   await owner.raw('CREATE DATABASE ??', [name]); created = true;
-  await db.migrate.latest({ directory: fileURLToPath(new URL('../migrations', import.meta.url)), loadExtensions: ['.ts'] });
+  await migrateFreshBaseline(db);
   for (const person of [identity, stranger]) await db('users').insert({ id: person.userId, name: 'Fictional setup tester', email: `${person.userId}@example.test`, createdAt: new Date(), updatedAt: new Date(), termsVersion: 'test', termsAcceptedAt: new Date() });
   await db.transaction(async trx => { await trx('workspaces').insert({ id: identity.workspaceId, ownerId: identity.userId, businessName: 'Fictional setup workspace', businessType: 'plumbing', postalCode: '', serviceRange: '', timezone: 'America/New_York', planOverride: 'standard', planOverrideReason: 'Disposable setup fixture', planOverrideId: randomUUID(), planOverrideEndsAt: new Date(Date.now() + 86400000) }); for (const person of [identity, stranger]) await trx('workspaceMemberships').insert({ ...person, role: person === identity ? 'owner' : 'admin' }); await initializeWorkspacePolicy(trx, identity); });
+  async function auditFailure(view: CaptureSetupView, unchanged: () => Promise<void>) {
+    await db.raw(`CREATE FUNCTION rehearsal_fail_setup_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'rehearsal audit failure'; END $$`);
+    await db.raw(`CREATE TRIGGER rehearsal_fail_setup_audit BEFORE INSERT ON ?? FOR EACH ROW WHEN (NEW.action = 'confirmed') EXECUTE FUNCTION rehearsal_fail_setup_audit()`, [auditTable]);
+    try { await assert.rejects(decide(view), /rehearsal audit failure/); }
+    finally { await db.raw('DROP TRIGGER rehearsal_fail_setup_audit ON ??', [auditTable]); await db.raw('DROP FUNCTION rehearsal_fail_setup_audit()'); }
+    assert.equal((await db(proposalTable).where({ id: view.ticket.proposalId }).first()).state, 'pending');
+    await unchanged();
+  }
   let creation: CaptureSetupView, sourceId: string;
   await check('generation cannot save; completed actor-owned confirmation creates one draft and exact retries reuse receipt', async () => {
     const id = await turn(); creation = await proposeCaptureSetup(runtime, identity, permissionIds, id, { ...empty, name: 'Fictional website', sourceType: 'website' }, signal);
     assert.equal(Number((await db('captureSources').count('* as n').first())!.n), 0);
     await assert.rejects(decide(creation), AuthorizationAccessError);
     await db('chatTurns').where({ id }).update({ state: 'completed' });
+    await auditFailure(creation, async () => { assert.equal(Number((await db('captureSources').count('* as n').first())!.n), 0); });
     await assert.rejects(readCaptureSetupProposal(runtime, stranger, permissionIds, reference(creation)), AuthorizationAccessError);
     await assert.rejects(decideCaptureSetupProposal(runtime, stranger, permissionIds, { ...reference(creation), decision: 'confirm' }), AuthorizationAccessError);
     const results = await Promise.all([decide(creation), decide(creation)]);
@@ -75,21 +95,24 @@ try {
     const proposed = await prepare({ operation: 'suggest_workflow', workflow }, base);
     await assert.rejects(decideCaptureSetupProposal(runtime, identity, permissionIds.filter(id => id !== 'leadCapture.update'), { ...reference(proposed), decision: 'confirm' }), AuthorizationAccessError);
     await assert.rejects(readCaptureSetupProposal(runtime, identity, permissionIds, { ...reference(proposed), inputHash: 'b'.repeat(64) }), AuthorizationAccessError);
-    const old = await db('chatCaptureSetupProposals').where({ id: proposed.ticket.proposalId }).first(); const next = await prepare({ operation: 'save_draft' }, base, old.threadId);
+    const old = await db(proposalTable).where({ id: proposed.ticket.proposalId }).first(); const next = await prepare({ operation: 'save_draft' }, base, old.threadId);
     assert.equal((await readCaptureSetupProposal(runtime, identity, permissionIds, reference(proposed))).ticket.state, 'superseded'); await assert.rejects(decide(proposed), CaptureDraftConflictError);
     const cancelled = await decide(next, 'cancel'); assert.equal(cancelled.ticket.state, 'cancelled'); assert.deepEqual(await decide(next, 'cancel'), cancelled); await assert.rejects(decide(next), CaptureDraftConflictError);
-    const guarded = await prepare({ operation: 'save_draft' }, base), stored = await db('chatCaptureSetupProposals').where({ id: guarded.ticket.proposalId }).first(); const active = await turn(undefined, stored.threadId);
+    const guarded = await prepare({ operation: 'save_draft' }, base), stored = await db(proposalTable).where({ id: guarded.ticket.proposalId }).first(); const active = await turn(undefined, stored.threadId);
     await assert.rejects(decide(guarded), CaptureDraftConflictError); await db('chatTurns').where({ id: active }).update({ state: 'cancelled' });
     await saveCaptureDraft(runtime, identity, permissionIds, { workspaceId: identity.workspaceId, sourceId, expectedVersion: base.sourceVersion, expectedDraftVersion: base.draftVersion, requestId: randomUUID(), name: base.name, configuration: base.configuration });
     await assert.rejects(decide(guarded), CaptureDraftConflictError);
   });
   await check('expired proposals and changed unsaved bases cannot be reused', async () => {
     const base = await snapshot(sourceId), proposed = await prepare({ operation: 'save_draft' }, base);
-    const row = await db('chatCaptureSetupProposals').where({ id: proposed.ticket.proposalId }).first();
+    const row = await db(proposalTable).where({ id: proposed.ticket.proposalId }).first();
     row.payload.view.ticket.createdAt = new Date(Date.now() - 900000).toISOString();
     row.payload.view.ticket.expiresAt = new Date(Date.now() - 1000).toISOString();
     row.payload.view.ticket.inputHash = captureDraftFingerprint({ ticket: { ...row.payload.view.ticket, state: undefined, inputHash: undefined }, review: row.payload.view.review, authority: row.payload.authority, input: row.payload.input, turnId: row.payload.turnId, threadId: row.payload.threadId, manual: row.payload.manual });
-    await db('chatCaptureSetupProposals').where({ id: row.id }).update({ payload: JSON.stringify(row.payload) });
+    await db(proposalTable).where({ id: row.id }).update({ payload: JSON.stringify(row.payload), ...(canonical ? {
+      inputHash: row.payload.view.ticket.inputHash, expiresAt: row.payload.view.ticket.expiresAt,
+      createdAt: row.payload.view.ticket.createdAt,
+    } : {}) });
     const expired = { ...proposed, ticket: row.payload.view.ticket };
     assert.equal((await readCaptureSetupProposal(runtime, identity, permissionIds, reference(expired))).ticket.state, 'expired'); await assert.rejects(decide(expired), CaptureDraftConflictError);
     const id = await turn({ ...base, draftVersion: base.draftVersion + 1 });
@@ -121,6 +144,11 @@ try {
     const extracted = { ...base, configuration: extraction.review.configuration, findings };
     const manual = { workspaceId: identity.workspaceId, originProposalId: extraction.ticket.proposalId, requestId: randomUUID(), setup: { ...extracted, findings: findings.map(row => row.fieldId === 'name' ? { ...row, sampleValue: 'Jordan Corrected' } : row) } };
     const approval = await prepareCaptureSetupSampleApproval(runtime, identity, permissionIds, manual);
+    assert.deepEqual(await prepareCaptureSetupSampleApproval(runtime, identity, permissionIds, manual), approval);
+    await auditFailure(approval, async () => {
+      assert.equal(Number((await db('captureSetupSamples').count('* as n').first())!.n), 0);
+      assert.equal(Number((await db('captureGmailSampleBindings').count('* as n').first())!.n), 0);
+    });
     const approved = await decide(approval); assert.equal(approved.receipt?.kind, 'suggestions'); if (approved.receipt?.kind !== 'suggestions') throw Error('Missing sample receipt');
     assert.equal(approved.receipt.sampleApproved, true); const configuration = approved.receipt.configuration;
     await saveCaptureDraft(runtime, identity, permissionIds, { workspaceId: identity.workspaceId, sourceId: gmail.sourceId, requestId: randomUUID(), expectedVersion: 1, expectedDraftVersion: 1, name: base.name, configuration });
@@ -133,9 +161,9 @@ try {
     const current = await snapshot(gmail.sourceId); await assert.rejects(saveCaptureDraft(runtime, identity, permissionIds, { workspaceId: identity.workspaceId, sourceId: gmail.sourceId, requestId: randomUUID(), expectedVersion: current.sourceVersion, expectedDraftVersion: current.draftVersion, name: base.name, configuration: forged }), CaptureDraftValidationError);
   });
   await check('audit and retained setup samples survive private transcript deletion without publication, email or lead side effects', async () => {
-    const audit = await db('chatCaptureSetupAudit').first(); await assert.rejects(runtime('chatCaptureSetupAudit').where({ id: audit.id }).update({ action: 'forged' })); await assert.rejects(runtime('chatCaptureSetupAudit').where({ id: audit.id }).delete());
+    const audit = await db(auditTable).first(); await assert.rejects(runtime(auditTable).where({ id: audit.id }).update({ action: 'forged' })); await assert.rejects(runtime(auditTable).where({ id: audit.id }).delete());
     await db('chatThreads').where(identity).delete();
-    assert.equal(Number((await db('chatCaptureSetupProposals').count('* as n').first())!.n), 0); assert.ok(Number((await db('chatCaptureSetupAudit').count('* as n').first())!.n) > 0); assert.equal(Number((await db('captureSetupSamples').count('* as n').first())!.n), 1);
+    assert.equal(Number((await db(proposalTable).count('* as n').first())!.n), 0); assert.ok(Number((await db(auditTable).count('* as n').first())!.n) > 0); assert.equal(Number((await db('captureSetupSamples').count('* as n').first())!.n), 1);
     assert.equal(Number((await db('capturePublications').count('* as n').first())!.n), 1);
     for (const table of ['captureReceipts', 'leads']) assert.equal(Number((await db(table).count('* as n').first())!.n), 0);
   });
@@ -192,8 +220,11 @@ try {
     const pastedConfirmed = await decide(pastedApproval); if (pastedConfirmed.receipt?.kind !== 'suggestions') throw Error('Expected pasted receipt');
     await save(pastedConfirmed.receipt.configuration); assert.equal(await sampleReady(), true);
     assert.equal((await runtime('captureGmailSampleBindings').where({ sampleId: pastedApproval.ticket.proposalId }).first()).provenance.kind, 'pasted');
-    await assert.rejects(db.migrate.down({ directory: fileURLToPath(new URL('../migrations', import.meta.url)), loadExtensions: ['.ts'], name: '202611050004_capture_gmail_samples.ts' }), /Retained Gmail sample proof/);
+    await assert.rejects(rollbackBaseline(), /forward-only/);
     for (const table of ['captureReceipts', 'intakeItems', 'leads']) assert.equal(Number((await runtime(table).count('* as n').first())!.n), 0);
   });
-  console.log(`PASS ${checks} capture setup runtime-role database groups`);
+  assert.deepEqual(legacyQueries, [], 'Canonical runtime must never query legacy proposal/audit tables.');
+  console.log(`PASS ${checks} capture setup runtime-role database groups (${canonical ? 'canonical' : 'legacy'})`);
 } finally { await Promise.all([runtime.destroy(), db.destroy()]); if (created) await owner.raw('DROP DATABASE ?? WITH (FORCE)', [name]); await owner.destroy(); }
+};
+await withCanonicalProposalStorage(run);

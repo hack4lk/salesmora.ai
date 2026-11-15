@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createDatabase } from '../database';
+import { migrateFreshBaseline } from '../baseline-runner';
 import { initializeWorkspacePolicy, AuthorizationAccessError, withWorkspaceAuthorization } from '../authorization/store';
 import { createCaptureDraft, saveCaptureDraft, listCaptureSources } from './store';
 import { readCaptureForChat, captureChatStamp, captureChatEvidenceAllowed } from './assistant-read';
@@ -19,7 +20,7 @@ let created = false, checks = 0;
 async function check(label: string, work: () => Promise<void>) { await work(); console.log(`PASS ${label}`); checks++; }
 try {
   await owner.raw('CREATE DATABASE ??', [name]); created = true;
-  await db.migrate.latest({ directory: fileURLToPath(new URL('../migrations', import.meta.url)), loadExtensions: ['.ts'] });
+  await migrateFreshBaseline(db);
   for (const person of [identity, foreign]) {
     await db('users').insert({ id: person.userId, name: 'Fictional assistant owner', email: `${person.userId}@example.test`, createdAt: new Date(), updatedAt: new Date(), termsVersion: 'test', termsAcceptedAt: new Date() });
     await db.transaction(async trx => { await trx('workspaces').insert({ id: person.workspaceId, ownerId: person.userId, businessName: 'Fictional assistant workspace', businessType: 'plumbing', postalCode: '', serviceRange: '', timezone: 'America/New_York' }); await trx('workspaceMemberships').insert({ ...person, role: 'owner' }); await initializeWorkspacePolicy(trx, person); });
@@ -60,10 +61,10 @@ try {
     assert.equal(Number((await db('capturePublications').count('* as n').first())?.n), 0); assert.equal(Number((await db('captureReceipts').count('* as n').first())?.n), 0); assert.equal(Number((await db('leads').count('* as n').first())?.n), 0);
   });
   const stamp = await withWorkspaceAuthorization(runtime, identity, enabled, false, (trx, context) => captureChatStamp(trx, context, 'delivery-off'));
-  await check('deployment control effects and changed source configuration invalidate evidence', async () => {
-    await withWorkspaceAuthorization(runtime, identity, enabled, false, async (trx, context) => { assert.equal(await captureChatEvidenceAllowed(trx, context, stamp, 'delivery-off'), true); assert.equal(await captureChatStamp(trx, { ...context, enabledPermissions: [...context.enabledPermissions].reverse(), policy: { ...context.policy, grants: [...context.policy.grants].reverse() } }, 'delivery-off'), stamp); assert.equal(await captureChatEvidenceAllowed(trx, context, stamp, 'delivery-on'), false); });
+  await check('timestamped source evidence survives delivery and ordinary source edits', async () => {
+    await withWorkspaceAuthorization(runtime, identity, enabled, false, async (trx, context) => { assert.equal(await captureChatEvidenceAllowed(trx, context, stamp, 'delivery-off'), true); assert.equal(await captureChatStamp(trx, { ...context, enabledPermissions: [...context.enabledPermissions].reverse(), policy: { ...context.policy, grants: [...context.policy.grants].reverse() } }, 'delivery-off'), stamp); assert.equal(await captureChatEvidenceAllowed(trx, context, stamp, 'delivery-on'), true); });
     await saveCaptureDraft(runtime, identity, enabled, { workspaceId: identity.workspaceId, sourceId: sources[0].sourceId, requestId: randomUUID(), expectedVersion: 1, expectedDraftVersion: 1, name: 'Changed source', configuration: { schemaVersion: 1, type: 'website' } });
-    await withWorkspaceAuthorization(runtime, identity, enabled, false, async (trx, context) => { assert.equal(await captureChatEvidenceAllowed(trx, context, stamp, 'delivery-off'), false); });
+    await withWorkspaceAuthorization(runtime, identity, enabled, false, async (trx, context) => { assert.equal(await captureChatEvidenceAllowed(trx, context, stamp, 'delivery-off'), true); });
   });
   await check('read metadata is actor-bound and ignores another workspace changes', async () => {
     const before = await withWorkspaceAuthorization(runtime, identity, enabled, false, (trx, context) => captureChatStamp(trx, context));

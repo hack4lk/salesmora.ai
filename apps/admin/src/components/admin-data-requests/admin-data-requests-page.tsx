@@ -91,7 +91,7 @@ export function AdminDataRequestsPage({
           Refresh
         </button>}
         {exportRequestsEnabled && onStartExport && onVerifyExport && onRequestExport && <button type="button" onClick={() => { setSuccess(''); setRequestDialogOpen(true); }}
-          className="min-h-11 cursor-pointer rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-paper hover:bg-primary-dark focus-visible:focus-ring">
+          className="seafoam-action min-h-11 cursor-pointer rounded-xl px-4 py-2 text-sm font-semibold hover:bg-none hover:bg-seafoam-dark focus-visible:focus-ring">
           Request workspace export
         </button>}
       </div>}

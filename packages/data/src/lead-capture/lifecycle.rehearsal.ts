@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { PermissionId } from '@salesmora/contracts';
 import { createDatabase } from '../database';
+import { migrateFreshBaseline } from '../baseline-runner';
 import { initializeWorkspacePolicy, AuthorizationAccessError, withWorkspaceAuthorization } from '../authorization/store';
 import { suspendUser, unsuspendUser } from '../accounts/suspension';
 import { createCaptureDraft, beginCaptureRevision, saveCaptureDraft, readCaptureSource, listCaptureSources } from './store';
@@ -53,7 +54,7 @@ function submission(publication: { publicKey: string; version: number; configura
 }
 try {
   await owner.raw('CREATE DATABASE ??', [name]); created = true;
-  await db.migrate.latest({ directory: fileURLToPath(new URL('../migrations', import.meta.url)), loadExtensions: ['.ts'] });
+  await migrateFreshBaseline(db);
   assert.equal((await web.raw('SELECT current_user AS role')).rows[0].role, 'salesmora_web');
   await check('pause/archive need their own grants, not activation, and replay is scoped, actor-bound and reauthorized', async () => {
     const { identity, sourceId } = await fixture(), input = await command(identity, sourceId, 'pause');

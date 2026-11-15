@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createDatabase } from '../database';
+import { migrateFreshBaseline } from '../baseline-runner';
 import { initializeWorkspacePolicy, AuthorizationAccessError } from '../authorization/store';
 import { PlanCapacityError } from '../billing/entitlements';
 import { CaptureDraftConflictError, CaptureDraftValidationError } from './store';
@@ -44,7 +45,7 @@ async function prepare(f: Fixture, i: Item, answers = i.answers, permissions = e
 function decision(f: Fixture, i: Item, reviewId: string, kind: 'create' | 'separate' | 'dismiss' = 'create'): CaptureIntakeDecision { const base = { workspaceId: f.identity.workspaceId, intakeId: i.id, expectedVersion: 1, reviewId, requestId: randomUUID() }; return kind === 'dismiss' ? { ...base, kind } : { ...base, kind, answers: i.answers, definitionVersion: 1, workflowVersion: 1 }; }
 async function decide(f: Fixture, input: CaptureIntakeDecision, permissions = enabled) { return decideIntake(web, f.identity, permissions, input); }
 try {
-  await owner.raw('CREATE DATABASE ??', [name]); created = true; await db.migrate.latest({ directory: fileURLToPath(new URL('../migrations', import.meta.url)), loadExtensions: ['.ts'] });
+  await owner.raw('CREATE DATABASE ??', [name]); created = true; await migrateFreshBaseline(db);
   await check('runtime read is tenant-scoped, paginated and independent of archived source permissions', async () => {
     const f = await fixture(), i = await item(f), other = await fixture(); await item(other);
     const list = await listIntakeItems(web, f.identity, ['intake.read'], { workspaceId: f.identity.workspaceId, search: 'Alex', flag: 'attention' }); assert.equal(list.total, 1); assert.equal(list.rows[0].id, i.id); assert.equal(list.sources.length, 1);

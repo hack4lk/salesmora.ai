@@ -106,7 +106,7 @@ export function CaptureSetupHeader({ name, source, step, completedSteps, dirty =
         <button type="button" className={buttonClass} disabled={busy} onClick={() => navigate(index === 0 ? 'list' : steps[index - 1])}>{copy.back}</button>
         {canEdit && (showSave || step !== 'review') && <div className="flex flex-col gap-3 sm:flex-row">
           {showSave && <button type="button" className={buttonClass} disabled={busy || !dirty} aria-busy={saving} onClick={() => { void save(); }}>{saving ? copy.saving : copy.save}</button>}
-          {step !== 'review' && <button type="button" className={`${buttonBase} border-primary bg-primary text-paper hover:bg-primary-dark`} disabled={busy || continueDisabled} onClick={() => { if (!busy && !inFlight.current) onContinue(); }}>{copy.continue}</button>}
+          {step !== 'review' && <button type="button" className={`${buttonBase} seafoam-action enabled:hover:bg-none enabled:hover:bg-seafoam-dark disabled:bg-none`} disabled={busy || continueDisabled} onClick={() => { if (!busy && !inFlight.current) onContinue(); }}>{copy.continue}</button>}
         </div>}
       </div>
     </footer>

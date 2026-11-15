@@ -1,4 +1,5 @@
 import type { captureProposeOperations } from '@salesmora/contracts';
+import { textBatches } from './text-batches';
 type CaptureProposalOperation = typeof captureProposeOperations[number];
 import type {
   CustomerOperationId,
@@ -45,20 +46,28 @@ export interface ConversationModel {
     operations?: readonly LeadOperationId[],
     customerOperations?: readonly CustomerOperationId[],
     captureOperations?: readonly CaptureProposalOperation[],
+    executedTools?: readonly ImplementedToolId[],
   ): AsyncIterable<string>;
+}
+export interface RuntimeCapabilities {
+  tools: readonly ChatToolId[];
+  leadOperations: readonly LeadOperationId[];
+  customerOperations: readonly CustomerOperationId[];
+  captureOperations: readonly CaptureProposalOperation[];
 }
 export interface RuntimeDependencies {
   model: ConversationModel;
-  checkpointer: BaseCheckpointSaver;
+  /** Optional diagnostics only; live turns recover through the app transcript, never graph resumption. */
+  checkpointer?: BaseCheckpointSaver;
   authorize: (
     tool?: ChatToolId,
     operation?: LeadOperationId,
   ) => Promise<readonly ChatToolId[]>;
-  captureOperations?: () => Promise<readonly CaptureProposalOperation[]>;
-  customerOperations?: () => Promise<readonly CustomerOperationId[]>;
-  leadOperations?: () => Promise<readonly LeadOperationId[]>;
+  capabilities: () => Promise<RuntimeCapabilities>;
   executeTool: (name: ImplementedToolId, args: unknown) => Promise<ToolResult>;
   rememberSources: (sources: HelpSource[]) => Promise<void>;
+  /** Server delivery must freshly authorize each batch before releasing it. */
+  deliverText?: (text: string) => Promise<void>;
   emit: (
     event:
       | { type: "status"; status: "retrieving" | "preparing_draft" }
@@ -75,7 +84,7 @@ function requestOperation(value: unknown): string | undefined {
   }
   return typeof request.operation === "string" ? request.operation : undefined;
 }
-/** Bounded read/draft graph. No commit capability. Checkpoints contain execution IDs/phases, never transcripts or tool data. */
+/** Bounded read/draft graph. No commit capability. Optional diagnostic checkpoints contain IDs/phases only. */
 export async function runConversation(
   input: {
     turnId: string;
@@ -85,6 +94,7 @@ export async function runConversation(
   },
   deps: RuntimeDependencies,
 ) {
+  let reportResult: import("@salesmora/contracts").ReportAssistantTicket | undefined;
   let customerResult: CustomerChatResult | undefined;
   let calendarProposal: import("@salesmora/contracts").CalendarProposalTicket | undefined;
   let captureSource: import("@salesmora/contracts").CaptureAssistantProposalTicket | undefined;
@@ -101,8 +111,12 @@ export async function runConversation(
   let estimateArchive: import("@salesmora/contracts").EstimateArchiveChatTicket | undefined;
   let estimateDraftDelete: import("@salesmora/contracts").EstimateDraftDeleteChatTicket | undefined;
   let estimateConversion: import("@salesmora/contracts").EstimateConversionChatTicket | undefined;
+  const streamMetrics: { providerFragments: number; firstProviderTextMs: number | null } = {
+    providerFragments: 0, firstProviderTextMs: null,
+  };
   let calls: RuntimeCall[] = [];
   const evidence: unknown[] = [];
+  const executedTools: ImplementedToolId[] = [];
   let sources: HelpSource[] = [];
   let action: ChatActionReview | undefined;
   let historyResult:
@@ -130,14 +144,14 @@ export async function runConversation(
       "plan",
       safeNode(async () => {
         assertActive();
-        const tools = await deps.authorize();
+        const capabilities = await deps.capabilities();
         calls = await deps.model.plan(
           input.messages,
-          tools,
+          capabilities.tools,
           input.signal,
-          (await deps.leadOperations?.()) ?? [],
-          (await deps.customerOperations?.()) ?? [],
-          (await deps.captureOperations?.()) ?? [],
+          capabilities.leadOperations,
+          capabilities.customerOperations,
+          capabilities.captureOperations,
         );
         if (
           calls.length > 2 ||
@@ -161,17 +175,18 @@ export async function runConversation(
         for (const call of calls) {
           assertActive();
           if (!isImplementedTool(call.name)) throw Error("Unavailable tool");
-          await deps.authorize(call.name);
           const definition = toolRegistry[call.name];
           const args = definition.inputSchema.parse(call.args);
+          const capabilities = await deps.capabilities();
+          if (!capabilities.tools.includes(call.name))
+            throw Error("Access denied.");
           if (
             call.name === "leads_query" ||
             call.name === "leads_propose_action"
           ) {
             const operation = requestOperation(args);
             if (!isLeadOperation(operation)) throw Error("Access denied.");
-            await deps.authorize(call.name, operation);
-            if (!((await deps.leadOperations?.()) ?? []).includes(operation))
+            if (!capabilities.leadOperations.includes(operation))
               throw Error("Access denied.");
           }
           if (
@@ -181,16 +196,19 @@ export async function runConversation(
             const op = requestOperation(args);
             if (
               !op ||
-              !((await deps.customerOperations?.()) ?? []).some(
+              !capabilities.customerOperations.some(
                 (available) => available === op,
               )
             )
               throw Error("Access denied.");
           }
-          if (call.name === 'lead_capture_propose_action' && !((await deps.captureOperations?.()) ?? []).some(operation => operation === (args as { operation: string }).operation)) throw Error('Access denied.');
+          if (call.name === 'lead_capture_propose_action' &&
+            !capabilities.captureOperations.some(operation => 'operation' in args && operation === args.operation))
+            throw Error('Access denied.');
           if (definition.progress)
             await deps.emit({ type: "status", status: definition.progress });
           const result = await deps.executeTool(call.name, args);
+          reportResult = result.reportResult ?? reportResult;
           if (result.sources) {
             sources = result.sources;
             await deps.rememberSources(sources);
@@ -216,6 +234,7 @@ export async function runConversation(
           historyResult = result.historyResult ?? historyResult;
           detailsResult = result.detailsResult ?? detailsResult;
           evidence.push(result.evidence);
+          executedTools.push(call.name);
         }
         return { phase: "read" };
       }),
@@ -224,24 +243,28 @@ export async function runConversation(
       "answer",
       safeNode(async () => {
         assertActive();
-        const tools = await deps.authorize();
+        const capabilities = await deps.capabilities();
         let length = 0;
-        for await (const text of deps.model.answer(
+        for await (const text of textBatches(deps.model.answer(
           input.messages,
           evidence,
           input.signal,
-          tools,
-          (await deps.leadOperations?.()) ?? [],
-          (await deps.customerOperations?.()) ?? [],
-          (await deps.captureOperations?.()) ?? [],
-        )) {
+          capabilities.tools,
+          capabilities.leadOperations,
+          capabilities.customerOperations,
+          capabilities.captureOperations,
+          executedTools,
+        ), input.signal, streamMetrics)) {
           assertActive();
           length += text.length;
           if (length > 16000 || text.length > 8000)
             throw Error("Answer budget exceeded");
           if (text) {
-            await deps.authorize();
-            await deps.emit({ type: "text", text });
+            if (deps.deliverText) await deps.deliverText(text);
+            else {
+              await deps.authorize();
+              await deps.emit({ type: "text", text });
+            }
           }
         }
         if (!length) throw Error("Empty answer");
@@ -260,11 +283,13 @@ export async function runConversation(
       configurable: { thread_id: input.turnId },
       signal: input.signal,
       recursionLimit: 5,
-      durability: "sync",
+      ...(deps.checkpointer ? { durability: "sync" as const } : {}),
       callbacks: [], // App tracing is explicitly disabled; no prompt/tool payload logging.
     },
   );
   return {
+    streamMetrics,
+    reportResult,
     sources,
     action,
     searchResult,

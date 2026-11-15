@@ -10,7 +10,9 @@
 .table td:nth-child(2) { min-width: 12rem; overflow-wrap: anywhere; }
 .table code { overflow-wrap: anywhere; }
 .page button { background: #fff; border: 1px solid #173b57; border-radius: .45rem; color: #173b57; cursor: pointer; font: inherit; font-weight: 600; min-height: 2.6rem; padding: .5rem .85rem; }
-.page button.primary, .toggle[aria-checked="true"] { background: #173b57; color: #fff; }
+.page button.primary { min-height: 2.75rem; border-color: var(--color-seafoam-light); background: linear-gradient(110deg, var(--color-seafoam-pale), var(--color-seafoam-light)); color: var(--color-ink); font-size: .875rem; box-shadow: 0 1px 2px rgb(0 0 0 / 5%); }
+.page button.primary:hover:not(:disabled) { border-color: var(--color-seafoam-dark); background: var(--color-seafoam-dark); }
+.toggle[aria-checked="true"] { background: #173b57; color: #fff; }
 .page button.danger { background: #8d1d19; border-color: #8d1d19; color: #fff; }
 .page button:disabled { cursor: not-allowed; opacity: .55; }
 .page button:focus-visible, .tableContainer:focus-visible, .form input:focus-visible, .form textarea:focus-visible { outline: 3px solid #286fa8; outline-offset: 3px; }

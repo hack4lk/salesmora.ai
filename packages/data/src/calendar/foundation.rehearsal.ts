@@ -3,63 +3,60 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createDatabase } from "../database";
-import { up, down } from "../migrations/202610210001_calendar_visits";
+import { migrateFreshBaseline } from "../baseline-runner";
+import { down as rollbackBaseline } from "../baseline-migrations/202611150001_fresh_baseline";
+import { initializeWorkspacePolicy } from "../authorization/store";
+
 const env = fileURLToPath(new URL("../../../../.env.local", import.meta.url));
 if (existsSync(env)) process.loadEnvFile(env);
 const connection = process.env.TEST_DATABASE_URL;
-if (!connection || !new URL(connection).pathname.endsWith("_test") || connection === process.env.DATABASE_URL ||
-  !["localhost", "127.0.0.1"].includes(new URL(connection).hostname)) throw Error("Use the isolated local test database.");
-const db = createDatabase(connection);
-const rollback = new Error("Rollback isolated Calendar rehearsal");
-let passed = 0;
+if (!connection || connection === process.env.DATABASE_URL || !new URL(connection).pathname.endsWith("_test") ||
+  !["localhost", "127.0.0.1"].includes(new URL(connection).hostname)) throw Error("Use a separate local test database.");
+
+const name = `calendar_foundation_${randomUUID().replaceAll("-", "")}_test`;
+const url = new URL(connection); url.pathname = `/${name}`;
+const owner = createDatabase(connection), db = createDatabase(url.toString());
+const workspaceId = randomUUID(), other = randomUUID(), userId = randomUUID(), otherUser = randomUUID();
+const job = randomUUID(), foreignJob = randomUUID(), visitId = randomUUID();
+let created = false;
 try {
+  await owner.raw("CREATE DATABASE ??", [name]); created = true;
+  await migrateFreshBaseline(db);
+  const now = new Date();
+  await db("users").insert([userId, otherUser].map(id => ({
+    id, name: "Calendar fixture", email: `${id}@example.test`, createdAt: now, updatedAt: now,
+    termsVersion: "fixture", termsAcceptedAt: now,
+  })));
   await db.transaction(async trx => {
-    const schema = `calendar_test_${randomUUID().replaceAll("-", "")}`;
-    await trx.raw(`CREATE SCHEMA "${schema}"`);
-    await trx.raw(`SET LOCAL search_path TO "${schema}", public`);
-    // Minimal source tables with the same types/tenant keys as the actual foundation migrations.
-    await trx.raw(`CREATE TABLE workspaces (id uuid PRIMARY KEY);
-      CREATE TABLE jobs (id uuid PRIMARY KEY, "workspaceId" uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-        "scheduledDate" date, "arrivalWindow" text, version integer NOT NULL, status text NOT NULL,
-        "createdAt" timestamptz NOT NULL DEFAULT now(), "updatedAt" timestamptz NOT NULL DEFAULT now(), UNIQUE("workspaceId",id));
-      CREATE TABLE "workOrders" (LIKE jobs INCLUDING ALL)`);
-    const workspaceId = randomUUID(), other = randomUUID();
-    await trx("workspaces").insert([{ id: workspaceId }, { id: other }]);
-    const job = randomUUID(), closedJob = randomUUID(), order = randomUUID(), foreignJob = randomUUID();
-    await trx("jobs").insert([
-      { id: job, workspaceId, scheduledDate: "2026-11-01", arrivalWindow: "09:00-11:00", version: 5, status: "scheduled" },
-      { id: closedJob, workspaceId, scheduledDate: "2026-10-01", arrivalWindow: null, version: 7, status: "completed" },
-      { id: foreignJob, workspaceId: other, scheduledDate: null, arrivalWindow: null, version: 1, status: "needs-scheduling" },
-    ]);
-    await trx("workOrders").insert({ id: order, workspaceId, scheduledDate: "2026-11-01", arrivalWindow: "09:00-11:00", version: 2, status: "issued" });
-    const before = await trx("jobs").orderBy("id"), ordersBefore = await trx("workOrders").orderBy("id");
-    await up(trx);
-    const links = await trx("calendarVisitRecords");
-    assert.equal(links.length, 4); assert.equal(new Set(links.map(row => row.visitId)).size, 4);
-    assert.deepEqual(await trx("jobs").orderBy("id"), before);
-    assert.deepEqual(await trx("workOrders").orderBy("id"), ordersBefore);
-    assert.equal((await trx("calendarScheduleSnapshots")).length, 4);
-    assert(links.find(row => row.jobId === closedJob).endedAt);
-    assert.equal(links.find(row => row.jobId === job).endedAt, null);
-    console.log("PASS independent backfill, unchanged records, closed history and unscheduled identities"); passed++;
-    const visitId = links.find(row => row.jobId === job).visitId;
-    const rejects = async (operation: (nested: typeof trx) => Promise<unknown>) => assert.rejects(trx.transaction(operation));
-    await rejects(nested => nested("calendarVisitRecords").insert({ id: randomUUID(), workspaceId: other, visitId, jobId: foreignJob }));
-    await rejects(nested => nested("calendarVisitRecords").insert({ id: randomUUID(), workspaceId, visitId, jobId: foreignJob }));
-    await rejects(nested => nested("calendarVisitRecords").insert({ id: randomUUID(), workspaceId, visitId, jobId: job }));
-    await rejects(nested => nested("calendarVisitRecords").insert({ id: randomUUID(), workspaceId, visitId, jobId: job, workOrderId: order }));
-    console.log("PASS tenant-safe foreign keys, unique active memberships and exactly one resource per link"); passed++;
-    await rejects(nested => nested("calendarScheduleSnapshots").where({ workspaceId, visitId }).update({ scheduledDate: "2026-11-02" }));
-    await rejects(nested => nested("calendarVisits").where({ id: visitId }).update({ scheduledDate: null, arrivalWindow: "09:00-11:00" }));
-    await rejects(nested => down(nested));
-    console.log("PASS protected snapshots, schedule constraints and rollback history guard"); passed++;
-    await trx("workspaces").where({ id: workspaceId }).delete();
-    assert.equal((await trx("calendarVisits").where({ workspaceId })).length, 0);
-    assert.equal((await trx("calendarScheduleSnapshots").where({ workspaceId })).length, 0);
-    console.log("PASS workspace erasure cascades without changing another tenant"); passed++;
-    assert.equal((await trx("calendarVisits").where({ workspaceId: other })).length, 1);
-    throw rollback;
+    for (const [id, ownerId] of [[workspaceId, userId], [other, otherUser]]) {
+      await trx("workspaces").insert({ id, ownerId, businessName: "Calendar fixture", businessType: "test", postalCode: "", serviceRange: "" });
+      await trx("workspaceMemberships").insert({ workspaceId: id, userId: ownerId, role: "owner" });
+      await initializeWorkspacePolicy(trx, { workspaceId: id, userId: ownerId });
+    }
   });
-} catch (error) { if (error !== rollback) throw error; }
-finally { await db.destroy(); }
-console.log(`Calendar foundation rehearsal passed (${passed} checks); isolated schema rolled back.`);
+  await db("jobs").insert([job, foreignJob].map((id, index) => ({
+    id, workspaceId: index ? other : workspaceId, customerName: "Fixture", title: "Fixture",
+    service: "Repair", location: "", description: "",
+  })));
+  await db("calendarVisits").insert({ id: visitId, workspaceId, scheduledDate: "2026-11-01" });
+  await db("calendarVisitRecords").insert({ id: randomUUID(), workspaceId, visitId, jobId: job });
+  await db("calendarScheduleSnapshots").insert({
+    id: randomUUID(), workspaceId, visitId, jobId: job, recordVersion: 1,
+    recordStatus: "needs-scheduling", scheduledDate: "2026-11-01", reason: "rescheduled",
+  });
+  await assert.rejects(db("calendarVisitRecords").insert({ id: randomUUID(), workspaceId: other, visitId, jobId: foreignJob }));
+  await assert.rejects(db("calendarVisitRecords").insert({ id: randomUUID(), workspaceId, visitId, jobId: foreignJob }));
+  await assert.rejects(db("calendarVisitRecords").insert({ id: randomUUID(), workspaceId, visitId, jobId: job }));
+  await assert.rejects(db("calendarVisitRecords").insert({ id: randomUUID(), workspaceId, visitId }));
+  await assert.rejects(db("calendarScheduleSnapshots").where({ workspaceId, visitId }).update({ scheduledDate: "2026-11-02" }));
+  await assert.rejects(db("calendarVisits").where({ id: visitId }).update({ scheduledDate: null, arrivalWindow: "09:00-11:00" }));
+  await assert.rejects(rollbackBaseline(), /forward-only/);
+  await db("workspaces").where({ id: workspaceId }).delete();
+  assert.equal((await db("calendarVisits").where({ workspaceId })).length, 0);
+  assert.equal((await db("calendarScheduleSnapshots").where({ workspaceId })).length, 0);
+  assert.ok(await db("jobs").where({ id: foreignJob, workspaceId: other }).first());
+  console.log("Calendar foundation tenant, uniqueness, snapshot, rollback and erasure checks passed.");
+} finally {
+  await db.destroy();
+  try { if (created) await owner.raw("DROP DATABASE ??", [name]); } finally { await owner.destroy(); }
+}

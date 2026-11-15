@@ -51,7 +51,7 @@ function hasLatestRevision(query: Knex.QueryBuilder, trx: Knex.Transaction) {
   return query;
 }
 
-function baseQuery(
+export function scopedEstimateQuery(
   trx: Knex.Transaction,
   context: AuthorizationContext,
   scope: EstimateReadScope,
@@ -107,7 +107,7 @@ function visibleQuery(
   scope: EstimateReadScope,
   includeHidden: boolean,
 ) {
-  const query = baseQuery(trx, context, scope);
+  const query = scopedEstimateQuery(trx, context, scope);
   if (!includeHidden) {
     query.whereNull("e.archivedAt").whereNot("e.status", "superseded");
     hasLatestRevision(query, trx);
@@ -727,7 +727,7 @@ async function listMetrics(
   scope: EstimateReadScope,
 ) {
   const row = await hasLatestRevision(
-    baseQuery(trx, context, scope)
+    scopedEstimateQuery(trx, context, scope)
       .whereNull("e.archivedAt")
       .whereNot("e.status", "superseded"),
     trx,
@@ -854,7 +854,7 @@ export async function readEstimates(
         .countDistinct({ count: "e.id" })
         .first();
       const total = safeInteger(totalRow?.count ?? 0, "result count");
-      const scopeTotalRow = await baseQuery(trx, context, readScope)
+      const scopeTotalRow = await scopedEstimateQuery(trx, context, readScope)
         .countDistinct({ count: "e.id" })
         .first();
       const scopeTotal = safeInteger(

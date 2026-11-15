@@ -12,9 +12,11 @@ import { workOrdersQueryTool, workOrdersProposeTool } from "../work-orders/tools
 import { materialsQueryTool, materialsProposeTool } from "../materials/tools";
 import { searchHelpTool } from "./search-help";
 import { estimatesQueryTool, estimatesProposeTool } from "../estimates/tools";
+import { reportsQueryTool } from "../reports/tools";
 
 /** Explicit read-only implementations. Planned tool IDs never become executable automatically. */
 export const readToolRegistry = {
+  reports_query: reportsQueryTool,
   lead_capture_query: captureQueryTool,
   calendar_query: calendarQueryTool,
   customers_query: customersQueryTool,
@@ -53,10 +55,12 @@ export type ImplementedToolId = keyof typeof toolRegistry;
 export const implementedTools: readonly ChatToolId[] = Object.keys(
   toolRegistry,
 ) as ImplementedToolId[];
+export const liveChatTools: readonly ChatToolId[] = implementedTools;
 export function isImplementedTool(name: string): name is ImplementedToolId {
   return Object.hasOwn(toolRegistry, name);
 }
 export interface ToolResult extends ReadToolResult {
+  reportResult?: import("@salesmora/contracts").ReportAssistantTicket;
   captureSource?: import("@salesmora/contracts").CaptureAssistantProposalTicket;
   captureSetup?: import("@salesmora/contracts").CaptureAssistantProposalTicket;
   captureResult?: import("@salesmora/contracts").CaptureChatTicket;

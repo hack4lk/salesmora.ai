@@ -1,5 +1,7 @@
 # Leads page plan
 
+> Historical migration paths in this document refer to the prior release. Current fresh databases use the [curated baseline](../packages/data/src/baseline/); existing databases require a separately designed upgrade.
+
 Status: **QA walkthrough complete** — October 14, 2026.
 Scope: the Leads list (`/leads`), the lead record (`/leads/[leadId]`), edit/archive/delete/export, and the full lead-aware assistant.
 

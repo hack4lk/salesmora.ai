@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFixtureProposal, readFixtureProposalAudit } from "./proposal-fixture-store";
 import { expect, request as requests, test, type APIRequestContext, type Page } from "@playwright/test";
 import { createDatabase } from "@salesmora/data";
 import { chatStreamEventSchema } from "@salesmora/contracts";
@@ -262,12 +263,10 @@ test("conversion proposal opens the protected Job form but creates nothing until
   expect((await db("leads").where({ id: source.leadId }).first()).stage).toBe(leadBefore.stage);
   expect(Number((await db("estimate_deliveries").where({ estimateId: source.estimateId }).count({ n: "*" }).first())?.n ?? 0))
     .toBe(Number(deliveriesBefore?.n ?? 0));
-  const proposal = await db("chatEstimateConversions").where({ workspaceId, id: run.ticket.id }).first();
+  const proposal = await readFixtureProposal(db, "estimateConversion", { workspaceId, id: run.ticket.id });
   expect(proposal.state).toBe("pending");
-  expect((await db("chatEstimateConversionAudit").where({
-    proposalId: run.ticket.id,
-    action: "review-opened",
-  })).length).toBe(1);
+  expect((await readFixtureProposalAudit(db, "estimateConversion", run.ticket.id))
+    .filter(row => row.action === "review-opened")).toHaveLength(1);
 
   await dialog.getByRole("button", { name: estimateConvertDialogData.confirm, exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/jobs/[0-9a-f-]+\\?workspace=${workspaceId}`));

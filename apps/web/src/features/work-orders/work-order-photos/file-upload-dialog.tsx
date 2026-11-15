@@ -218,7 +218,7 @@ export function FileUploadDialog({
           <button
             onClick={handleUpload}
             disabled={!selectedFile || isLoading}
-            className="px-4 py-2 text-sm font-medium bg-primary text-white rounded disabled:opacity-50"
+            className="seafoam-action rounded px-4 py-2 text-sm font-semibold enabled:hover:bg-none enabled:hover:bg-seafoam-dark disabled:opacity-50"
           >
             {isLoading ? 'Uploading...' : 'Upload'}
           </button>

@@ -4,18 +4,15 @@ import {
   chatTurnRequestSchema,
   type ChatStreamEvent,
 } from "@salesmora/contracts";
-import { authorize } from "@salesmora/domain";
-import { AuthorizationAccessError, isFeatureFlagEnabled } from "@salesmora/data";
-import { getSession } from "../../../../server/auth/session";
-import { workspaceAuthorization } from "../../../../server/authorization/permissions";
+import { AuthorizationAccessError, createAIUsageSession, createDatabaseMeasurement, isFeatureFlagEnabled, withDatabasePhase } from "@salesmora/data";
+import { randomUUID } from "node:crypto";
+import { getAuthenticatedSession } from "../../../../server/auth/session";
 import { database } from "../../../../server/workspaces/store";
 import {
   acceptTurn,
-  appendDelta,
   ChatCancelledError,
   ChatLimitError,
   finishTurn,
-  turnStillActive,
 } from "../../../../server/chat/store";
 import {
   chatBody,
@@ -25,7 +22,9 @@ import {
 } from "../../../../server/chat/http";
 import { chatRuntimeAvailable } from "../../../../server/chat/config";
 import { liveChatResponse } from "../../../../server/chat/runtime";
-import { validateTurnEvidence } from "../../../../server/chat/store";
+import { createTranscriptDelivery } from "../../../../server/chat/transcript-delivery";
+import { watchChatTurnCancellation } from "../../../../server/chat/cancellation";
+import { withChatRequest } from "../../../../server/chat/request-context";
 import {
   testChatProviderEnabled,
   testChatResponse,
@@ -34,11 +33,35 @@ import {
 
 export const runtime = "nodejs";
 export const maxDuration = 100;
+class ChatProviderUnavailableError extends Error {}
 export async function POST(request: Request) {
+  if (process.env.CHAT_DB_METRICS !== "true") return postTurn(request);
+  const measurement = createDatabaseMeasurement();
+  const measurementId = randomUUID();
+  let reported = false;
+  const report = () => {
+    if (reported) return;
+    reported = true;
+    console.info("chat_database " + JSON.stringify({ measurementId, ...measurement.snapshot() }));
+  };
+  return measurement.run(async () => {
+    try {
+      const response = await postTurn(request, report);
+      response.headers.set("X-Chat-Database-Metrics-Id", measurementId);
+      if (!response.headers.get("Content-Type")?.startsWith("text/event-stream")) report();
+      return response;
+    } catch (error) {
+      report();
+      throw error;
+    }
+  });
+}
+async function postTurn(request: Request, reportDatabase?: () => void) {
   if (!validChatOrigin(request))
     return chatReply({ error: "invalid_origin" }, 403);
-  const session = await getSession();
+  const session = await getAuthenticatedSession();
   if (!session) return chatReply({ error: "authentication_required" }, 401);
+  const sessionId = session.session.id;
   try {
     let body: unknown;
     try {
@@ -55,15 +78,11 @@ export async function POST(request: Request) {
       userId: session.user.id,
       workspaceId: input.workspaceId,
     };
-    const context = await workspaceAuthorization(
-      identity.userId,
-      identity.workspaceId,
-    );
-    if (!authorize(context, { permission: "assistant.use" }).allowed)
-      throw new AuthorizationAccessError();
-    if (!chatRuntimeAvailable() || !await isFeatureFlagEnabled(database(), "chat.enabled", input.workspaceId))
-      return chatReply({ error: "provider_unavailable" }, 503);
-    const { turn, replay } = await acceptTurn(identity, input);
+    const admission = await withDatabasePhase("accept", () => acceptTurn(identity, input, async trx => {
+      if (!chatRuntimeAvailable() || !await isFeatureFlagEnabled(database(), "chat.enabled", input.workspaceId, trx))
+        throw new ChatProviderUnavailableError();
+    }));
+    const { turn, replay, authority, clock } = admission;
     if (replay)
       return chatReply({
         replay: true,
@@ -71,6 +90,7 @@ export async function POST(request: Request) {
         turnId: turn.id,
         state: turn.state,
       });
+    const usage = createAIUsageSession(database(), { ...identity, turnId: turn.id });
     const abort = new AbortController();
     const timeout = setTimeout(() => abort.abort("timeout"), 90_000);
     const disconnected = () => abort.abort("disconnect");
@@ -81,23 +101,13 @@ export async function POST(request: Request) {
     let closed = false;
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
+        return withChatRequest({ authority, turn, sessionId, clock, usage,
+          reference: 'reference' in admission ? admission.reference : undefined,
+          calendarFocus: 'calendarFocus' in admission ? admission.calendarFocus : undefined }, async () => {
         const heartbeat = setInterval(() => {
           if (!closed) controller.enqueue(encoder.encode(": heartbeat\n\n"));
         }, 10_000);
-        // A persisted Stop must abort upstream even while no provider token is arriving.
-        let checking = false;
-        const cancellation = setInterval(async () => {
-          if (checking || closed || abort.signal.aborted) return;
-          checking = true;
-          try {
-            if (!(await turnStillActive(identity, turn.id)))
-              abort.abort("cancelled");
-          } catch {
-            abort.abort("unavailable");
-          } finally {
-            checking = false;
-          }
-        }, 250);
+        const cancellation = watchChatTurnCancellation(identity, turn.id, abort);
         const send = (event: object) => {
           if (closed) return;
           const parsedEvent: ChatStreamEvent = chatStreamEventSchema.parse({
@@ -114,6 +124,7 @@ export async function POST(request: Request) {
         let customerResult;
         let workOrderResult;
         let calendarResult;
+        let reportResult;
         let captureResult;
         let calendarProposal;
         let captureSetup;
@@ -131,7 +142,22 @@ export async function POST(request: Request) {
         let searchResult;
         let historyResult;
         let detailsResult;
+        let sources: Extract<ChatStreamEvent, { type: "sources" }>["sources"] | undefined;
+        const delivery = createTranscriptDelivery({
+          signal: abort.signal,
+          authorize: async () => {
+            abort.signal.throwIfAborted();
+          },
+          persist: text => withDatabasePhase("finalize", async () => {
+            abort.signal.throwIfAborted();
+            await finishTurn(identity, turn.id, "completed", text, sessionId);
+          }),
+          send: text => send({ type: "message.delta", messageId: turn.messageId, text }),
+          onFailure: () => abort.abort("delivery_failed"),
+        });
         try {
+          await cancellation.ready;
+          abort.signal.throwIfAborted();
           send({
             type: "turn.accepted",
             threadId: turn.threadId,
@@ -143,22 +169,14 @@ export async function POST(request: Request) {
               | { type: "status"; status: "retrieving" | "preparing_draft" }
               | { type: "text"; text: string },
           ) => {
-            if (abort.signal.aborted) throw new ChatCancelledError();
-            if ((await getSession())?.user.id !== identity.userId)
-              throw new AuthorizationAccessError();
             if (event.type === "text") {
-              await appendDelta(identity, turn.id, event.text);
-              send({
-                type: "message.delta",
-                messageId: turn.messageId,
-                text: event.text,
-              });
-            } else {
-              await validateTurnEvidence(identity, turn.id);
-              send(event);
+              await delivery.push(event.text);
+              return;
             }
+            abort.signal.throwIfAborted();
+            send(event);
           };
-          const fixtureModel = testDraftModel(input.message);
+          const fixtureModel = testDraftModel(input.message, { ...identity, turnId: turn.id });
           if (testChatProviderEnabled() && !fixtureModel) {
             for await (const text of testChatResponse(
               input.message,
@@ -167,17 +185,19 @@ export async function POST(request: Request) {
             ))
               await emit({ type: "text", text });
           } else {
-            const result = await liveChatResponse(
+            const result = await withDatabasePhase("runtime", () => liveChatResponse(
               identity,
               input,
               turn,
               abort.signal,
               emit,
+              sessionId,
               fixtureModel,
-            );
+            ));
             customerResult = result.customerResult;
             workOrderResult = result.workOrderResult;
             calendarResult = result.calendarResult;
+            reportResult = result.reportResult;
             captureSource = result.captureSource;
             captureSetup = result.captureSetup;
             captureResult = result.captureResult;
@@ -195,21 +215,15 @@ export async function POST(request: Request) {
             searchResult = result.searchResult;
             detailsResult = result.detailsResult;
             historyResult = result.historyResult;
-            await validateTurnEvidence(identity, turn.id);
-            if ((await getSession())?.user.id !== identity.userId)
-              throw new AuthorizationAccessError();
-            if (result.sources.length)
-              send({
-                type: "sources",
-                messageId: turn.messageId,
-                sources: result.sources,
-              });
+            sources = result.sources;
           }
-          if ((await getSession())?.user.id !== identity.userId)
-            throw new AuthorizationAccessError();
-          await finishTurn(identity, turn.id, "completed");
+          await withDatabasePhase("runtime", () => usage.flush());
+          await delivery.finish();
+          abort.signal.throwIfAborted();
+          // Admission covers this answer; later history/navigation requests authorize independently.
+          if (sources?.length)
+            send({ type: "sources", messageId: turn.messageId, sources });
           if (historyResult) {
-            await validateTurnEvidence(identity, turn.id);
             send({
               type: "lead.history",
               messageId: turn.messageId,
@@ -217,7 +231,6 @@ export async function POST(request: Request) {
             });
           }
           if (detailsResult) {
-            await validateTurnEvidence(identity, turn.id);
             send({
               type: "lead.details",
               messageId: turn.messageId,
@@ -225,7 +238,6 @@ export async function POST(request: Request) {
             });
           }
           if (searchResult) {
-            await validateTurnEvidence(identity, turn.id);
             send({
               type: "leads.results",
               messageId: turn.messageId,
@@ -233,34 +245,33 @@ export async function POST(request: Request) {
             });
           }
           if (customerResult) {
-            await validateTurnEvidence(identity, turn.id);
             send({
               type: "customers.result",
               messageId: turn.messageId,
               result: customerResult,
             });
           }
-          if (calendarProposal) { await validateTurnEvidence(identity,turn.id);send({ type:"calendar.proposal",messageId:turn.messageId,result:calendarProposal }); }
-          if (captureSource) { await validateTurnEvidence(identity, turn.id); send({ type: "capture.source", messageId: turn.messageId, result: captureSource }); }
-          if (captureSetup) { await validateTurnEvidence(identity, turn.id); send({ type: "capture.setup", messageId: turn.messageId, result: captureSetup }); }
-          if (captureResult) { await validateTurnEvidence(identity, turn.id); send({ type: "capture.result", messageId: turn.messageId, result: captureResult }); }
-          if (calendarResult) { await validateTurnEvidence(identity, turn.id); send({ type: "calendar.result", messageId: turn.messageId, result: calendarResult }); }
+          if (calendarProposal) send({ type:"calendar.proposal",messageId:turn.messageId,result:calendarProposal });
+          if (captureSource) send({ type: "capture.source", messageId: turn.messageId, result: captureSource });
+          if (captureSetup) send({ type: "capture.setup", messageId: turn.messageId, result: captureSetup });
+          if (captureResult) send({ type: "capture.result", messageId: turn.messageId, result: captureResult });
+          if (calendarResult) send({ type: "calendar.result", messageId: turn.messageId, result: calendarResult });
+          if (reportResult) send({ type: "report.result", messageId: turn.messageId, result: reportResult });
           if (workOrderResult) {
-            await validateTurnEvidence(identity, turn.id);
             send({
               type: "work_orders.result",
               messageId: turn.messageId,
               result: workOrderResult,
             });
           }
-          if (proposedAction)
+          if (proposedAction) {
             send({
               type: "action.proposed",
               messageId: turn.messageId,
               action: proposedAction,
             });
+          }
           if (estimateResult) {
-            await validateTurnEvidence(identity, turn.id);
             send({
               type: "estimates.result",
               messageId: turn.messageId,
@@ -268,44 +279,47 @@ export async function POST(request: Request) {
             });
           }
           if (estimateDraft) {
-            await validateTurnEvidence(identity, turn.id);
             send({ type: "estimates.draft", messageId: turn.messageId, result: estimateDraft });
           }
           if (estimateSharing) {
-            await validateTurnEvidence(identity, turn.id);
             send({ type: "estimates.sharing", messageId: turn.messageId, result: estimateSharing });
           }
           if (estimateDraftAction) {
-            await validateTurnEvidence(identity, turn.id);
             send({ type: "estimates.draft_action", messageId: turn.messageId, result: estimateDraftAction });
           }
           if (estimateVoid) {
-            await validateTurnEvidence(identity, turn.id);
             send({ type: "estimates.void", messageId: turn.messageId, result: estimateVoid });
           }
           if (estimateArchive) {
-            await validateTurnEvidence(identity, turn.id);
             send({ type: "estimates.archive", messageId: turn.messageId, result: estimateArchive });
           }
           if (estimateDraftDelete) {
-            await validateTurnEvidence(identity, turn.id);
             send({ type: "estimates.draft_delete", messageId: turn.messageId, result: estimateDraftDelete });
           }
           if (estimateConversion) {
-            await validateTurnEvidence(identity, turn.id);
             send({ type: "estimates.convert", messageId: turn.messageId, result: estimateConversion });
           }
           if (estimateDecision) {
-            await validateTurnEvidence(identity, turn.id);
             send({ type: "estimates.decision", messageId: turn.messageId, result: estimateDecision });
           }
           send({ type: "turn.completed", messageId: turn.messageId });
         } catch (error) {
+          try {
+            await delivery.stop();
+          } catch (deliveryError) {
+            error = deliveryError;
+          }
           const reason = abort.signal.reason;
           abort.abort("failed");
           const cancelled =
             error instanceof ChatCancelledError ||
             ["disconnect", "cancelled"].includes(reason);
+          try {
+            await withDatabasePhase("runtime", () => usage.flush(cancelled ? "cancelled" : "failed"));
+          } catch (usageError) {
+            console.error("Chat usage settlement failed.", usageError instanceof Error ? usageError.name : "UnknownError");
+            error = usageError;
+          }
           try {
             await finishTurn(
               identity,
@@ -337,15 +351,17 @@ export async function POST(request: Request) {
                 },
           );
         } finally {
+          console.info("chat_delivery", delivery.metrics);
           clearTimeout(timeout);
-          clearInterval(cancellation);
           clearInterval(heartbeat);
+          void cancellation.stop().then(() => reportDatabase?.());
           request.signal.removeEventListener("abort", disconnected);
           if (!closed) {
             closed = true;
             controller.close();
           }
         }
+        });
       },
       cancel() {
         closed = true;
@@ -360,6 +376,8 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    if (error instanceof ChatProviderUnavailableError)
+      return chatReply({ error: "provider_unavailable" }, 503);
     return chatError(error);
   }
 }

@@ -1,0 +1,16 @@
+export const estimateCurrentReportData = {
+  title: 'Current Estimates and handoff',
+  help: 'About current Estimates',
+  awaiting: 'Awaiting decision',
+  value: 'Awaiting pre-tax value',
+  expired: 'Expired quotes',
+  handoff: 'Accepted awaiting Job handoff',
+  current: 'As of now / independent of the reporting period',
+  issued: "Use each authorized family's latest issued revision, ignoring newer unissued drafts. Only active Sent/Published quotes await decisions. Resends do not create another family or reset issued age. Archived, voided, superseded and draft quotes are excluded from current attention.",
+  expiry: 'Expiry strictly before business-local today is expired; expiry today remains awaiting. Quotes without an expiry remain awaiting. Age is elapsed business-calendar days since this revision was first issued, not since a resend. No arbitrary overdue threshold is applied.',
+  money: 'Awaiting value uses validated frozen subtotal minus discount, before sales tax. Customer tax-inclusive total is separate. Deposits do not reduce quoted value. These are quotes, not revenue, payments or profit; never substitute current draft/catalog prices.',
+  handoffDefinition: 'Handoff includes active accepted lead-parent quotes linked to active Leads, with a proven absence of both an accepted-estimate Job and any existing source-Lead Job. Job-parent estimates are already associated with a Job and are excluded. Completed or canceled linked Jobs still prove an existing handoff. This queue does not promise that conversion is currently permitted.',
+  handoffDenied: 'Job handoff is unavailable without complete currently authorized Lead and Job linkage visibility. Missing visibility never means not converted.',
+  moneyDenied: 'Awaiting monetary values are unavailable under current financial and estimate-price access.',
+  invalid: 'Current Estimates could not be displayed because the snapshot, distinct families, expiry, handoff, frozen values or evidence are inconsistent. Retry the report.',
+};

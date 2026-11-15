@@ -85,14 +85,27 @@
 .secondaryButton {
   min-height: 38px;
   padding: 0 13px;
-  border: 1px solid #315c8a;
+  border: 1px solid #d3dee8;
   border-radius: 8px;
-  background: #315c8a;
-  color: #fff;
+  background: #fff;
+  color: #3d5268;
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 650;
   cursor: pointer;
+}
+
+.button {
+  min-height: 44px;
+  border-color: var(--color-seafoam-light);
+  background: linear-gradient(110deg, var(--color-seafoam-pale), var(--color-seafoam-light));
+  color: var(--color-ink);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 5%);
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--color-seafoam-dark);
+  background: var(--color-seafoam-dark);
 }
 
 .secondaryButton {

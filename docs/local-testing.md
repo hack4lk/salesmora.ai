@@ -16,6 +16,11 @@ corepack pnpm dev
 
 The `.nvmrc` selects the locally available Node 22.23.3. If your terminal does not load nvm, use your normal nvm initialization first. The root package manifest pins pnpm through Corepack; plain `pnpm` also works when its Corepack shim is enabled.
 
+The migration step is fresh-only and forward-only. It rejects databases with
+historical migration ledgers; it does not reset or upgrade them. Use the prior
+release or a separately designed upgrade for existing databases, and obtain
+explicit approval before rebuilding one.
+
 Open [the local app](http://127.0.0.1:3000). In a second terminal:
 
 ```bash
@@ -413,15 +418,138 @@ Storybook **Expansion** and **Draft Only** cover the new states. Real-page behav
 
 Run `pnpm --filter @salesmora/web test:e2e chat.spec.ts` against the isolated test database. Its test server explicitly enables the fictional provider only when running against a `_test` database in non-production mode. Do not enable fixture flags on the normal app. The regular app retains the approved disabled assistant composer until live generation is integrated.
 
-The suite verifies durable acceptance, visible incremental delivery before completion, exact-submission replay without regeneration, conflicting payload rejection, private workspace/user history, Stop and disconnect cancellation, partial-response persistence, safe provider failure, stale-lease recovery, rate/concurrency bounds, permission revocation and session revocation. The unit suite covers fragmented UTF-8/CRLF SSE frames, replay, invalid events and missing terminal states. No model requests or spend are required.
+The suite verifies durable acceptance, visible incremental delivery before completion, exact-submission replay without regeneration, conflicting payload rejection, private workspace/user history, Stop and disconnect cancellation, completion-only answer persistence (interrupted answers are discarded), safe provider failure, stale-lease recovery, rate/concurrency bounds, permission revocation and session revocation. The unit suite covers fragmented UTF-8/CRLF SSE frames, replay, invalid events and missing terminal states. No model requests or spend are required. The older `chat.spec.ts` suite truncates shared test tables; use targeted `chat-reports.spec.ts` regressions for shared environments.
 
-Routes: POST `/api/chat/turns`, GET/DELETE `/api/chat/threads`, POST `/api/chat/cancel`. All mutations require the configured Origin and session; all access reloads current app permissions. A repeated accepted submission returns JSON with its existing state instead of a new stream. History is bounded to 50 recent turns; the eventual client adapter must reconcile before starting another attempt and mark non-completed partial answers incomplete.
+Routes: POST `/api/chat/turns`, GET/DELETE `/api/chat/threads`, POST `/api/chat/cancel`. All mutations require the configured Origin and session; all access reloads current app permissions. A repeated accepted submission returns JSON with its existing state instead of a new stream. Display history is bounded to 50 recent turns; model runtime loads at most 13 turns for its existing 12-message window and does not reload history for a newly accepted thread. The eventual client adapter must reconcile before starting another attempt and mark non-completed partial answers incomplete.
+
+As of November 13, the user-approved contract authorizes **once at request admission**. Context, planning, tools, text delivery and completion share that authority; session/user/permission revocation applies to the next HTTP request. Stop, listener failure, disconnect and timeout still abort immediately through the signal. Completion atomically checks persisted active state/lease and saves the full text plus staged result provenance in one statement. Interrupted text/evidence is discarded. History/navigation and explicit business confirmations remain fresh independent requests; ordinary data edits no longer trigger whole-workspace fingerprint scans.
+
+History and navigation authorization is **per request**, never reused from the original generation request. History already shares one workspace context across its contents; repeated references to the same Lead search snapshot now share their access result only within that read transaction, including denials. Each later load starts fresh, and unrelated evidence still has independent record-level validation/redaction. Lead navigation combines turn, evidence and destination validation in one authorization transaction. Customer and Calendar navigation reuse their held context for target-record reads; Calendar proposal visibility also avoids nested workspace authorization. Record pages and explicit business confirmations retain their own fresh checks.
+
+Request capabilities are loaded at admission and reused for planning, answer context and all 16 read/proposal tools. The shared runner validates schemas and tool/operation access, executes transaction-bound domain services and stages provenance for completion-only persistence. Nested native reads reuse admitted authority; nested writes preserve rollback savepoints. Help embedding runs outside transactions. History/navigation and explicit business confirmations retain fresh independent authorization.
+
+Run `pnpm exec vitest run apps/web/src/server/chat/tools/runner.test.ts apps/web/src/server/chat/tools/index.test.ts apps/web/src/server/chat/leads/index.test.ts apps/web/src/server/chat/runtime.test.ts` for shared lifecycle/dispatch/operation tests and architectural guards against handler-owned root DB or authority acquisition. `pnpm --filter @salesmora/data test:authorization` creates a disposable database to verify nested scope isolation, permission narrowing and caught SQL-error rollback. The isolated Reports suite delays planning, verifies that admitted session/permission snapshots complete despite later revocation, and verifies that notified Stop aborts before execution. New requests still deny revoked access.
+
+The isolated suite covers in-flight revocation with successful admitted completion, fresh denial on the next request, notified Stop before tool execution, discarded interrupted answers, historical ordinary edits, later assignment/permission revocation, forged destinations and cross-user denial. Customer/Calendar regressions stay in this safe suite rather than older suites that clear shared rate limits. Request-context tests assert zero setup/release/staging calls and exactly one guarded completion statement; disposable authorization checks cover scope isolation and later-request revocation. Metrics report both driver `calls` and returned server `statements` so packed accounting commands do not masquerade as fewer SQL statements. `authorityReads` counts the joined policy read; `fingerprintQueries` detects the former SQL `md5(...)` fingerprints. Failed multi-statement batches may expose only one error response, so their statement count is a lower bound.
+
+The isolated `chat-reports.spec.ts` also checks timestamped Lead search retention across ordinary edits and inherited answers, plus assignment-loss denial. New search cards display the snapshot time rather than promising live counts; older snapshots without a timestamp retain strict requery validation. `chat-search.spec.ts` has updated snapshot expectations but globally clears shared rate limits, so do not run it in a shared test environment. For development cancellation timing, the safe regression warms the cancel endpoint before starting its finite provider fixture, avoiding a cold route compile being mistaken for listener latency.
+
+The same safe suite checks proposal-family persistence, database rejection of invalid families, zero proposal queries for modern plain turns, family-directed and legacy discovery, restored reviews and cross-user denial. Runtime-history units verify that recorded states replace review hydration without weakening display/confirmation checks. `packages/data/src/reports/assistant.rehearsal.ts` compares optimized Overview aggregates with full native Lead/Job readers under workspace and assigned access, including archive visibility, exact inactivity boundaries, invalid future-created Leads and reopened/recompleted Jobs; its fixtures roll back. The measured warm Overview path is 41 driver calls / 47 SQL statements, not the earlier 70 / 76. See the seventeenth reduction in [the chat implementation plan](./chat-implementation-plan.md) for all measured reductions and cold-cache qualifications.
+
+For the canonical proposal foundation, run `pnpm --filter @salesmora/data test:chat-proposals`.
+It requires `TEST_DATABASE_URL` ending in `_test` and `CREATEDB`; it loads the
+root local environment, replays real migrations into its own random disposable
+database and drops only that database after destroying its connections. It
+does not migrate or truncate shared development/test tables. Contract units
+are `pnpm --filter @salesmora/contracts exec vitest run src/chat-proposals.test.ts`.
+See [verified coverage and remaining consolidation gates](./chat-proposal-consolidation.md#6-step-2-implementation-and-verified-limits);
+the existing application remains on legacy proposal storage.
+
+Run `pnpm --filter @salesmora/data test:estimate-proposal-storage` for the
+staged Estimate adapter group. It has the same `_test`/`CREATEDB` requirements
+and disposable-database isolation. It runs native workflows in legacy mode,
+then in the common explicit canonical rehearsal scope, asserts no legacy SQL
+in the canonical run, and verifies that the scope does not leak or fall back.
+No provider, email delivery or shared database reset is used. See
+[Estimate adapter coverage](./chat-proposal-consolidation.md#7-step-3-staged-estimate-adapter-group).
+
+Run `pnpm --filter @salesmora/data test:calendar-capture-proposal-storage` for
+the staged Calendar/Capture group. This requires the separate local `_test`
+connection and `CREATEDB`; each runner replays migrations into its own random
+database and removes only that database in cleanup. It runs Calendar shared
+visit/clear/cancel workflows, Capture Setup saved/suggestion/manual-sample
+workflows and Capture Source publication/schedule/lifecycle workflows in
+canonical mode under the web role. These runs assert zero legacy
+proposal/audit SQL. Audit-failure injection checks native-write rollback;
+no provider calls, email delivery or shared database reset is used.
+The Setup runner deliberately attempts a forbidden migration rollback, so
+the expected `Retained Gmail sample proof requires this migration` diagnostic
+appears before its passing result.
+See [Calendar/Capture coverage and limits](./chat-proposal-consolidation.md#8-step-3-staged-calendarcapture-adapter-group).
+
+Run `pnpm --filter @salesmora/data test:lead-proposal-storage` for native Lead
+adapters. The data runner supplies the existing `tsx` dependency and
+`react-server` condition for the actual web server handlers. It creates its
+own random local database from `TEST_DATABASE_URL` (separate `_test`
+connection and `CREATEDB` required), replays migrations and exercises all
+Lead variants in canonical mode under the web runtime role.
+It checks native mutations, typed deletion/copy erasure/minimal receipts,
+dedicated CSV streams, directional supersession and lifecycle-audit failure
+rollback. It restores its process-local database setting, destroys its own
+connections and drops only its owned database. No shared tables are reset;
+no provider or email delivery is used.
+See [Lead coverage and remaining gates](./chat-proposal-consolidation.md#9-step-3-staged-lead-adapter-group).
+
+Run `pnpm --filter @salesmora/data test:customer-work-order-material-proposal-storage`
+for the final staged families. It reuses the actual web-handler runner with
+`--reviewed-only`, existing `tsx` and `react-server`, the separate local `_test`
+connection and `CREATEDB`. Canonical mode exercises native Customer, Work Order and
+Material mutations, visible reviews, CSV/replay gates, propose-only catalog
+authority, deletion/unlink/redaction and directional supersession. Canonical
+audit failures verify rollback and atomic preparation; lock isolation and
+zero legacy proposal/audit SQL are asserted.
+It removes only its owned random database, restores process-local settings
+and sends no provider requests or emails.
+See [coverage and remaining gates](./chat-proposal-consolidation.md#10-step-3-staged-customerwork-ordermaterials-adapter-group).
+
+Run `pnpm --filter @salesmora/data test:proposal-history-integration` for
+actual web runtime/display history in canonical mode. It reuses the same
+disposable runner with `--history-only`, separate local `_test`/`CREATEDB`
+requirements and no provider/email work. It checks mixed restored cards,
+recorded states, direct preparation metadata, plain zero-query history,
+unknown metadata, one canonical discovery query, one mixed inherited payload
+batch, missing/unfinished/erased sources, foreign actors, thread cascade/audit
+retention and the guarded all-family metadata migration roundtrip.
+The new migration is applied only to its owned random database, not shared
+development/test data. Existing metadata is not backfilled.
+See [integration coverage and remaining gates](./chat-proposal-consolidation.md#11-staged-all-family-metadata-discovery-and-inherited-history).
+
+Legacy backfill and compatible rollback are not supported by the fresh-only
+release. Existing databases must use the previous release or a separately
+designed upgrade; the baseline does not import or discard their data.
+
+For selected proposal browser checks, run
+`pnpm --filter @salesmora/data test:proposal-browser` with the same distinct
+local `_test` connection and `CREATEDB`. The harness migrates a random owned
+database to canonical-only storage, runs the fixture-provider browser suite
+as `salesmora_web`, and drops the database afterward. Further arguments are
+passed to Playwright;
+the Reports spec is included by default. Some older specs use a fixed origin:
+for Capture use `SALESMORA_E2E_ORIGIN=http://127.0.0.1:3026`. Run only in
+the harness-owned database because some older fixtures clear rate limits.
+See [browser acceptance and remaining gaps](./chat-proposal-consolidation.md#14-disposable-browser-and-history-acceptance).
+The [canonical benchmark](./chat-proposal-consolidation.md#15-canonical-database-call-benchmark)
+uses this harness with `CHAT_DB_METRICS=true`, `CHAT_INTENT_ROUTING=false`
+and the deterministic benchmark, common-runner, history and Calendar
+navigation selectors. Metrics are opt-in and should be handled as local
+diagnostic output.
+
+Run `pnpm --filter @salesmora/data test:retired-storage` with a separate local
+`_test` connection and `CREATEDB`. It creates and removes an owned database,
+checks that file links, all 26 legacy proposal tables and graph checkpoints
+are absent, and verifies canonical storage, audit archival and startup guards.
+The former three retirement test commands are aliases for this fresh-only test.
+
+`pnpm --filter @salesmora/data test:baseline-schema` compares the fresh schema,
+seeds and privileges against fingerprints captured from the historical
+migration chain. It requires the local runtime database roles and an owned
+disposable database. The fingerprints include PostgreSQL-generated definitions
+and extension versions, so a PostgreSQL or extension version change can cause
+differences that require investigation rather than necessarily indicating a
+baseline regression. Failed comparisons identify the reference check index.
+
+`pnpm test:estimates:db` now requires the same local `_test` connection and
+`CREATEDB`. It migrates an exclusively owned random database and drops it
+afterward instead of writing fixtures to the configured test database. The
+broader Estimate suite exercises canonical proposal storage.
+
+The same isolated suite checks consolidated admission: the tenth recent turn succeeds, the eleventh returns 429, exact replay still succeeds at the limit, an older active turn still returns 409, and two concurrent different submissions admit only one turn. Rejected admission rolls recovery and other writes back. `pnpm --filter @salesmora/data test:feature-flags` additionally verifies that a cold flag check can reuse a held transaction connection in a pool with maximum one connection, while retaining the root database's existing 60-second cache. The web typecheck generates normal Next route types before checking, so it does not depend on a previous E2E build. Do not run it while an E2E Next server is rewriting generated route types.
 
 ## Live Leads reads
 
-Apply `pnpm db:migrate` to local Docker without resetting records. The October 15 lead read-model migration maps In progress to Estimate sent, adds stable workspace lead numbers/version/archive/activity fields and defaults the workspace timezone to UTC. Its backfill is forward-only after a successful commit.
+Apply `pnpm db:migrate` only to an empty or already-baselined local database. Historical ledgers are rejected; the fresh baseline does not backfill an existing database.
 
-Run `pnpm test:leads:db` for isolated-schema migration/read tests and `pnpm test:authorization:db` for the permission regressions. Both require a separate `TEST_DATABASE_URL` ending in `_test`. Run `pnpm --filter @salesmora/web test:e2e leads-read.spec.ts` for real browser/API reads on port 3002; it creates and removes its own fictional accounts while preserving immutable non-content authorization audit evidence. The older `leads.spec.ts` uses a disposable test-database reset between cases, so do not run these suites concurrently against the same test database.
+Run `pnpm test:leads:db` for isolated-schema migration/read tests and `pnpm test:authorization:db` for the permission regressions. Both require a separate `TEST_DATABASE_URL` ending in `_test`. The authorization runner also requires `CREATEDB` and creates/removes its own temporary database because migrations target both `public` and `admin`; it does not replay into the shared test database. Run `pnpm --filter @salesmora/web test:e2e leads-read.spec.ts` for real browser/API reads on port 3002; it creates and removes its own fictional accounts while preserving immutable non-content authorization audit evidence. The older `leads.spec.ts` uses a disposable test-database reset between cases, so do not run these suites concurrently against the same test database.
 
 Review `/leads` and `/leads/[leadId]` locally with Owner/Admin/Office and Field accounts. Check assigned-only rows/counts, search (including formatted phone digits), filtering, sorting, numbered pages, per-column Load more, archived visibility, quick view, native record/back links, mobile overflow and permission revocation on the next request. All GET responses are private/no-store. Add lead opens the existing full create page; new drawer/domain mutations and CSV export remain a later integration section. No staging deployment or model calls are needed for these checks.
 

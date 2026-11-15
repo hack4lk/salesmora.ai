@@ -1,5 +1,7 @@
 # Jobs implementation
 
+> Historical migration paths in this document refer to the prior release. Current fresh databases use the [curated baseline](../packages/data/src/baseline/); existing databases require a separately designed upgrade.
+
 Local foundation implemented October 19, 2026, before the reviewed Jobs UI and Calendar slices. Prototypes 09/10/11/12 and 30 remain design references. Product scope and outstanding slices live in [the Jobs plan](job-module-plan.md) and [Calendar plan](calendar-page-plan.md).
 
 ## Live core integration — October 19, 2026

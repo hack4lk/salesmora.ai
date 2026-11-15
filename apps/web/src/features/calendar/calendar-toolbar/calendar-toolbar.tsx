@@ -38,7 +38,7 @@ export function CalendarToolbar({ date, today, timezone, scopeLabel, canSchedule
           onClick={() => onNavigate(addCalendarDays(start, 7))}><ArrowForwardOutlined aria-hidden="true"/></button>
       </nav>
       <button type="button" disabled={!canSchedule || loading || scheduleDisabled} aria-describedby={!canSchedule ? `${id}-permission` : undefined}
-        onClick={onSchedule} className="inline-flex min-h-11 max-w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-paper hover:bg-primary-dark focus-visible:focus-ring disabled:cursor-not-allowed disabled:bg-canvas disabled:text-muted">
+        onClick={onSchedule} className="seafoam-action inline-flex min-h-11 max-w-full cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold hover:bg-none hover:bg-seafoam-dark focus-visible:focus-ring disabled:cursor-not-allowed disabled:bg-none disabled:bg-canvas disabled:text-muted">
         <AddOutlined aria-hidden="true"/>{copy.schedule}
       </button>
     </div>

@@ -74,7 +74,7 @@ function ArchiveResult({ ticket, workspaceId, disabled = false, onRefresh, onNav
       {error && !disabled && <button type="button" className={estimateButton} disabled={pending} onClick={() => { void load(); }}>{c.retry}</button>}
     </div> : <>
       <EstimateArchiveCard view={view} context={{ workspaceId, view }}
-        grants={{ read: true, parentAccess: true, archive: true }} onOperate={operate} />
+        grants={{ read: true, parentAccess: true, archive: true }} pending={pending} onOperate={operate} />
       {error && <p role="alert" className="m-0 rounded-xl border border-assistant-border bg-assistant-surface p-4 text-sm leading-6">{error}</p>}
     </>}
   </section>;

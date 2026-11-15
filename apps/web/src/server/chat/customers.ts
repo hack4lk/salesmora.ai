@@ -9,8 +9,12 @@ import {
   CustomerValidationError,
   customerChatStamp,
   customerChatEvidenceAllowed,
+  admittedChatTurn,
+  stageAdmittedChatTurn,
+  customerProposalStorage,
   readCustomers,
   readCustomer,
+  readCustomerRecordInTransaction,
   searchCustomerLeads,
   createCustomer,
   mutateCustomer,
@@ -103,14 +107,15 @@ async function turnFor(
   id: string,
   active = true,
 ) {
-  const turn = await trx("chatTurns")
+  const admitted = admittedChatTurn(identityFor(context), id);
+  const turn = admitted ?? await trx("chatTurns")
     .where({ ...identityFor(context), id })
     .first();
   if (
     !turn ||
     turn.accessHash !== chatAccessHash(context) ||
     !authorize(context, { permission: "assistant.use" }).allowed ||
-    !(await customerChatEvidenceAllowed(trx, context, turn.customerStamp))
+    (!admitted && !(await customerChatEvidenceAllowed(trx, context, turn.customerStamp)))
   )
     throw new AuthorizationAccessError();
   if (
@@ -248,9 +253,8 @@ export async function customerPageReference(
   if (!ref) return undefined;
   const detail = await resolveCustomer(trx, context, turn, ref.id);
   const stamp = await customerChatStamp(trx, context);
-  await trx("chatTurns")
-    .where({ id: turn.id })
-    .update({ customerStamp: stamp });
+  if (!stageAdmittedChatTurn(identityFor(context), turn.id, { customerStamp: stamp }))
+    await trx("chatTurns").where({ id: turn.id }).update({ customerStamp: stamp });
   return {
     kind: "customer-page-summary",
     id: detail.customer.id,
@@ -274,9 +278,8 @@ export async function rememberCustomerHistory(
       const stamp = await customerChatStamp(trx, context);
       if (stamps.some((old) => old !== stamp))
         throw new AuthorizationAccessError();
-      await trx("chatTurns")
-        .where({ id: turnId })
-        .update({ customerStamp: stamp });
+      if (!stageAdmittedChatTurn(identity, turnId, { customerStamp: stamp }))
+        await trx("chatTurns").where({ id: turnId }).update({ customerStamp: stamp });
     },
   );
 }
@@ -302,7 +305,7 @@ async function readOperation(
       q.where({ leadNumber: Number(ref.slice(3)) });
     else if (/^[0-9a-f-]{36}$/i.test(ref)) q.where({ id: ref });
     else throw new CustomerValidationError("Choose an exact lead number.");
-    const lead = await q.first("id", "ownerId");
+    const lead = await q.first("id", "ownerId", "customerId");
     if (
       !lead ||
       (context.membership.role === "field" && lead.ownerId !== context.userId)
@@ -315,6 +318,10 @@ async function readOperation(
     return {
       ...blank("details", "Related customer contact"),
       total: 1,
+      records: [
+        { id: lead.customerId, number: related.number, name: related.name, detail: "Related customer contact" },
+        { id: lead.id, number: data.lead.leadNumber, name: data.lead.name, detail: "Source lead" },
+      ],
       fields: [
         { label: "Customer number", value: related.number },
         { label: "Name", value: related.name },
@@ -460,7 +467,7 @@ async function readOperation(
       request.input.query,
     );
     return {
-      ...blank("lead_candidates", "Accessible lead choices (up to 25)"),
+      ...blank("lead_candidates", c.number + " · accessible lead choices (up to 25)"),
       total: candidates.length,
       records: candidates.map(
         (l: import("@salesmora/contracts").CustomerLead) => ({
@@ -820,23 +827,11 @@ async function prepare(
   }
   review.inputHash = hash(payload);
   const stamp = await customerChatStamp(trx, context);
-  await trx("chatCustomerDrafts")
-    .where({ ...identity, threadId: turn.threadId, state: "pending" })
-    .update({ state: "superseded", resolvedAt: trx.fn.now() });
-  await trx("chatActionDrafts")
-    .where({ ...identity, threadId: turn.threadId, state: "pending" })
-    .update({ state: "superseded", resolvedAt: trx.fn.now() });
-  await trx("chatCustomerDrafts").insert({
-    ...identity,
-    id: draftId,
-    turnId: turn.id,
-    threadId: turn.threadId,
-    inputHash: review.inputHash,
+  await customerProposalStorage.insert(trx, context, turn, {
     accessHash: chatAccessHash(context),
     customerStamp: stamp,
-    payload: JSON.stringify(payload),
-    review: JSON.stringify(customerDraftSchema.parse(review)),
-    expiresAt: new Date(review.expiresAt),
+    payload,
+    review: customerDraftSchema.parse(review),
   });
   return {
     ...blank(
@@ -854,37 +849,28 @@ async function execute(
   const request = (write ? customersProposeSchema : customersQuerySchema).parse(
     raw,
   ).request;
-  const customerResult = await authorizedWorkspace(
-    context.identity.userId,
-    context.identity.workspaceId,
-    true,
-    async (trx, authority) => {
-      context.signal.throwIfAborted();
-      permitted(authority, request.operation);
-      const turn = await turnFor(trx, authority, context.turnId);
-      let output: CustomerChatResult;
-      try {
-        output = write
-          ? await prepare(trx, authority, turn, request)
-          : await readOperation(trx, authority, turn, request);
-      } catch (error) {
-        if (error instanceof CustomerValidationError)
-          output = blank("outcome", error.message.slice(0, 200));
-        else throw error;
-      }
-      output.turnId = turn.id;
-      const parsed = result(output);
-      const stamp = await customerChatStamp(trx, authority);
-      await trx("chatTurns")
-        .where({ id: turn.id })
-        .update({
-          customerStamp: stamp,
-          customerResult: JSON.stringify(parsed),
-        });
-      context.signal.throwIfAborted();
-      return parsed;
-    },
-  );
+  const { db: trx, authority, turn } = context;
+  context.signal.throwIfAborted();
+  permitted(authority, request.operation);
+  let output: CustomerChatResult;
+  try {
+    output = write
+      ? await prepare(trx, authority, turn, request)
+      : await readOperation(trx, authority, turn, request);
+  } catch (error) {
+    if (error instanceof CustomerValidationError)
+      output = blank("outcome", error.message.slice(0, 200));
+    else throw error;
+  }
+  output.turnId = turn.id;
+  const customerResult = result(output);
+  const stamp = await customerChatStamp(trx, authority);
+  if (!stageAdmittedChatTurn(identityFor(authority), turn.id, { customerStamp: stamp, customerResult }))
+    await trx("chatTurns").where({ id: turn.id }).update({
+      customerStamp: stamp,
+      customerResult: JSON.stringify(customerResult),
+    });
+  context.signal.throwIfAborted();
   return {
     customerResult,
     evidence: {
@@ -914,10 +900,7 @@ export async function resolveCustomerDraft(
     identity.workspaceId,
     true,
     async (trx, context) => {
-      const row = await trx("chatCustomerDrafts")
-        .where({ ...identity, id: input.draftId })
-        .forUpdate()
-        .first();
+      const row = await customerProposalStorage.read(trx, context, { id: input.draftId }, true);
       if (
         !row ||
         !authorize(context, { permission: "assistant.use" }).allowed ||
@@ -929,6 +912,8 @@ export async function resolveCustomerDraft(
         (row.payload.kind !== "deleted" &&
           hash(row.payload) !== input.inputHash)
       )
+        throw new CustomerConflictError();
+      if (row.payload.kind === "deleted" && row.state !== "confirmed")
         throw new CustomerConflictError();
       const turn = await turnFor(trx, context, row.turnId, false);
       if (row.state === "confirmed" && input.decision === "confirm") {
@@ -986,12 +971,10 @@ export async function resolveCustomerDraft(
             enabledPermissions,
             row.payload.input,
           );
-        } else {
-          const mutation = row.payload.input;
-          if (mutation.action === "delete") {
-            mutation.typedConfirmation = input.typedConfirmation ?? "";
-            mutation.unlinkOpenLeads = input.unlinkOpenLeads ?? false;
-          }
+        } else if (row.payload.kind === "mutation") {
+          const mutation = row.payload.input.action === "delete"
+            ? { ...row.payload.input, typedConfirmation: input.typedConfirmation ?? "", unlinkOpenLeads: input.unlinkOpenLeads ?? false }
+            : row.payload.input;
           await mutateCustomer(trx, identity, enabledPermissions, mutation);
         }
       }
@@ -1022,10 +1005,7 @@ export async function resolveCustomerDraft(
           .update({
             text: "Customer-derived answer removed after customer deletion.",
           });
-        await trx("chatCustomerDrafts")
-          .where({ workspaceId: identity.workspaceId })
-          .whereNot({ id: row.id })
-          .delete();
+        await customerProposalStorage.eraseOtherCustomerCopies(trx, context, row.id);
         draft.customer = {
           id: draft.customer.id,
           name: "",
@@ -1034,14 +1014,7 @@ export async function resolveCustomerDraft(
         draft.changes = [];
         delete draft.unlinkLeadCount;
         delete draft.impact;
-        await trx("chatCustomerDrafts")
-          .where({ id: row.id })
-          .update({
-            state: "confirmed",
-            payload: JSON.stringify({ kind: "deleted" }),
-            review: JSON.stringify(draft),
-            resolvedAt: trx.fn.now(),
-          });
+        await customerProposalStorage.save(trx, context, row, draft, "confirmed", true);
         await trx("chatMessages")
           .where({ turnId: row.turnId, role: "assistant" })
           .update({
@@ -1052,13 +1025,7 @@ export async function resolveCustomerDraft(
           .whereNotNull("customerStamp")
           .update({ customerResult: null });
       } else
-        await trx("chatCustomerDrafts")
-          .where({ id: row.id })
-          .update({
-            state,
-            resolvedAt: trx.fn.now(),
-            review: JSON.stringify(draft),
-          });
+        await customerProposalStorage.save(trx, context, row, draft, state);
       const stamp = await customerChatStamp(trx, context);
       await trx("chatTurns")
         .where({ id: row.turnId })
@@ -1092,7 +1059,7 @@ export async function navigateCustomerResult(
       )
         throw new AuthorizationAccessError();
       if (kind === "customer")
-        await readCustomer(trx, identity, enabledPermissions, recordId);
+        await readCustomerRecordInTransaction(trx, context, recordId);
       else {
         if (!["linked_leads", "lead_candidates"].includes(data.kind))
           throw new AuthorizationAccessError();
@@ -1115,15 +1082,14 @@ export async function navigateCustomerResult(
 /** Stored cards reflect the durable proposal state; transcript text is never an approval. */
 export async function visibleCustomerResult(
   trx: Knex.Transaction,
+  context: AuthorizationContext,
   turn: { id: string; customerResult?: unknown },
 ) {
   if (!turn.customerResult) return undefined;
   const data = customerChatResultSchema.parse(turn.customerResult);
   if (data.draft) {
-    const row = await trx("chatCustomerDrafts")
-      .where({ turnId: turn.id, id: data.draft.id })
-      .first();
-    if (!row) return undefined;
+    const row = await customerProposalStorage.read(trx, context, { id: data.draft.id });
+    if (!row || row.turnId !== turn.id) return undefined;
     data.draft = customerDraftSchema.parse({
       ...row.review,
       state:

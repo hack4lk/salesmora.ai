@@ -31,14 +31,12 @@ test.beforeAll(async () => {
   for (const article of await loadCorpus()) await ingestArticle(db, article, embedder);
   await ingestArticle(db, injection, embedder);
 });
-test.beforeEach(async () => { await db.raw('TRUNCATE users, accounts, sessions, verifications, "rateLimits", "chatActionAudit" CASCADE'); });
+test.beforeEach(async () => { await db.raw('TRUNCATE users, accounts, sessions, verifications, "rateLimits" CASCADE'); });
 test.afterAll(async () => {
-  const turns = db('chatTurns').select(db.raw('id::text'));
-  for (const table of ['checkpoint_writes', 'checkpoint_blobs', 'checkpoints']) await db(table).whereIn('thread_id', turns.clone()).delete();
   await db('helpHeads').where({ slug: injection.slug }).delete(); await db('helpArticles').where({ slug: injection.slug }).delete();
-  await db.raw('TRUNCATE users, accounts, sessions, verifications, "rateLimits", "chatActionAudit" CASCADE'); await db.destroy();
+  await db.raw('TRUNCATE users, accounts, sessions, verifications, "rateLimits" CASCADE'); await db.destroy();
 });
-test('real help answer streams with authorized current citations and metadata-only checkpoints', async ({ page }) => {
+test('real help answer streams with authorized current citations and durable transcript', async ({ page }) => {
   test.setTimeout(90000); const api = page.context().request;
   await account(api, 'live-owner@example.test'); const id = await workspace(api);
   await page.goto(`/home?workspace=${id}`); await page.getByRole('button', { name: 'SalesMora assistant How can I help?', exact: true }).click();
@@ -58,10 +56,7 @@ test('real help answer streams with authorized current citations and metadata-on
     expect(Number(call.reservationTokens)).toBeGreaterThanOrEqual(Number(call.totalTokens));
   }
   expect(JSON.stringify(usage)).not.toContain('Explain the lead pipeline');
-  const checkpoints = await db('checkpoints').where({ thread_id: turn.id });
-  expect(checkpoints.length).toBeGreaterThan(0);
-  expect(JSON.stringify(checkpoints)).not.toContain('Explain the lead pipeline');
-  expect(JSON.stringify(checkpoints)).not.toContain('Pipeline stages');
+  expect(await db('chatMessages').where({ turnId: turn.id, role: 'assistant' }).first()).toBeTruthy();
   await page.reload(); await page.getByRole('button', { name: 'SalesMora assistant How can I help?', exact: true }).click();
   await expect(page.getByRole('navigation', { name: 'Help sources' })).toBeVisible();
   await page.screenshot({ path: '/private/tmp/salesmora-live-chat-1440.png', fullPage: true });
@@ -95,13 +90,13 @@ test('real model prepares a lead review; creation requires the explicit confirma
   expect(await db('leads').where({ workspaceId: id })).toHaveLength(0);
   await card.screenshot({ path: '/private/tmp/chat-live-lead-review-1440.png' });
   await page.setViewportSize({ width: 320, height: 900 }); await card.screenshot({ path: '/private/tmp/chat-live-lead-review-320.png' });
-  const savedDraft = await db('chatActionDrafts').where({ workspaceId: id }).first();
+  const savedDraft = await db('chatProposals').where({ workspaceId: id, family: 'action' }).first();
   const verbal = await ask(api, id, 'Yes, confirm this lead in chat.', savedDraft.threadId);
   expect(verbal.events.some(event => event.type === 'action.proposed')).toBe(false);
   expect(await db('leads').where({ workspaceId: id })).toHaveLength(0);
   await card.getByRole('button', { name: 'Confirm and create lead' }).click();
   await expect(card.getByRole('status')).toHaveText('Lead created'); expect(await db('leads').where({ workspaceId: id })).toHaveLength(1);
-  expect(await db('chatActionAudit').where({ workspaceId: id, action: 'draft.confirmed' })).toHaveLength(1);
+  expect(await db('chatProposalAudit').where({ workspaceId: id, family: 'action', action: 'draft.confirmed' })).toHaveLength(1);
   const outcome = await ask(api, id, 'Was that lead created? Use the app-recorded action outcome.', savedDraft.threadId);
   expect(outcome.text).toMatch(/created/i); expect(await db('leads').where({ workspaceId: id })).toHaveLength(1);
 });

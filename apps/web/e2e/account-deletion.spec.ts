@@ -6,7 +6,7 @@ const connection = process.env.TEST_DATABASE_URL;
 if (!connection || !new URL(connection).pathname.endsWith('_test') || connection === process.env.DATABASE_URL) throw Error('Deletion checks require the isolated test database.');
 const db = createDatabase(connection);
 if (process.env.SALESMORA_BILLING_TEST === '1') process.env.BILLING_SANDBOX_ENABLED = 'true';
-const origin = 'http://127.0.0.1:3002';
+const origin = process.env.SALESMORA_E2E_ORIGIN ?? 'http://127.0.0.1:3002';
 const headers = { Origin: origin };
 const password = 'Fictional-deletion-password-42!';
 async function account(api: APIRequestContext, label: string) {
@@ -23,7 +23,6 @@ async function conversation(workspaceId: string, userId: string) {
   await db('chatThreads').insert({ id: threadId, workspaceId, userId });
   await db('chatTurns').insert({ id: turnId, threadId, workspaceId, userId, clientTurnId: randomUUID(), requestHash: 'fictional', surfaceKey: 'home', state: 'running', leaseUntil: new Date(Date.now() + 60000) });
   await db('chatMessages').insert({ id: randomUUID(), turnId, role: 'user', text: 'Fictional deletion transcript' });
-  await db('checkpoints').insert({ thread_id: turnId, checkpoint_ns: '', checkpoint_id: randomUUID(), checkpoint: JSON.stringify({ fictional: true }), metadata: '{}' });
   return { threadId, turnId };
 }
 test.afterAll(async () => { await db.destroy(); });
@@ -73,7 +72,7 @@ test('password-confirmed member and Owner deletion revoke access, preserve share
     expect(await db('workspaces').where({ id: workspaceId }).first()).toBeTruthy();
     expect((await db('leads').where({ id: leadId }).first()).ownerId).toBeNull();
     expect(await db('chatThreads').where({ id: memberChat.threadId }).first()).toBeUndefined();
-    expect(await db('checkpoints').where({ thread_id: memberChat.turnId }).first()).toBeUndefined();
+    expect(await db('chatTurns').where({ id: memberChat.turnId }).first()).toBeUndefined();
 
     console.log('deletion-check: member_purge_verified');
     const ownerChat = await conversation(workspaceId, owner.id);
@@ -132,7 +131,7 @@ test('password-confirmed member and Owner deletion revoke access, preserve share
     expect(await db('workspaces').where({ id: otherWorkspaceId }).first()).toBeTruthy();
     expect((await db('leads').where({ id: otherLeadId }).first()).ownerId).toBeNull();
     expect(await db('leads').where({ id: leadId }).first()).toBeUndefined();
-    expect(await db('checkpoints').where({ thread_id: ownerChat.turnId }).first()).toBeUndefined();
+    expect(await db('chatTurns').where({ id: ownerChat.turnId }).first()).toBeUndefined();
     expect(await db('authorizationAudit').where({ workspaceId }).first()).toBeTruthy();
     expect(await db('billingAudit').where({ workspaceId, action: 'workspace.deletion_completed' }).first()).toBeTruthy();
     if (stripe && providerSubscription && providerCustomer) {

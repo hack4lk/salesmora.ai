@@ -4,6 +4,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { permissionIds, captureGmailSampleCandidatesSchema, captureGmailSelectedExampleSchema } from '@salesmora/contracts';
 import { createDatabase } from '../database';
+import { migrateFreshBaseline } from '../baseline-runner';
 import { AuthorizationAccessError, initializeWorkspacePolicy } from '../authorization/store';
 import { createCaptureDraft, CaptureDraftConflictError, saveCaptureDraft } from './store';
 import { beginCaptureGmailConnection, completeCaptureGmailConnection, selectCaptureGmailAccount, reviewCaptureGmailDisconnect, disconnectCaptureGmail, gmailHash } from './gmail-connections';
@@ -44,7 +45,7 @@ async function expire(accountId: string) {
 }
 try {
   await owner.raw('CREATE DATABASE ??', [name]); created = true;
-  await db.migrate.latest({ directory: fileURLToPath(new URL('../migrations', import.meta.url)), loadExtensions: ['.ts'] });
+  await migrateFreshBaseline(db);
   for (const person of [identity, other]) {
     await db('users').insert({ id: person.userId, name: 'Fictional Gmail owner', email: `${person.userId}@example.test`, createdAt: now, updatedAt: now, termsVersion: 'test', termsAcceptedAt: now });
     await db.transaction(async trx => {

@@ -1,15 +1,66 @@
 export { createDatabase } from './database';
 export { createAuthPool } from './auth-pool';
+export { createDatabaseMeasurement, withDatabasePhase, withDatabaseOperation } from './database-metrics';
+export { notifyChatCancellation, subscribeChatCancellation } from './chat-cancellation';
 export { assertRuntimeDatabaseRole, databaseRoleProblems, readDatabaseRoleFacts } from './runtime-roles';
 export type { DatabaseRoleFacts } from './runtime-roles';
 export { readLeads, readLead } from './leads/read';
+export { readLeadReportInTransaction } from './reports/leads';
+export { readJobWorkloadReportInTransaction } from './reports/jobs';
+export { readJobLifecycleReportInTransaction } from './reports/job-lifecycle';
+export { readJobCompletionReportInTransaction } from './reports/job-completion';
+export { readJobReportWithAuthorityInTransaction, initialJobReportWithAuthorityInTransaction } from './reports/job-read';
+export { readTeamJobsReportInTransaction } from './reports/team-jobs';
+export { readTeamReportWithAuthorityInTransaction, initialTeamReportWithAuthorityInTransaction } from './reports/team-read';
+export { readTeamLeadsReportInTransaction } from './reports/team-leads';
+export { readEstimateDecisionsReportInTransaction } from './reports/estimate-decisions';
+export { readEstimateCurrentReportInTransaction } from './reports/estimate-current';
+export { readEstimateFirstQuotedReportInTransaction } from './reports/estimate-first-quoted';
+export { readEstimateReportWithAuthorityInTransaction, initialEstimateReportWithAuthorityInTransaction } from './reports/estimate-read';
+export { readCalendarScheduledReportInTransaction } from './reports/calendar-scheduled';
+export { readCalendarReportWithAuthorityInTransaction, initialCalendarReportWithAuthorityInTransaction } from './reports/calendar-read';
+export { readCalendarUnscheduledReportInTransaction } from './reports/calendar-unscheduled';
+export { readCalendarReviewReportInTransaction } from './reports/calendar-review';
+export { readCalendarReportFilterOptionsInTransaction } from './reports/calendar-filters';
+export { resolveCalendarExportAccess, canExportCalendarDataset, requireCalendarExportAccess } from './reports/calendar-export-access';
+export { resolveJobReportExportScope } from './reports/job-export-access';
+export { prepareJobReportCSVProjectionInTransaction } from './reports/job-export-projection';
+export { previewJobReportExport, createJobReportCSVExport } from './reports/job-export';
+export { resolveTeamReportExportScopes, requireTeamReportExportScope } from './reports/team-export-access';
+export { prepareTeamReportCSVProjectionInTransaction } from './reports/team-export-projection';
+export { previewTeamReportExport, createTeamReportCSVExport } from './reports/team-export';
+export { resolveEstimateReportExportAccess } from './reports/estimate-export-access';
+export { prepareEstimateReportCSVProjectionInTransaction } from './reports/estimate-export-projection';
+export { previewEstimateReportExport, createEstimateReportCSVExport } from './reports/estimate-export';
+export { previewActivityReportExport, createActivityReportCSVExport } from './reports/activity-export';
+export { previewFinancialReportExport, createFinancialReportCSVExport } from './reports/financial-export';
+export { prepareCalendarCSVProjectionInTransaction } from './reports/calendar-export-projection';
+export { previewCalendarExport, createCalendarCSVExport } from './reports/calendar-export';
+export { readLeadSourceReportInTransaction } from './reports/lead-source';
+export { readLeadSourceReportWithAuthorityInTransaction, initialLeadSourceReportWithAuthorityInTransaction } from './reports/lead-source-read';
+export { readActivityReportInTransaction } from './reports/activity';
+export { readActivityReportWithAuthorityInTransaction, initialActivityReportWithAuthorityInTransaction } from './reports/activity-read';
+export { readFinancialMaterialsReportInTransaction } from './reports/financial-materials';
+export { readFinancialEstimatesReportInTransaction } from './reports/financial-estimates';
+export { readFinancialReportWithAuthorityInTransaction, initialFinancialReportWithAuthorityInTransaction } from './reports/financial-read';
+export { readBusinessOverviewInTransaction } from './reports/business-overview';
+export { readBusinessOverviewWithAuthorityInTransaction, initialBusinessOverviewWithAuthorityInTransaction } from './reports/business-overview-read';
+export { readLeadReportWithAuthorityInTransaction } from './reports/lead-read';
+export { prepareLeadReportCSVProjectionInTransaction } from './reports/lead-export-projection';
+export { previewLeadReportExport, createLeadReportCSVExport, reportExportLimits, ReportExportLimitError } from './reports/lead-export';
+export { resolveLeadSourceExportAccess, canExportLeadSourceDataset } from './reports/lead-source-export-access';
+export { prepareLeadSourceCSVProjectionInTransaction } from './reports/lead-source-export-projection';
+export { previewLeadSourceExport, createLeadSourceCSVExport } from './reports/lead-source-export';
 export type { Knex } from 'knex';
-export { withWorkspaceAuthorization, loadWorkspaceAuthorization, initializeWorkspacePolicy, saveWorkspacePolicy, listAuthorizedLeads, authorizedLeadPipelineCounts, AuthorizationAccessError, AuthorizationConflictError, WorkspaceSuspendedError, type WorkspaceIdentity, type LeadSummary } from './authorization/store';
+export { withWorkspaceAuthorization, withWorkspaceAuthoritySnapshot, workspaceAuthoritySnapshot, loadWorkspaceAuthorization, initializeWorkspacePolicy, saveWorkspacePolicy, listAuthorizedLeads, authorizedLeadPipelineCounts, AuthorizationAccessError, AuthorizationConflictError, WorkspaceSuspendedError, type WorkspaceIdentity, type LeadSummary } from './authorization/store';
+export { admittedChatTurn, admittedChatClock, stageAdmittedChatTurn, withAdmittedChatTurn,
+  type AdmittedChatTurn, type ChatTurnEvidenceUpdate } from './chat-request';
 export { embeddingSpace, createOpenAIEmbedder, validateVectors, type Embedder } from './knowledge/embeddings';
 export { articleIdentity, stageArticle, publishArticle, ingestArticle, retireMissingArticles, retrieveHelp, readHelpArticle, type HelpMatch } from './knowledge/store';
-export { createChatCheckpointer } from './checkpoints';
 export {
   createAIUsageRecorder,
+  createAIUsageSession,
+  type AIUsageSession,
   configureWorkspaceAIBudget,
   configureWorkspaceAIBudgetInTransaction,
   workspaceAIAllowance,
@@ -129,7 +180,7 @@ export { readJobCreationDeadline, JobDeadlineReviewConflict } from './jobs/deadl
 export { scheduleDeadlineReminders, processDeadlineEmails } from './notifications/deadlines';
 
 export { processJobEmails } from './notifications/jobs';
-export { CalendarFocusUnavailableError, readCalendarFocusForChat, readCalendarForChat, calendarChatStamp, calendarChatEvidenceAllowed, calendarChatClock } from './calendar/chat';
+export { CalendarFocusUnavailableError, readCalendarFocusForChat, readCalendarForChat, calendarChatStamp, calendarChatEvidenceAllowed, calendarChatClock, calendarChatClockInTransaction } from './calendar/chat';
 export * from './calendar/proposals';
 export { captureBusinessContextInTransaction, captureDraftFingerprint, captureDraftStartContext, listCaptureSources, readCaptureSource, createCaptureDraft, saveCaptureDraft, beginCaptureRevision, CaptureDraftConflictError, CaptureDraftValidationError, CaptureDraftEntitlementError } from './lead-capture/store';
 
@@ -148,3 +199,11 @@ export { readCaptureSetupSample, prepareCaptureSetupSampleApproval, proposeCaptu
 export { duplicateCaptureSource } from './lead-capture/duplicate';
 
 export { proposeCaptureSource, readCaptureSourceProposal, decideCaptureSourceProposal, captureSourceEvidenceAllowed, visibleCaptureSourceTicket } from './lead-capture/source-proposals';
+export * from './reports/business-overview-export';
+export * from './reports/template';
+export { readReportForAssistant, ReportAssistantLimitError, ReportAssistantClarificationError } from './reports/assistant';
+export { readReportSnapshotForAssistant, reportAssistantEvidenceAllowed, reportAssistantSnapshotMatches, ReportAssistantStaleError } from './reports/assistant-evidence';
+export { assistantCapturedRecordsAllowed, type AssistantCapturedRecords } from './authorization/historical-records';
+export * from './chat-proposals';
+export { initializeProposalStorage } from './proposal-storage-authority';
+export { leadProposalStorage, customerProposalStorage, workOrderProposalStorage } from './proposal-storage';

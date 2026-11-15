@@ -1,5 +1,7 @@
 # Workspace creation
 
+> Historical migration paths in this document refer to the prior release. Current fresh databases use the [curated baseline](../packages/data/src/baseline/); existing databases require a separately designed upgrade.
+
 Updated October 12, 2026. See [authorization cutover](authorization-live-cutover.md).
 
 ## Test locally

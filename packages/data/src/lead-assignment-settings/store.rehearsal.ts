@@ -2,10 +2,10 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import type { PermissionId, CaptureDraftConfiguration } from '@salesmora/contracts';
 import { createDatabase } from '../database';
+import { migrateFreshBaseline } from '../baseline-runner';
 import { AuthorizationAccessError, initializeWorkspacePolicy } from '../authorization/store';
 import { RUNTIME_LOGIN_ROLES, ADMIN_APP_ROLE } from '../runtime-roles';
 import { readLeadAssignmentSettings, saveLeadAssignmentSettings, resolveCaptureAssignment, LeadAssignmentSettingsConflict, LeadAssignmentSettingsInvalid, LeadAssignmentSettingsUnavailable } from './store';
@@ -35,15 +35,12 @@ const delivery = { websiteReady: async () => true, gmailReady: async () => false
 const configuration: CaptureDraftConfiguration = { schemaVersion: 1, type: 'website', contactRequired: true,
   fields: [{ id: 'name', key: 'name', type: 'short_text', label: 'Name', required: true, options: [] }, { id: 'service', key: 'service', type: 'short_text', label: 'Service', required: true, options: [] }, { id: 'email', key: 'email', type: 'email', label: 'Email', required: false, options: [] }],
   workflow: { assignment: { kind: 'default' }, stage: 'new', tags: [], notifyAssigned: true }, content: { businessName: 'Fixture', title: 'Request service', intro: '', submitLabel: 'Send', thankYou: 'Thanks', unavailableMessage: 'Unavailable', businessEmail: '', businessPhone: '', showBusinessEmail: false, showBusinessPhone: false, privacy: null, consent: null } };
-const migrations = (await readdir(fileURLToPath(new URL('../migrations', import.meta.url)))).filter(name => name.endsWith('.ts')).sort();
-const source = (initial: boolean) => ({ getMigrations: async () => migrations.filter(name => !initial || name !== '202610310003_lead_assignment_settings.ts'), getMigrationName: (name: string) => name, getMigration: (name: string) => import(new URL(`../migrations/${name}`, import.meta.url).href) });
 try {
   await owner.raw('CREATE DATABASE ??', [name]); created = true;
-  await db.migrate.latest({ migrationSource: source(true) }); const existing = await workspace();
-  await db.migrate.latest({ migrationSource: source(false) });
+  await migrateFreshBaseline(db);
   const a = await workspace(), b = await workspace(), member = await teammate(a.workspaceId), other = await teammate(b.workspaceId);
-  await check('migration backfills existing workspaces and creation persists explicit unassigned version one', async () => {
-    for (const identity of [existing, a, b]) { const result = await read(identity); assert.equal(result.version, 1); assert.deepEqual(result.value, { kind: 'unassigned' }); }
+  await check('workspace creation persists explicit unassigned version one', async () => {
+    for (const identity of [a, b]) { const result = await read(identity); assert.equal(result.version, 1); assert.deepEqual(result.value, { kind: 'unassigned' }); }
     const rolledBack = randomUUID(); await assert.rejects(db.transaction(async trx => { await trx('workspaces').insert({ id: rolledBack, ownerId: a.userId, businessName: 'Rollback fixture', businessType: 'test', postalCode: '', serviceRange: '' }); throw Error('rollback'); })); assert.equal(await db('leadAssignmentSettings').where({ workspaceId: rolledBack }).first(), undefined);
   });
   await check('tenant and settings-permission boundaries deny outsider, Office and forged writes', async () => {

@@ -2,7 +2,17 @@
 
 **Status:** Detailed working proposal for review. Phase 1 recommendations are explicit; items needing a product decision are listed at the end.
 
+**November 5, 2026 scope review:** The [Workspace Reports implementation plan](reporting-implementation-plan.md) records the interactively reviewed report scope and proposed delivery steps. It supersedes conflicting first-release scope/phasing assumptions below, including the addition of Estimates, current Calendar/deadline reporting, CRM activity and a limited sales-value/recorded-cost view. Detailed capture outcomes and true revenue/profitability remain deferred. Implementation, technical definition gates, individual components and deployment require separate review.
+
 ## 1. Goals
+
+### Historical assistant answers
+
+One admitted authorization snapshot covers a generated answer; report reads do not fingerprint CRM tables before or after retrieval. Saved report answers retain their retrieval timestamps across ordinary CRM edits. Later history and result navigation validate current report-selection capabilities, actor-owned content/query bindings and access to captured record IDs. They never substitute today's report totals for the saved answer.
+
+Assigned aggregate report populations are not fully represented by a bounded evidence page. Historical report release therefore conservatively requires workspace-wide authority for the included populations; assigned users must retrieve a fresh report. Assigned Lead searches can be retained when every original counted row was captured and remains readable. Truncated assigned search/count populations are withheld rather than rescanned or assumed accessible.
+
+Authorization-only historical stamps are not record-version tokens. Explicit confirmation continues to reload current target/parent versions, relevant used catalog rows, permissions and immutable review hashes. Legacy snapshots without verifiable bindings may be withheld.
 
 Reporting should help small-business owners and their teams answer practical questions quickly:
 

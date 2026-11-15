@@ -1,13 +1,13 @@
-/** Full migration replay and upgrade on a newly created, isolated local database; never mutates existing test or application tables. */
+/** Fresh-baseline checks on an isolated local database; never mutates existing test or application tables. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { Knex } from 'knex';
 import { createDatabase } from '../database';
 import { initializeWorkspacePolicy, loadWorkspaceAuthorization } from '../authorization/store';
 import { ADMIN_APP_ROLE, RUNTIME_LOGIN_ROLES } from '../runtime-roles';
-import { up as cutover } from '../migrations/202610300008_lead_capture_permissions';
+import { migrateFreshBaseline } from '../baseline-runner';
 import { captureConfigurationSchema, captureDraftConfigurationSchema } from '@salesmora/contracts';
 import { authorize, validateWorkspacePolicy } from '@salesmora/domain';
 
@@ -18,10 +18,9 @@ if (!connection || !new URL(connection).pathname.endsWith('_test') || connection
 const databaseName = `capture_${randomUUID().replaceAll('-', '')}_test`;
 const owner = createDatabase(connection), scratchURL = new URL(connection); scratchURL.pathname = `/${databaseName}`;
 const db = createDatabase(scratchURL.toString());
-const config = { directory: fileURLToPath(new URL('../migrations', import.meta.url)), loadExtensions: ['.ts'] };
 let created = false, checks = 0;
 const workspaces = Array.from({ length: 4 }, () => randomUUID());
-const [a, b, customized, ambiguous] = workspaces;
+const [a, b] = workspaces;
 async function check(name: string, run: () => Promise<void>) { await run(); checks++; console.log(`PASS ${name}`); }
 async function rejects(run: (trx: Knex.Transaction) => Promise<unknown>, code: string) { await assert.rejects(db.transaction(run), (error: { code?: string }) => error.code === code); }
 const timestamp = new Date();
@@ -35,43 +34,20 @@ const review = (id: string, intakeId: string) => ({ id, workspaceId: a, intakeId
 const decision = (intakeId: string, reviewId: string, patch = {}) => ({ id: randomUUID(), workspaceId: a, intakeId, reviewId, expectedVersion: 1, requestId: randomUUID(), kind: 'dismiss', actor: JSON.stringify({ kind: 'user', userId: 'capture-owner-0' }), decision: '{}', ...patch });
 try {
   await owner.raw('CREATE DATABASE ??', [databaseName]); created = true;
-  const names = readdirSync(config.directory).filter(name => name.endsWith('.ts')).sort();
-  for (const name of names.filter(name => name <= '202610110003_leads.ts')) await db.migrate.up({ ...config, name });
+  await migrateFreshBaseline(db);
   await db('users').insert(workspaces.map((_id, i) => ({ id: `capture-owner-${i}`, name: 'Fictional capture owner', email: `capture-owner-${i}@example.test`, createdAt: timestamp, updatedAt: timestamp, termsVersion: 'test', termsAcceptedAt: timestamp })));
-  await db('workspaces').insert(workspaces.map((id, i) => ({ id, ownerId: `capture-owner-${i}`, businessName: 'Fictional capture fixture', businessType: 'test', postalCode: '', serviceRange: '' })));
-  await db('workspaceMemberships').insert(workspaces.map((workspaceId, i) => ({ workspaceId, userId: `capture-owner-${i}`, role: 'owner', profile: 'office' })));
-  for (const name of names.filter(name => name > '202610110003_leads.ts' && name < '202610300007_lead_capture_foundation.ts')) await db.migrate.up({ ...config, name });
-  const baseRevision = (await db('workspacePolicies').where({ workspaceId: a }).first()).revision;
-  const beforeCustom = await db('workspaceRolePolicies').where({ workspaceId: customized }).select('role', 'permission', 'scope');
-  const customHead = (await db('workspacePolicies').where({ workspaceId: customized }).first()).revision;
-  await db('workspaceRolePolicies').where({ workspaceId: customized, role: 'office', permission: 'campaigns.pause' }).delete();
-  const afterCustom = await db('workspaceRolePolicies').where({ workspaceId: customized }).select('role', 'permission', 'scope');
-  await db('workspacePolicies').where({ workspaceId: customized }).update({ revision: customHead + 1 });
-  await db('authorizationAudit').insert({ workspaceId: customized, actorId: 'capture-owner-2', action: 'policy.saved', beforeRevision: customHead, afterRevision: customHead + 1, beforePolicy: JSON.stringify({ workspaceId: customized, revision: customHead, grants: beforeCustom }), afterPolicy: JSON.stringify({ workspaceId: customized, revision: customHead + 1, grants: afterCustom }) });
-  // An unrecognized audit history cannot be interpreted as an untouched default.
-  const unknownHead = (await db('workspacePolicies').where({ workspaceId: ambiguous }).first()).revision;
-  await db('authorizationAudit').insert({ workspaceId: ambiguous, actorId: 'capture-owner-3', action: 'legacy.unknown', beforeRevision: unknownHead, afterRevision: unknownHead, afterPolicy: '{}' });
-  await db.migrate.up({ ...config, name: '202610300007_lead_capture_foundation.ts' });
-  await check('conflicting legacy/canonical grants abort the cutover transaction without changing policy', async () => {
-    await assert.rejects(db.transaction(async trx => {
-      await trx('workspaceRolePolicies').insert({ workspaceId: a, role: 'office', permission: 'leadCapture.create', scope: 'workspace' });
-      await cutover(trx);
-    }), /Conflicting capture policy/);
-    assert.equal((await db('workspacePolicies').where({ workspaceId: a }).first()).revision, baseRevision);
-    assert.ok(await db('workspaceRolePolicies').where({ workspaceId: a, permission: 'campaigns.read' }).first());
+  await db.transaction(async trx => {
+    await trx('workspaces').insert(workspaces.map((id, i) => ({ id, ownerId: `capture-owner-${i}`, businessName: 'Fictional capture fixture', businessType: 'test', postalCode: '', serviceRange: '' })));
+    await trx('workspaceMemberships').insert(workspaces.map((workspaceId, i) => ({ workspaceId, userId: `capture-owner-${i}`, role: 'owner' })));
+    for (const [i, workspaceId] of workspaces.entries()) await initializeWorkspacePolicy(trx, { workspaceId, userId: `capture-owner-${i}` });
   });
-  await db.migrate.latest(config);
-  await check('fresh full replay and legacy upgrade complete once with canonical grants and audited versions', async () => {
-    assert.equal((await db('knex_migrations').count('* as count').first())?.count, String(names.length));
+  await check('fresh baseline applies once with canonical grants', async () => {
+    assert.equal((await db('knex_migrations').count('* as count').first())?.count, '1');
     assert.equal((await db('workspaceRolePolicies').where('permission', 'like', 'campaigns.%')).length, 0);
-    assert.equal((await db('workspacePolicies').where({ workspaceId: a }).first()).revision, baseRevision + 1);
-    assert.ok(await db('authorizationAudit').where({ workspaceId: a, action: 'migration.lead-capture' }).first());
-    assert.equal((await db.migrate.latest(config))[1].length, 0);
+    assert.equal((await migrateFreshBaseline(db))[1].length, 0);
   });
-  await check('Office archive defaults change only for proven untouched policies', async () => {
+  await check('canonical Office archive defaults preserve policy boundaries', async () => {
     assert.ok(await db('workspaceRolePolicies').where({ workspaceId: a, role: 'office', permission: 'leadCapture.archive' }).first());
-    for (const workspaceId of [customized, ambiguous]) assert.equal(await db('workspaceRolePolicies').where({ workspaceId, role: 'office', permission: 'leadCapture.archive' }).first(), undefined);
-    assert.equal(await db('workspaceRolePolicies').where({ workspaceId: customized, role: 'office', permission: 'leadCapture.pause' }).first(), undefined);
     for (const workspaceId of workspaces) {
       const head = await db('workspacePolicies').where({ workspaceId }).first();
       assert.equal(validateWorkspacePolicy({ workspaceId, revision: head.revision, grants: await db('workspaceRolePolicies').where({ workspaceId }).select('role', 'permission', 'scope') }).ok, true);
@@ -196,7 +172,7 @@ try {
     await db.transaction(async trx => { await trx('workspaceSubscriptions').where({ workspaceId: a }).delete(); await trx('workspaces').where({ id: a }).delete(); });
     for (const table of ['captureSources', 'captureSourceVersions', 'captureSourceDrafts', 'capturePublications', 'captureReceipts', 'intakeItems', 'intakeReviewSnapshots', 'intakeDecisions', 'captureOperations', 'leadCaptureData']) assert.equal((await db(table).where({ workspaceId: a })).length, 0);
   });
-  console.log(`Lead Capture foundation rehearsal passed (${checks} grouped checks; ${names.length} migrations).`);
+  console.log(`Lead Capture foundation rehearsal passed (${checks} grouped checks; fresh baseline).`);
 } finally {
   await db.destroy();
   if (created) await owner.raw('DROP DATABASE ??', [databaseName]);

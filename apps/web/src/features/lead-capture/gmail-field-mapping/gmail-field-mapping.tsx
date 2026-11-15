@@ -29,7 +29,7 @@ const button = 'min-h-11 max-w-full cursor-pointer rounded-xl border border-line
 function Approval({ disabled, onApprove }: { disabled: boolean; onApprove: () => void }) {
   const [checked, setChecked] = useState(false);
   return <div className="grid gap-4"><label className="flex min-h-11 items-start gap-3 text-sm leading-6"><input type="checkbox" checked={checked} disabled={disabled} className="mt-1 size-5 shrink-0 accent-primary focus-visible:focus-ring" onChange={event => setChecked(event.target.checked)} /><span>{copy.confirm}</span></label>
-    <button type="button" className="min-h-11 max-w-full justify-self-start cursor-pointer rounded-xl border border-primary bg-primary px-4 py-2 text-sm font-semibold text-paper wrap-anywhere hover:bg-primary-dark focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50" disabled={disabled || !checked} onClick={() => { if (checked && !disabled) onApprove(); }}>{copy.approve}</button></div>;
+    <button type="button" className="seafoam-action min-h-11 max-w-full justify-self-start cursor-pointer rounded-xl px-4 py-2 text-sm font-semibold wrap-anywhere enabled:hover:bg-none enabled:hover:bg-seafoam-dark focus-visible:focus-ring disabled:cursor-not-allowed disabled:bg-none disabled:opacity-50" disabled={disabled || !checked} onClick={() => { if (checked && !disabled) onApprove(); }}>{copy.approve}</button></div>;
 }
 /** Screen two: structured draft findings with a host-driven assistant, never email-driven tool execution. */
 export function GmailFieldMapping({ readOnlyMessage, value, targets, sample, rules, messages, suggestions = [], canRead, canEdit, pending = false, approvalConfirmed = false, onChange, onBack, onSend, onApprove }: GmailFieldMappingProps) {

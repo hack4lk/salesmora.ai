@@ -51,19 +51,28 @@
   align-items: center;
   justify-content: center;
   padding: 8px 13px;
-  border: 1px solid #3b6fa5;
+  border: 1px solid #d0dbe5;
   border-radius: 8px;
-  background: #3b6fa5;
-  color: #fff;
+  background: #fff;
+  color: #3d5268;
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 650;
   white-space: nowrap;
   cursor: pointer;
 }
 
+.primary {
+  min-height: 44px;
+  border-color: var(--color-seafoam-light);
+  background: linear-gradient(110deg, var(--color-seafoam-pale), var(--color-seafoam-light));
+  color: var(--color-ink);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 5%);
+}
+
 .primary:hover {
-  background: #315c8a;
+  border-color: var(--color-seafoam-dark);
+  background: var(--color-seafoam-dark);
 }
 
 .secondary {

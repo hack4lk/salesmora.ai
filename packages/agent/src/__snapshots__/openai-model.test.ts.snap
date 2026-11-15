@@ -1,0 +1,174 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`OpenAI Responses adapter contract > preserves exact system messages across every tool profile when reorganizing prompt source 1`] = `
+[
+  {
+    "hashes": [
+      "8ea0f99ac63317f8ddd8c804e7fe77da7f07be9ef1ca6c73968d86af448e087d",
+      "4e119098f408ccaaf9216619b13aa00614fac65576cd91967ebb6f36685e6931",
+    ],
+    "tools": [
+      "reports_query",
+    ],
+  },
+  {
+    "hashes": [
+      "b509db314765b5d0c37547c81fc330929c6261b31b0ba85201a50cb471f0ace6",
+      "eec6d5862e24c2e2cd7195ae437e824255dcc0e6746678d8866ee78b06939f81",
+    ],
+    "tools": [
+      "lead_capture_query",
+    ],
+  },
+  {
+    "hashes": [
+      "a8b446837b312db3d8b41dc5b7049c5505be13a63c1085638965e8ea32956560",
+      "52145f4edc442bc5ec86e9ffe3a43ce7da9642932b5d37d5f7071cbd91fe9bb2",
+    ],
+    "tools": [
+      "calendar_query",
+    ],
+  },
+  {
+    "hashes": [
+      "b123a85d36a9757ba358907299b0ed0171e9f9d398d6ddc7c4130c0fb9d3ab18",
+      "b8c8f22ec59f205bbb392b5a914da128bfa6849a95933ae548fd672a2ce7e36d",
+    ],
+    "tools": [
+      "customers_query",
+    ],
+  },
+  {
+    "hashes": [
+      "5864ac54ecba6192a5cf23dad5f127611abdb63ecfbcaf2327a89c1095be5980",
+      "a876378a45fc99c4c318c81c19782f3338ce14902d9bb5d7751c0c9218b7a85b",
+    ],
+    "tools": [
+      "search_help",
+    ],
+  },
+  {
+    "hashes": [
+      "4929facc8c5b4cf8e976881dc8cb770ec55a6baa15f46d525e5f75d307126975",
+      "89be7745a16ece55bb576810b28569e07e150581b50ada227875763016b23423",
+    ],
+    "tools": [
+      "leads_query",
+    ],
+  },
+  {
+    "hashes": [
+      "7835bc4f84809a6f9ad16e0c0952b79642cbed1d19f2763b53c7e3e8ae70d57a",
+      "f99bdffcaf97a1049bdacd91ca878b74888b7babfdd4250980019f6f58bc972a",
+    ],
+    "tools": [
+      "work_orders_query",
+    ],
+  },
+  {
+    "hashes": [
+      "9fb21331b1536c9907d6cb23b047c1a5eeb40f697d3747e75851a06d8a0271aa",
+      "08bdaa7202cb0cc514f1d4b0171afd0fc8ef58c741be4853cded4158a784aaa3",
+    ],
+    "tools": [
+      "materials_query",
+    ],
+  },
+  {
+    "hashes": [
+      "00f69b7f5bddda70e4f22bec2e245beebe00e08628456062a968a5d3478d0477",
+      "e0f99b2c8799c75eda47fadacb0d6b25c33fd70220f62f81c4ee58f90f519148",
+    ],
+    "tools": [
+      "estimates_query",
+    ],
+  },
+  {
+    "hashes": [
+      "ce08d57faf487a6dd9dbce29f1d9c884ec351701249c50d46048ffd9bd68c709",
+      "882877b9231b4554386e1370d7cce7ff6a26c7ee0000f97c553bd6516f7785f9",
+    ],
+    "tools": [
+      "lead_capture_propose_action",
+    ],
+  },
+  {
+    "hashes": [
+      "33c826ab17ff3dce0a34e7d74a03d156e6b9684f443ba6ed3c7794fa59b819b9",
+      "6e3332404ae09ee8dd28fd57b67af62afedb82f86bcc3d95586cfcd3f2df81e2",
+    ],
+    "tools": [
+      "calendar_propose_action",
+    ],
+  },
+  {
+    "hashes": [
+      "031cfe3b9f50bb5cf03ca8feccdd2166665caf2684d51bd5bc177b3983462eef",
+      "e51ff7b06026cf1df3df0edce530b7a2285b82661da3a462b783f9139bc1ad54",
+    ],
+    "tools": [
+      "estimates_propose_action",
+    ],
+  },
+  {
+    "hashes": [
+      "1ca18f82a685112ae26bbc471700d0581d5bc665d9b611faf0def7928a5a49ab",
+      "83eb61cb16f7fe2393048f64ea0bc2dd3767060d4f03572a058737289522576a",
+    ],
+    "tools": [
+      "customers_propose_action",
+    ],
+  },
+  {
+    "hashes": [
+      "8462938ecd02aba0fd5dc9f3bb7bdeb3e043a6c88b376253548c120620c0f211",
+      "d1c745c2c5514ed02156a73f252db95483e2a9c1ed42f7e524003da224d01791",
+    ],
+    "tools": [
+      "work_orders_propose_action",
+    ],
+  },
+  {
+    "hashes": [
+      "5b80d5873a2c3dd56391012dd34ff31cda3ff8980c53bc903995cec3ff5a8a2c",
+      "ca1bd0642cc1313e2dadf7651548832c73384d69f61409b653c389425c27fdcf",
+    ],
+    "tools": [
+      "materials_propose_action",
+    ],
+  },
+  {
+    "hashes": [
+      "e67101bb0a28c0e3da7187ea21f22a0fc1a988d7476864d61510559e21db3697",
+      "9192e9ae30517fd385abc420848386609b2d06883b53aa91f023c1494f41ca61",
+    ],
+    "tools": [
+      "leads_propose_action",
+    ],
+  },
+  {
+    "hashes": [
+      "1b6de1ca13f97949075f19ec7273fea09d2507a00f4f4665292dcb0e3772077e",
+      "562b0c3279af80875a94fe15e00e5e1c22c6282a6036c7cbb9c527787b067614",
+    ],
+    "tools": [
+      "reports_query",
+      "lead_capture_query",
+      "calendar_query",
+      "customers_query",
+      "search_help",
+      "leads_query",
+      "work_orders_query",
+      "materials_query",
+      "estimates_query",
+      "lead_capture_propose_action",
+      "calendar_propose_action",
+      "estimates_propose_action",
+      "customers_propose_action",
+      "work_orders_propose_action",
+      "materials_propose_action",
+      "leads_propose_action",
+    ],
+  },
+]
+`;

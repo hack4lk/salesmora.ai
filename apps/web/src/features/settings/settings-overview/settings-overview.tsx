@@ -45,7 +45,7 @@ export function SettingsOverview({ workspaceName, profile, jobNotificationsHref,
           {card.ownerOnly && <span className="shrink-0 rounded-full bg-canvas px-3 py-2 text-xs font-semibold text-primary">{copy.ownerOnly}</span>}
         </div>
         <p className="m-0 mb-2 flex-1 text-sm leading-6 text-muted">{card.description}</p>
-        <a href={card.href} className="inline-flex min-h-11 max-w-full items-center justify-center self-start rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-paper wrap-anywhere hover:bg-primary-dark focus-visible:focus-ring">{card.link}</a>
+        <a href={card.href} className="seafoam-action inline-flex min-h-11 max-w-full items-center justify-center self-start rounded-xl px-4 py-3 text-sm font-semibold wrap-anywhere hover:bg-none hover:bg-seafoam-dark focus-visible:focus-ring">{card.link}</a>
       </section>)}
     </div>}
   </div>;
