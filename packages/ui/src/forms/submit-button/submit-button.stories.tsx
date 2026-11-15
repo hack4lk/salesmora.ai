@@ -18,6 +18,11 @@ export const Default: Story = {
     const button = within(canvasElement).getByRole('button', { name: args.label });
     await expect(button).toHaveAttribute('type', 'submit');
     await expect(button).toBeEnabled();
+    await expect(button).toHaveClass('seafoam-action', 'text-base');
+    const styles = canvasElement.ownerDocument.defaultView!.getComputedStyle(button);
+    await expect(styles.backgroundColor).toBe('rgb(178, 233, 219)');
+    await expect(styles.backgroundImage).toContain('linear-gradient(110deg');
+    await expect(styles.fontSize).toBe('16px');
     await userEvent.click(button);
     await expect(args.onClick).toHaveBeenCalledTimes(1);
   },

@@ -2,7 +2,7 @@ export const paymentRecoveryDialogData = {
   loadingTitle: 'Loading invoice', loading: 'Checking the current renewal invoice and payment card…',
   title: 'Resolve overdue payment', description: 'Review the outstanding invoice and choose how to pay it.',
   open: 'Resolve overdue payment', lastReviewedDue: 'Last reviewed balance',
-  close: 'Close payment recovery', closeLabel: 'Close', later: 'Not now', done: 'Done',
+  close: 'Close payment recovery', later: 'Not now', done: 'Done',
   invoice: 'Invoice', period: 'Billing period', total: 'Invoice total', paidAmount: 'Already paid', due: 'Amount to pay',
   card: 'Payment card', expires: 'Expires', noCard: 'No renewal card is saved.', updateCard: 'Use another card', addCard: 'Add a card',
   cardRequired: 'Save a renewal card before paying this invoice.',

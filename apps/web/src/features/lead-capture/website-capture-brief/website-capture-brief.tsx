@@ -53,7 +53,7 @@ export function WebsiteCaptureBrief({ brief, context, suggestion, acceptedSugges
         value={brief} onChange={event => { if (!disabled) onBriefChange(event.target.value); }} variant="outlined" size="small" className={fieldClasses}
         error={!!briefError} helperText={briefError || copy.helper} slotProps={{ htmlInput: { maxLength: 2000, className: 'focus-visible:focus-ring' } }} />
       {canEdit && <button type="button" disabled={pending || !canSuggest || !brief.trim() || !!briefError} aria-busy={pending}
-        className={`${buttonBase} bg-primary text-paper hover:bg-primary-dark`} onClick={() => { if (!disabled && canSuggest && brief.trim() && !briefError) onSuggest(brief); }}>{pending ? copy.suggesting : copy.suggest}</button>}
+        className={`${buttonBase} seafoam-action enabled:hover:bg-none enabled:hover:bg-seafoam-dark`} onClick={() => { if (!disabled && canSuggest && brief.trim() && !briefError) onSuggest(brief); }}>{pending ? copy.suggesting : copy.suggest}</button>}
     </div>
     {!canEdit && <p className="m-0 text-sm text-muted">{copy.readOnly}</p>}
     {error && <FormFeedback kind="error" message={error} />}

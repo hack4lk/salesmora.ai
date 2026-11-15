@@ -48,7 +48,7 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel = copy.cancel,
   destructive = false,
-  confirmAppearance = "default",
+  confirmAppearance = "seafoam",
   confirmDisabled = false,
   pending = false,
   pendingLabel = copy.pending,

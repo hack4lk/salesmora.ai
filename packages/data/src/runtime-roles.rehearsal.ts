@@ -22,6 +22,25 @@ const worker = createDatabase(loginURL(RUNTIME_LOGIN_ROLES.worker, process.env.D
 const admin = createDatabase(loginURL(ADMIN_APP_ROLE, process.env.DB_ADMIN_APP_PASSWORD));
 let passed = 0;
 let fixtureWorkspace: { id: string; ownerId: string } | null = null;
+const gmailRuntimePrivileges: Record<string, { web: readonly string[]; worker: readonly string[] }> = {
+  captureGmailWorkerReadiness: { web: ['SELECT'], worker: ['SELECT', 'INSERT', 'UPDATE'] },
+  captureGmailSamplePreviews: { web: ['SELECT', 'INSERT', 'DELETE'], worker: [] },
+  captureGmailSampleBindings: { web: ['SELECT', 'INSERT'], worker: ['SELECT'] },
+  captureGmailAccounts: { web: ['SELECT', 'INSERT', 'UPDATE'], worker: ['SELECT', 'UPDATE'] },
+  captureGmailCredentials: { web: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], worker: ['SELECT', 'UPDATE'] },
+  captureGmailOAuthAttempts: { web: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], worker: [] },
+  captureGmailMailboxState: {
+    web: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+    worker: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+  },
+  captureGmailEligibilityWindows: {
+    web: ['SELECT', 'INSERT', 'UPDATE'],
+    worker: ['SELECT', 'INSERT', 'UPDATE'],
+  },
+  captureGmailMessageJobs: { web: ['SELECT', 'UPDATE'], worker: ['SELECT', 'INSERT', 'UPDATE'] },
+  captureGmailDisconnectReviews: { web: ['SELECT', 'INSERT', 'UPDATE'], worker: [] },
+  captureGmailConnectionEvents: { web: ['SELECT', 'INSERT'], worker: ['SELECT', 'INSERT'] },
+};
 
 async function denied(db: Knex, statement: (trx: Knex.Transaction) => Promise<unknown>, label: string) {
   const trx = await db.transaction();
@@ -129,9 +148,10 @@ try {
   assert.ok(databaseRoleProblems(await readDatabaseRoleFacts(owner)).length > 0, 'owner role fails the self-check');
   passed++;
 
-  // Runtime roles: DML on every application table except staff-only ones (covered by the suspension rehearsal), nothing else.
+  // Gmail tables below have narrower per-role grants and are checked separately.
   const all = await tables();
-  const runtimeTables = all.filter(table => table !== 'workspaceAITokenBudgets');
+  const gmailTables = Object.keys(gmailRuntimePrivileges);
+  const runtimeTables = all.filter(table => table !== 'workspaceAITokenBudgets' && !gmailTables.includes(table));
   for (const role of Object.values(RUNTIME_LOGIN_ROLES)) {
     const { rows } = await owner.raw<{ rows: { table: string; dml: boolean; extra: boolean }[] }>(`
       SELECT t AS table,
@@ -151,6 +171,29 @@ try {
       email: false, emailVerified: true, onboardingStatus: true, deletionRequestedAt: true,
     }, `${role} may update only approved user-account fields, never the email address`);
     passed += 3;
+  }
+  for (const [table, byRuntime] of Object.entries(gmailRuntimePrivileges)) {
+    for (const runtime of ['web', 'worker'] as const) {
+      const role = RUNTIME_LOGIN_ROLES[runtime];
+      const expected = byRuntime[runtime];
+      const { rows: [privileges] } = await owner.raw<{ rows: {
+        select: boolean; insert: boolean; update: boolean; delete: boolean; extra: boolean;
+      }[] }>(`
+        SELECT has_table_privilege(?, format('public.%I', ?::text), 'SELECT') AS "select",
+          has_table_privilege(?, format('public.%I', ?::text), 'INSERT') AS insert,
+          has_table_privilege(?, format('public.%I', ?::text), 'UPDATE') AS update,
+          has_table_privilege(?, format('public.%I', ?::text), 'DELETE') AS delete,
+          has_table_privilege(?, format('public.%I', ?::text), 'TRUNCATE, REFERENCES, TRIGGER') AS extra`,
+      [role, table, role, table, role, table, role, table, role, table]);
+      assert.deepEqual(privileges, {
+        select: expected.includes('SELECT'),
+        insert: expected.includes('INSERT'),
+        update: expected.includes('UPDATE'),
+        delete: expected.includes('DELETE'),
+        extra: false,
+      }, `${role} has only the configured ${table} privileges`);
+      passed++;
+    }
   }
   {
     const workspace = await owner('workspaces').first<{ id: string }>('id');

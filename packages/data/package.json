@@ -170,7 +170,6 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",
     "@aws-sdk/lib-storage": "^3.1153.0",
-    "@langchain/langgraph-checkpoint-postgres": "1.0.6",
     "@salesmora/contracts": "workspace:*",
     "@salesmora/domain": "workspace:*",
     "google-auth-library": "11.3.3",

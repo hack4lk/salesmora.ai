@@ -10,8 +10,9 @@
 .global { background: #f5f7f9; border-radius: .5rem; display: grid; gap: .35rem; margin-top: 1rem; padding: .8rem; }
 .global span, .overrides span, .history li span { color: #536171; font-size: .9rem; }
 .actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .8rem; }
-.button, .secondary { border: 1px solid #173b57; border-radius: .45rem; cursor: pointer; font: inherit; font-weight: 650; min-height: 2.6rem; padding: .55rem .85rem; }
-.button { background: #173b57; color: #fff; }
+.button, .secondary { border: 1px solid #173b57; border-radius: .45rem; cursor: pointer; font: inherit; font-size: .875rem; font-weight: 650; min-height: 2.6rem; padding: .55rem .85rem; }
+.button { min-height: 2.75rem; border-color: var(--color-seafoam-light); background: linear-gradient(110deg, var(--color-seafoam-pale), var(--color-seafoam-light)); color: var(--color-ink); box-shadow: 0 1px 2px rgb(0 0 0 / 5%); }
+.button:hover:not(:disabled) { border-color: var(--color-seafoam-dark); background: var(--color-seafoam-dark); }
 .secondary { background: #fff; color: #173b57; }
 .button:disabled, .secondary:disabled { cursor: not-allowed; opacity: .55; }
 .card h3 { font-size: 1rem; margin: 1rem 0 .4rem; }

@@ -29,8 +29,10 @@ const identity = { workspaceId: randomUUID(), userId: randomUUID() }, stranger =
 let canonical = true, created = false, checks = 0;
 const reviewedOnly = process.argv.includes('--reviewed-only');
 const historyOnly = process.argv.includes('--history-only');
-const backfillOnly = process.argv.includes('--backfill-only');
-const compatibleRollback = process.argv.includes('--compatible-rollback');
+const supportedOptions = new Set(['--reviewed-only', '--history-only']);
+for (const option of process.argv.slice(2)) {
+  if (!supportedOptions.has(option)) throw new Error(`Unknown proposal storage rehearsal option: ${option}`);
+}
 const canonicalSQL: string[] = [];
 const input = leadSchema.parse({ name: 'Fictional private Lead', email: 'fixture@example.test', phone: '', service: 'Repair', address: '', details: 'Private fixture detail', notes: '', source: 'other', stage: 'new', ownerId: '' });
 const signal = () => new AbortController().signal;
@@ -709,15 +711,14 @@ try {
       assert.deepEqual(await db('chatTurns').whereNotNull('proposalFamilies').orderBy('id').select('id', 'proposalFamilies'), saved);
     });
   }
-  if (compatibleRollback || backfillOnly) throw new Error('Legacy backfill and rollback rehearsals are not supported by the canonical-only release.');
   if (historyOnly) {
     await withCanonicalProposalStorage(runHistory);
     assert.equal(canonicalSQL.some(sql => /"chat(?:ActionDrafts|ActionAudit|CustomerDrafts|WorkOrderDrafts|Estimate\w+|CalendarProposals|Capture\w+Proposals)"/.test(sql)), false);
     console.log(`PASS ${checks} native history integration groups; canonical discovery/evidence use one table and shared databases are untouched.`);
   } else {
-  await withCanonicalProposalStorage(reviewedOnly ? runReviewed : run);
-  assert.equal(canonicalSQL.some(sql => /"chat(?:ActionDrafts|ActionAudit|CustomerDrafts|WorkOrderDrafts)"/.test(sql)), false, 'Canonical mode must not touch legacy proposal/audit tables.');
-  console.log(`PASS ${checks} native ${reviewedOnly ? 'Customer/Work Order/Material' : 'Lead'} proposal groups, canonical zero legacy SQL; shared databases untouched.`);
+    await withCanonicalProposalStorage(reviewedOnly ? runReviewed : run);
+    assert.equal(canonicalSQL.some(sql => /"chat(?:ActionDrafts|ActionAudit|CustomerDrafts|WorkOrderDrafts)"/.test(sql)), false, 'Canonical mode must not touch legacy proposal/audit tables.');
+    console.log(`PASS ${checks} native ${reviewedOnly ? 'Customer/Work Order/Material' : 'Lead'} proposal groups, canonical zero legacy SQL; shared databases untouched.`);
   }
 } finally {
   const globalStore = globalThis as typeof globalThis & { workspaceDatabase?: ReturnType<typeof createDatabase> };

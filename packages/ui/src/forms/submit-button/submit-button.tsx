@@ -28,7 +28,7 @@ export function SubmitButton({
       {...props}
       type="submit"
       variant="contained"
-      color="primary"
+      color="secondary"
       disableElevation
       fullWidth={fullWidth}
       disabled={disabled || pending}
@@ -38,7 +38,7 @@ export function SubmitButton({
       aria-busy={pending}
       className={[
         'min-h-11 rounded-xl px-6 py-3 text-base leading-normal font-semibold normal-case whitespace-normal wrap-anywhere focus-visible:focus-ring',
-        'bg-primary text-paper hover:bg-primary-dark disabled:bg-line disabled:text-muted',
+        'seafoam-action enabled:hover:bg-none enabled:hover:bg-seafoam-dark disabled:bg-none disabled:bg-line disabled:text-muted',
         className,
       ].filter(Boolean).join(' ')}
     >

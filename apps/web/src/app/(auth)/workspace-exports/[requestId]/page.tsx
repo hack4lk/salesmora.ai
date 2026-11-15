@@ -41,7 +41,7 @@ export default async function WorkspaceExportPage({
       Download before {expiresAt.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. Uploaded file contents are not included.
     </p>
     <a href={`/api/workspace-exports/${requestId}/download`}
-      className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-700 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700">
+      className="seafoam-action mt-4 inline-flex min-h-11 items-center justify-center rounded-xl px-5 py-2 text-sm font-semibold hover:bg-none hover:bg-seafoam-dark focus-visible:focus-ring">
       Download encrypted ZIP
     </a>
   </main>;

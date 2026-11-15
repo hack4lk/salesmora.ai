@@ -273,9 +273,6 @@ importers:
       '@aws-sdk/lib-storage':
         specifier: ^3.1153.0
         version: 3.1153.0(@aws-sdk/client-s3@3.1153.0)
-      '@langchain/langgraph-checkpoint-postgres':
-        specifier: 1.0.6
-        version: 1.0.6(@langchain/core@1.2.17(openai@7.32.0(@aws-sdk/credential-provider-node@3.972.87)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.5))(ws@8.22.0))(@langchain/langgraph-checkpoint@1.1.6(@langchain/core@1.2.17(openai@7.32.0(@aws-sdk/credential-provider-node@3.972.87)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.5))(ws@8.22.0)))
       '@salesmora/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -1267,13 +1264,6 @@ packages:
   '@langchain/core@1.2.17':
     resolution: {integrity: sha512-aLQLSed6oLCMLtJHrINhnFmsu79G2UiDlRslbOx+TSN9NmU+WuDv1OtVxrLpYglhXNy53elSduMVk3XBPG9ulw==}
     engines: {node: '>=20'}
-
-  '@langchain/langgraph-checkpoint-postgres@1.0.6':
-    resolution: {integrity: sha512-8g2VDANwa5AoaTsGmeyZ9fpPySGpnpD4yKiFI9EZ8poLmR9xZ3wBCKwPGp2NweOjRu9Ix6mO3Xo99Ae/BpaABw==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      '@langchain/core': ^1.1.44
-      '@langchain/langgraph-checkpoint': ^1.1.4
 
   '@langchain/langgraph-checkpoint@1.1.6':
     resolution: {integrity: sha512-CpDMGTY4Y6qzoGewMoL8MS9Ej35vyrrchbRpKCtUDWnHhrf4lbHp7wnu9dsHaavB3Z+M6aVRl+9GNQbIJVV1dg==}
@@ -6045,14 +6035,6 @@ snapshots:
       - '@opentelemetry/sdk-trace-base'
       - openai
       - ws
-
-  '@langchain/langgraph-checkpoint-postgres@1.0.6(@langchain/core@1.2.17(openai@7.32.0(@aws-sdk/credential-provider-node@3.972.87)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.5))(ws@8.22.0))(@langchain/langgraph-checkpoint@1.1.6(@langchain/core@1.2.17(openai@7.32.0(@aws-sdk/credential-provider-node@3.972.87)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.5))(ws@8.22.0)))':
-    dependencies:
-      '@langchain/core': 1.2.17(openai@7.32.0(@aws-sdk/credential-provider-node@3.972.87)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.5))(ws@8.22.0)
-      '@langchain/langgraph-checkpoint': 1.1.6(@langchain/core@1.2.17(openai@7.32.0(@aws-sdk/credential-provider-node@3.972.87)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.5))(ws@8.22.0))
-      pg: 8.23.1
-    transitivePeerDependencies:
-      - pg-native
 
   '@langchain/langgraph-checkpoint@1.1.6(@langchain/core@1.2.17(openai@7.32.0(@aws-sdk/credential-provider-node@3.972.87)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.5))(ws@8.22.0))':
     dependencies:

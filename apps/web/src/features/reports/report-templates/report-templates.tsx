@@ -5,7 +5,7 @@ import Dialog from '@mui/material/Dialog';
 import { reportTemplateConfigurationSchema, reportTemplateSchema, reportTemplateListSchema, reportTemplateRunResultSchema,
   type ReportTemplate, type ReportTemplateArea, type ReportTemplateConfiguration,
   type ReportTemplatePeriod } from '@salesmora/contracts';
-import { FormFeedback, SeafoamOutlineButton } from '@salesmora/ui';
+import { CloseOutlined, FormFeedback, SeafoamOutlineButton } from '@salesmora/ui';
 import { ReportTemplateList, type ReportTemplateAction } from '../report-template-list/report-template-list';
 import { ReportTemplateCallout } from '../report-template-callout/report-template-callout';
 import { ReportTemplateNameDialog } from '../report-template-name-dialog/report-template-name-dialog';
@@ -147,7 +147,11 @@ function ReportTemplatesHost({ area, workspaceId, query, period, ready, active, 
       <div className="grid min-w-0 gap-4 p-4 sm:p-6">
         <header className="flex items-center justify-between gap-4">
           <h2 id={`${id}-templates-title`} className="m-0 text-xl font-semibold">My Templates</h2>
-          <SeafoamOutlineButton label="Close" disabled={pending} onClick={listDialog.onClose} />
+          <button type="button" aria-label="Close templates" disabled={pending}
+            onClick={listDialog.onClose}
+            className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-line text-primary hover:bg-canvas focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50">
+            <CloseOutlined aria-hidden="true" />
+          </button>
         </header>
         {error && <FormFeedback kind="error" message={error} />}
         {templateList}

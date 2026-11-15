@@ -2,6 +2,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { PlanChangeQuote, PlanChangeResult, WorkspacePlanId } from '@salesmora/contracts';
 import { getWorkspacePlan } from '@salesmora/domain';
+import { CloseOutlined } from '@salesmora/ui';
 import { planChangeData as copy } from './plan-change.data';
 export interface PlanChangeProps {
  mode?:'plan'|'cancel';onUndo?:()=>void;
@@ -15,10 +16,10 @@ export function PlanChange({mode='plan',onUndo,currentPlan,quote,result,pending=
  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[]);
  const id=useId();const money=(cents:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
  const button='inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-line bg-paper px-4 py-3 text-sm font-semibold text-primary hover:bg-canvas disabled:cursor-not-allowed disabled:text-muted focus-visible:focus-ring';
- const primary=`${button} border-primary bg-primary text-white hover:bg-primary-dark disabled:border-line disabled:bg-line disabled:text-ink`;
+ const primary=`${button} seafoam-action enabled:hover:bg-none enabled:hover:bg-seafoam-dark disabled:bg-none disabled:border-line disabled:bg-line disabled:text-muted`;
  const expired=quote&&!result&&new Date(quote.expiresAt).getTime()<=now;
  return <section aria-labelledby={`${id}-title`} className="grid min-w-0 gap-6 rounded-2xl border border-primary bg-paper p-6 sm:p-8">
-  <header className="flex flex-wrap items-start justify-between gap-4"><div><h2 ref={heading} id={`${id}-title`} tabIndex={-1} className="m-0 text-2xl font-semibold text-ink focus-visible:focus-ring">{mode==='cancel'?copy.cancelTitle:copy.title}</h2><p className="mb-0 mt-3 text-sm leading-6 text-muted">{mode==='cancel'?copy.cancelDescription:copy.description}</p></div><button type="button" className={button} disabled={pending} onClick={onClose}>{mode==='cancel'?copy.cancelClose:copy.close}</button></header>
+  <header className="flex flex-wrap items-start justify-between gap-4"><div><h2 ref={heading} id={`${id}-title`} tabIndex={-1} className="m-0 text-2xl font-semibold text-ink focus-visible:focus-ring">{mode==='cancel'?copy.cancelTitle:copy.title}</h2><p className="mb-0 mt-3 text-sm leading-6 text-muted">{mode==='cancel'?copy.cancelDescription:copy.description}</p></div><button type="button" aria-label={mode==='cancel'?copy.cancelClose:copy.close} className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-line text-primary hover:bg-canvas focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50" disabled={pending} onClick={onClose}><CloseOutlined aria-hidden="true" /></button></header>
   {error&&<p role="alert" className="m-0 rounded-xl border border-error bg-error/5 p-4 text-error">{error}</p>}
   {error&&quote&&!result&&<button type="button" disabled={pending} className={button} onClick={onRefresh}>{copy.check}</button>}
   {mode==='cancel'&&!quote&&!result&&!error&&<p role="status" className="m-0 text-muted">{copy.cancelLoading}</p>}

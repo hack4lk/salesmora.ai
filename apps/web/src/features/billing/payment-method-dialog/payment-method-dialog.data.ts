@@ -4,7 +4,7 @@ export const paymentMethodDialogData = {
   confirmed: 'This card has already been verified. Save it to use it for subscription renewals.',
   confirmedCard: 'Verified replacement card',
   savedRecovery: 'Only the renewal card was updated. Any outstanding invoice remains unpaid; review Billing for its current status.',
-  title: 'Update payment method', close: 'Close payment details', closeLabel: 'Close', cancel: 'Cancel', done: 'Done',
+  title: 'Update payment method', close: 'Close payment details', cancel: 'Cancel', done: 'Done',
   description: 'Save a card for your workspace subscription without leaving SalesMora.',
   current: 'Current renewal card', noCard: 'No saved renewal card', expires: 'Expires',
   secure: 'Your card details are handled securely by Stripe.',

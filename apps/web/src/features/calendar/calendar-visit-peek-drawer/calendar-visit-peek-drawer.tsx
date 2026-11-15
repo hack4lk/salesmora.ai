@@ -34,7 +34,7 @@ export function CalendarVisitPeekDrawer({ open, visit, state = 'ready', onClose,
   return <SideDrawer open={open} title={ready ? visit.title : copy.title} description={copy.description} onClose={onClose}
     footer={ready ? <div className="grid gap-3">
       <button type="button" disabled={!visit.canReschedule || !onSchedule} onClick={() => onSchedule?.(visit.id)}
-        className={`${action} w-full border-primary bg-primary text-white hover:bg-primary-dark disabled:cursor-not-allowed disabled:border-line disabled:bg-canvas disabled:text-muted`}>
+        className={`${action} seafoam-action w-full enabled:hover:bg-none enabled:hover:bg-seafoam-dark disabled:cursor-not-allowed disabled:bg-none disabled:border-line disabled:bg-canvas disabled:text-muted`}>
         {visit.scheduledDate ? copy.reschedule : copy.scheduleAction}
       </button>
       {onAskAssistant && <>

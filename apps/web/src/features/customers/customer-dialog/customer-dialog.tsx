@@ -1,13 +1,13 @@
 "use client";
 import { useId, useState } from "react";
 import Dialog from "@mui/material/Dialog";
+import { CloseOutlined } from "@salesmora/ui";
 import type { CustomerFormProps } from "../customer-form/customer-form";
 import { CustomerForm } from "../customer-form/customer-form";
 import {
   DuplicateMatchBanner,
   type CustomerDuplicateMatch,
 } from "../duplicate-match-banner/duplicate-match-banner";
-import { customerButton } from "../customer-ui";
 import { customerDialogData as c } from "./customer-dialog.data";
 export type CustomerDialogProps = CustomerFormProps & {
   open: boolean;
@@ -64,11 +64,12 @@ export function CustomerDialog({
           </div>
           <button
             type="button"
+            aria-label={c.close}
             disabled={busy}
             onClick={close}
-            className={customerButton}
+            className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-line text-primary hover:bg-canvas focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {c.close}
+            <CloseOutlined aria-hidden="true" />
           </button>
         </header>
         {matches.length > 0 && onUseExisting && onCreateAnyway && (

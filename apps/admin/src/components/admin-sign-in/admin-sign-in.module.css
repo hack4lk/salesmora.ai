@@ -126,17 +126,20 @@
   padding: 10px 14px;
   border: 1px solid #3b6fa5;
   border-radius: 8px;
-  background: #3b6fa5;
-  color: #fff;
+  background: linear-gradient(110deg, var(--color-seafoam-pale), var(--color-seafoam-light));
+  color: var(--color-ink);
   font: inherit;
   font-size: 0.875rem;
   font-weight: 650;
   text-align: center;
   cursor: pointer;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 5%);
 }
 
 .primary:hover:not(:disabled) {
-  background: #315c8a;
+  border-color: var(--color-seafoam-dark);
+  border-color: var(--color-seafoam-dark);
+  background: var(--color-seafoam-dark);
 }
 
 .primary:disabled {
@@ -148,6 +151,7 @@
   border-color: #d0d5dd;
   background: #fff;
   color: #344054;
+  box-shadow: none;
 }
 
 .link {

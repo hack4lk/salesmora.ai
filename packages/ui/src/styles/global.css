@@ -72,6 +72,10 @@
   @apply outline-3 outline-solid outline-primary outline-offset-4;
 }
 
+@utility seafoam-action {
+  @apply border-seafoam-light bg-seafoam-light bg-linear-110 from-seafoam-pale to-seafoam-light text-ink shadow-sm;
+}
+
 @utility letter-paper {
   page: salesmora-letter;
 }

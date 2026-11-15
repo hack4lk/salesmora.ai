@@ -2,7 +2,7 @@
 import { useId, type ReactNode } from 'react';
 import Dialog from '@mui/material/Dialog';
 import type { WorkspaceRole } from '@salesmora/contracts';
-import { FormFeedback } from '@salesmora/ui';
+import { CloseOutlined, FormFeedback } from '@salesmora/ui';
 import { paymentRecoveryDialogData as copy } from './payment-recovery-dialog.data';
 
 export type PaymentRecoveryState = 'loading' | 'review' | 'processing' | 'authenticating' | 'confirming' | 'pending' | 'paid' | 'already-paid' | 'declined' | 'changed' | 'unavailable';
@@ -20,7 +20,7 @@ export interface PaymentRecoveryDialogProps {
   onRefresh?: () => void;
 }
 const button = 'inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-line bg-paper px-4 py-3 text-sm font-semibold text-primary hover:bg-canvas focus-visible:focus-ring disabled:cursor-not-allowed disabled:text-muted';
-const primary = 'inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white hover:bg-primary-dark focus-visible:focus-ring disabled:cursor-not-allowed disabled:bg-line disabled:text-muted';
+const primary = 'seafoam-action inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold hover:bg-none hover:bg-seafoam-dark focus-visible:focus-ring disabled:cursor-not-allowed disabled:bg-none disabled:bg-line disabled:text-muted';
 
 /** Presentation only: a connected adapter must supply a current, server-authorized invoice and verified payment state. */
 export function PaymentRecoveryDialog({open,viewerRole,state='review',invoice,card,canPay=false,verificationForm,onPay,onClose,onUpdateCard,onRefresh}:PaymentRecoveryDialogProps) {
@@ -44,7 +44,7 @@ export function PaymentRecoveryDialog({open,viewerRole,state='review',invoice,ca
     onClose={(_event,reason)=>{if(reason!=='backdropClick')close();}}
     slotProps={{backdrop:{className:'bg-ink/50'},paper:{tabIndex:0,'aria-labelledby':`${id}-title`,'aria-describedby':`${id}-description`,className:'m-4 min-w-0 rounded-2xl bg-paper text-ink focus-visible:focus-ring sm:m-8'}}}>
     <div className="grid min-w-0 gap-6 p-6 sm:p-8" aria-busy={busy}>
-      <header><div className="flex flex-wrap items-start justify-between gap-3"><h2 id={`${id}-title`} className="m-0 text-2xl font-semibold text-ink">{paid?title:copy.title}</h2><button type="button" aria-label={copy.close} disabled={busy} onClick={close} className={button}>{copy.closeLabel}</button></div><p id={`${id}-description`} className="mb-0 mt-3 text-sm leading-6 text-muted">{copy.description}</p></header>
+      <header><div className="flex flex-wrap items-start justify-between gap-3"><h2 id={`${id}-title`} className="m-0 text-2xl font-semibold text-ink">{paid?title:copy.title}</h2><button type="button" aria-label={copy.close} disabled={busy} onClick={close} className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-line text-primary hover:bg-canvas focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50"><CloseOutlined aria-hidden="true" /></button></div><p id={`${id}-description`} className="mb-0 mt-3 text-sm leading-6 text-muted">{copy.description}</p></header>
       {!owner && <p className="m-0 rounded-xl border border-line bg-canvas p-4 text-sm leading-6 text-muted">{copy.readonly}</p>}
       {owner && (paid ? <FormFeedback kind="success" title={title} message={message}/> : ['declined','changed','unavailable','pending'].includes(state) ? <FormFeedback kind="error" title={title} message={message}/> : busy || state==='loading' ? <section role="status" className="rounded-xl border border-primary bg-canvas p-4"><h3 className="m-0 text-base font-semibold text-ink">{title}</h3><p className="mb-0 mt-2 text-sm leading-6 text-muted">{message}</p></section> : <section className="rounded-xl border border-l-8 border-error bg-error/5 p-4"><h3 className="m-0 text-lg font-semibold text-ink">{title}</h3><p className="mb-0 mt-3 text-sm leading-6 text-ink">{message}</p></section>)}
       {invoice && <section aria-labelledby={`${id}-invoice`} className="min-w-0 rounded-xl border border-line bg-canvas p-4"><h3 id={`${id}-invoice`} className="m-0 text-base font-semibold text-ink">{copy.invoice} · {invoice.number}</h3><p className="mb-0 mt-2 text-sm text-muted wrap-anywhere">{invoice.description}</p><p className="mb-0 mt-3 text-sm leading-6 text-muted">{copy.period}: {date(invoice.periodStart)} – {date(invoice.periodEnd)}</p><dl className="mb-0 mt-5 grid gap-3">{[[copy.total,invoice.total],[copy.paidAmount,invoice.amountPaid],[['changed','unavailable','pending'].includes(state)?copy.lastReviewedDue:copy.due,invoice.amountDue]].map(([label,value],index)=><div key={label} className={`flex flex-wrap justify-between gap-3 ${index===2?'border-t border-line pt-4':''}`}><dt className="text-sm text-muted">{label}</dt><dd className={`m-0 font-semibold text-ink ${index===2?'text-2xl':''}`}>{money(Number(value))}</dd></div>)}</dl></section>}
