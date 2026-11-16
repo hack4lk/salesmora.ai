@@ -1,7 +1,5 @@
 export const estimatesMetricsData = {
   title: "Estimate metrics",
-  description:
-    "Authorized workspace totals. They do not depend on current table paging.",
   errorTitle: "Estimate metrics are unavailable",
   error:
     "We could not load estimate metrics. You can retry now or keep working in the list.",
@@ -24,4 +22,3 @@ export const estimatesMetricsData = {
     description: "Sent and published estimates with valid-until in the next 7 days.",
   },
 } as const;
-

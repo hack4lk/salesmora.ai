@@ -37,7 +37,7 @@ export async function renderWorkOrdersPage(params: Record<string, string | strin
       user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} authorizedPages={workspaceNavigationPages(context)}
       jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} billingAvailable={capabilities.billing} assistantAvailable={capabilities.assistant}
       chatEnabled={await workspaceChatAvailable(workspace.id)} chatSurface={workOrderId ? "work_order.detail" : "work_order.list"} contentWidth="full" onSignOut={signOut}>
-      <WorkOrdersRoute key={`${workspace.id}:${workOrderId ?? "list"}`} workspaceId={workspace.id} field={context.membership.role === "field"} initial={initial} initialQuery={query} initialDetail={detail} createForJobId={typeof params.newForJob === "string" && workOrderIdSchema.safeParse(params.newForJob).success ? params.newForJob : undefined} />
+      <WorkOrdersRoute key={`${workspace.id}:${workOrderId ?? "list"}`} workspaceId={workspace.id} viewerId={session.user.id} initialUpdatedAt={Date.now()} field={context.membership.role === "field"} initial={initial} initialQuery={query} initialDetail={detail} createForJobId={typeof params.newForJob === "string" && workOrderIdSchema.safeParse(params.newForJob).success ? params.newForJob : undefined} />
     </WorkspaceShell>;
   } catch (error) {
     if (error instanceof AuthorizationAccessError || error instanceof WorkOrderContractError || error instanceof WorkOrderValidationError) notFound();

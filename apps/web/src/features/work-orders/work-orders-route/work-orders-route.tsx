@@ -1,9 +1,15 @@
 'use client';
 import { useCalendarScheduleRefresh } from '../../calendar/calendar-events';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { ApiQueryScopeBoundary, useApiQueryScope } from '../../api/api-query-provider';
+import { useApiQuery } from '../../api/use-api-query';
+import { apiReadOptions, invalidateWorkspaceResources } from '../../api/api-read-options';
+import { isApiAccessError } from '../../api/api-query';
+import { workOrderCreationVisitSchema, jobDetailResultSchema, jobListResultSchema, workOrderListResultSchema } from '@salesmora/contracts';
 import { FormFeedback } from '@salesmora/ui';
-import type { JobDetailResult, JobListResult, JobView, WorkOrderDetailResult, WorkOrderStatus, WorkOrderListResult, WorkOrderQuery } from '@salesmora/contracts';
+import type { JobView, WorkOrderDetailResult, WorkOrderStatus, WorkOrderListResult, WorkOrderQuery } from '@salesmora/contracts';
 import type { CreateWorkOrderValues, WorkOrderListAction, WorkOrderListFilters, WorkOrderListSort, WorkOrderListView, WorkOrderView } from '../work-order-preview.types';
 import { WorkOrdersList } from '../work-orders-list/work-orders-list';
 import { defaultWorkOrderListFilters } from '../work-orders-list/work-orders-list.filter';
@@ -14,56 +20,41 @@ import { WorkOrderDeleteDialog } from '../work-order-delete-dialog/work-order-de
 import { WorkOrderMoveDialog } from '../work-order-move-dialog/work-order-move-dialog';
 import { JobDialog } from '../../jobs/job-dialog/job-dialog';
 import { woInput, woLabel, woPrimary } from '../work-order-ui';
-import { workOrderRequest } from '../work-order-client';
 import { statusPayload, useWorkOrderWrites } from '../work-order-writes';
 import { workOrdersRouteData as copy } from './work-orders-route.data';
 
-async function load(url: string, signal: AbortSignal): Promise<WorkOrderListResult> {
-  const response = await fetch(url, { cache: 'no-store', signal });
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error ?? copy.error);
-  return body;
+export interface WorkOrdersRouteProps { workspaceId: string; viewerId: string; initialUpdatedAt: number; initial: WorkOrderListResult; initialQuery: WorkOrderQuery; initialDetail?: WorkOrderDetailResult; field: boolean; createForJobId?: string }
+export function WorkOrdersRoute(props: WorkOrdersRouteProps) {
+  return <ApiQueryScopeBoundary scope={{ viewerId: props.viewerId, workspaceId: props.workspaceId }}>
+    {props.initialDetail ? <WorkOrderDetailRoute key={`${props.viewerId}:${props.workspaceId}:${props.initialDetail.workOrder.id}`} workspaceId={props.workspaceId} initial={props.initialDetail} initialUpdatedAt={props.initialUpdatedAt}/>
+      : <WorkOrdersListRoute key={`${props.viewerId}:${props.workspaceId}`} {...props}/>}
+  </ApiQueryScopeBoundary>;
 }
 
-export function WorkOrdersRoute({ workspaceId, initial, initialQuery, initialDetail, field, createForJobId }: { workspaceId: string; initial: WorkOrderListResult; initialQuery: WorkOrderQuery; initialDetail?: WorkOrderDetailResult; field: boolean; createForJobId?: string }) {
-  if (initialDetail) return <WorkOrderDetailRoute workspaceId={workspaceId} initial={initialDetail} />;
-  return <WorkOrdersListRoute workspaceId={workspaceId} initial={initial} initialQuery={initialQuery} field={field} createForJobId={createForJobId} />;
-}
-
-function WorkOrdersListRoute({ workspaceId, initial, initialQuery, field, createForJobId }: { workspaceId: string; initial: WorkOrderListResult; initialQuery: WorkOrderQuery; field: boolean; createForJobId?: string }) {
-  const router = useRouter();
-  const [list, setList] = useState(initial), [error, setError] = useState(''), [loading, setLoading] = useState(false);
+function WorkOrdersListRoute({ workspaceId, initial, initialQuery, field, createForJobId, initialUpdatedAt }: WorkOrdersRouteProps) {
+  const router = useRouter(), client = useQueryClient(), scope = useApiQueryScope();
+  const [error, setError] = useState('');
   const [view, setView] = useState<WorkOrderListView>('table'), [page, setPage] = useState(initial.page), [pageSize, setPageSize] = useState(initial.pageSize);
   const [sort, setSort] = useState<WorkOrderListSort>({ column: initialQuery.sort ?? 'scheduledDate', direction: initialQuery.direction ?? 'asc' });
   const members = initial.options.members;
   const [filters, setFilters] = useState<WorkOrderListFilters>(() => ({ ...defaultWorkOrderListFilters, search: initialQuery.q ?? '', status: initialQuery.status ?? 'all',
     assignee: members.find(m => m.id === initialQuery.assigneeId)?.name ?? 'all', jobNumber: initialQuery.jobNumber ?? 'all', scheduledFrom: initialQuery.scheduledFrom ?? '',
     scheduledTo: initialQuery.scheduledTo ?? '', mine: field || (initialQuery.mine ?? false), archived: initialQuery.archived ?? false }));
-  const sequence = useRef(0), [refresh, setRefresh] = useState(0);
   const writes = useWorkOrderWrites(workspaceId, copy.saveError);
   const [moving, setMoving] = useState<{ row: WorkOrderView; to: WorkOrderStatus | null }>();
   const [deleting, setDeleting] = useState<WorkOrderView>(), [exporting, setExporting] = useState(false);
-  const [picking, setPicking] = useState(false), [jobs, setJobs] = useState<JobView[]>(), [jobsError, setJobsError] = useState(''), [pickedJobId, setPickedJobId] = useState(''), [creatingFor, setCreatingFor] = useState<JobView>();
-  const [loadedVisit, setLoadedVisit] = useState<{ key: string; context: CreateWorkOrderVisitContext }>();
-  const [visitReload, setVisitReload] = useState(0);
-  const reloadVisit = () => setVisitReload(n => n + 1);
-  const visitKey = JSON.stringify([workspaceId, creatingFor?.id, visitReload]);
-  const visitContext: CreateWorkOrderVisitContext = loadedVisit?.key === visitKey ? loadedVisit.context : { state: 'loading', visit: null };
-  useEffect(() => {
-    if (!creatingFor) return;
-    const controller = new AbortController();
-    workOrderRequest<CreateWorkOrderVisitContext['visit']>('/api/work-orders/creation-visit?' + new URLSearchParams({ workspace: workspaceId, jobId: creatingFor.id }), { signal: controller.signal }, copy.jobsError)
-      .then(visit => { if (!controller.signal.aborted) setLoadedVisit({ key: visitKey, context: { state: 'ready', visit } }); })
-      .catch(() => { if (!controller.signal.aborted) setLoadedVisit({ key: visitKey, context: { state: 'error', visit: null } }); });
-    return () => controller.abort();
-  }, [creatingFor, workspaceId, visitKey]);
-  useEffect(() => {
-    if (!createForJobId) return;
-    let live = true;
-    workOrderRequest<JobDetailResult>(`/api/jobs/${createForJobId}?` + new URLSearchParams({ workspace: workspaceId }), undefined, copy.jobsError)
-      .then(result => { if (live) setCreatingFor(result.job); }).catch(e => { if (live) setError(e instanceof Error ? e.message : copy.jobsError); });
-    return () => { live = false; };
-  }, [createForJobId, workspaceId]);
+  const [picking, setPicking] = useState(false), [pickedJobId, setPickedJobId] = useState(''), [chosenJob, setCreatingFor] = useState<JobView>(), [creationDismissed, setCreationDismissed] = useState(false);
+  const jobsPath = '/api/jobs?' + new URLSearchParams({ workspace: workspaceId, pageSize: '100', closed: 'false', sort: 'number', direction: 'desc' });
+  const jobsQuery = useApiQuery({ ...apiReadOptions(scope, 'jobs', { url: jobsPath }, jobsPath, raw => jobListResultSchema.parse(raw), copy.jobsError), enabled: picking });
+  const jobs = jobsQuery.data?.rows, selectedJobId = pickedJobId || jobs?.[0]?.id || '';
+  const creationJobQuery = useApiQuery({ ...apiReadOptions(scope, 'job-detail', { id: createForJobId, activityPage: 1 },
+    `/api/jobs/${createForJobId ?? ''}?workspace=${encodeURIComponent(workspaceId)}`, raw => jobDetailResultSchema.parse(raw), copy.jobsError), enabled: !!createForJobId });
+  const creatingFor = chosenJob ?? (creationDismissed ? undefined : creationJobQuery.data?.job);
+  const visitQuery = useApiQuery({ ...apiReadOptions(scope, 'work-order-creation', { jobId: creatingFor?.id },
+    '/api/work-orders/creation-visit?' + new URLSearchParams({ workspace: workspaceId, jobId: creatingFor?.id ?? '' }),
+    raw => workOrderCreationVisitSchema.parse(raw), copy.jobsError), enabled: !!creatingFor, staleTime: 0 });
+  const reloadVisit = () => { void visitQuery.refetch(); };
+  const visitContext: CreateWorkOrderVisitContext = { state: visitQuery.isError ? 'error' : visitQuery.isPending || visitQuery.isFetching ? 'loading' : 'ready', visit: visitQuery.data ?? null };
   const url = useMemo(() => {
     const assignee = members.find(m => m.name === filters.assignee)?.id;
     return '/api/work-orders?' + new URLSearchParams({ workspace: workspaceId, q: filters.search, ...(filters.status !== 'all' ? { status: filters.status } : {}),
@@ -71,22 +62,18 @@ function WorkOrdersListRoute({ workspaceId, initial, initialQuery, field, create
       ...(filters.scheduledFrom ? { scheduledFrom: filters.scheduledFrom } : {}), ...(filters.scheduledTo ? { scheduledTo: filters.scheduledTo } : {}),
       mine: String(filters.mine), archived: String(filters.archived), page: String(page), pageSize: String(pageSize), sort: sort.column, direction: sort.direction }).toString();
   }, [filters, members, page, pageSize, sort, workspaceId]);
-  const first = useRef(true);
-  useEffect(() => {
-    if (first.current) { first.current = false; return; }
-    const controller = new AbortController(), current = ++sequence.current;
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      try { const result = await load(url, controller.signal); if (sequence.current === current) { setList(result); setPage(result.page); setError(''); } }
-      catch (e) { if (!controller.signal.aborted && sequence.current === current) setError(e instanceof Error ? e.message : copy.error); }
-      finally { if (!controller.signal.aborted && sequence.current === current) setLoading(false); }
-    }, 200);
-    return () => { clearTimeout(timer); controller.abort(); };
-  }, [url, refresh]);
+  const [initialURL] = useState(url);
+  const [readURL, setReadURL] = useState(url);
+  useEffect(() => { const timer = setTimeout(() => setReadURL(url), 200); return () => clearTimeout(timer); }, [url]);
+  const listQuery = useApiQuery({ ...apiReadOptions(scope, 'work-orders', { url: readURL }, readURL, raw => workOrderListResultSchema.parse(raw), copy.error),
+    initialData: readURL === initialURL ? initial : undefined, initialDataUpdatedAt: initialUpdatedAt });
+  const list = listQuery.data ?? initial, loading = listQuery.isPending;
+  const denied = writes.denied || isApiAccessError(listQuery.error) || isApiAccessError(visitQuery.error);
+  useEffect(() => { if (denied) router.refresh(); }, [denied, router]);
   const rows = useMemo(() => list.rows.map(toView), [list.rows]);
   const reset = (patch: () => void) => { patch(); setPage(1); };
   const query = `?workspace=${encodeURIComponent(workspaceId)}`;
-  const refetch = () => setRefresh(n => n + 1);
+  const refetch = () => { void invalidateWorkspaceResources(client, workspaceId, ['work-orders']).catch(() => setError(copy.error)); };
   useCalendarScheduleRefresh(refetch);
   const open = (w: WorkOrderView) => router.push(`/work-orders/${w.id}${query}`);
   async function move(row: WorkOrderView, payload: object) {
@@ -136,37 +123,33 @@ function WorkOrdersListRoute({ workspaceId, initial, initialQuery, field, create
     if (to === 'completed') open(row);
     else setMoving({ row, to });
   }
-  async function startPicking() {
-    writes.clearError(); setPicking(true); setJobsError('');
-    if (jobs) return;
-    try {
-      const result = await workOrderRequest<JobListResult>('/api/jobs?' + new URLSearchParams({ workspace: workspaceId, pageSize: '100', closed: 'false', sort: 'number', direction: 'desc' }), undefined, copy.jobsError);
-      setJobs(result.rows); setPickedJobId(result.rows[0]?.id ?? '');
-    } catch (e) { setJobsError(e instanceof Error ? e.message : copy.jobsError); }
-  }
+  function startPicking() { writes.clearError(); setPicking(true); }
   async function create(value: CreateWorkOrderValues) {
     const created = await writes.create({ jobId: value.jobId, title: value.title, assigneeId: value.assigneeId, source: value.source, visit: value.visit });
     if (created) router.push(`/work-orders/${created.workOrderId}${query}`);
     else { reloadVisit(); throw new Error(copy.saveError); }
   }
   const duplicateSources = creatingFor ? rows.filter(r => r.jobId === creatingFor.id).map(r => ({ value: r.id, label: copy.sourceDuplicate(r.number, r.title), detail: copy.sourceDuplicateDetail })) : [];
-  return <div className="grid gap-4">
+  if (denied) return <FormFeedback kind="error" message={copy.unavailable}/>;
+  return <div className="grid min-w-0 gap-4">
+    {listQuery.isError && <FormFeedback kind="error" message={copy.error}/>}
+    {creationJobQuery.isError && <FormFeedback kind="error" message={copy.jobsError}/>}
     {(error || (writes.error && !moving && !creatingFor && !deleting)) && <FormFeedback kind="error" message={error || writes.error} />}
     {list.canCreate && <div className="flex justify-end"><button type="button" className={woPrimary} onClick={() => void startPicking()}>{copy.add}</button></div>}
     <WorkOrdersList rows={rows} total={list.total} page={list.page} pageSize={list.pageSize} filters={filters} sort={sort} metrics={list.metrics}
-      members={members} jobNumbers={list.options.jobs.map(j => j.number)} view={view} onView={setView} field={field} state={loading ? 'loading' : error && !rows.length ? 'error' : 'ready'}
+      members={members} jobNumbers={list.options.jobs.map(j => j.number)} view={view} onView={setView} field={field} state={loading ? 'loading' : listQuery.isError ? 'error' : 'ready'}
       pendingId={writes.pending ? moving?.row.id : undefined} onRequestMove={requestMove}
       onFilters={next => reset(() => setFilters(next))} onSort={next => reset(() => setSort(next))} onPage={setPage} onPageSize={n => reset(() => setPageSize(n))}
       onOpen={open} onAction={onAction} canExport={list.canExport} exporting={exporting} onExport={() => void exportCsv()} onRetry={refetch} />
     {moving && <WorkOrderMoveDialog key={`${moving.row.id}:${moving.to}`} open workOrder={moving.row} to={moving.to} pending={writes.pending} error={writes.error} onClose={() => setMoving(undefined)}
       onConfirm={(to, reason) => to === 'completed' ? open(moving.row) : void move(moving.row, statusPayload(to, reason))} />}
     {deleting && <WorkOrderDeleteDialog key={deleting.id} open number={deleting.number} title={deleting.title} pending={writes.pending} error={writes.error} onClose={() => setDeleting(undefined)} onConfirm={() => void remove(deleting)} />}
-    {picking && !creatingFor && <JobDialog open title={copy.pickJob} description={copy.pickJobHint} confirmLabel={copy.continue} confirmDisabled={!pickedJobId} error={jobsError} closeOnSubmit={false} onClose={() => setPicking(false)}
-      onSubmit={() => { setCreatingFor(jobs?.find(j => j.id === pickedJobId)); setPicking(false); }}>
-      {!jobs && !jobsError ? <p role="status" className="m-0 text-sm text-muted">{copy.loadingJobs}</p> : jobs && jobs.length === 0 ? <p role="status" className="m-0 text-sm text-muted">{copy.noJobs}</p>
-        : <label className={woLabel}>{copy.pickJob}<select className={woInput} value={pickedJobId} onChange={e => setPickedJobId(e.target.value)}>{jobs?.map(j => <option key={j.id} value={j.id}>{j.number} · {j.title} · {j.customerName}</option>)}</select></label>}
+    {picking && !creatingFor && <JobDialog open title={copy.pickJob} description={copy.pickJobHint} confirmLabel={copy.continue} confirmDisabled={!selectedJobId || jobsQuery.isError || jobsQuery.isPending} error={jobsQuery.isError ? copy.jobsError : undefined} closeOnSubmit={false} onClose={() => setPicking(false)}
+      onSubmit={() => { setCreatingFor(jobs?.find(j => j.id === selectedJobId)); setPicking(false); }}>
+      {jobsQuery.isPending ? <p role="status" className="m-0 text-sm text-muted">{copy.loadingJobs}</p> : jobsQuery.isError ? <button type="button" className={woPrimary} onClick={() => void jobsQuery.refetch()}>{copy.retry}</button> : jobs && jobs.length === 0 ? <p role="status" className="m-0 text-sm text-muted">{copy.noJobs}</p>
+        : <label className={woLabel}>{copy.pickJob}<select className={woInput} value={selectedJobId} onChange={e => setPickedJobId(e.target.value)}>{jobs?.map(j => <option key={j.id} value={j.id}>{j.number} · {j.title} · {j.customerName}</option>)}</select></label>}
     </JobDialog>}
     {creatingFor && <CreateWorkOrderDialog key={creatingFor.id} open job={{ id: creatingFor.id, number: creatingFor.number, title: creatingFor.title, customerName: creatingFor.customerName, address: creatingFor.location, ownerId: creatingFor.primaryOwnerId }}
-      members={members} sources={duplicateSources} visitContext={{ ...visitContext, onReload: reloadVisit }} jobClosed={['completed', 'canceled'].includes(creatingFor.status)} canCreate={list.canCreate} pending={writes.pending} error={writes.error} onClose={() => setCreatingFor(undefined)} onConfirm={create} />}
+      members={members} sources={duplicateSources} visitContext={{ ...visitContext, onReload: reloadVisit }} jobClosed={['completed', 'canceled'].includes(creatingFor.status)} canCreate={list.canCreate} pending={writes.pending} error={writes.error} onClose={() => { setCreatingFor(undefined); setCreationDismissed(true); }} onConfirm={create} />}
   </div>;
 }

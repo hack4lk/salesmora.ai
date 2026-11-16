@@ -69,6 +69,22 @@ test('Jobs APIs enforce role, tenant, lifecycle, current grants, retries and sco
   expect((await change('status', { to: 'in-progress', confirmed: true, reopenDeadline: null }, 'office')).status()).toBe(404);
   expect((await change('status', { to: 'in-progress', confirmed: true, reopenDeadline: null }, 'admin')).status()).toBe(200);
 });
+test('fresh job filters reuse cached rows without refetching', async ({ browser }) => {
+  const context = await browser.newContext({ storageState: await clients.owner.storageState() });
+  const page = await context.newPage();
+  await page.goto(`${origin}/jobs?workspace=${workspaceId}`);
+  const reads: string[] = [];
+  page.on('request', request => { if (request.method() === 'GET' && request.url().includes('/api/jobs?')) reads.push(request.url()); });
+  const search = page.getByRole('searchbox');
+  await search.fill('cache-filter');
+  await expect.poll(() => reads.length).toBe(1);
+  await expect(page.getByRole('heading', { name: 'No jobs match your filters' })).toBeVisible();
+  await search.clear();
+  await expect(page.getByRole('heading', { name: 'No jobs match your filters' })).toHaveCount(0);
+  await page.waitForTimeout(500);
+  expect(reads).toHaveLength(1);
+  await context.close();
+});
 test('reviewed Jobs components create, persist, move, schedule and add notes on live pages', async ({ browser }) => {
   const context = await browser.newContext({ storageState: await clients.owner.storageState() });
   const page = await context.newPage(); page.setDefaultTimeout(15000);
@@ -90,6 +106,17 @@ test('reviewed Jobs components create, persist, move, schedule and add notes on 
   await expect(page.getByRole('heading', { name: 'UI persisted boiler repair', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Files', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Job team chat', exact: true })).toBeVisible();
+  await page.route('**/api/jobs/*/messages?**', route => route.request().method() === 'POST'
+    ? route.fulfill({ status: 500, json: { error: 'Fixture message failure.' } }) : route.continue());
+  const message = page.getByRole('textbox', { name: 'Message the job team', exact: true });
+  await message.fill('Saved through the query-backed team conversation.');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.getByText('Your message could not be sent. Your text is preserved.', { exact: true })).toBeVisible();
+  await expect(message).toHaveValue('Saved through the query-backed team conversation.');
+  await page.unroute('**/api/jobs/*/messages?**');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.getByRole('log', { name: 'Job team chat' }).getByText('Saved through the query-backed team conversation.')).toBeVisible();
+  await expect(message).toHaveValue('');
   await page.getByLabel('Note for the job history').fill('Saved from the integrated component.');
   const noteSaved = page.waitForResponse(response => response.url().includes('/api/jobs/') && response.request().method() === 'PATCH');
   await page.getByRole('button', { name: 'Add note', exact: true }).click();
@@ -98,6 +125,7 @@ test('reviewed Jobs components create, persist, move, schedule and add notes on 
   await expect(page.getByText('Saved from the integrated component.', { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByText('Saved from the integrated component.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('log', { name: 'Job team chat' }).getByText('Saved through the query-backed team conversation.')).toBeVisible();
   await page.getByRole('button', { name: 'Schedule work', exact: true }).click();
   await page.getByRole('dialog').getByLabel('Scheduled work date', { exact: true }).fill('2026-10-26');
   await page.getByRole('dialog').getByRole('button', { name: 'Save schedule', exact: true }).click();

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   CustomerDraftCard,
   CustomerExportDraftCard,
@@ -7,24 +7,41 @@ import {
   FormFeedback,
 } from "@salesmora/ui";
 import {
-  customerDraftSchema,
   type CustomerChatResult,
   type CustomerChatDraft,
 } from "@salesmora/contracts";
 import { customerResultData as c } from "./customer-result.data";
-export function ConnectedCustomerResult({
-  result,
-  workspaceId,
-  disabled,
-  onRefresh,
-  onNavigate,
-}: {
+import { useAssistantResultRequest } from "../use-assistant-result-request";
+import { customerDecisionResponse, customerNavigationResponse } from "../record-result.requests";
+import { ApiRequestError } from "../../api/api-request";
+import { isApiAccessError } from "../../api/api-query";
+type Props = {
   result: CustomerChatResult;
   workspaceId: string;
   disabled: boolean;
   onRefresh: (deleted?: boolean) => Promise<void>;
   onNavigate: (href: string) => void;
-}) {
+};
+export function ConnectedCustomerResult(props: Props) {
+  return <CustomerResult key={`${props.workspaceId}:${props.result.turnId}:${props.result.draft?.id}:${props.result.draft?.inputHash}`} {...props} />;
+}
+function CustomerResult({
+  result,
+  workspaceId,
+  disabled,
+  onRefresh,
+  onNavigate,
+}: Props) {
+  const api = useAssistantResultRequest<CustomerChatDraft | string>(workspaceId, "assistant-history", c.failed);
+  const [unavailable, setUnavailable] = useState(false);
+  const mounted = useRef(false), controllers = useRef(new Set<AbortController>());
+  const latest = useRef({ disabled, onNavigate });
+  useLayoutEffect(() => { latest.current = { disabled, onNavigate }; }, [disabled, onNavigate]);
+  useEffect(() => {
+    mounted.current = true;
+    const active = controllers.current;
+    return () => { mounted.current = false; for (const controller of active) controller.abort(); };
+  }, []);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (result.draft?.action !== "export" || result.draft.state !== "pending")
@@ -39,33 +56,33 @@ export function ConnectedCustomerResult({
     decision: "confirm" | "cancel",
     consent?: { typedCustomerNumber: string; unlinkOpenLeads: boolean },
   ) {
-    if (disabled || lock.current) throw Error(c.failed);
+    if (latest.current.disabled || unavailable || lock.current) throw Error(c.failed);
     lock.current = true;
     setError("");
+    const controller = new AbortController(); controllers.current.add(controller);
+    let completed = false;
     try {
-      const response = await fetch("/api/chat/customers/actions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          workspaceId,
-          draftId: draft.id,
-          inputHash: draft.inputHash,
-          decision,
-          ...(consent
-            ? {
-                typedConfirmation: consent.typedCustomerNumber,
-                unlinkOpenLeads: consent.unlinkOpenLeads,
-              }
-            : {}),
-        }),
-      });
-      if (!response.ok) {
-        await onRefresh();
-        throw Error(c.failed);
-      }
+      const body = {
+        workspaceId,
+        draftId: draft.id,
+        inputHash: draft.inputHash,
+        decision,
+        ...(consent
+          ? {
+              typedConfirmation: consent.typedCustomerNumber,
+              unlinkOpenLeads: consent.unlinkOpenLeads,
+            }
+          : {}),
+      };
       if (draft.action === "export" && decision === "confirm") {
+        const response = await fetch("/api/chat/customers/actions", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body), signal: controller.signal, redirect: "error",
+        });
+        if (!response.ok) throw new ApiRequestError(c.failed, response.status, undefined);
         const blob = await response.blob(),
           url = URL.createObjectURL(blob);
+        if (!mounted.current || controller.signal.aborted || latest.current.disabled) { URL.revokeObjectURL(url); return; }
         const link = document.createElement("a");
         link.href = url;
         link.download = c.downloadName;
@@ -73,51 +90,52 @@ export function ConnectedCustomerResult({
         link.click();
         link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-      } else customerDraftSchema.parse((await response.json()).draft);
+      } else await api.write("/api/chat/customers/actions", body,
+        raw => customerDecisionResponse(draft, decision, raw), controller.signal, true);
+      if (!mounted.current || controller.signal.aborted) return;
+      completed = true;
       await onRefresh(draft.action === "delete" && decision === "confirm");
-    } catch {
+    } catch (error) {
+      if (!mounted.current || controller.signal.aborted) throw Error(c.failed);
       setError(c.failed);
+      if (isApiAccessError(error)) setUnavailable(true);
+      if (!completed && error instanceof ApiRequestError) await onRefresh();
       throw Error(c.failed);
     } finally {
+      controllers.current.delete(controller);
       lock.current = false;
     }
   }
   async function navigate(id: string) {
-    if (disabled || lock.current) return;
+    if (latest.current.disabled || unavailable || lock.current) return;
     lock.current = true;
     setError("");
+    const controller = new AbortController(); controllers.current.add(controller);
     try {
       const kind = ["linked_leads", "lead_candidates"].includes(result.kind)
         ? "lead"
         : "customer";
-      const response = await fetch("/api/chat/customers/navigate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          workspaceId,
-          turnId: result.turnId,
-          recordId: id,
-          kind,
-        }),
-      });
-      if (!response.ok) throw Error();
-      const body = await response.json();
-      if (
-        typeof body.href !== "string" ||
-        !/^\/(customers|leads)\/[0-9a-f-]{36}\?workspace=[0-9a-f-]{36}$/.test(
-          body.href,
-        )
-      )
-        throw Error();
-      onNavigate(body.href);
-    } catch {
+      const href = await api.write("/api/chat/customers/navigate", {
+        workspaceId,
+        turnId: result.turnId,
+        recordId: id,
+        kind,
+      }, raw => customerNavigationResponse(workspaceId, id, kind, raw), controller.signal);
+      if (typeof href !== "string") throw Error(c.failed);
+      if (mounted.current && !controller.signal.aborted && !latest.current.disabled) latest.current.onNavigate(href);
+    } catch (error) {
+      if (!mounted.current || controller.signal.aborted) return;
       setError(c.failed);
-      await onRefresh();
+      if (isApiAccessError(error)) setUnavailable(true);
+      try { await onRefresh(); }
+      catch { if (mounted.current) setError(c.failed); }
     } finally {
+      controllers.current.delete(controller);
       lock.current = false;
     }
   }
   const draft = result.draft;
+  if (unavailable) return <FormFeedback kind="error" message={c.failed} />;
   return (
     <div className="grid min-w-0 gap-4">
       {error && <FormFeedback kind="error" message={error} />}

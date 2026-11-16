@@ -95,6 +95,24 @@ test('approved live page opens the peek, reviews and saves a shared visit, and k
   expect(errors).toEqual([]);
   await context.close();
 });
+test('fresh Calendar person filters reuse cached visits without refetching', async ({ browser }) => {
+  const context = await browser.newContext({ storageState: await clients.owner.storageState() });
+  const page = await context.newPage();
+  await page.goto(`${origin}/calendar?workspace=${workspaceId}&date=2026-11-02`);
+  await page.getByRole('button', { name: 'Visit: Calendar shared repair' }).click();
+  await expect(page.getByRole('button', { name: 'View visit details: Calendar shared repair' })).toBeVisible();
+  const reads: string[] = [];
+  page.on('request', request => { if (request.method() === 'GET' && request.url().includes('/api/calendar?')) reads.push(request.url()); });
+  await page.getByRole('combobox', { name: 'Assigned person' }).selectOption('unassigned');
+  await expect.poll(() => reads.length).toBe(1);
+  await expect(page).toHaveURL(/person=unassigned/);
+  await expect(page.getByRole('button', { name: 'Visit: Calendar shared repair' })).toHaveCount(0);
+  await page.getByRole('combobox', { name: 'Assigned person' }).selectOption('all');
+  await expect(page.getByRole('button', { name: 'Visit: Calendar shared repair' })).toBeVisible();
+  await page.waitForTimeout(500);
+  expect(reads).toHaveLength(1);
+  await context.close();
+});
 test('Field page hides unrelated work and stays usable on a narrow screen', async ({ browser }) => {
   const context = await browser.newContext({ storageState: await clients.field.storageState(), viewport: { width: 320, height: 900 } });
   const page = await context.newPage();
@@ -158,6 +176,65 @@ test('Work Order creation reviews an explicit visit choice and creates a shared 
   expect(made.title).toBe('Reviewed shared draft'); expect(made.version).toBe(2);
   const link = await db('calendarVisitRecords').where({ workspaceId, workOrderId: made.id }).whereNull('endedAt').first();
   expect(link.visitId).toBe(preview.id);
+  await context.close();
+});
+
+test('Materials, Work Order and Intake lists reuse exact fresh filters and refresh saved materials', async ({ browser }) => {
+  const context = await browser.newContext({ storageState: await clients.owner.storageState() });
+  const page = await context.newPage(); page.setDefaultTimeout(20000);
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  for (const resource of ['materials', 'work-orders', 'intake']) {
+    const reads: string[] = [];
+    const track = (request: import('@playwright/test').Request) => {
+      if (request.method() === 'GET' && request.url().includes(`/api/${resource}?`)) reads.push(request.url());
+    };
+    page.on('request', track);
+    await page.goto(`${origin}/${resource}?workspace=${workspaceId}`);
+    const search = page.getByRole('searchbox');
+    await search.fill('cache-check');
+    await expect.poll(() => reads.length).toBe(1);
+    await expect(search).toBeEnabled();
+    await search.clear();
+    await page.waitForTimeout(500);
+    expect(reads).toHaveLength(1);
+    await search.fill('cache-check');
+    await page.waitForTimeout(500);
+    expect(reads).toHaveLength(1);
+    await search.clear();
+    await page.waitForTimeout(500);
+    if (resource === 'materials') {
+      await page.getByRole('button', { name: 'Add material', exact: true }).click();
+      const dialog = page.getByRole('dialog');
+      await dialog.getByRole('textbox', { name: /^Name/ }).fill('Query catalog fixture');
+      await dialog.getByRole('button', { name: 'Add to catalog', exact: true }).click();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.getByText('Material added to the catalog.', { exact: true })).toBeVisible();
+      await expect(page.getByRole('group', { name: 'Materials catalog' }).getByText('Query catalog fixture', { exact: true })).toBeVisible();
+      await expect.poll(() => reads.length).toBe(2);
+    }
+    for (const width of [1440, 768, 320]) {
+      await page.setViewportSize({ width, height: 1000 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+    page.off('request', track);
+  }
+  const draft = await createWorkOrder(db, { workspaceId, userId: users.owner }, permissionIds, {
+    workspaceId, submissionId: randomUUID(), jobId, title: 'Query deletion fixture',
+  });
+  const record = await db('workOrders').where({ id: draft.workOrderId }).first();
+  await page.goto(`${origin}/work-orders/${draft.workOrderId}?workspace=${workspaceId}`);
+  await page.getByRole('button', { name: 'Delete draft', exact: true }).click();
+  const confirmation = page.getByRole('alertdialog');
+  await confirmation.getByRole('textbox', { name: 'Type the work order number' }).fill(`WO-${String(record.workOrderNumber).padStart(4, '0')}`);
+  const deletedReads: number[] = [];
+  page.on('response', response => {
+    if (response.request().method() === 'GET' && response.url().includes(`/api/work-orders/${draft.workOrderId}?`)) deletedReads.push(response.status());
+  });
+  await confirmation.getByRole('button', { name: 'Delete work order', exact: true }).click();
+  await expect(page).toHaveURL(`${origin}/work-orders?workspace=${workspaceId}`);
+  expect(deletedReads).not.toContain(404);
+  expect(await db('workOrders').where({ id: draft.workOrderId }).first()).toBeUndefined();
+  expect(errors).toEqual([]);
   await context.close();
 });
 

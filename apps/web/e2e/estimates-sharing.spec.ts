@@ -5,6 +5,7 @@ import { startEstimateEmails } from "../../worker/src/estimate-emails";
 import { startEstimateExpiry } from "../../worker/src/estimate-expiry";
 import type { EstimateDraftSaveResult, EstimateSharingReviewResult } from "@salesmora/data";
 import type { EstimateArchiveReceipt, EstimateDecisionReview, EstimateLifecycleRead, EstimateListResult, EstimateRevisionFamily, RelatedEstimatesResult } from "@salesmora/contracts";
+import { estimateEditorSeedSchema, estimateSharingReviewSchema, estimateListResultSchema } from "@salesmora/contracts";
 
 test.setTimeout(120_000);
 const connection = process.env.TEST_DATABASE_URL;
@@ -127,6 +128,63 @@ async function selectEstimateAction(page: Page, name: string, action: string) {
   await page.getByRole("button", { name: `Actions for ${name}`, exact: true }).click();
   await page.getByRole("menuitem", { name: action, exact: true }).click();
 }
+
+async function openReadyEditor(page: Page, estimateId: string) {
+  const ready = page.waitForResponse(response => response.request().method() === "GET" &&
+    new URL(response.url()).pathname === `/api/estimates/${estimateId}/sharing`);
+  await page.goto(`${origin}/estimates/${estimateId}?workspace=${workspaceId}`);
+  await ready;
+}
+
+test("query response contracts accept live editor, sharing and list projections", async () => {
+  const saved = await draft("Query contracts fixture", "customer@example.test");
+  const seed = await owner.get(`/api/estimates/${saved.id}?workspace=${workspaceId}`);
+  expect(estimateEditorSeedSchema.safeParse(await seed.json()).error?.issues).toBeUndefined();
+  const review = await (await owner.get(`/api/estimates/${saved.id}/sharing?workspace=${workspaceId}`)).json();
+  expect((await owner.post(`/api/estimates/${saved.id}/sharing?workspace=${workspaceId}`, { headers, data: {
+    workspaceId, estimateId: saved.id, expectedVersion: saved.version, snapshotHash: review.snapshotHash, submissionId: randomUUID(), mode: "publish",
+  } })).status()).toBe(200);
+  const duplicate = await owner.post(`/api/estimates/${saved.id}/duplicate?workspace=${workspaceId}`, {
+    headers, data: { workspaceId, estimateId: saved.id, expectedVersion: saved.version + 1, submissionId: randomUUID() },
+  });
+  expect(duplicate.status()).toBe(201);
+  const copy = await duplicate.json();
+  for (const [path, schema] of [
+    [`/api/estimates/${saved.id}?workspace=${workspaceId}`, estimateEditorSeedSchema],
+    [`/api/estimates/${copy.id}?workspace=${workspaceId}`, estimateEditorSeedSchema],
+    [`/api/estimates/${saved.id}/sharing?workspace=${workspaceId}`, estimateSharingReviewSchema],
+    [`/api/estimates?workspace=${workspaceId}`, estimateListResultSchema],
+  ] as const) {
+    const response = await owner.get(path);
+    expect(response.status()).toBe(200);
+    const parsed = schema.safeParse(await response.json());
+    expect(parsed.error?.issues, path).toBeUndefined();
+  }
+});
+
+test("estimate filters reuse the exact fresh list without another API request", async ({ browser }) => {
+  const name = "Estimate query cache fixture";
+  await draft(name, "");
+  const context = await browser.newContext({ storageState: await owner.storageState() });
+  const page = await context.newPage();
+  const listReads: string[] = [];
+  page.on("request", request => {
+    if (new URL(request.url()).pathname === "/api/estimates" && request.method() === "GET") listReads.push(request.url());
+  });
+  try {
+    await page.goto(`${origin}/estimates?workspace=${workspaceId}`);
+    await expect(page.getByRole("button", { name: `Actions for ${name}`, exact: true })).toBeVisible();
+    const initialReads = listReads.length;
+    await page.getByRole("searchbox").fill(name);
+    await expect(page).toHaveURL(url => url.searchParams.get("q") === name);
+    await expect(page.getByRole("button", { name: `Actions for ${name}`, exact: true })).toBeVisible();
+    expect(listReads).toHaveLength(initialReads + 1);
+    await page.getByRole("searchbox").fill("");
+    await expect(page).toHaveURL(url => !url.searchParams.get("q"));
+    await expect(page.getByRole("button", { name: `Actions for ${name}`, exact: true })).toBeVisible();
+    expect(listReads).toHaveLength(initialReads + 1);
+  } finally { await context.close(); }
+});
 
 test("staff confirmations enforce origin, access, version and retries; public reads withhold inactive paper", async () => {
   const saved = await draft("API sharing fixture", "customer@example.test");
@@ -338,7 +396,7 @@ test("revision sharing rechecks an accepted predecessor after staff review and l
   const context = await browser.newContext({ storageState: await owner.storageState() });
   const page = await context.newPage();
   try {
-    await page.goto(`${origin}/estimates/${pending.id}?workspace=${workspaceId}`);
+    await openReadyEditor(page, pending.id);
     await page.getByRole("button", { name: "Continue to review", exact: true }).click();
     await page.getByRole("button", { name: "Confirm and continue" }).click();
     const url = `/api/estimates/${source.id}/decision?workspace=${workspaceId}`;
@@ -713,7 +771,7 @@ test("Office archive review retries a failed read, rechecks a revoked grant and 
   try {
     await page.goto(`${origin}/estimates/${saved.id}?workspace=${workspaceId}`);
     await page.route(`**/api/estimates/${saved.id}?*`, route =>
-      route.fulfill({ status: 503, json: { error: "Fixture review temporarily unavailable." } }), { times: 1 });
+      route.fulfill({ status: 503, json: { error: "Fixture review temporarily unavailable." } }), { times: 3 });
     await page.getByRole("button", { name: `Actions for ${name}`, exact: true }).click();
     await page.getByRole("menuitem", { name: "Archive estimate", exact: true }).click();
     const dialog = page.getByRole("alertdialog", { name: "Archive this estimate?", exact: true });
@@ -930,7 +988,7 @@ test("list deletion retries a failed read and requires a fresh typed review afte
   try {
     await page.goto(`${origin}/estimates?workspace=${workspaceId}&q=${encodeURIComponent(name)}`);
     await page.route(`**/api/estimates/${source.id}?*`, route =>
-      route.fulfill({ status: 503, json: { error: "Fixture deletion review temporarily unavailable." } }), { times: 1 });
+      route.fulfill({ status: 503, json: { error: "Fixture deletion review temporarily unavailable." } }), { times: 3 });
     await selectEstimateAction(page, name, "Delete draft");
     const dialog = page.getByRole("alertdialog", { name: "Permanently delete this draft?" });
     await expect(dialog.getByText("Fixture deletion review temporarily unavailable.")).toBeVisible();
@@ -1317,15 +1375,15 @@ test("staff history pages, retries errors and clears on access loss; Void rechec
   const page = await context.newPage();
   page.setDefaultTimeout(10_000);
   try {
-    await page.goto(`${origin}/estimates/${saved.id}?workspace=${workspaceId}`);
+    await openReadyEditor(page, saved.id);
     const history = page.getByRole("region", { name: "Estimate history", exact: true });
     await expect(history.getByText("25 of 52 events loaded")).toBeVisible();
     expect(await history.textContent()).not.toContain("PRIVATE_HISTORY");
-    await page.route(`**/api/estimates/${saved.id}/lifecycle?**`, route => route.fulfill({
+    await page.route(url => url.pathname === `/api/estimates/${saved.id}/lifecycle` && url.searchParams.has("beforeAt"), route => route.fulfill({
       status: 503, contentType: "application/json", body: JSON.stringify({ error: "Fixture temporary history failure." }),
-    }), { times: 1 });
+    }), { times: 3 });
     await history.getByRole("button", { name: "Load older activity" }).click();
-    await expect(history.getByText("Fixture temporary history failure.")).toBeVisible();
+    await expect(history.getByText("Fixture temporary history failure.")).toBeVisible({ timeout: 10_000 });
     await expect(history.getByText("Previously loaded activity is shown below.", { exact: false })).toBeVisible();
     await history.getByRole("button", { name: "Try again", exact: true }).click();
     await expect(history.getByText("25 of 52 events loaded")).toBeVisible();
@@ -1630,7 +1688,7 @@ test("lead-linked Send offers an explicit Estimate sent review and Keep open lea
   const context = await browser.newContext({ storageState: await owner.storageState() });
   const page = await context.newPage();
   try {
-    await page.goto(`${origin}/estimates/${saved.id}?workspace=${workspaceId}`);
+    await openReadyEditor(page, saved.id);
     await page.getByRole("button", { name: "Continue to review", exact: true }).click();
     await page.getByRole("button", { name: "Confirm and continue", exact: true }).click();
     await page.getByRole("textbox", { name: /^Delivery email/ }).fill("lead-send@example.test");

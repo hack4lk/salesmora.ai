@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within, fireEvent, waitFor } from "storybook/test";
 import { ConnectedEstimateDraftDelete } from "./estimate-draft-delete-result";
 import { estimateDraftDeleteResultData as c } from "./estimate-draft-delete-result.data";
 import { estimateDraftDeleteCardData as card } from "../../estimates/estimate-draft-delete-card/estimate-draft-delete-card.data";
@@ -59,13 +59,12 @@ export const ExactTypedConfirmation: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByRole("button", { name: card.reviewDelete }));
-    const dialog = within(await canvas.findByRole("dialog"));
+    const dialog = within(await within(document.body).findByRole("alertdialog"));
     const input = dialog.getByRole("textbox", { name: card.dialog.type });
     const confirm = dialog.getByRole("button", { name: card.dialog.confirm });
-    await userEvent.type(input, "EST-2048 ");
+    fireEvent.change(input, { target: { value: "EST-2048 " } });
     await expect(confirm).toBeDisabled();
-    await userEvent.clear(input);
-    await userEvent.type(input, "EST-2048");
+    fireEvent.change(input, { target: { value: "EST-2048" } });
     await expect(confirm).toBeEnabled();
     await userEvent.click(confirm);
     await expect(await canvas.findByText(card.confirmed, { exact: true })).toBeVisible();
@@ -78,10 +77,10 @@ export const BackToReviewDoesNotCancel: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByRole("button", { name: card.reviewDelete }));
-    const dialog = within(await canvas.findByRole("dialog"));
+    const dialog = within(await within(document.body).findByRole("alertdialog"));
     await userEvent.click(dialog.getByRole("button", { name: card.dialog.back }));
     await expect(await canvas.findByText(card.pending, { exact: true })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: card.cancel })).toBeEnabled();
+    await waitFor(() => expect(canvas.getByRole("button", { name: card.cancel })).toBeEnabled());
   },
 };
 

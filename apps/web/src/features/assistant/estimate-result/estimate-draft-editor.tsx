@@ -15,12 +15,15 @@ import { estimateDraftBinding, estimateDraftRequest, estimateDraftConnectedData 
 import { ConnectedEstimateDraft } from "./estimate-draft-result";
 import { guardEstimateUnsavedNavigation } from "../../estimates/estimate-editor-page/estimate-editor-page.preview";
 import { estimateEditorRouteData as editorCopy } from "../../estimates/estimate-editor-page/estimate-editor-route.data";
+import { useEstimateAssistantRequest } from "./use-estimate-assistant-request";
+import { isApiAccessError } from "../../api/api-query";
 
 export function EstimateDraftProposalEditor({ initial, seed, workspaceId, initialReviewed = false }: {
   initial: EstimateDraftChatView; seed: Pick<EstimateEditorSeed, "timezone" | "paymentPresets">; workspaceId: string; initialReviewed?: boolean;
 }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
+  const transport = useEstimateAssistantRequest(workspaceId);
   const [content, setContent] = useState(initial.draft.proposed);
   const [reviewed, setReviewed] = useState(initialReviewed);
   const [pending, setPending] = useState(false);
@@ -40,9 +43,13 @@ export function EstimateDraftProposalEditor({ initial, seed, workspaceId, initia
   const checkCurrent = useCallback(async () => {
     const sequence = ++checkSequence.current;
     try {
-      const response = await fetch(`/api/chat/estimates/draft?workspace=${workspaceId}&proposal=${view.draft.id}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(c.error);
-      const result = estimateDraftChatResponseSchema.parse(await response.json());
+      const result = await transport(`/api/chat/estimates/draft?workspace=${workspaceId}&proposal=${view.draft.id}`, {
+        failureMessage: c.error, parse: raw => {
+          const result = estimateDraftChatResponseSchema.parse(raw);
+          if (result.view.draft.id !== view.draft.id) throw new Error(c.error);
+          return result;
+        },
+      });
       if (mounted.current && sequence === checkSequence.current) {
         setView(result.view);
         if (result.view.draft.state !== "pending") setReviewed(true);
@@ -50,7 +57,7 @@ export function EstimateDraftProposalEditor({ initial, seed, workspaceId, initia
     } catch (caught) {
       if (mounted.current && sequence === checkSequence.current) throw caught;
     }
-  }, [workspaceId, view.draft.id]);
+  }, [workspaceId, view.draft.id, transport]);
   useEffect(() => {
     let active = true;
     const focus = () => {
@@ -77,13 +84,16 @@ export function EstimateDraftProposalEditor({ initial, seed, workspaceId, initia
     try {
       const result = await estimateDraftRequest("PATCH", {
         workspaceId, request: estimateDraftBinding(view), content,
-      }, controller.signal);
+      }, controller.signal, transport);
       if (!mounted.current) return;
       setView(result.view); setContent(result.view.draft.proposed); setReviewed(true);
       const draft = result.view.draft;
       window.history.replaceState(null, "", `/estimates/${draft.actionType === "estimate.update" ? draft.estimate.id : "new"}?workspace=${workspaceId}&proposal=${draft.id}&review=1`);
     } catch (caught) {
-      if (mounted.current) setError(caught instanceof Error ? caught.message : c.error);
+      if (mounted.current) {
+        setError(caught instanceof Error ? caught.message : c.error);
+        if (isApiAccessError(caught)) setUnavailable(true);
+      }
     } finally { lock.current = false; if (mounted.current) setPending(false); }
   }
   return <main className="grid min-w-0 gap-6 print:hidden">

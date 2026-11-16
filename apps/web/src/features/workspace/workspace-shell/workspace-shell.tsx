@@ -1,6 +1,8 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type ReactNode } from "react";
+import { useLayoutEffect, useState, useTransition, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { removeOtherWorkspaceQueries } from "../../api/api-query";
 import {
   AssistantPanel,
   FormFeedback,
@@ -66,6 +68,10 @@ export function WorkspaceShell({
   beforeAssistant,
 }: WorkspaceShellProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  useLayoutEffect(() => {
+    removeOtherWorkspaceQueries(queryClient, workspaceId);
+  }, [queryClient, workspaceId]);
   // Every active teammate can open personal settings; business settings still authorize independently.
   const accountHref = `/settings/account?workspace=${encodeURIComponent(workspaceId)}`;
   const [pending, startTransition] = useTransition();
@@ -73,6 +79,7 @@ export function WorkspaceShell({
   function signOut() {
     if (pending) return;
     setError(false);
+    queryClient.clear();
     startTransition(async () => {
       try {
         await onSignOut();

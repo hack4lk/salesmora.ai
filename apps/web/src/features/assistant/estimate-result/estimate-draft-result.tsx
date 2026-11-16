@@ -5,6 +5,8 @@ import { EstimateDraftCard } from "@salesmora/ui";
 import type { EstimateDraftChatView } from "@salesmora/contracts";
 import { estimateDraftConnectedData as c, estimateDraftRequest, estimateDraftBinding } from "./estimate-draft-client";
 import { estimateButton } from "../../estimates/estimate-ui";
+import { useEstimateAssistantRequest } from "./use-estimate-assistant-request";
+import { isApiAccessError } from "../../api/api-query";
 
 export function ConnectedEstimateDraft({
   view, workspaceId, disabled = false, onRefresh, onNavigate,
@@ -12,9 +14,11 @@ export function ConnectedEstimateDraft({
   view: EstimateDraftChatView; workspaceId: string; disabled?: boolean;
   onRefresh: () => Promise<void>; onNavigate: (href: string) => void;
 }) {
+  const transport = useEstimateAssistantRequest(workspaceId, JSON.stringify(estimateDraftBinding(view)));
   const [outcome, setOutcome] = useState<EstimateDraftChatView | null>(null);
   const current = outcome?.draft.id === view.draft.id && outcome.draft.inputHash === view.draft.inputHash ? outcome : view;
   const [error, setError] = useState("");
+  const [unavailable, setUnavailable] = useState(false);
   const [opening, setOpening] = useState(false);
   const openLock = useRef(false);
   const session = useRef(view);
@@ -37,24 +41,29 @@ export function ConnectedEstimateDraft({
     const expected = session.current;
     openLock.current = true; setOpening(true); setError("");
     try {
-      const result = await estimateDraftRequest("POST", { workspaceId, ...estimateDraftBinding(current), decision: "open" });
+      const result = await estimateDraftRequest("POST", { workspaceId, ...estimateDraftBinding(current), decision: "open" }, undefined, transport);
       if (!result.href) throw new Error(c.error);
       if (isCurrent(expected)) onNavigate(result.href);
     } catch (caught) {
-      if (isCurrent(expected)) setError(caught instanceof Error ? caught.message : c.error);
+      if (isCurrent(expected)) {
+        setError(caught instanceof Error ? caught.message : c.error);
+        if (isApiAccessError(caught)) setUnavailable(true);
+      }
       await refreshHistory(true);
     } finally { openLock.current = false; if (mounted.current) setOpening(false); }
   }
+  if (unavailable) return <p role="alert" className="m-0 text-sm">{error || c.error}</p>;
   return <div className="grid min-w-0 gap-3 print:hidden">
     <EstimateDraftCard {...current} disabled={disabled}
       onDecide={async request => {
         const expected = session.current;
         try {
-          const result = await estimateDraftRequest("POST", { workspaceId, ...request });
+          const result = await estimateDraftRequest("POST", { workspaceId, ...request }, undefined, transport);
           if (isCurrent(expected)) setOutcome(result.view);
           await refreshHistory();
           return { ok: true };
         } catch (error) {
+          if (isCurrent(expected) && isApiAccessError(error)) { setUnavailable(true); setError(c.error); }
           await refreshHistory();
           return { ok: false, message: error instanceof Error ? error.message : c.error };
         }
@@ -62,12 +71,13 @@ export function ConnectedEstimateDraft({
       onReviewInEditor={async request => {
         const expected = session.current;
         try {
-          const result = await estimateDraftRequest("POST", { workspaceId, ...request, decision: "editor" });
+          const result = await estimateDraftRequest("POST", { workspaceId, ...request, decision: "editor" }, undefined, transport);
           if (!result.href) throw new Error(c.error);
           if (!isCurrent(expected)) return { ok: false, message: c.error };
           onNavigate(result.href);
           return { ok: true };
         } catch (error) {
+          if (isCurrent(expected) && isApiAccessError(error)) { setUnavailable(true); setError(c.error); }
           await refreshHistory();
           return { ok: false, message: error instanceof Error ? error.message : c.error };
         }

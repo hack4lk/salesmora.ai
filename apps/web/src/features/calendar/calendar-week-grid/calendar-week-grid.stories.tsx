@@ -16,6 +16,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 export const Default: Story = { play: async ({ canvasElement, args }) => {
   const c = within(canvasElement);
+  await expect(c.getByText(copy.keyboard, { exact: false })).toHaveClass('sr-only');
   await expect(c.getAllByRole('group')).toHaveLength(7);
   await expect(c.getByRole('status')).toHaveTextContent(copy.count(6));
   await expect(c.getByText(dayCopy.today)).toBeVisible();

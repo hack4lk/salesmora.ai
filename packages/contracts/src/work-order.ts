@@ -115,6 +115,38 @@ export type WorkOrderDetailResult = {
   businessPhone: string;
   contact: { name: string; phone: string | null; address: string };
 };
+const readMemberSchema = z.object({ id: z.string(), name: z.string() });
+export const workOrderRowViewSchema = z.object({
+  id: z.uuid(), number: z.string(), jobId: z.uuid(), title: z.string(), status: workOrderStatusSchema,
+  instructions: z.string(), accessNotes: z.string(), safetyNotes: z.string(),
+  scheduledDate: jobDateSchema.nullable(), arrivalWindow: z.enum(arrivalWindows).nullable(), primaryAssigneeId: z.string().nullable(),
+  crewIds: z.array(z.string()), sourceEstimateId: z.uuid().nullable(), cancellationReason: z.string().nullable(),
+  changedAfterIssue: z.boolean(), archived: z.boolean(), issuedAt: z.string().nullable(), startedAt: z.string().nullable(),
+  completedAt: z.string().nullable(), canceledAt: z.string().nullable(), version: z.number().int().positive(), createdAt: z.string(), updatedAt: z.string(),
+  jobNumber: z.string(), customerName: z.string(), address: z.string(), assigneeName: z.string().nullable(), crewNames: z.array(z.string()),
+  tasksDone: z.number().int().nonnegative(), tasksTotal: z.number().int().nonnegative(), overdue: z.boolean(),
+  capabilities: z.object({ update: z.boolean(), issue: z.boolean(), start: z.boolean(), progress: z.boolean(), complete: z.boolean(), cancel: z.boolean(),
+    reopen: z.boolean(), archive: z.boolean(), remove: z.boolean(), print: z.boolean(), duplicate: z.boolean() }),
+}) satisfies z.ZodType<WorkOrderRowView>;
+export const workOrderListResultSchema = z.object({
+  rows: z.array(workOrderRowViewSchema), total: z.number().int().nonnegative(), page: z.number().int().positive(), pageSize: z.number().int().positive(),
+  timezone: z.string(), today: jobDateSchema, metrics: z.object({ issuedToday: z.number().nonnegative(), inProgress: z.number().nonnegative(), overdue: z.number().nonnegative(), awaitingSignoff: z.number().nonnegative() }),
+  options: z.object({ members: z.array(readMemberSchema), jobs: z.array(z.object({ id: z.uuid(), number: z.string(), title: z.string(), customerName: z.string() })) }),
+  canCreate: z.boolean(), canExport: z.boolean(),
+}) satisfies z.ZodType<WorkOrderListResult>;
+export const workOrderDetailResultSchema = z.object({
+  workOrder: workOrderRowViewSchema,
+  tasks: z.array(z.object({ id: z.uuid(), label: z.string(), required: z.boolean(), done: z.boolean(), doneByName: z.string().nullable(), doneAt: z.string().nullable() })),
+  materials: z.array(z.object({ id: z.uuid(), catalogId: z.uuid().nullable(), name: z.string(), quantity: z.number(), unit: z.string(), imageUrl: z.string(),
+    status: z.enum(workOrderMaterialStatuses), note: z.string(), customerPriceCents: z.number().nullable(), costCents: z.number().nullable() })),
+  activity: z.array(z.object({ id: z.string(), type: z.string(), actorName: z.string(), source: z.enum(["ui", "assistant-confirmed", "system"]), changes: z.unknown(), createdAt: z.string() })),
+  notes: z.array(z.object({ id: z.uuid(), body: z.string(), authorName: z.string(), createdAt: z.string() })),
+  completion: z.object({ summary: z.string(), followUp: z.enum(workOrderFollowUps), followUpNote: z.string(), completedByName: z.string(), completedAt: z.string(),
+    signerName: z.string().nullable(), signedAt: z.string().nullable(), signatureImage: z.string().nullable(), overrideReason: z.string() }).nullable(),
+  members: z.array(readMemberSchema), access: z.object({ prices: z.boolean(), costs: z.boolean(), canSchedule: z.boolean(), canOverride: z.boolean(), canNote: z.boolean(), signoffRequired: z.boolean() }),
+  businessPhone: z.string(), contact: z.object({ name: z.string(), phone: z.string().nullable(), address: z.string() }),
+}) satisfies z.ZodType<WorkOrderDetailResult>;
+export const workOrderSavedResultSchema = z.object({ workOrderId: z.uuid(), version: z.number().int().positive() });
 
 export const workOrderSettingsSchema = z.object({
   workspaceId: z.string().uuid(),

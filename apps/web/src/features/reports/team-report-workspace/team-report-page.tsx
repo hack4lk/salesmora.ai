@@ -33,17 +33,16 @@ function TeamReportPageHost({ initial, onRecord, onReload, template, onTemplateR
     jobs: initial.query.view === 'team-jobs' ? initial.query.selected : initialTeamEvidence.jobs,
   });
   const [page, setPage] = useState(initial.query.page), [pageSize, setPageSize] = useState<number>(initial.query.pageSize);
-  const [retry, setRetry] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
   const scope = initial.authority[view] ?? initial.report.scope;
   // Preserve the draft while blocking a destination whose known scope cannot authorize it.
   const unavailableSelection = scope.kind === 'assigned' && filters.members.some(id => id !== scope.currentMemberId);
   const request = useMemo(() => teamReportRequest({ workspaceId: initial.workspaceId, view, filters, evidence, page, pageSize }),
     [initial.workspaceId, view, filters, evidence, page, pageSize]);
-  const key = `${scopeKey}:${JSON.stringify(request)}:${retry}`;
+  const key = `${scopeKey}:${today}:${timezone}:${JSON.stringify(request)}`;
   const validate = useCallback((raw: unknown) => { adaptTeamReadResponse(raw, { request, scopeKey, today, timezone }); },
     [request, scopeKey, today, timezone]);
-  const loaded = useReportRead({ key, initial, validate, enabled: !unavailableSelection,
+  const loaded = useReportRead({ key, initial, initialUpdatedAt: Date.parse(initial.report.asOf), validate, enabled: !unavailableSelection,
     url: `/api/reports/team?${new URLSearchParams({ query: JSON.stringify(request) })}`,
     failureMessage: 'Team report could not be loaded. Try again.' });
   let projection: TeamReportProjection = { view, filters, state: { kind: loaded.pending ? 'loading' : 'error' } };
@@ -77,7 +76,7 @@ function TeamReportPageHost({ initial, onRecord, onReload, template, onTemplateR
       canRead={!denied} canReadCurrent={!denied} canExport={!loaded.pending && !error && !!raw?.exportScopes[view]} canEdit={false} pending={loaded.pending}
       onViewChange={next => { setView(next); reset(); }}
       onFiltersChange={value => { setFilters(value); reset(); }}
-      onRetryFilters={() => setRetry(value => value + 1)} onRetry={() => setRetry(value => value + 1)}
+      onRetryFilters={loaded.refresh} onRetry={loaded.refresh}
       onEvidence={id => {
         if (loaded.pending || !raw) return;
         const selected = teamReportEvidenceSelection(raw, id);

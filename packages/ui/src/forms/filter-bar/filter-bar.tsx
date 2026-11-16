@@ -10,6 +10,7 @@ export type FilterBarProps = {
   /** Keep the section name accessible without showing a heading above the controls. */
   hideTitle?: boolean;
   compact?: boolean;
+  hideEmptyStatus?: boolean;
   titleHelp?: ReactNode;
   /** Supply labeled controls; custom controls must also honor disabled themselves. */
   children: ReactNode;
@@ -20,7 +21,7 @@ export type FilterBarProps = {
 };
 
 /** Controlled presentation only. Consumers own URL state, filtering and authorization. */
-export function FilterBar({ title = copy.title, hideTitle = false, compact = false, titleHelp, children, activeFilters, disabled = false, onRemove, onClearAll }: FilterBarProps) {
+export function FilterBar({ title = copy.title, hideTitle = false, compact = false, hideEmptyStatus = false, titleHelp, children, activeFilters, disabled = false, onRemove, onClearAll }: FilterBarProps) {
   const id = useId();
   const group = useRef<HTMLDivElement>(null);
   const controls = useRef<HTMLFieldSetElement>(null);
@@ -65,6 +66,6 @@ export function FilterBar({ title = copy.title, hideTitle = false, compact = fal
       </div>)}
     </div>
     </div>
-    <p role="status" aria-atomic="true" className={compact ? 'sr-only' : 'mb-0 mt-4 text-sm text-muted'}>{copy.count(activeFilters.length)}</p>
+    <p role="status" aria-atomic="true" className={compact || (hideEmptyStatus && activeFilters.length === 0) ? 'sr-only' : 'mb-0 mt-4 text-sm text-muted'}>{copy.count(activeFilters.length)}</p>
   </section>;
 }

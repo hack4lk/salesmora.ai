@@ -1,4 +1,5 @@
 import { useState, type ComponentProps } from 'react';
+import { reportSnapshotDecorator } from '../report-snapshot.story-helpers';
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { financialReportQuerySchema, financialReportReadResultSchema, financialReportExportInputSchema,
@@ -19,6 +20,7 @@ function parseQuery(input: RequestInfo | URL) {
   return financialReportQuerySchema.parse(JSON.parse(new URL(String(input), 'https://story.example.test').searchParams.get('query')!));
 }
 const meta = {
+  decorators: [reportSnapshotDecorator],
   title: 'Reports/FinancialReportPage', component: FinancialReportPage, tags: ['autodocs'],
   parameters: { layout: 'fullscreen', docs: { description: { component: 'API-mocked canonical Financial host, including personal configuration templates and independently authorized CSV. No revenue/profit, production activation or assistant integration.' } } },
   args: { initial: financialReadResponse(), onRecord: fn(), onReload: fn() },

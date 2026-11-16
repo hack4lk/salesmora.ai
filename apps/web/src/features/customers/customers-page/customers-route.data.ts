@@ -1,6 +1,5 @@
 export const customersRouteData = {
   title: "Customers",
-  eyebrow: "Customer relationships",
   description:
     "Keep customer relationships, contact details and linked leads in one place.",
   add: "Add customer",
@@ -11,6 +10,7 @@ export const customersRouteData = {
   failure: "Customers could not be loaded. Try again.",
   unavailable: "This customer or workspace is no longer available.",
   saveFailure: "Customer could not be saved. Your input is preserved.",
+  savedReload: "Your change was saved, but Customers could not refresh. Try again to load the latest details.",
   retry: "Try again",
   assistantUnavailable:
     "Customer-specific assistant actions are not connected yet. Use the contact form to enter details.",

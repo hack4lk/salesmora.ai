@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { reportSnapshotDecorator } from '../report-snapshot.story-helpers';
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { estimateReportQuerySchema, estimateReportReadResultSchema, estimateReportExportInputSchema,
@@ -15,6 +16,7 @@ function parseQuery(input: RequestInfo | URL) {
   return estimateReportQuerySchema.parse(JSON.parse(new URL(String(input), 'https://story.example.test').searchParams.get('query')!));
 }
 const meta = {
+  decorators: [reportSnapshotDecorator],
   title: 'Reports/EstimateReportPage', component: EstimateReportPage, tags: ['autodocs'],
   parameters: { layout: 'fullscreen', docs: { description: { component: 'API-mocked canonical Estimates host with strict native authority, independent period/current drafts, native evidence, frozen values and independently authorized CSV. Configuration, assistant and production activation remain deferred.' } } },
   args: { initial: estimateReadResponse(initialEstimateQuery), onRecord: fn(), onReload: fn() },

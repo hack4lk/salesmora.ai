@@ -41,6 +41,10 @@ export default meta;
 type Story=StoryObj<typeof meta>;
 export const Default:Story={play:async({canvasElement})=>{const c=within(canvasElement);await expect(c.getByRole('region',{name:copy.stories.caption})).toBeVisible();await expect(c.getByRole('link',{name:copy.stories.rows[0].name})).toBeVisible();}};
 export const Sorted:Story={args:{sort:{column:'name',direction:'asc'}}};
+export const PageHeight:Story={args:{constrainHeight:false},play:async({canvasElement})=>{
+ const table=within(canvasElement).queryByRole('table');
+ if(table){await expect(table.parentElement).toHaveStyle({maxHeight:'none'});await expect(table.parentElement?.scrollHeight).toBe(table.parentElement?.clientHeight);}
+}};
 export const Selectable:Story={args:{onSelectionChange:fn(),selectedIds:['jordan']},play:async({canvasElement,args})=>{
  const c=within(canvasElement);await expect(c.getByRole('checkbox',{name:copy.selectRow(copy.stories.rows[0].name)})).toBeChecked();
  await userEvent.click(c.getByRole('checkbox',{name:copy.selectPage}));

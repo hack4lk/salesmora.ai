@@ -86,7 +86,6 @@ export default async function BillingSettingsPage({
             : undefined
         }
         workspaceId={workspace.id}
-        workspaceName={workspace.businessName}
         viewerRole={context.membership.role}
         initialSnapshot={snapshot}
       />

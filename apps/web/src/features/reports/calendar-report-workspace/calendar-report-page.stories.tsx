@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { reportSnapshotDecorator } from '../report-snapshot.story-helpers';
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { calendarReportQuerySchema, calendarExportInputSchema, calendarExportColumns, type CalendarReportQuery } from '@salesmora/contracts';
@@ -9,6 +10,7 @@ import { calendarExportDatasetsForView } from './calendar-export.client';
 
 let requests: CalendarReportQuery[] = [], release: (() => void) | undefined, aborted = false, settled = false;
 const meta = {
+  decorators: [reportSnapshotDecorator],
   title: 'Reports/CalendarReportPage', component: CalendarReportPage, tags: ['autodocs'],
   parameters: { layout: 'fullscreen', docs: { description: { component: 'API-bound canonical Calendar workspace with separate dated/undated drafts, current authorized facets, per-record attribution and CSV review/download. Initial data is server supplied; request keys, cancellation and current authority prevent stale evidence. Visible typed record links are enabled; Calendar deep links, configuration and production activation remain deferred.' } } },
   args: { initial: calendarReadResponse(initialCalendarQuery), onRecord: fn(), onReload: fn() },

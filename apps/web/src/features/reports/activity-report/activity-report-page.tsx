@@ -28,7 +28,6 @@ function ActivityReportPageHost({ initial, onRecord, onReload, template, onTempl
   const [period, setPeriod] = useState<ReportPeriodSelection>(template?.configuration.period ?? { preset: 'custom', ...initial.query.period });
   const [filters, setFilters] = useState<ActivityFiltersValue>(initial.query.filters);
   const [page, setPage] = useState(initial.query.page), [pageSize, setPageSize] = useState<number>(initial.query.pageSize);
-  const [retry, setRetry] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
   const range = useMemo(() => {
     const resolved = resolveReportPeriod(period, today, 'history').range;
@@ -37,11 +36,11 @@ function ActivityReportPageHost({ initial, onRecord, onReload, template, onTempl
   }, [period, today]);
   const request = useMemo(() => activityReportRequest({ workspaceId: initial.workspaceId, range, filters, page, pageSize }),
     [initial.workspaceId, range, filters, page, pageSize]);
-  const key = `${scopeKey}:${JSON.stringify(request)}:${retry}`;
+  const key = `${scopeKey}:${today}:${timezone}:${JSON.stringify(request)}`;
   const adaptationInput = useMemo(() => ({ request, period, scopeKey, today, timezone,
     includedDomains: initial.report.includedDomains }), [request, period, scopeKey, today, timezone, initial.report.includedDomains]);
   const validate = useCallback((raw: unknown) => { adaptActivityReadResponse(raw, adaptationInput); }, [adaptationInput]);
-  const loaded = useReportRead({ key, initial, validate,
+  const loaded = useReportRead({ key, initial, initialUpdatedAt: Date.parse(initial.report.asOf), validate,
     url: `/api/reports/activity?${new URLSearchParams({ query: JSON.stringify(request) })}`,
     failureMessage: 'Activity report could not be loaded. Try again.' });
   let adapted: ReturnType<typeof adaptActivityReadResponse> | undefined;
@@ -68,7 +67,7 @@ function ActivityReportPageHost({ initial, onRecord, onReload, template, onTempl
       filterState={loaded.pending ? 'loading' : error ? 'error' : 'ready'}
       onPeriodApply={value => { setPeriod(value); setFilters({ domains: [], actions: [], actors: [] }); setPage(1); }}
       onFiltersChange={value => { setFilters(value); setPage(1); }}
-      onRetryFilters={() => setRetry(value => value + 1)} onRetry={() => setRetry(value => value + 1)}
+      onRetryFilters={loaded.refresh} onRetry={loaded.refresh}
       onRecord={record => { if (!loaded.pending && raw && visibleActivityRecord(raw, record)) onRecord(record); }}
       onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
     {exportOpen && raw && !loaded.pending && !error && raw.exportScopes.length > 0 && <ActivityExport

@@ -6,9 +6,11 @@ import { LeadReportPage } from './lead-report-page';
 import { initialLeadReportQuery, leadReportBackendResponse } from './lead-report.adapter.fixtures';
 import { workspaceLeadFixtures } from './lead-report-workspace.fixtures';
 import { selectMetricEvidence } from '../report-summary/report-summary.story-helpers';
+import { reportSnapshotDecorator } from '../report-snapshot.story-helpers';
 
 let requests: LeadReportQuery[] = [], release: (() => void) | undefined, aborted = false, settled = false;
 const meta = {
+  decorators: [reportSnapshotDecorator],
   title: 'Reports/LeadReportPage', component: LeadReportPage, parameters: { layout: 'fullscreen' },
   args: { initial: leadReportBackendResponse(initialLeadReportQuery), onRecord: fn(), onReload: fn() },
   beforeEach: () => {
@@ -33,7 +35,7 @@ export const BackendContracts: Story = {
       await waitFor(() => expect(canvas.getByRole('combobox', { name: 'Report view' })).toBeEnabled());
       await expect(canvas.getAllByRole('region', { name: 'Supporting evidence' })).toHaveLength(1);
     }
-    expect(requests.map(query => query.view)).toEqual(['pipeline', 'age', 'attention', 'won', 'lost', 'intake']);
+    expect(requests.map(query => query.view)).toEqual(['pipeline', 'age', 'attention', 'won', 'lost']);
     await selectMetricEvidence(canvasElement, 'New leads');
     await waitFor(() => expect(canvas.getByRole('combobox', { name: 'Report view' })).toBeEnabled());
     const record = canvas.getByRole('button', { name: 'View record: Website inquiry' });

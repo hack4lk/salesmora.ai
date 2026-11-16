@@ -31,7 +31,6 @@ function FinancialReportPageHost({ initial, onRecord, onReload, template, onTemp
   const [period, setPeriod] = useState<ReportPeriodSelection>(template?.configuration.period ?? { preset: 'custom', ...initial.query.period });
   const [selected, setSelected] = useState(initial.query.selected);
   const [page, setPage] = useState(initial.query.page), [pageSize, setPageSize] = useState<number>(initial.query.pageSize);
-  const [retry, setRetry] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
   const range = useMemo(() => {
     const resolved = resolveReportPeriod(period, today, 'history').range;
@@ -41,10 +40,12 @@ function FinancialReportPageHost({ initial, onRecord, onReload, template, onTemp
   const request = useMemo(() => financialReportQuerySchema.parse({
     workspaceId: initial.workspaceId, view: 'financial', period: range, selected, page, pageSize,
   }), [initial.workspaceId, range, selected, page, pageSize]);
-  const key = `${scopeKey}:${JSON.stringify(request)}:${retry}`;
+  const key = `${scopeKey}:${today}:${timezone}:${JSON.stringify(request)}`;
   const adaptationInput = useMemo(() => ({ request, period, scopeKey, today, timezone }), [request, period, scopeKey, today, timezone]);
   const validate = useCallback((raw: unknown) => { adaptFinancialReadResponse(raw, adaptationInput); }, [adaptationInput]);
-  const loaded = useReportRead({ key, initial, validate,
+  const snapshotTimes = [initial.reports.materials.asOf, ...[initial.reports.accepted.estimates, initial.reports.awaiting.estimates]
+    .flatMap(section => section.kind === 'unavailable' ? [] : [section.report.asOf])];
+  const loaded = useReportRead({ key, initial, initialUpdatedAt: Math.min(...snapshotTimes.map(Date.parse)), validate,
     url: `/api/reports/financial?${new URLSearchParams({ query: JSON.stringify(request) })}`,
     failureMessage: 'Financial report could not be loaded. Try again.' });
   let adapted: ReturnType<typeof adaptFinancialReadResponse> | undefined, raw: FinancialReportReadResult | undefined;
@@ -73,7 +74,7 @@ function FinancialReportPageHost({ initial, onRecord, onReload, template, onTemp
       onEvidence={value => { if (!loaded.pending && raw) { setSelected(value); setPage(1); } }}
       onRecord={id => { if (!loaded.pending && raw) { const record = visibleFinancialRecord(raw, id); if (record) onRecord(record); } }}
       onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }}
-      onRetry={() => setRetry(value => value + 1)} />
+      onRetry={loaded.refresh} />
     {exportOpen && raw && exportAllowed && !loaded.pending && !error && <FinancialExport
       key={`${scopeKey}:${JSON.stringify(request)}`} request={request} authority={raw}
       onClose={() => setExportOpen(false)} onReload={onReload} />}

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+export const billingPaymentMethodSavedSchema = z.object({ saved: z.literal(true) }).strict();
 export const billingPaymentMethodRequestSchema = z.discriminatedUnion('action', [
   z.object({ workspaceId: z.uuid(), action: z.literal('prepare') }).strict(),
   z.object({ workspaceId: z.uuid(), action: z.literal('save'), attemptId: z.uuid(), consent: z.literal(true) }).strict(),

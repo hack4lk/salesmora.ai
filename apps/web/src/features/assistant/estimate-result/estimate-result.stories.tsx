@@ -172,3 +172,16 @@ export const DetailedServerCheckedNavigation: Story = {
     }));
   },
 };
+export const WrongWorkspaceNavigation: Story = {
+  beforeEach: () => {
+    const fetch = globalThis.fetch;
+    globalThis.fetch = fn(async () => Response.json({ href: "/estimates?workspace=00000000-0000-4000-8000-000000000099" }));
+    return () => { globalThis.fetch = fetch; };
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: estimateSummaryCardData.openList }));
+    await expect(await canvas.findByText(c.failed)).toBeVisible();
+    await expect(args.onNavigate).not.toHaveBeenCalled();
+  },
+};

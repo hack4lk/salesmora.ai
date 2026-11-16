@@ -14,10 +14,8 @@ function SettingsPreview({ commit = false, rebind = false, ...args }: EstimateSe
   const props = args.businessProfile;
   const [source, setSource] = useState(props.source), [value, setValue] = useState(props.value);
   const [saved, setSaved] = useState(props.saved), [conflict, setConflict] = useState(props.conflict);
-  const [notice, setNotice] = useState(""), [navigation, setNavigation] = useState("");
-  return <main className="mx-auto min-h-screen w-full max-w-4xl bg-canvas p-4 sm:p-8" onClick={(event) => {
-    if (event.target instanceof Element && event.target.closest("a")) { event.preventDefault(); setNavigation(c.stories.navigation); }
-  }}>
+  const [notice, setNotice] = useState("");
+  return <main className="mx-auto min-h-screen w-full max-w-4xl bg-canvas p-4 sm:p-8">
     <p className="mb-6 mt-0 text-sm leading-6 text-muted">{c.stories.notice}</p>
     <EstimateSettingsPage {...args} businessProfile={{ ...props, source, value, saved, conflict,
       onChange: props.onChange ? (next) => { setValue(next); setSaved(false); setNotice(""); props.onChange?.(next); } : undefined,
@@ -41,7 +39,6 @@ function SettingsPreview({ commit = false, rebind = false, ...args }: EstimateSe
       } : undefined,
     }} />
     {notice && <p role="status" className="mt-4 text-sm text-muted">{notice}</p>}
-    {navigation && <p role="status" className="mt-4 text-sm text-muted">{navigation}</p>}
   </main>;
 }
 const businessProfile: EstimateBusinessProfileFormProps = {
@@ -52,7 +49,7 @@ const businessProfile: EstimateBusinessProfileFormProps = {
 const meta = {
   title: "Settings/EstimateSettingsPage", component: EstimateSettingsPage,
   parameters: { layout: "fullscreen" },
-  args: { workspaceName: c.stories.workspace, settingsHref: c.stories.settingsHref, businessProfile },
+  args: { businessProfile },
   render: (args) => <SettingsPreview {...args} />,
 } satisfies Meta<typeof EstimateSettingsPage>;
 export default meta;
@@ -63,7 +60,9 @@ export const Owner: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("heading", { level: 1, name: c.title })).toBeVisible();
-    await expect(canvas.getByRole("link", { name: c.back })).toHaveAttribute("href", c.stories.settingsHref);
+    await expect(canvas.queryByRole("link", { name: /Back to settings/i })).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Workspace settings")).not.toBeInTheDocument();
+    await expect(canvas.queryByText(c.stories.workspace)).not.toBeInTheDocument();
     await expect(canvas.getByRole("region", { name: form.title })).toBeVisible();
     await expect(canvas.getByRole("button", { name: form.save })).toBeDisabled();
     await expect(canvas.getByText(form.identityComplete)).toBeVisible();
@@ -76,6 +75,9 @@ export const EmptyIdentity: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText(form.identityIncomplete)).toBeVisible();
+    const alert = canvas.getByText(form.identityIncomplete).closest('[role="alert"]');
+    await expect(alert).toHaveClass("border-error", "bg-error/5");
+    await expect(canvasElement.querySelector("form")?.firstElementChild).toBe(alert);
     await expect(canvas.getByRole("textbox", { name: form.validForDays })).toHaveValue("30");
   },
 };
@@ -235,7 +237,7 @@ async function noFields({ canvasElement }: { canvasElement: HTMLElement }) {
   await expect(canvasElement).not.toHaveTextContent(record.profile.email);
 }
 export const NoReadAccess: Story = {
-  args: { workspaceName: form.stories.private, ...profile({ canRead: false }) },
+  args: profile({ canRead: false }),
   play: async (context) => {
     await noFields(context);
     await expect(context.canvasElement).not.toHaveTextContent(form.stories.private);
@@ -248,34 +250,19 @@ export const Unavailable: Story = { args: profile({ source: { state: "unavailabl
 export const SaveNotConnected: Story = { args: profile({ value: edited, onSave: undefined }) };
 export const UploadNotConnected: Story = { args: profile({ onUploadLogo: undefined }) };
 export const NoBackNavigation: Story = {
-  args: { settingsHref: undefined },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).queryByRole("link")).not.toBeInTheDocument();
-    await expect(within(canvasElement).getByText(c.navigationUnavailable)).toBeVisible();
-  },
-};
-export const BackNavigationRequest: Story = {
-  args: profile({ value: edited }),
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("link", { name: c.back }));
-    await expect(canvas.getByText(c.stories.navigation)).toBeVisible();
-    await expect(canvas.getByRole("textbox", { name: form.fields.name.label })).toHaveValue(form.stories.renamed);
-    await expect(args.businessProfile.onDiscard).not.toHaveBeenCalled();
-    await expect(args.businessProfile.onSave).not.toHaveBeenCalled();
   },
 };
 export const LongContent: Story = {
-  args: { workspaceName: "W".repeat(200), ...profile({ value: { ...initial, profile: { ...initial.profile,
+  args: { ...profile({ value: { ...initial, profile: { ...initial.profile,
     name: "N".repeat(200), address: "A".repeat(500), message: "M".repeat(2000), termsNote: "T".repeat(5000),
     paymentPresets: Array.from({ length: 10 }, (_, index) => ({ id: String(index), label: "P".repeat(80), text: "C".repeat(500) })),
   } } }) },
 };
 export const Keyboard: Story = {
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement), back = canvas.getByRole("link", { name: c.back });
-    await userEvent.tab(); await expect(back).toHaveFocus();
-    await expect(getComputedStyle(back).outlineWidth).toBe("3px");
+    const canvas = within(canvasElement);
     await userEvent.tab();
     await expect(canvas.getByRole("textbox", { name: form.fields.name.label })).toHaveFocus();
   },

@@ -89,7 +89,20 @@ export const Proposals: Story = {
 };
 export const OfficeProposer: Story = { args: base, ...render({ canManage: false, canViewCosts: false, canViewPrices: false, initialStatus: 'proposed', data: materialFixtures.map(row => (row.status === 'proposed' ? { ...row, costCents: null, priceCents: null, marginPercent: null } : row)) }) };
 export const ReadOnlyNoPrices: Story = { args: base, ...render({ canManage: false, canPropose: false, canExport: false, canViewCosts: false, canViewPrices: false }) };
-export const ManyPages: Story = { args: base, ...render({ data: materialsMany }) };
+export const ManyPages: Story = { args: base, ...render({ data: materialsMany }), play: async ({ canvasElement }) => {
+  const c = within(canvasElement);
+  const table = c.queryByRole('table');
+  if (table) {
+    const container = table.parentElement;
+    await expect(container).toHaveStyle({ maxHeight: 'none' });
+    await expect(container?.scrollHeight).toBe(container?.clientHeight);
+    await expect(within(table).getAllByRole('row')).toHaveLength(26);
+  } else {
+    await expect(c.getAllByRole('article')).toHaveLength(25);
+  }
+  await userEvent.click(c.getByRole('button', { name: 'Go to next page' }));
+  await expect(c.getByText('Showing 26–50 of 60')).toBeVisible();
+} };
 export const Empty: Story = { args: base, ...render({ data: [] }) };
 export const Loading: Story = { args: { ...base, state: 'loading' } };
 export const ErrorState: Story = { args: { ...base, state: 'error' } };

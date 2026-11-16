@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { FormFeedback, SeafoamButton } from '@salesmora/ui';
 import { leadReportReadResultSchema, type LeadReportReadResult, type ReportTemplate } from '@salesmora/contracts';
 import { LeadReportExport } from './lead-report-export';
@@ -11,6 +11,7 @@ import type { ReportPeriodSelection } from '../report-date-controls/report-date-
 import type { LeadReportFiltersValue } from '../lead-report-filters/lead-report-filters';
 import { ReportPageLayout } from '../report-page-layout/report-page-layout';
 import { TemplateSession, type TemplateRun } from '../report-templates/template-session';
+import { useReportRead } from '../use-report-read';
 
 export type LeadReportPageProps = { initial: LeadReportReadResult; onRecord: (id: string) => void; onReload: () => void };
 export function LeadReportPage({ initial, onRecord, onReload }: LeadReportPageProps) {
@@ -40,38 +41,16 @@ function LeadReportPageHost({ initial, onRecord, onReload, template, onTemplateR
     return undefined;
   });
   const [page, setPage] = useState(initial.query.page), [pageSize, setPageSize] = useState<number>(initial.query.pageSize);
-  const [retry, setRetry] = useState(0);
   const [exportKey, setExportKey] = useState<string>();
   const request = useMemo(() => leadReportRequest({ workspaceId: initial.workspaceId, view, period, today,
     filters, evidenceId, page, pageSize }), [initial.workspaceId, view, period, today, filters, evidenceId, page, pageSize]);
-  const key = `${scopeKey}:${JSON.stringify(request)}:${retry}`;
-  const [loaded, setLoaded] = useState<{ key: string; raw?: unknown; error?: string; denied?: boolean }>(() => ({ key, raw: initial }));
-  useEffect(() => {
-    if (loaded.key === key) return;
-    const abort = new AbortController();
-    let active = true;
-    async function load() {
-      try {
-        const params = new URLSearchParams({ query: JSON.stringify(request) });
-        const response = await fetch(`/api/reports/leads?${params}`, { cache: 'no-store', signal: abort.signal });
-        const raw: unknown = await response.json();
-        if (!response.ok) {
-          const message = typeof raw === 'object' && raw !== null && 'error' in raw && typeof raw.error === 'string'
-            ? raw.error : 'Leads report could not be loaded. Try again.';
-          if (active) setLoaded({ key, error: message, denied: [401, 403, 404, 423].includes(response.status) });
-          return;
-        }
-        adaptLeadReportResponse(raw, { request, scopeKey, today, timezone });
-        if (active) setLoaded({ key, raw });
-      } catch (error) {
-        if (!active || abort.signal.aborted) return;
-        setLoaded({ key, error: error instanceof Error ? error.message : 'Leads report could not be loaded. Try again.' });
-      }
-    }
-    void load();
-    return () => { active = false; abort.abort(); };
-  }, [key, request, scopeKey, today, timezone, loaded.key]);
-  const pending = loaded.key !== key;
+  const key = `${scopeKey}:${today}:${timezone}:${JSON.stringify(request)}`;
+  const validate = useCallback((raw: unknown) => { adaptLeadReportResponse(raw, { request, scopeKey, today, timezone }); },
+    [request, scopeKey, today, timezone]);
+  const loaded = useReportRead({ key, initial, initialUpdatedAt: Date.parse(initial.report.asOf), validate,
+    url: `/api/reports/leads?${new URLSearchParams({ query: JSON.stringify(request) })}`,
+    failureMessage: 'Leads report could not be loaded. Try again.' });
+  const pending = loaded.pending;
   const authority = useMemo(() => {
     const parsed = leadReportReadResultSchema.safeParse(loaded.raw);
     return parsed.success ? parsed.data : undefined;
@@ -89,7 +68,7 @@ function LeadReportPageHost({ initial, onRecord, onReload, template, onTemplateR
   }
   const options = error ? {} : adapted?.options ?? initial.options;
   const denied = loaded.key === key && loaded.denied;
-  const refresh = () => setRetry(value => value + 1);
+  const refresh = loaded.refresh;
   const unavailable = () => { throw new Error('Report configuration persistence is not integrated yet.'); };
   const canExport = !pending && !error && !!authority?.exportScope && !!adapted;
   const selectView = (value: NativeLeadReportView) => { setView(value); setEvidenceId(undefined); setPage(1); };

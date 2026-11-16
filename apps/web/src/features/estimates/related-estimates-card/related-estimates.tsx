@@ -3,23 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RelatedEstimatesQuery, RelatedEstimatesResult } from "@salesmora/contracts";
+import { relatedEstimatesResultSchema } from "@salesmora/contracts";
+import { useEstimateRequest } from "../use-estimate-request";
+import { isApiAccessError } from "../../api/api-query";
 import { RelatedEstimatesCard } from "./related-estimates-card";
 import { relatedEstimatesCardData as c } from "./related-estimates-card.data";
 
-class RelatedEstimatesReadError extends Error {
-  constructor(message: string, readonly status: number) { super(message); }
-}
-
 async function read(
+  request: ReturnType<typeof useEstimateRequest>,
   params: URLSearchParams,
   signal: AbortSignal,
   previous?: RelatedEstimatesResult,
 ): Promise<RelatedEstimatesResult> {
   async function fetchPage(): Promise<RelatedEstimatesResult> {
-    const response = await fetch(`/api/estimates/related?${params}`, { cache: "no-store", signal });
-    const body = await response.json();
-    if (!response.ok) throw new RelatedEstimatesReadError(body.error ?? c.error, response.status);
-    return body;
+    return request(`/api/estimates/related?${params}`, c.error, { signal }, raw => relatedEstimatesResultSchema.parse(raw));
   }
   const next = await fetchPage();
   if (!previous) return next;
@@ -40,6 +37,7 @@ export function RelatedEstimates({
   onCanCreateChange?: (value: boolean) => void;
 }) {
   const router = useRouter();
+  const readEstimate = useEstimateRequest();
   const [includeHidden, setIncludeHidden] = useState(false);
   const [result, setResult] = useState<RelatedEstimatesResult>();
   const current = useRef<RelatedEstimatesResult | undefined>(undefined);
@@ -56,7 +54,7 @@ export function RelatedEstimates({
       workspace: workspaceId, recordType, recordId,
       includeHidden: String(includeHidden), page: String(previous ? previous.page + 1 : 1),
     });
-    return read(params, request.signal, previous).then((next) => {
+    return read(readEstimate, params, request.signal, previous).then((next) => {
       if (!request.signal.aborted) {
         current.current = next; setResult(next); setState("ready");
         setPending(false);
@@ -65,12 +63,12 @@ export function RelatedEstimates({
     }).catch((failure: unknown) => {
       if (!request.signal.aborted) {
         setResult(undefined); current.current = undefined;
-        setState(failure instanceof RelatedEstimatesReadError && [401, 404].includes(failure.status) ? "unavailable" : "error");
+        setState(isApiAccessError(failure) ? "unavailable" : "error");
         setError(failure instanceof Error ? failure.message : c.error);
         setPending(false);
       }
     });
-  }, [workspaceId, recordType, recordId, includeHidden, onCanCreateChange]);
+  }, [workspaceId, recordType, recordId, includeHidden, onCanCreateChange, readEstimate]);
 
   const beginLoad = useCallback((more = false) => {
     if (!more) { setResult(undefined); current.current = undefined; setState("loading"); }

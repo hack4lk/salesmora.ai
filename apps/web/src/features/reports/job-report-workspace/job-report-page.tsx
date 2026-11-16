@@ -39,7 +39,6 @@ function JobReportPageHost({ initial, onRecord, onReload, template, onTemplateRu
     workload: initial.query.view === 'workload' ? initial.query.selection : defaults.workload,
   });
   const [page, setPage] = useState(initial.query.page), [pageSize, setPageSize] = useState<number>(initial.query.pageSize);
-  const [retry, setRetry] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
   const range = useMemo(() => {
     const resolved = resolveReportPeriod(period, today, 'history').range;
@@ -48,10 +47,10 @@ function JobReportPageHost({ initial, onRecord, onReload, template, onTemplateRu
   }, [period, today]);
   const request = useMemo(() => jobReportRequest({ workspaceId: initial.workspaceId, view, filters, range, evidence, page, pageSize }),
     [initial.workspaceId, view, filters, range, evidence, page, pageSize]);
-  const key = `${scopeKey}:${JSON.stringify(request)}:${retry}`;
+  const key = `${scopeKey}:${today}:${timezone}:${JSON.stringify(request)}`;
   const validate = useCallback((raw: unknown) => { adaptJobReadResponse(raw, { request, scopeKey, today, timezone }); },
     [request, scopeKey, today, timezone]);
-  const loaded = useReportRead({ key, initial, validate, url: `/api/reports/jobs?${new URLSearchParams({ query: JSON.stringify(request) })}`,
+  const loaded = useReportRead({ key, initial, initialUpdatedAt: Date.parse(initial.report.asOf), validate, url: `/api/reports/jobs?${new URLSearchParams({ query: JSON.stringify(request) })}`,
     failureMessage: 'Jobs report could not be loaded. Try again.' });
   let projection: JobReportProjection = { view, state: { kind: loaded.pending ? 'loading' : 'error' } };
   let adapted: ReturnType<typeof adaptJobReadResponse> | undefined;
@@ -81,7 +80,7 @@ function JobReportPageHost({ initial, onRecord, onReload, template, onTemplateRu
       canRead={!denied} canReadCurrent={!denied} canExport={!loaded.pending && !error && !!raw?.exportScope} canEdit={false} pending={loaded.pending}
       onViewChange={next => { setView(next); reset(); }}
       onFiltersChange={(context, value) => { setFilters(previous => ({ ...previous, [context]: value })); reset(); }}
-      onRetryFilters={() => setRetry(value => value + 1)} onRetry={() => setRetry(value => value + 1)}
+      onRetryFilters={loaded.refresh} onRetry={loaded.refresh}
       onEvidence={id => {
         if (loaded.pending || !raw) return;
         const selected = jobReportEvidenceSelection(raw, id);

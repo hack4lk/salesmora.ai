@@ -340,9 +340,6 @@ export function CustomersPagePreview({
           <div className="grid min-w-0 gap-6">
             <header className="flex flex-wrap items-end justify-between gap-5">
               <div className="min-w-0">
-                <p className="mb-2 mt-0 text-sm font-semibold text-primary">
-                  {c.eyebrow}
-                </p>
                 <h1 className="m-0 text-heading font-semibold text-ink">
                   {c.title}
                 </h1>

@@ -12,7 +12,7 @@ import {
 import { EstimateConvertDialog } from "./estimate-convert-dialog";
 import { estimateConvertDialogData as c } from "./estimate-convert-dialog.data";
 import type { EstimateConversionRequest } from "./estimate-convert-dialog.preview";
-import { estimateLifecycleRequest, EstimateLifecycleRequestError } from "../estimate-lifecycle-client";
+import { useEstimateRequest, EstimateLifecycleRequestError, isApiAccessError } from "../use-estimate-request";
 import type { EstimateCapabilities } from "../estimate-preview.types";
 
 const denied: EstimateCapabilities = {
@@ -47,6 +47,7 @@ export function EstimateConvertConnected({
   onAccessLost: () => void;
 }) {
   const router = useRouter();
+  const estimateLifecycleRequest = useEstimateRequest();
   const [review, setReview] = useState<ConversionReview | null>(null);
   const [operation, setOperation] = useState<"review" | "confirm" | null>("review");
   const [error, setError] = useState<{ kind: "error" | "conflict"; message: string }>();
@@ -61,7 +62,7 @@ export function EstimateConvertConnected({
   const load = useCallback((signal?: AbortSignal, acceptNewVersion = false) => {
     const requestSequence = ++sequence.current;
     setOperation("review");
-    return estimateLifecycleRequest<unknown>(url, c.live.reviewError, { signal }).then((raw) => {
+    return estimateLifecycleRequest(url, c.live.reviewError, { signal }, raw => estimateConversionReviewSchema.parse(raw)).then((raw) => {
       if (signal?.aborted || requestSequence !== sequence.current) return null;
       const parsed = estimateConversionReviewSchema.safeParse(raw);
       if (!parsed.success) throw new Error(c.live.mismatch);
@@ -78,15 +79,15 @@ export function EstimateConvertConnected({
       if (signal?.aborted || requestSequence !== sequence.current) return null;
       const status = caught instanceof EstimateLifecycleRequestError ? caught.status : undefined;
       setReview(null);
-      setReadable(!(status === 401 || status === 404));
+      setReadable(!isApiAccessError(caught));
       setError({ kind: status === 409 ? "conflict" : "error", message: caught instanceof Error ? caught.message : c.live.reviewError });
       if (status === 401) router.replace("/login");
-      if (status === 401 || status === 404) onAccessLost();
+      if (isApiAccessError(caught)) onAccessLost();
       return null;
     }).finally(() => {
       if (!signal?.aborted && requestSequence === sequence.current) setOperation(null);
     });
-  }, [estimateId, expectedSnapshotHash, expectedVersion, onAccessLost, router, url]);
+  }, [estimateId, expectedSnapshotHash, expectedVersion, onAccessLost, router, url, estimateLifecycleRequest]);
 
   useEffect(() => {
     if (!open) return;
@@ -128,7 +129,7 @@ export function EstimateConvertConnected({
       const raw = await estimateLifecycleRequest<unknown>(url, c.live.saveError, {
         method: "POST",
         body: JSON.stringify({ ...payload, submissionId }),
-      });
+      }, raw => estimateConversionReceiptSchema.parse(raw));
       const parsed = estimateConversionReceiptSchema.safeParse(raw);
       if (!parsed.success) throw new Error(c.live.mismatch);
       const receipt = parsed.data;
@@ -140,7 +141,7 @@ export function EstimateConvertConnected({
     } catch (caught) {
       const status = caught instanceof EstimateLifecycleRequestError ? caught.status : undefined;
       setError({ kind: status === 409 ? "conflict" : "error", message: caught instanceof Error ? caught.message : c.live.saveError });
-      if (status === 401 || status === 404) {
+      if (isApiAccessError(caught)) {
         setReview(null);
         setReadable(false);
         onAccessLost();

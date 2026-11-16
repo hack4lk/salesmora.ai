@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { reportSnapshotDecorator } from '../report-snapshot.story-helpers';
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { teamReportQuerySchema, teamReportReadResultSchema, teamReportExportInputSchema, teamReportExportColumns,
@@ -13,6 +14,7 @@ function parseQuery(input: RequestInfo | URL) {
   return teamReportQuerySchema.parse(JSON.parse(new URL(String(input), 'https://story.example.test').searchParams.get('query')!));
 }
 const meta = {
+  decorators: [reportSnapshotDecorator],
   title: 'Reports/TeamReportPage', component: TeamReportPage, tags: ['autodocs'],
   parameters: { layout: 'fullscreen', docs: { description: { component: 'API-mocked canonical Team report host. Independent domain and CSV scopes, preserved member draft, explicit unavailable-selection correction, current roster and race-safe reads. Saved configuration, assistant and production activation remain deferred.' } } },
   args: { initial: teamReadResponse(initialTeamQuery), onRecord: fn(), onReload: fn() },

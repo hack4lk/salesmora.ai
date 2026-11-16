@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { EstimateEditorSeed } from "@salesmora/data";
+import { estimateEditorSeedSchema, estimateDeletedResultSchema } from "@salesmora/contracts";
 import { EstimateDeleteDraftDialog } from "./estimate-delete-draft-dialog";
 import { estimateDeleteDraftDialogData as c } from "./estimate-delete-draft-dialog.data";
 import {
   initialEstimateDeleteDraftValues, type EstimateDeleteDraftRecord, type EstimateDeleteDraftRequest,
 } from "./estimate-delete-draft-dialog.preview";
-import { estimateLifecycleRequest, EstimateLifecycleRequestError } from "../estimate-lifecycle-client";
+import { useEstimateRequest, EstimateLifecycleRequestError } from "../use-estimate-request";
 
 export function EstimateDeleteDraftReview({
   workspaceId, estimate, onClose, onDeleted,
@@ -19,6 +20,7 @@ export function EstimateDeleteDraftReview({
   onDeleted: () => void;
 }) {
   const router = useRouter();
+  const estimateLifecycleRequest = useEstimateRequest();
   const [current, setCurrent] = useState(estimate);
   const [value, setValue] = useState(() => initialEstimateDeleteDraftValues(estimate));
   const [access, setAccess] = useState({ read: true, delete: false });
@@ -27,7 +29,7 @@ export function EstimateDeleteDraftReview({
   const query = `?workspace=${encodeURIComponent(workspaceId)}`;
   const load = useCallback((signal?: AbortSignal, acceptNewVersion = false) => {
     return estimateLifecycleRequest<EstimateEditorSeed>(
-      `/api/estimates/${encodeURIComponent(estimate.id)}${query}`, c.live.loadError, { signal },
+      `/api/estimates/${encodeURIComponent(estimate.id)}${query}`, c.live.loadError, { signal }, raw => estimateEditorSeedSchema.parse(raw),
     ).then(seed => {
       if (signal?.aborted) return;
       const record = seed.estimate;
@@ -41,11 +43,11 @@ export function EstimateDeleteDraftReview({
     }).catch((caught: unknown) => {
       if (signal?.aborted) return;
       const status = caught instanceof EstimateLifecycleRequestError ? caught.status : undefined;
-      setAccess({ read: status !== 401 && status !== 404, delete: false });
+      setAccess({ read: status === undefined || ![401, 403, 404, 423].includes(status), delete: false });
       setError({ kind: "error", message: caught instanceof Error ? caught.message : c.live.loadError });
       if (status === 401) router.replace("/login");
     }).finally(() => { if (!signal?.aborted) setOperation(null); });
-  }, [estimate.id, estimate.version, query, router]);
+  }, [estimate.id, estimate.version, query, router, estimateLifecycleRequest]);
   useEffect(() => {
     const controller = new AbortController();
     void load(controller.signal);
@@ -58,14 +60,14 @@ export function EstimateDeleteDraftReview({
     try {
       const receipt = await estimateLifecycleRequest<{ deleted: boolean; id: string }>(
         `/api/estimates/${encodeURIComponent(estimate.id)}${query}`, c.live.saveError,
-        { method: "DELETE", body: JSON.stringify({ ...request, workspaceId }) },
+        { method: "DELETE", body: JSON.stringify({ ...request, workspaceId }) }, raw => estimateDeletedResultSchema.parse(raw),
       );
       if (receipt.deleted !== true || receipt.id !== request.estimateId) throw new Error(c.live.saveError);
       onDeleted();
     } catch (caught) {
       const status = caught instanceof EstimateLifecycleRequestError ? caught.status : undefined;
       setError({ kind: status === 409 ? "conflict" : "error", message: caught instanceof Error ? caught.message : c.live.saveError });
-      if (status === 401 || status === 404) setAccess({ read: false, delete: false });
+      if (status !== undefined && [401, 403, 404, 423].includes(status)) setAccess({ read: false, delete: false });
       if (status === 401) router.replace("/login");
     } finally { setOperation(null); }
   }

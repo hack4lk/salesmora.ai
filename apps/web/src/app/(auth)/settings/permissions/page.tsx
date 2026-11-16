@@ -28,6 +28,6 @@ export default async function PermissionsPage({ searchParams }: { searchParams: 
   const capabilities = workspaceCapabilities(context);
   if (!capabilities.permissions) notFound();
   return <WorkspaceShell chatEnabled={await workspaceChatAvailable(workspace.id)} chatSurface="settings.permissions" currentPage="settings" currentSettingsPage="permissions" billingAvailable={capabilities.billing} jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} authorizedPages={workspaceNavigationPages(context)} assistantAvailable={capabilities.assistant} contentWidth="full" workspaceId={workspace.id} workspaceName={workspace.businessName} user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} onSignOut={signOut}>
-    <PermissionsRoute email={session.user.email} userId={session.user.id} workspaceName={workspace.businessName} viewerRole={context.membership.role} policy={context.policy} defaultPolicy={createDefaultWorkspacePolicy(workspace.id)} availablePermissions={enabledPermissions} />
+    <PermissionsRoute email={session.user.email} userId={session.user.id} viewerRole={context.membership.role} policy={context.policy} defaultPolicy={createDefaultWorkspacePolicy(workspace.id)} availablePermissions={enabledPermissions} />
   </WorkspaceShell>;
 }

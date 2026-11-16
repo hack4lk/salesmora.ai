@@ -84,6 +84,8 @@ export async function renderCustomersPage(
         <CustomersRoute
           key={`${workspace.id}:${customerId ?? "list"}`}
           workspaceId={workspace.id}
+          viewerId={session.user.id}
+          initialUpdatedAt={Date.now()}
           initial={initial}
           initialQuery={query}
           initialDetail={detail}

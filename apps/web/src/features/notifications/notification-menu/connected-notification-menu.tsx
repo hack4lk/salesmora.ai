@@ -1,44 +1,44 @@
 'use client';
 import { captureNotificationItem } from './capture-notification-item';
 import { jobNotificationItem } from './job-notification-item';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { NotificationResult } from '@salesmora/contracts';
+import { useEffect, useRef } from 'react';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ApiQueryScopeBoundary, useApiQueryScope, useApiViewerId } from '../../api/api-query-provider';
+import { apiQueryKeys, isApiAccessError, removeDeniedApiQueries } from '../../api/api-query';
+import { markNotificationReadOptions, notificationItems, notificationQueryOptions } from './notification-queries';
 import { NotificationMenu } from './notification-menu';
 import { calendarEventCardData as visitFormat } from '../../calendar/calendar-event-card/calendar-event-card.data';
 import { notificationMenuData as copy } from './notification-menu.data';
 export function ConnectedNotificationMenu({workspaceId,workspaceName}:{workspaceId:string;workspaceName:string}) {
-  const [result,setResult]=useState<NotificationResult>({items:[],unreadCount:0,page:1,hasMore:false});
-  const [state,setState]=useState<'loading'|'ready'|'error'>('loading');
-  const [pendingId,setPendingId]=useState<string>(), [actionError,setActionError]=useState(false),[loadingMore,setLoadingMore]=useState(false);
-  const request=useRef<AbortController|undefined>(undefined), generation=useRef(0), marking=useRef(false);
-  const refresh=useCallback(async()=>{
-    const token=++generation.current; request.current?.abort(); const abort=new AbortController();request.current=abort;
-    try {
-      const response=await fetch(`/api/notifications?workspace=${encodeURIComponent(workspaceId)}`,{cache:'no-store',signal:abort.signal});
-      if(!response.ok)throw Error();const next:NotificationResult=await response.json();
-      if(token===generation.current){setResult(next);setState('ready');setLoadingMore(false);}
-    } catch {if(!abort.signal.aborted && token===generation.current){setResult({items:[],unreadCount:0,page:1,hasMore:false});setState('error');setLoadingMore(false);}}
-  },[workspaceId]);
-  useEffect(()=>{
-    const onRefresh=()=>{void refresh();};const startup=setTimeout(onRefresh,0);
-    const timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh();},15000);
-    window.addEventListener('focus',onRefresh);window.addEventListener('salesmora:notifications-refresh',onRefresh);
-    return()=>{clearTimeout(startup);clearInterval(timer);window.removeEventListener('focus',onRefresh);window.removeEventListener('salesmora:notifications-refresh',onRefresh);request.current?.abort();};
-  },[refresh]);
-  async function mark(id:string) {
-    if(marking.current)return;marking.current=true;setPendingId(id);setActionError(false);
-    try {const response=await fetch('/api/notifications/read',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspaceId,id})});if(!response.ok)throw Error();await refresh();}
-    catch {setActionError(true);await refresh();}finally{marking.current=false;setPendingId(undefined);}
-  }
-  async function older() {
-    if(loadingMore || !result.hasMore)return;const token=generation.current;setLoadingMore(true);setActionError(false);
-    try {
-      const response=await fetch(`/api/notifications?workspace=${encodeURIComponent(workspaceId)}&page=${result.page+1}`,{cache:'no-store'});if(!response.ok)throw Error();const next:NotificationResult=await response.json();
-      if(token===generation.current)setResult(old=>({...next,items:[...new Map([...old.items,...next.items].map(item=>[item.id,item])).values()]}));
-    } catch {if(token===generation.current){setState('error');setResult({items:[],unreadCount:0,page:1,hasMore:false});}}finally{if(token===generation.current)setLoadingMore(false);}
-  }
-  return <NotificationMenu workspaceName={workspaceName} state={state} unreadCount={state==='ready'?result.unreadCount:null}
-    items={result.items.map(item=>item.kind==='capture'
+  const viewerId = useApiViewerId();
+  return <ApiQueryScopeBoundary scope={{ viewerId, workspaceId }}>
+    <NotificationMenuQuery key={`${viewerId}:${workspaceId}`} workspaceName={workspaceName}/>
+  </ApiQueryScopeBoundary>;
+}
+
+function NotificationMenuQuery({ workspaceName }: { workspaceName: string }) {
+  const scope = useApiQueryScope(), client = useQueryClient();
+  const { workspaceId } = scope;
+  const marking = useRef(false);
+  const query = useInfiniteQuery(notificationQueryOptions(scope));
+  const queryKey = apiQueryKeys.resource(scope, 'notifications');
+  const mark = useMutation(markNotificationReadOptions(client, scope));
+  const accessError = isApiAccessError(mark.error) ? mark.error : query.error;
+  useEffect(() => {
+    removeDeniedApiQueries(client, queryKey, accessError);
+  }, [client, queryKey, accessError]);
+  const { refetch } = query;
+  useEffect(() => {
+    const refresh = () => { void refetch({ cancelRefetch: false }); };
+    window.addEventListener('salesmora:notifications-refresh', refresh);
+    return () => window.removeEventListener('salesmora:notifications-refresh', refresh);
+  }, [refetch]);
+  const failed = query.isError || isApiAccessError(accessError);
+  const loading = query.isPending || (failed && query.isFetching);
+  const state = loading ? 'loading' : failed ? 'error' : 'ready';
+  const pages = state === 'ready' ? query.data?.pages ?? [] : [];
+  return <NotificationMenu workspaceName={workspaceName} state={state} unreadCount={state==='ready'?pages[0]?.unreadCount ?? 0:null}
+    items={notificationItems(pages).map(item=>item.kind==='capture'
       ?captureNotificationItem(item,workspaceId)
       :item.kind==='job'
       ?jobNotificationItem(item,workspaceId,workspaceName)
@@ -59,6 +59,14 @@ export function ConnectedNotificationMenu({workspaceId,workspaceName}:{workspace
       :item.kind==='estimate'
       ?{id:item.id,title:copy.estimateTitles[item.event],description:copy.estimateDescription(item.estimateNumber,item.estimateName,item.status),createdAt:item.createdAt,read:item.read,actionLabel:copy.viewEstimate,href:`/estimates/${encodeURIComponent(item.estimateId)}?workspace=${encodeURIComponent(workspaceId)}`}
       :{id:item.id,title:copy.assignmentTitle,description:copy.assignmentDescription(item.assignerName,item.leadNumber,item.leadName,item.service),createdAt:item.createdAt,read:item.read,href:`/leads/${encodeURIComponent(item.leadId)}?workspace=${encodeURIComponent(workspaceId)}`})}
-    preferencesHref={`/settings/notifications?workspace=${encodeURIComponent(workspaceId)}`} pendingId={pendingId} actionError={actionError} hasMore={result.hasMore} loadingMore={loadingMore}
-    onOpen={()=>{void refresh();}} onRetry={()=>{setState('loading');void refresh();}} onMarkRead={id=>{void mark(id);}} onLoadMore={()=>{void older();}}/>;
+    preferencesHref={`/settings/notifications?workspace=${encodeURIComponent(workspaceId)}`}
+    pendingId={mark.isPending ? mark.variables : undefined} actionError={mark.isError} hasMore={state === 'ready' && query.hasNextPage} loadingMore={query.isFetching}
+    onOpen={()=>{void refetch({ cancelRefetch: false });}}
+    onRetry={()=>{void refetch({ cancelRefetch: false }).then(result => { if (result.isSuccess) mark.reset(); });}}
+    onMarkRead={id=>{
+      if (marking.current || mark.isPending) return;
+      marking.current = true;
+      mark.mutate(id, { onSettled: () => { marking.current = false; } });
+    }}
+    onLoadMore={()=>{if (!query.isFetching && query.hasNextPage) { mark.reset();void query.fetchNextPage(); }}}/>;
 }

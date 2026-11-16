@@ -2,14 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EstimateHistoryCursor, EstimateLifecycleRead } from "@salesmora/contracts";
+import { estimateLifecycleReadSchema } from "@salesmora/contracts";
 import { EstimateHistoryTimeline } from "./estimate-history-timeline";
-import { estimateLifecycleData as c, estimateLifecycleRequest, EstimateLifecycleRequestError } from "../estimate-lifecycle-client";
+import { estimateLifecycleData as c } from "../estimate-lifecycle-client";
+import { useEstimateRequest, EstimateLifecycleRequestError } from "../use-estimate-request";
 
 export function EstimateHistoryConnected({
   workspaceId, estimateId, refreshKey, timezone,
 }: { workspaceId: string; estimateId: string; refreshKey: string; timezone: string }) {
+  const estimateLifecycleRequest = useEstimateRequest();
   const [data, setData] = useState<EstimateLifecycleRead | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadedRefreshKey, setLoadedRefreshKey] = useState<string | null>(null);
   const [readable, setReadable] = useState(true);
   const [error, setError] = useState("");
   const inFlight = useRef(false);
@@ -23,7 +27,7 @@ export function EstimateHistoryConnected({
     const query = new URLSearchParams({ workspace: workspaceId });
     if (before) { query.set("beforeAt", before.createdAt); query.set("beforeId", before.id); }
     return estimateLifecycleRequest<EstimateLifecycleRead>(
-      `/api/estimates/${encodeURIComponent(estimateId)}/lifecycle?${query}`, c.loadError, { signal },
+      `/api/estimates/${encodeURIComponent(estimateId)}/lifecycle?${query}`, c.loadError, { signal }, raw => estimateLifecycleReadSchema.parse(raw),
     ).then(result => {
       if (signal?.aborted || request !== sequence.current) return;
       setData(current => before && current ? {
@@ -33,7 +37,7 @@ export function EstimateHistoryConnected({
       setReadable(true);
     }).catch((caught: unknown) => {
       if (signal?.aborted || request !== sequence.current) return;
-      if (caught instanceof EstimateLifecycleRequestError && [401, 404].includes(caught.status)) {
+      if (caught instanceof EstimateLifecycleRequestError && [401, 403, 404, 423].includes(caught.status)) {
         setData(null);
         setReadable(false);
       }
@@ -41,10 +45,10 @@ export function EstimateHistoryConnected({
     }).finally(() => {
       if (request === sequence.current) {
         inFlight.current = false;
-        if (!signal?.aborted) setLoading(false);
+        if (!signal?.aborted) { setLoading(false); setLoadedRefreshKey(refreshKey); }
       }
     });
-  }, [estimateId, workspaceId]);
+  }, [estimateId, workspaceId, refreshKey, estimateLifecycleRequest]);
   useEffect(() => {
     const abort = new AbortController();
     lifetime.current = abort;
@@ -54,7 +58,7 @@ export function EstimateHistoryConnected({
     return () => { abort.abort(); window.removeEventListener("focus", refresh); };
   }, [load, refreshKey]);
   return <EstimateHistoryTimeline events={data?.events ?? []} total={data?.total ?? 0}
-    timezone={data?.timezone ?? timezone} canRead={readable} loading={loading} error={error}
+    timezone={data?.timezone ?? timezone} canRead={readable} loading={loading || loadedRefreshKey !== refreshKey} error={error}
     onRetry={() => { setLoading(true); void load(); }}
     onLoadMore={data?.nextCursor ? () => { setLoading(true); void load(undefined, data.nextCursor ?? undefined); } : undefined} />;
 }

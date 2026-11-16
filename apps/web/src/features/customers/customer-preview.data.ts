@@ -14,7 +14,6 @@ export const customerPreviewData = {
   title: "Customers",
   description:
     "Keep customer relationships, contact details and linked leads in one place.",
-  eyebrow: "Customer relationships",
   add: "Add customer",
   edit: "Edit contact",
   export: "Export CSV",

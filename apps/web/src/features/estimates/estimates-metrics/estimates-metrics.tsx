@@ -59,15 +59,11 @@ export function EstimatesMetrics({
   return (
     <section
       aria-labelledby={`${id}-title`}
-      aria-describedby={`${id}-description`}
       className="grid min-w-0 gap-4"
     >
       <h2 id={`${id}-title`} className="sr-only">
         {c.title}
       </h2>
-      <p id={`${id}-description`} className="m-0 text-sm leading-6 text-muted">
-        {c.description}
-      </p>
       {failed && (
         <div className="grid gap-3">
           <FormFeedback kind="error" title={c.errorTitle} message={c.error} />

@@ -5,6 +5,7 @@ import type { EstimateDecisionChatView } from "@salesmora/contracts";
 import { ConnectedEstimateDecision } from "./estimate-decision-result";
 import { estimateDecisionFixture, estimateDecisionWorkspaceId } from "./estimate-decision.fixtures";
 import { estimateDecisionResultData as c } from "./estimate-decision-client";
+import { ApiQueryScopeBoundary } from "../../api/api-query-provider";
 
 function confirmed(view: EstimateDecisionChatView) {
   return { ...view, ticket: { ...view.ticket, state: "confirmed" }, receipt: {
@@ -31,7 +32,7 @@ const meta = {
   component: ConnectedEstimateDecision,
   args: { ticket: estimateDecisionFixture().ticket, workspaceId: estimateDecisionWorkspaceId, onRefresh: fn(async () => {}), onNavigate: fn() },
   beforeEach: () => mockReview(estimateDecisionFixture()),
-  decorators: [(Story) => <main className="mx-auto w-full max-w-4xl bg-canvas p-4"><Story /></main>],
+  decorators: [(Story) => <ApiQueryScopeBoundary scope={{ viewerId: "storybook-viewer", workspaceId: estimateDecisionWorkspaceId }}><main className="mx-auto w-full max-w-4xl bg-canvas p-4"><Story /></main></ApiQueryScopeBoundary>],
 } satisfies Meta<typeof ConnectedEstimateDecision>;
 export default meta;
 type Story = StoryObj<typeof meta>;

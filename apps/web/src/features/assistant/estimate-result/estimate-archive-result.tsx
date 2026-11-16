@@ -8,6 +8,7 @@ import type { EstimateArchiveCardCommand } from "../../estimates/estimate-archiv
 import { estimateButton } from "../../estimates/estimate-ui";
 import { estimateArchiveBinding, estimateArchiveRequest } from "./estimate-archive-client";
 import { estimateArchiveResultData as c } from "./estimate-archive-result.data";
+import { useEstimateAssistantRequest } from "./use-estimate-assistant-request";
 
 type Props = {
   ticket: EstimateArchiveChatTicket; workspaceId: string; disabled?: boolean;
@@ -19,6 +20,7 @@ export function ConnectedEstimateArchive(props: Props) {
   })} {...props} />;
 }
 function ArchiveResult({ ticket, workspaceId, disabled = false, onRefresh, onNavigate }: Props) {
+  const transport = useEstimateAssistantRequest(workspaceId, JSON.stringify(ticket));
   const [view, setView] = useState<EstimateArchiveChatView | null>(null);
   const [error, setError] = useState(""), [pending, setPending] = useState(false);
   const mounted = useRef(false), lock = useRef(false), sequence = useRef(0);
@@ -29,7 +31,7 @@ function ArchiveResult({ ticket, workspaceId, disabled = false, onRefresh, onNav
     if (lock.current || disabled || signal?.aborted) return;
     const request = ++sequence.current;
     try {
-      const result = await estimateArchiveRequest(workspaceId, ticket, "GET", undefined, signal);
+      const result = await estimateArchiveRequest(workspaceId, ticket, "GET", undefined, signal, transport);
       if (!isCurrent(request)) return;
       setView(result.view); setError("");
     } catch (caught) {
@@ -56,7 +58,7 @@ function ArchiveResult({ ticket, workspaceId, disabled = false, onRefresh, onNav
     const parsed = estimateArchiveChatDecisionSchema.parse(command), request = ++sequence.current;
     lock.current = true; setPending(true); setError("");
     try {
-      const result = await estimateArchiveRequest(workspaceId, view.ticket, "POST", parsed.decision);
+      const result = await estimateArchiveRequest(workspaceId, view.ticket, "POST", parsed.decision, undefined, transport);
       if (!isCurrent(request)) return { ok: false, message: c.unavailable };
       setView(result.view);
       if (parsed.decision === "open" && result.href) onNavigate(result.href);

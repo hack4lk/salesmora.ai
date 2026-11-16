@@ -8,6 +8,7 @@ const meta = {
   parameters: { layout: "centered" },
   args: {
     workspaceId: "a0d6b18b-6aec-4f7d-a0be-e0de8bf648b1",
+    viewerId: "estimate-parent-story-viewer",
     canReadLeads: true,
     canReadJobs: true,
     onSelect: fn(),

@@ -4,12 +4,14 @@ import { calendarProposalBindingSchema,calendarProposalViewSchema,type CalendarP
 import { CalendarScheduleDraftCard,type CalendarScheduleDecision } from './calendar-schedule-draft-card';
 import { calendarScheduleDraftCardData as copy } from './calendar-schedule-draft-card.data';
 import { calendarScheduleChangedEvent } from '../../calendar/calendar-events';
+import { useAssistantResultRequest } from '../use-assistant-result-request';
 type Props = { ticket:CalendarProposalTicket;workspaceId:string;disabled:boolean;onRefresh:()=>Promise<void> };
 const bindingFor = (ticket:CalendarProposalTicket) => calendarProposalBindingSchema.parse({ proposalId:ticket.proposalId,inputHash:ticket.inputHash,visitId:ticket.visitId,revision:ticket.revision });
 export function ConnectedCalendarSchedule(props:Props) {
   return <ConnectedReview key={`${props.workspaceId}:${JSON.stringify(props.ticket)}:${props.disabled}`} {...props}/>;
 }
 function ConnectedReview({ ticket,workspaceId,disabled,onRefresh }:Props) {
+  const api = useAssistantResultRequest<CalendarProposalView>(workspaceId, 'assistant-calendar-proposal', copy.states.unavailable);
   const [view,setView] = useState<CalendarProposalView>(),[state,setState] = useState<'loading'|'unavailable'>('loading');
   const mounted = useRef(false),sequence = useRef(0),lock = useRef(false),controllers = useRef(new Set<AbortController>());
   const invalidate = useCallback(() => { sequence.current++; },[]);
@@ -17,12 +19,17 @@ function ConnectedReview({ ticket,workspaceId,disabled,onRefresh }:Props) {
     const binding = bindingFor(ticket),controller = new AbortController();controllers.current.add(controller);
     try {
       const params = new URLSearchParams({ workspaceId,...binding });
-      const response = await fetch(decision ? '/api/chat/calendar/proposals' : `/api/chat/calendar/proposals?${params}`,{ signal:controller.signal,cache:'no-store',...(decision ? { method:'POST',headers:{ 'Content-Type':'application/json' },body:JSON.stringify({ workspaceId,...binding,decision }) } : {}) });
-      if (!response.ok) throw Error(); const next = calendarProposalViewSchema.parse((await response.json()).view);
-      if (JSON.stringify(bindingFor({ ...next.context,state:next.draft.state })) !== JSON.stringify(binding)) throw Error();
-      return next;
+      const parse = (raw: unknown) => {
+        if (!raw || typeof raw !== 'object' || !('view' in raw)) throw Error(copy.states.unavailable);
+        const next = calendarProposalViewSchema.parse(raw.view);
+        if (JSON.stringify(bindingFor({ ...next.context,state:next.draft.state })) !== JSON.stringify(binding)) throw Error(copy.states.unavailable);
+        return next;
+      };
+      return decision
+        ? await api.write('/api/chat/calendar/proposals', { workspaceId,...binding,decision }, parse, controller.signal, true)
+        : await api.read(`/api/chat/calendar/proposals?${params}`, parse, controller.signal);
     } finally { controllers.current.delete(controller); }
-  },[workspaceId,ticket]);
+  },[workspaceId,ticket,api]);
   const load = useCallback(async () => {
     if (disabled || lock.current) return;const token = ++sequence.current;
     try { const next = await request();if (mounted.current && token === sequence.current) setView(next); }

@@ -9,7 +9,12 @@ const meta = {
 } satisfies Meta<typeof AccountPage>;
 export default meta;
 type Story = StoryObj<typeof meta>;
-export const Owner: Story = {};
+export const Owner: Story = { play: async ({ canvasElement }) => {
+  const c = within(canvasElement);
+  await expect(c.getByRole('heading', { level: 1, name: copy.title })).toBeVisible();
+  await expect(c.queryByRole('link', { name: /Back to Settings/i })).not.toBeInTheDocument();
+  await expect(c.queryByText('Personal settings')).not.toBeInTheDocument();
+} };
 export const Teammate: Story = { args: { viewerRole: 'field' } };
 export const OwnerConfirmation: Story = { play: async ({ canvasElement }) => {
   const c = within(canvasElement);
@@ -26,7 +31,7 @@ export const TeammateConfirmation: Story = { args: { viewerRole: 'field' }, play
 } };
 
 export const ConnectedAccount: Story = {
-  args: { account: copy.connectedFixture, settingsHref: '/settings?workspace=fictional-workspace', billingHref: '/settings/billing?workspace=fictional-workspace' },
+  args: { account: copy.connectedFixture, billingHref: '/settings/billing?workspace=fictional-workspace' },
   play: async ({ canvasElement, args }) => {
     const c = within(canvasElement);
     await expect(c.getByText(args.account!.email)).toBeVisible();

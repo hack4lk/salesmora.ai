@@ -27,17 +27,21 @@ function BusinessOverviewPageHost({ initial, onReload, onNavigate, template, onT
 }) {
   const today = initial.report.today, timezone = initial.report.timezone, scopeKey = businessOverviewScopeKey(initial);
   const [period, setPeriod] = useState<ReportPeriodSelection>(template?.configuration.period ?? { preset: 'custom', ...initial.query.period });
-  const [retry, setRetry] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
   const request = useMemo(() => {
     const range = resolveReportPeriod(period, today, 'history').range;
     if (!range) throw new Error('Choose a valid historical Overview period.');
     return businessOverviewRequest({ workspaceId: initial.workspaceId, range });
   }, [initial.workspaceId, period, today]);
-  const key = `${scopeKey}:${JSON.stringify(request)}:${retry}`;
+  const key = `${scopeKey}:${today}:${timezone}:${JSON.stringify(request)}`;
   const validate = useCallback((raw: unknown) => { adaptBusinessOverviewReadResponse(raw, { request, period, scopeKey, today, timezone }); },
     [request, period, scopeKey, today, timezone]);
-  const loaded = useReportRead({ key, initial, validate,
+  const snapshotTimes = [
+    ...[initial.report.leads, initial.report.jobs, initial.report.estimates]
+      .flatMap(section => section.kind === 'available' ? Object.values(section.reads).map(read => Date.parse(read.asOf)) : []),
+    ...(initial.report.calendar.kind === 'available' ? [Date.parse(initial.report.calendar.read.asOf)] : []),
+  ];
+  const loaded = useReportRead({ key, initial, initialUpdatedAt: snapshotTimes.length ? Math.min(...snapshotTimes) : 0, validate,
     url: `/api/reports/overview?${new URLSearchParams({ query: JSON.stringify(request) })}`,
     failureMessage: 'Business Overview could not be loaded. Try again.' });
   let state: BusinessOverviewState = { kind: loaded.pending ? 'loading' : 'error' };
@@ -55,7 +59,7 @@ function BusinessOverviewPageHost({ initial, onReload, onNavigate, template, onT
     <BusinessOverviewPage state={state} period={period} today={today} timezone={timezone} canRead={!(loaded.key === key && loaded.denied)}
       canNavigateDetails={false} pending={loaded.pending} onPeriodApply={setPeriod}
       onAttention={id => onNavigate(overviewAttentionHref(id, initial.workspaceId, today))}
-      onRetry={() => setRetry(value => value + 1)} onEvidence={() => { throw new Error('Overview detail navigation is not integrated yet.'); }} />
+      onRetry={loaded.refresh} onEvidence={() => { throw new Error('Overview detail navigation is not integrated yet.'); }} />
   </div>;
   return <ReportPageLayout area="overview" workspaceId={initial.workspaceId} query={request} period={period}
     ready={!loaded.pending && !error && state.kind === 'ready'} active={template} onRun={onTemplateRun}

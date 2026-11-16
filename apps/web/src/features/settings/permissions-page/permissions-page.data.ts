@@ -1,7 +1,7 @@
 import type { PermissionId, PermissionScope, WorkspaceRole } from '@salesmora/contracts';
 export const permissionsPageData = {
-  eyebrow: 'Workspace settings', title: 'Permissions', description: 'Choose what each role can see and do. The assistant follows the same permissions.',
-  ownerOnly: 'Only the Owner can change permissions.', rolesLabel: 'Permission roles', search: 'Find a permission', searchPlaceholder: 'Search permissions…',
+  title: 'Permissions', description: 'Choose what each role can see and do. The assistant follows the same permissions.',
+  rolesLabel: 'Permission roles', search: 'Find a permission', searchPlaceholder: 'Search permissions…',
   roles: { owner: 'Owner', admin: 'Admin', office: 'Office', field: 'Field' } satisfies Record<WorkspaceRole, string>,
   roleHelp: { owner: 'Owns the workspace and its protected administration controls.', admin: 'Manages workspace operations and eligible teammates.', office: 'Coordinates customer work across the workspace.', field: 'Works on assigned leads and jobs.' } satisfies Record<WorkspaceRole, string>,
   applies: 'Changes apply to everyone with this role.', reset: 'Reset role defaults', deniedTitle: 'Owner access required', denied: 'Ask your workspace Owner to review role permissions.',

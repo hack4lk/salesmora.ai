@@ -8,6 +8,7 @@ import { EstimateLeadStageConnected } from "../../estimates/estimate-lead-stage-
 import { estimateLeadStageSuggestionData } from "../../estimates/estimate-lead-stage-suggestion/estimate-lead-stage-suggestion.data";
 import { estimateButton } from "../../estimates/estimate-ui";
 import { estimateDecisionResultData as c, estimateDecisionRequest } from "./estimate-decision-client";
+import { useEstimateAssistantRequest } from "./use-estimate-assistant-request";
 
 type Props = {
   ticket: EstimateDecisionChatTicket; workspaceId: string; disabled?: boolean;
@@ -17,6 +18,7 @@ export function ConnectedEstimateDecision(props: Props) {
   return <DecisionResult key={`${props.workspaceId}:${props.ticket.id}:${props.ticket.inputHash}:${props.ticket.authorizationVersion}:${!!props.disabled}`} {...props} />;
 }
 function DecisionResult({ ticket, workspaceId, disabled = false, onRefresh, onNavigate }: Props) {
+  const transport = useEstimateAssistantRequest(workspaceId, JSON.stringify(ticket));
   const [view, setView] = useState<EstimateDecisionChatView | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -37,7 +39,7 @@ function DecisionResult({ ticket, workspaceId, disabled = false, onRefresh, onNa
     if (lock.current || live.current.disabled || signal?.aborted) return;
     const expected = live.current, request = ++sequence.current;
     try {
-      const result = await estimateDecisionRequest(workspaceId, ticket, "GET", undefined, signal);
+      const result = await estimateDecisionRequest(workspaceId, ticket, "GET", undefined, signal, transport);
       if (!isCurrent(expected, request)) return;
       setView(result.view); setError("");
     } catch (caught) {
@@ -69,7 +71,7 @@ function DecisionResult({ ticket, workspaceId, disabled = false, onRefresh, onNa
     const expected = live.current, request = ++sequence.current;
     lock.current = true; setPending(true); setError(""); setNotice("");
     try {
-      const result = await estimateDecisionRequest(workspaceId, view.ticket, "POST", decision);
+      const result = await estimateDecisionRequest(workspaceId, view.ticket, "POST", decision, undefined, transport);
       if (!isCurrent(expected, request)) return { ok: false, message: c.unavailable };
       setView(result.view);
       if (decision === "open" && result.href) onNavigate(result.href);

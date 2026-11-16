@@ -5,9 +5,10 @@ import GlobalStyles from '@mui/material/GlobalStyles';
 import cascadeLayers from '../public/cascade-layers.css?raw';
 import { StyledEngineProvider } from '@mui/material/styles';
 import '@salesmora/ui/styles.css';
+import { ApiQueryProvider, ApiViewerProvider } from '../src/features/api/api-query-provider';
 
 const preview: Preview = {
-  decorators: [(Story) => <StyledEngineProvider enableCssLayer><GlobalStyles styles={cascadeLayers} /><BrandProvider><Story /></BrandProvider></StyledEngineProvider>],
+  decorators: [(Story, context) => <StyledEngineProvider enableCssLayer><GlobalStyles styles={cascadeLayers} /><BrandProvider><ApiQueryProvider key={context.id} testing><ApiViewerProvider viewerId="storybook-viewer"><Story /></ApiViewerProvider></ApiQueryProvider></BrandProvider></StyledEngineProvider>],
   parameters: {
     nextjs: { appDirectory: true },
     a11y: { test: 'error' },

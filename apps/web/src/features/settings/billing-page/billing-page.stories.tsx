@@ -62,8 +62,11 @@ const liveSnapshot = {
   payment:{brand:'visa',last4:'4242',expMonth:8,expYear:2028},billingEmail:'billing@example.com',providerAvailable:true,
   invoices:[{id:'in_fixture',number:'SM-001',createdAt:'2026-10-13T00:00:00.000Z',currency:'usd',total:4900,amountPaid:4900,amountDue:0,status:'paid',lines:[{description:'Premium monthly subscription',amount:4900}]}],hasMoreInvoices:false,
 } as const;
-export const ConnectedPreview: Story = {args:{snapshot:{...liveSnapshot,invoices:liveSnapshot.invoices.map(row=>({...row,lines:[...row.lines]}))},workspaceName:copy.workspace},play:async({canvasElement})=>{
+export const ConnectedPreview: Story = {args:{snapshot:{...liveSnapshot,invoices:liveSnapshot.invoices.map(row=>({...row,lines:[...row.lines]}))}},play:async({canvasElement})=>{
   const c=within(canvasElement);
+  for (const text of ['Workspace settings', 'Owner manages billing', 'Campaign and storage usage are not available yet.', 'Payment details are managed securely through Stripe.']) await expect(c.queryByText(text)).not.toBeInTheDocument();
+  await expect(c.queryByRole('link', {name:'Back to Settings'})).not.toBeInTheDocument();
+  await expect(c.queryByText(copy.workspace)).not.toBeInTheDocument();
   await expect(c.getByText('Premium',{exact:true})).toBeVisible();
   await expect(c.getByRole('button',{name:copy.change})).toBeVisible();
   await expect(c.getByRole('button',{name:copy.cancel})).toBeEnabled();

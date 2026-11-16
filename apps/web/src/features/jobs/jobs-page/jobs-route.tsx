@@ -2,6 +2,14 @@
 import { useCalendarScheduleRefresh } from '../../calendar/calendar-events';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { ApiQueryScopeBoundary } from '../../api/api-query-provider';
+import { useApiQuery } from '../../api/use-api-query';
+import { useApiMutation } from '../../api/use-api-mutation';
+import { apiReadOptions, invalidateWorkspaceResources } from '../../api/api-read-options';
+import { ApiRequestError } from '../../api/api-request';
+import { isApiAccessError } from '../../api/api-query';
+import { jobListResultSchema, jobDetailResultSchema, jobSavedResultSchema, jobMessageSavedSchema, jobMessagesResultSchema } from '@salesmora/contracts';
 import { FormFeedback, Pagination, Toast } from '@salesmora/ui';
 import type { JobDetailResult, JobListResult, JobQuery, JobStatus, JobView } from '@salesmora/contracts';
 import type { JobAction, JobFilters } from '../job-preview.types';
@@ -26,54 +34,59 @@ import { jobButton, jobPrimary } from '../job-ui';
 import { jobActivityView } from './job-activity';
 import { jobsRouteData as copy } from './jobs-route.data';
 
-class JobRequestError extends Error {
-  constructor(message: string, readonly status: number) { super(message); }
-}
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, cache: 'no-store', headers: { 'Content-Type': 'application/json', ...init?.headers } });
-  const body = await response.json();
-  if (!response.ok) throw new JobRequestError(body.error ?? copy.error, response.status);
-  return body as T;
-}
 function filtersFromQuery(query: JobQuery, field: boolean): JobFilters {
   return { ...defaultJobFilters, search: query.q ?? '', status: query.status ?? 'all', owner: query.unassigned ? 'unassigned' : query.ownerId ?? 'all',
     customer: query.customerName ?? 'all', service: query.service ?? 'all', deadline: query.deadline ?? 'all', createdAfter: query.createdAfter ?? '', closed: query.closed ?? false, mine: field || (query.mine ?? false) };
 }
 const noop = () => {};
-export function JobsRoute({ workspaceId, userId, initial, initialQuery, initialDetail, field, workOrders, initialMessages }: {
+export interface JobsRouteProps {
   workspaceId: string; userId: string; initial: JobListResult; initialQuery: JobQuery; initialDetail?: JobDetailResult; field: boolean;
+  initialUpdatedAt: number;
   workOrders?: { rows: JobWorkOrderRow[]; canCreate: boolean };
   initialMessages?: Array<{id: string; authorId: string; author: string; at: string; text: string; assistant?: boolean; unread?: boolean}>;
-}) {
+}
+export function JobsRoute(props: JobsRouteProps) {
+  return <ApiQueryScopeBoundary scope={{ viewerId: props.userId, workspaceId: props.workspaceId }}>
+    <JobsContent key={`${props.userId}:${props.workspaceId}:${props.initialDetail?.job.id ?? 'list'}`} {...props} />
+  </ApiQueryScopeBoundary>;
+}
+function JobsContent({ workspaceId, userId, initial, initialQuery, initialDetail, field, workOrders, initialMessages, initialUpdatedAt }: JobsRouteProps) {
   const router = useRouter();
-  const [list, setList] = useState(initial), [filters, setFilters] = useState(() => filtersFromQuery(initialQuery, field));
+  const client = useQueryClient(), scope = { viewerId: userId, workspaceId };
+  const [filters, setFilters] = useState(() => filtersFromQuery(initialQuery, field));
   const [customerIdFilter, setCustomerIdFilter] = useState(initialQuery.customerId);
   const [view, setView] = useState<'board' | 'table'>('board'), [page, setPage] = useState(initial.page), [pageSize, setPageSize] = useState(initial.pageSize);
   const [sort, setSort] = useState({ column: initialQuery.sort ?? 'number', direction: initialQuery.direction ?? 'asc' });
-  const [detail, setDetail] = useState(initialDetail), [selected, setSelected] = useState<JobView | undefined>(initialDetail?.job);
+  const [selected, setSelected] = useState<JobView | undefined>(initialDetail?.job);
+  const [activityPage, setActivityPage] = useState(1);
   const [overlay, setOverlay] = useState<JobAction | 'create' | 'peek'>(), [target, setTarget] = useState<JobStatus>();
-  const [error, setError] = useState(''), [conflict, setConflict] = useState(false), [pending, setPending] = useState(false), [loading, setLoading] = useState(false), [notice, setNotice] = useState('');
-  const [messages, setMessages] = useState(initialMessages || []);
-  const flight = useRef(false), writeReceipt = useRef<{ payload: string; id: string } | undefined>(undefined), querySequence = useRef(0);
+  const [error, setError] = useState(''), [conflict, setConflict] = useState(false), [pending, setPending] = useState(false), [notice, setNotice] = useState('');
+  const [blocked, setBlocked] = useState(false);
+  const flight = useRef(false), writeReceipt = useRef<{ payload: string; id: string } | undefined>(undefined);
   const listURL = '/api/jobs?' + new URLSearchParams({ workspace: workspaceId, q: filters.search,
     ...(filters.status !== 'all' ? { status: filters.status } : {}), ...(filters.owner === 'unassigned' ? { unassigned: 'true' } : filters.owner !== 'all' ? { ownerId: filters.owner } : {}),
     ...(customerIdFilter ? { customerId: customerIdFilter } : {}), ...(filters.customer !== 'all' ? { customerName: filters.customer } : {}), ...(filters.service !== 'all' ? { service: filters.service } : {}),
     ...(filters.createdAfter ? { createdAfter: filters.createdAfter } : {}), closed: String(filters.closed), mine: String(filters.mine), deadline: filters.deadline,
     page: String(page), pageSize: String(pageSize), sort: sort.column, direction: sort.direction }).toString();
-  useEffect(() => {
-    const controller = new AbortController(), sequence = ++querySequence.current;
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      try { const result = await request<JobListResult>(listURL, { signal: controller.signal }); if (querySequence.current === sequence) { setList(result); setPage(result.page); } }
-      catch (e) { if (!controller.signal.aborted && querySequence.current === sequence) setError(e instanceof Error ? e.message : copy.error); }
-      finally { if (!controller.signal.aborted && querySequence.current === sequence) setLoading(false); }
-    }, 200);
-    return () => { clearTimeout(timer); controller.abort(); };
-  }, [listURL]);
+  const [initialURL] = useState(listURL);
+  const listOptions = apiReadOptions(scope, 'jobs', { url: listURL }, listURL, raw => jobListResultSchema.parse(raw), copy.error);
+  const listQuery = useApiQuery({ ...listOptions, initialData: listURL === initialURL ? initial : undefined, initialDataUpdatedAt: initialUpdatedAt });
+  const list = listQuery.data ?? initial;
+  const loading = listQuery.isPending;
   const detailURL = (id: string, activityPage = 1) => `/api/jobs/${id}?workspace=${encodeURIComponent(workspaceId)}&page=${activityPage}`;
+  const detailOptions = apiReadOptions(scope, 'job-detail', { id: initialDetail?.job.id, activityPage }, detailURL(initialDetail?.job.id ?? '', activityPage), raw => jobDetailResultSchema.parse(raw), copy.unavailable);
+  const detailQuery = useApiQuery({ ...detailOptions, enabled: !!initialDetail, initialData: activityPage === 1 ? initialDetail : undefined, initialDataUpdatedAt: initialUpdatedAt });
+  const detail = detailQuery.isError ? undefined : detailQuery.data;
+  const messagesOptions = apiReadOptions(scope, 'job-messages', { jobId: initialDetail?.job.id, limit: 50 },
+    `/api/jobs/${initialDetail?.job.id}/messages?workspace=${encodeURIComponent(workspaceId)}&limit=50`, raw => jobMessagesResultSchema.parse(raw), copy.error);
+  const messagesQuery = useApiQuery({ ...messagesOptions, enabled: !!initialDetail,
+    initialData: initialMessages ? { messages: initialMessages } : undefined, initialDataUpdatedAt: initialUpdatedAt });
+  const messages = messagesQuery.data?.messages ?? [];
+  const saveMutation = useApiMutation('jobs', raw => jobSavedResultSchema.parse(raw), copy.error);
+  const messageMutation = useApiMutation('job-messages', raw => jobMessageSavedSchema.parse(raw), copy.error);
   async function loadDetail(id: string, activityPage = 1) {
-    const result = await request<JobDetailResult>(detailURL(id, activityPage));
-    setDetail(result); setSelected(result.job); return result;
+    const result = await client.fetchQuery(apiReadOptions(scope, 'job-detail', { id, activityPage }, detailURL(id, activityPage), raw => jobDetailResultSchema.parse(raw), copy.unavailable));
+    setActivityPage(activityPage); setSelected(result.job); return result;
   }
   function close() { if (flight.current) return; setOverlay(undefined); setError(''); setConflict(false); writeReceipt.current = undefined; }
   useCalendarScheduleRefresh(reload);
@@ -81,7 +94,7 @@ export function JobsRoute({ workspaceId, userId, initial, initialQuery, initialD
     if (flight.current) return;
     setError(''); setConflict(false); setOverlay(undefined); writeReceipt.current = undefined;
     try {
-      const result = await request<JobListResult>(listURL); setList(result); setPage(result.page);
+      await invalidateWorkspaceResources(client, workspaceId, ['jobs', 'job-detail', 'job-messages', 'calendar', 'calendar-visit', 'customers', 'home', 'reports']);
       if (selected && initialDetail) await loadDetail(selected.id);
       else setSelected(undefined);
     } catch (e) { setError(e instanceof Error ? e.message : copy.error); }
@@ -95,33 +108,30 @@ export function JobsRoute({ workspaceId, userId, initial, initialQuery, initialD
   async function write(values: Record<string, unknown>, create = false) {
     if (flight.current) throw new Error('A save is already in progress.');
     if (!create && !selected) throw new Error(copy.unavailable);
-    flight.current = true; querySequence.current++; setLoading(false); setPending(true); setError('');
+    flight.current = true; setPending(true); setError('');
     const payload = JSON.stringify({ workspaceId, ...(!create ? { jobId: selected!.id, expectedVersion: selected!.version } : {}), ...values });
     if (writeReceipt.current?.payload !== payload) writeReceipt.current = { payload, id: crypto.randomUUID() };
     let saved = false;
     try {
-      const result = await request<{ jobId: string }>('/api/jobs' + (create ? '' : `/${selected!.id}`), { method: create ? 'POST' : 'PATCH', body: JSON.stringify({ ...JSON.parse(payload), submissionId: writeReceipt.current.id }) });
+      const result = await saveMutation.mutateAsync({ path: '/api/jobs' + (create ? '' : `/${selected!.id}`), method: create ? 'POST' : 'PATCH', body: { ...JSON.parse(payload), submissionId: writeReceipt.current.id } });
       saved = true; writeReceipt.current = undefined; setOverlay(undefined); setConflict(false);
       setNotice(create ? copy.created : values.action === 'note' ? copy.noteSaved : copy.saved);
+      await invalidateWorkspaceResources(client, workspaceId, ['jobs', 'job-detail', 'calendar', 'calendar-visit', 'customers', 'home', 'reports']);
       if (create) { router.push(`/jobs/${result.jobId}?workspace=${encodeURIComponent(workspaceId)}`); return; }
-      const resultList = await request<JobListResult>(listURL); setList(resultList); setPage(resultList.page);
       if (initialDetail) await loadDetail(result.jobId, detail?.activityPage ?? 1);
       else setSelected(undefined);
     } catch (e) {
       if (saved) { setError(copy.savedReload); return; }
+      if (isApiAccessError(e)) { setBlocked(true); router.refresh(); }
       setError(e instanceof Error ? e.message : copy.error);
-      setConflict(e instanceof JobRequestError && e.status === 409);
+      setConflict(e instanceof ApiRequestError && e.status === 409);
       throw e;
     } finally { flight.current = false; setPending(false); }
   }
   async function postMessage(jobId: string, text: string) {
     try {
       setError('');
-      const result = await request<{id: string; authorId: string; authorName: string; createdAt: string}>(
-        `/api/jobs/${jobId}/messages?workspace=${encodeURIComponent(workspaceId)}`,
-        { method: 'POST', body: JSON.stringify({ text }) }
-      );
-      // Optimistic update - add message immediately
+      const result = await messageMutation.mutateAsync({ path: `/api/jobs/${jobId}/messages?workspace=${encodeURIComponent(workspaceId)}`, method: 'POST', body: { text } });
       const newMessage = {
         id: result.id,
         authorId: result.authorId,
@@ -129,9 +139,11 @@ export function JobsRoute({ workspaceId, userId, initial, initialQuery, initialD
         at: result.createdAt,
         text: text
       };
-      setMessages(prev => [newMessage, ...prev]);
+      client.setQueryData(messagesOptions.queryKey, previous => ({ messages: [newMessage, ...(previous?.messages ?? [])] }));
     } catch (e) {
+      if (isApiAccessError(e)) { setBlocked(true); router.refresh(); }
       setError(e instanceof Error ? e.message : copy.error);
+      throw e;
     }
   }
   async function create(values: JobCreateValues) {
@@ -140,15 +152,21 @@ export function JobsRoute({ workspaceId, userId, initial, initialQuery, initialD
       arrivalWindow: values.arrivalWindow, completionDeadline: values.completionDeadline, deadlineIntent: values.deadlineIntent, deadlinePreview: values.deadlinePreview }, true);
   }
   const common = { open: true, pending, error: error || undefined, conflict, onReload: reload, onClose: close };
+  useEffect(() => {
+    if (isApiAccessError(listQuery.error) || isApiAccessError(detailQuery.error) || isApiAccessError(messagesQuery.error)) router.refresh();
+  }, [listQuery.error, detailQuery.error, messagesQuery.error, router]);
   const job = selected;
   const related = detail ? [
     ...(detail.job.customerId ? [{ id: detail.job.customerId, kind: 'customer' as const, label: detail.job.customerName, canOpen: detail.canOpenCustomer }] : []),
     ...(detail.job.sourceLeadId ? [{ id: detail.job.sourceLeadId, kind: 'lead' as const, label: 'Source lead', canOpen: detail.canOpenLead }] : []),
   ] : [];
+  if (blocked || isApiAccessError(listQuery.error) || isApiAccessError(detailQuery.error) || isApiAccessError(messagesQuery.error)) return <FormFeedback kind="error" message={copy.unavailable}/>;
   return <div className="grid min-w-0 gap-6">
+    {messagesQuery.isError && <div className="grid gap-3"><FormFeedback kind="error" message={copy.error}/><button className={jobButton} onClick={reload}>{copy.reload}</button></div>}
+    {(listQuery.isError || detailQuery.isError) && <div className="grid gap-3"><FormFeedback kind="error" message={copy.error}/><button className={jobButton} onClick={reload}>{copy.reload}</button></div>}
     {error && !overlay && <FormFeedback kind="error" message={error}/>}
     {error && !overlay && <button className={`${jobButton} justify-self-start`} onClick={reload}>{copy.reload}</button>}
-    {initialDetail && detail ? <>
+    {(listQuery.isError || detailQuery.isError) ? null : initialDetail && detail ? <>
       <JobDetailPage job={detail.job} today={list.today} activity={detail.activity.map(jobActivityView)} files={[]} messages={messages} currentUserId={userId} related={related}
         relatedEstimates={<RelatedEstimates key={`${workspaceId}:${detail.job.id}:${detail.job.version}`} workspaceId={workspaceId} recordType="job" recordId={detail.job.id} />}
         extendedFeatures={true} assistantAvailable={false} workspaceId={workspaceId}
@@ -166,8 +184,8 @@ export function JobsRoute({ workspaceId, userId, initial, initialQuery, initialD
       <JobsMetrics {...list.metrics}/>
       <JobsToolbar value={filters} members={list.options.members} customers={list.options.customerNames} services={list.options.services} count={list.total} view={view} field={field}
         onView={setView} onChange={v => { setCustomerIdFilter(undefined); setFilters(v); setPage(1); }}/>
-      <div aria-busy={loading}>
-        {!list.rows.length ? <JobsEmptyState kind={filters.closed ? 'closed' : filters.search || filters.status !== 'all' || filters.customer !== 'all' || filters.service !== 'all' || filters.owner !== 'all' || filters.deadline !== 'all' || filters.createdAfter ? 'filtered' : 'empty'}
+      <div aria-busy={loading} className="min-w-0">
+        {loading ? <p role="status">{copy.loading}</p> : !list.rows.length ? <JobsEmptyState kind={filters.closed ? 'closed' : filters.search || filters.status !== 'all' || filters.customer !== 'all' || filters.service !== 'all' || filters.owner !== 'all' || filters.deadline !== 'all' || filters.createdAfter ? 'filtered' : 'empty'}
           canCreate={list.canCreate} onCreate={() => setOverlay('create')} onClear={() => { setCustomerIdFilter(undefined); setFilters({ ...defaultJobFilters, mine: field }); setPage(1); }}/>
           : view === 'board' ? <JobsBoard rows={list.rows} today={list.today} closed={filters.closed}
             onOpen={j => { setError(''); setSelected(j); setOverlay('peek'); }} onAction={openAction} onRequestMove={(j, to) => openAction(j, 'status', to)}/>

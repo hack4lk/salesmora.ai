@@ -35,7 +35,7 @@ export async function renderMaterialsPage(params: Record<string, string | string
       user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} authorizedPages={workspaceNavigationPages(context)}
       jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} billingAvailable={capabilities.billing} assistantAvailable={capabilities.assistant}
       chatEnabled={await workspaceChatAvailable(workspace.id)} chatSurface="materials.list" contentWidth="full" onSignOut={signOut}>
-      <MaterialsRoute key={workspace.id} workspaceId={workspace.id} initial={initial} initialQuery={query} />
+      <MaterialsRoute key={workspace.id} workspaceId={workspace.id} viewerId={session.user.id} initialUpdatedAt={Date.now()} initial={initial} initialQuery={query} />
     </WorkspaceShell>;
   } catch (error) {
     if (error instanceof AuthorizationAccessError || error instanceof MaterialContractError || error instanceof MaterialValidationError) notFound();

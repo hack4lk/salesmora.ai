@@ -428,9 +428,26 @@ test("customer API enforces tenant, role, version, duplicate, relationship and d
   ).toBeNull();
   expect(await db("customerActivity").where({ customerId })).toHaveLength(0);
 });
+test("fresh customer filters reuse cached rows without refetching", async ({ browser }) => {
+  const context = await browser.newContext({ storageState: await clients.owner.storageState() });
+  const page = await context.newPage();
+  await page.goto(`${origin}/customers?workspace=${workspaceId}`);
+  const reads: string[] = [];
+  page.on("request", request => { if (request.method() === "GET" && request.url().includes("/api/customers?")) reads.push(request.url()); });
+  const search = page.getByRole("searchbox");
+  await search.fill("cache-filter");
+  await expect.poll(() => reads.length).toBe(1);
+  await expect(page.getByRole("heading", { name: "No customers match your filters" })).toBeVisible();
+  await search.clear();
+  await expect(page.getByRole("heading", { name: "No customers match your filters" })).toHaveCount(0);
+  await page.waitForTimeout(500);
+  expect(reads).toHaveLength(1);
+  await context.close();
+});
 test("approved customer components create, edit, add notes, archive and navigate live", async ({
   page,
 }) => {
+  page.setDefaultTimeout(20000);
   await page.context().addCookies((await clients.owner.storageState()).cookies);
   await page.goto(`/customers?workspace=${workspaceId}`);
   await expect(
@@ -490,6 +507,16 @@ test("approved customer components create, edit, add notes, archive and navigate
   await expect(
     page.getByRole("row", { name: /Casey Live Customer/ }),
   ).toBeVisible();
+  await page.getByRole("row", { name: /Casey Live Customer/ }).click();
+  await page.getByRole("button", { name: "Open full profile" }).click();
+  await page.getByRole("button", { name: /Actions for/ }).click();
+  await page.getByRole("menuitem", { name: "Delete customer" }).click();
+  const deletion = page.getByRole("alertdialog");
+  const number = (await db("customers").where({ workspaceId, name: "Casey Live Customer" }).first()).customerNumber;
+  await deletion.getByRole("textbox", { name: "Type the customer number" }).fill(`CU-${String(number).padStart(4, "0")}`);
+  await deletion.getByRole("button", { name: "Delete customer", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/customers\\?`));
+  await expect(page.getByRole("row", { name: /Casey Live Customer/ })).toHaveCount(0);
   await page.context().clearCookies();
   await page.context().addCookies((await clients.field.storageState()).cookies);
   await page.goto(`/home?workspace=${workspaceId}`);

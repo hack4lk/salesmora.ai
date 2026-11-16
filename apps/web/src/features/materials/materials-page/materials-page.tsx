@@ -43,7 +43,7 @@ export function MaterialsPage(props: MaterialsPageProps) {
       <MaterialsFilters filters={filters} options={options} canManage={canManage} disabled={disabled} onFilters={props.onFilters} />
       <MaterialsToolbar total={total} canManage={canManage} canPropose={canPropose} canExport={canExport && catalog} exporting={exporting} disabled={disabled} onAdd={props.onAdd} onExport={props.onExport} />
       {!canManage && !canPropose && <p className="m-0 rounded-2xl border border-line bg-paper p-4 text-sm text-muted">{copy.readOnly}</p>}
-      <DataTable caption={copy.caption} rows={rows} getRowId={row => row.id} getRowLabel={row => row.name} onRowOpen={canManage && catalog ? row => !row.archived && props.onEdit(row) : undefined}
+      <DataTable constrainHeight={false} caption={copy.caption} rows={rows} getRowId={row => row.id} getRowLabel={row => row.name} onRowOpen={canManage && catalog ? row => !row.archived && props.onEdit(row) : undefined}
         sort={sort} onSort={(column, direction) => props.onSort({ column: column as MaterialsPageSort['column'], direction })} state={state} onRetry={props.onRetry} emptyMessage={empty} errorMessage={copy.error}
         renderCard={row => <MaterialCard material={row} canViewCosts={canViewCosts} canViewPrices={canViewPrices} actions={actions(row)} />} columns={columns} />
       <Pagination total={total} page={page} pageSize={pageSize} disabled={disabled} onPageChange={props.onPage} onPageSizeChange={props.onPageSize} />

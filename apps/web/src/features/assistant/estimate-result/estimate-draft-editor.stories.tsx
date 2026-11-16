@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import Link from "next/link";
-import { expect, within, fn, userEvent } from "storybook/test";
+import { expect, within, fn, userEvent, fireEvent, waitFor } from "storybook/test";
 import { EstimateDraftProposalEditor } from "./estimate-draft-editor";
 import { estimateDraftViewFixture, estimateDraftWorkspaceId, estimateDraftEditorSeed } from "./estimate-draft.fixtures";
 import { estimateDraftConnectedData as c } from "./estimate-draft-client";
@@ -40,11 +40,34 @@ export const DirtyNavigation: Story = {
   render: args => <><Link href="/estimates">Return to estimates</Link><EstimateDraftProposalEditor {...args} /></>,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.type(canvas.getByRole("textbox", { name: c.name }), " updated");
+    fireEvent.change(canvas.getByRole("textbox", { name: new RegExp(c.name) }), { target: { value: "Repair estimate updated" } });
     await userEvent.click(canvas.getByRole("link", { name: "Return to estimates" }));
-    const dialog = within(canvasElement.ownerDocument.body).getByRole("dialog", { name: editorCopy.leaveTitle });
-    await expect(dialog).toBeVisible();
+    const dialog = await within(canvasElement.ownerDocument.body).findByRole("alertdialog", { name: editorCopy.leaveTitle });
+    await waitFor(() => expect(dialog).toBeVisible());
     await userEvent.click(within(dialog).getByRole("button", { name: editorCopy.stay }));
-    await expect(canvas.getByRole("textbox", { name: c.name })).toHaveValue("Repair estimate updated");
+    await waitFor(() => expect(canvas.getByRole("textbox", { name: new RegExp(c.name) })).toHaveValue("Repair estimate updated"));
+  },
+};
+export const RefreshProposal: Story = {
+  beforeEach: ({ args }) => {
+    const fetch = globalThis.fetch;
+    globalThis.fetch = fn(async (_input, options) => {
+      if (options?.method !== "PATCH") return Response.json({ view: args.initial });
+      const body = JSON.parse(String(options.body)), view = structuredClone(args.initial);
+      view.draft.id = estimateDraftWorkspaceId; view.context.proposalId = view.draft.id;
+      view.draft.inputHash = "f".repeat(64); view.context.inputHash = view.draft.inputHash;
+      view.draft.proposed = body.content;
+      return Response.json({ view });
+    });
+    return () => { globalThis.fetch = fetch; };
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    fireEvent.change(canvas.getByRole("textbox", { name: new RegExp(c.name) }), { target: { value: "Updated unsaved proposal" } });
+    await userEvent.click(canvas.getByRole("button", { name: c.refresh }));
+    await expect(await canvas.findByText(c.refreshed)).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Confirm Draft creation" })).toBeEnabled();
+    await expect(globalThis.fetch).toHaveBeenCalledWith("/api/chat/estimates/draft", expect.objectContaining({ method: "PATCH" }));
+    await expect(globalThis.fetch).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: "POST" }));
   },
 };

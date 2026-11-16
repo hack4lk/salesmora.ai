@@ -1,4 +1,5 @@
 import { estimateShareChatResponseSchema, type EstimateShareChatTicket } from "@salesmora/contracts";
+import { apiRequest } from "../../api/api-request";
 
 export const estimateSharingData = {
   title: { "estimate.send": "Send estimate", "estimate.publish": "Publish estimate", "estimate.resend": "Resend estimate" },
@@ -29,30 +30,28 @@ export async function estimateSharingRequest(
   workspaceId: string, ticket: EstimateShareChatTicket, method: "GET" | "POST" | "PATCH",
   extra: { decision?: "confirm" | "cancel" | "open"; paymentLinkReviewed?: boolean; recipientEmail?: string } = {},
   signal?: AbortSignal,
+  request: typeof apiRequest = apiRequest,
 ) {
   const binding = estimateSharingBinding(ticket);
   const query = new URLSearchParams({ workspace: workspaceId });
   if (method === "GET") for (const [key, value] of Object.entries(binding)) query.set(key, String(value));
-  const response = await fetch(`/api/chat/estimates/sharing?${query}`, {
-    method, signal, cache: "no-store",
-    ...(method === "GET" ? {} : {
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ workspaceId, request: binding, ...extra }),
-    }),
-  });
-  const raw: unknown = await response.json();
-  if (!response.ok) throw new Error(raw && typeof raw === "object" && "error" in raw && typeof raw.error === "string" ? raw.error : estimateSharingData.error);
-  const result = estimateShareChatResponseSchema.parse(raw);
-  const next = result.view.ticket;
-  const expected = method === "PATCH"
-    ? next.id !== ticket.id && next.actionType === ticket.actionType && next.authorizationVersion === ticket.authorizationVersion &&
+  return request(`/api/chat/estimates/sharing?${query}`, {
+    method, signal, failureMessage: estimateSharingData.error,
+    body: method === "GET" ? undefined : { workspaceId, request: binding, ...extra },
+    parse: raw => {
+      const result = estimateShareChatResponseSchema.parse(raw);
+      const next = result.view.ticket;
+      const expected = method === "PATCH"
+        ? next.id !== ticket.id && next.actionType === ticket.actionType && next.authorizationVersion === ticket.authorizationVersion &&
       next.estimate.id === ticket.estimate.id && next.estimate.version === ticket.estimate.version &&
       next.snapshotHash === ticket.snapshotHash && result.view.review.recipientEmail === extra.recipientEmail && next.state === "pending"
-    : JSON.stringify(estimateSharingBinding(next)) === JSON.stringify(binding);
-  if (!expected || (method === "POST" && extra.decision === "confirm" && next.state !== "confirmed") ||
+        : JSON.stringify(estimateSharingBinding(next)) === JSON.stringify(binding);
+      if (!expected || (method === "POST" && extra.decision === "confirm" && next.state !== "confirmed") ||
       (method === "POST" && extra.decision === "cancel" && next.state !== "cancelled") ||
       (extra.decision === "open" && (!result.href || result.href !== `/estimates/${ticket.estimate.id}?workspace=${workspaceId}`))) {
-    throw new Error(estimateSharingData.error);
-  }
-  return result;
+        throw new Error(estimateSharingData.error);
+      }
+      return result;
+    },
+  });
 }

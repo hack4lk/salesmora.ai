@@ -16,6 +16,7 @@ import {
   estimateConversionChatRequest,
 } from "./estimate-convert-client";
 import { estimateConvertResultData as copy } from "./estimate-convert-result.data";
+import { useEstimateAssistantRequest } from "./use-estimate-assistant-request";
 
 type Props = {
   ticket: EstimateConversionChatTicket;
@@ -54,6 +55,7 @@ function ConversionResult({
   onOpenReview,
   onNavigate,
 }: Props) {
+  const transport = useEstimateAssistantRequest(workspaceId, JSON.stringify(ticket));
   const [view, setView] = useState<EstimateConversionChatView | null>(null);
   const [error, setError] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -76,6 +78,7 @@ function ConversionResult({
         "GET",
         undefined,
         signal,
+        transport,
       );
       if (!isCurrent(request)) return;
       setView(result.view);
@@ -122,6 +125,8 @@ function ConversionResult({
         view.ticket,
         "POST",
         decision,
+        undefined,
+        transport,
       );
       if (!isCurrent(requestId)) return { ok: false, message: copy.unavailable };
       setView(result.view);

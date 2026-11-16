@@ -27,7 +27,6 @@ function LeadSourcePageHost({ initial, onRecord, onReload, template, onTemplateR
   const [evidenceId, setEvidenceId] = useState(initial.query.selected === 'converted' ? 'source-converted'
     : initial.query.selected === 'accepted-estimates' ? 'source-accepted-value' : 'source-cohort');
   const [page, setPage] = useState(initial.query.page), [pageSize, setPageSize] = useState<number>(initial.query.pageSize);
-  const [retry, setRetry] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
   const request = useMemo(() => {
     const range = resolveReportPeriod(period, today, 'history').range;
@@ -35,10 +34,10 @@ function LeadSourcePageHost({ initial, onRecord, onReload, template, onTemplateR
     return leadSourceReportRequest({ workspaceId: initial.workspaceId, range, evidenceId, page, pageSize,
       filters: { stages: [], owners: [], sources: [] } });
   }, [initial.workspaceId, period, today, evidenceId, page, pageSize]);
-  const key = `${scopeKey}:${JSON.stringify(request)}:${retry}`;
+  const key = `${scopeKey}:${today}:${timezone}:${JSON.stringify(request)}`;
   const validate = useCallback((raw: unknown) => { adaptLeadSourceReadResponse(raw, { request, scopeKey, today, timezone }); },
     [request, scopeKey, today, timezone]);
-  const loaded = useReportRead({ key, initial, validate,
+  const loaded = useReportRead({ key, initial, initialUpdatedAt: Date.parse(initial.report.asOf), validate,
     url: `/api/reports/sources?${new URLSearchParams({ query: JSON.stringify(request) })}`,
     failureMessage: 'Sources report could not be loaded. Try again.' });
   const pending = loaded.pending;
@@ -77,7 +76,7 @@ function LeadSourcePageHost({ initial, onRecord, onReload, template, onTemplateR
         if (visible) onRecord(id);
       }}
       onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }}
-      onRetry={() => setRetry(value => value + 1)} onExport={() => setExportOpen(true)}
+      onRetry={loaded.refresh} onExport={() => setExportOpen(true)}
       onEdit={() => { throw new Error('Sources report configuration is not available.'); }} />
     <LeadSourceExport open={exportOpen} onClose={() => setExportOpen(false)} request={request}
       authority={initial} onReload={onReload} />

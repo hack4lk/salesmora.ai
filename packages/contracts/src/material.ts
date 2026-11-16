@@ -125,4 +125,17 @@ export type MaterialListResult = {
   pendingProposals: number;
   canManage: boolean; canPropose: boolean; canExport: boolean; canViewPrices: boolean; canViewCosts: boolean;
 };
+export const materialViewSchema = z.object({
+  id: z.uuid(), name: z.string(), sku: z.string(), unit: materialUnitSchema, category: z.string(), supplier: z.string(),
+  costCents: cents.nullable(), priceCents: cents.nullable(), marginPercent: z.number().nullable(),
+  notes: z.string(), imageUrl: z.string(), sourceUrl: z.string(), status: materialStatusSchema,
+  archived: z.boolean(), version: z.number().int().positive(), updatedAt: z.string(),
+  proposedByName: z.string().nullable(), rejectionReason: z.string(), duplicateOf: z.uuid().nullable(),
+}) satisfies z.ZodType<MaterialView>;
+export const materialListResultSchema = z.object({
+  rows: z.array(materialViewSchema), total: z.number().int().nonnegative(), page: z.number().int().positive(), pageSize: z.number().int().positive(),
+  options: z.object({ categories: z.array(z.string()), suppliers: z.array(z.string()) }), pendingProposals: z.number().int().nonnegative(),
+  canManage: z.boolean(), canPropose: z.boolean(), canExport: z.boolean(), canViewPrices: z.boolean(), canViewCosts: z.boolean(),
+}) satisfies z.ZodType<MaterialListResult>;
+export const materialSavedResultSchema = z.object({ materialId: z.uuid(), version: z.number().int().positive() });
 export { ZodError as MaterialContractError } from "zod";

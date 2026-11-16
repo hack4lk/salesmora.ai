@@ -17,7 +17,7 @@ function Preview(args: NotificationPreferencesPageProps) {
 }
 const meta = {
   title: 'Settings/NotificationPreferencesPage', component: NotificationPreferencesPage, parameters: { layout: 'fullscreen' },
-  args: { settingsHref: copy.stories.settingsHref, state: 'ready', values: { leadAssignedEmail: true }, savedValues: { leadAssignedEmail: true }, saveState: 'idle', onChange: fn(), onSave: fn(), onDiscard: fn(), onRetry: fn() },
+  args: { state: 'ready', values: { leadAssignedEmail: true }, savedValues: { leadAssignedEmail: true }, saveState: 'idle', onChange: fn(), onSave: fn(), onDiscard: fn(), onRetry: fn() },
   render: args => <Preview {...args}/>,
   decorators: [Story => <main className="mx-auto min-h-screen w-full max-w-6xl p-4 sm:p-8"><p className="mb-6 mt-0 text-sm leading-6 text-muted">{copy.stories.notice}</p><Story/></main>],
 } satisfies Meta<typeof NotificationPreferencesPage>;
@@ -28,7 +28,16 @@ export const Default: Story = { play: async ({ canvasElement }) => {
   await expect(c.getByRole('switch', { name: copy.leadAssigned })).toBeChecked();
   await expect(c.getByRole('button', { name: copy.save })).toBeDisabled();
   await expect(c.getByRole('button', { name: copy.discard })).toBeDisabled();
-  await expect(c.getByRole('link', { name: copy.back })).toHaveAttribute('href', copy.stories.settingsHref);
+  await expect(c.queryByRole('link', { name: 'Back to settings' })).not.toBeInTheDocument();
+  await expect(c.queryByText('Personal settings')).not.toBeInTheDocument();
+} };
+export const SimplifiedHeader: Story = { args: { showJobActivity: true }, play: async ({ canvasElement }) => {
+  const c = within(canvasElement);
+  await expect(c.getByRole('heading', { level: 1, name: copy.title })).toBeVisible();
+  await expect(c.queryByRole('link', { name: 'Back to settings' })).not.toBeInTheDocument();
+  await expect(c.queryByText('Personal settings')).not.toBeInTheDocument();
+  await expect(c.queryByText(/^Job activity emails follow workspace email-event settings/)).not.toBeInTheDocument();
+  await expect(c.getByRole('switch', { name: copy.jobActivity })).toBeChecked();
 } };
 export const EmailOff: Story = { args: { values: { leadAssignedEmail: false }, savedValues: { leadAssignedEmail: false } } };
 export const UnsavedChanges: Story = { args: { values: { leadAssignedEmail: false } } };

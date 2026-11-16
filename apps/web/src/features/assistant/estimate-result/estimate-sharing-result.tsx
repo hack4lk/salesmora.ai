@@ -11,6 +11,7 @@ import { EstimateLeadStageConnected } from "../../estimates/estimate-lead-stage-
 import { estimateLeadStageSuggestionData } from "../../estimates/estimate-lead-stage-suggestion/estimate-lead-stage-suggestion.data";
 import { estimateButton } from "../../estimates/estimate-ui";
 import { estimateSharingData as c, estimateSharingRequest } from "./estimate-sharing-client";
+import { useEstimateAssistantRequest } from "./use-estimate-assistant-request";
 
 const capabilities = { read: true, create: false, update: false, send: true, decide: false, void: false, archive: false, delete: false, export: false };
 export function ConnectedEstimateSharing({
@@ -19,6 +20,7 @@ export function ConnectedEstimateSharing({
   ticket: EstimateShareChatTicket; workspaceId: string; disabled?: boolean;
   onRefresh: () => Promise<void>; onNavigate: (href: string) => void;
 }) {
+  const transport = useEstimateAssistantRequest(workspaceId, JSON.stringify(ticket));
   const [view, setView] = useState<EstimateShareChatView | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -44,7 +46,7 @@ export function ConnectedEstimateSharing({
     if (lock.current || live.current.disabled) return;
     const expected = live.current, request = ++sequence.current;
     try {
-      const result = await estimateSharingRequest(workspaceId, active.current, "GET", {}, signal);
+      const result = await estimateSharingRequest(workspaceId, active.current, "GET", {}, signal, transport);
       if (!isCurrent(expected, request)) return;
       active.current = result.view.ticket; setView(result.view);
       setError("");
@@ -74,7 +76,7 @@ export function ConnectedEstimateSharing({
     const expected = live.current, request = ++sequence.current;
     lock.current = true; setPending(true); setError(""); setNotice("");
     try {
-      const result = await estimateSharingRequest(workspaceId, view.ticket, "POST", { decision, paymentLinkReviewed });
+      const result = await estimateSharingRequest(workspaceId, view.ticket, "POST", { decision, paymentLinkReviewed }, undefined, transport);
       if (!isCurrent(expected, request)) return { ok: false, message: c.unavailable };
       active.current = result.view.ticket; setView(result.view); setDialog(false);
       if (decision === "open" && result.href) onNavigate(result.href);
@@ -93,7 +95,7 @@ export function ConnectedEstimateSharing({
     const expected = live.current, request = ++sequence.current;
     lock.current = true; setPending(true); setError("");
     try {
-      const result = await estimateSharingRequest(workspaceId, view.ticket, "PATCH", { recipientEmail: email });
+      const result = await estimateSharingRequest(workspaceId, view.ticket, "PATCH", { recipientEmail: email }, undefined, transport);
       if (!isCurrent(expected, request)) return;
       active.current = result.view.ticket; setView(result.view); setRecipient(result.view.review.recipientEmail); setNotice(c.refreshed);
     } catch (caught) {

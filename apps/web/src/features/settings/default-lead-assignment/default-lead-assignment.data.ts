@@ -2,8 +2,6 @@ export const defaultLeadAssignmentData = {
   title: 'Default assignment', description: 'Choose who receives new leads from capture sources that use the business default.',
   rule: 'Assign new leads', unassigned: 'Leave leads unassigned for manual assignment', teammate: 'Assign to one selected teammate',
   teammateLabel: 'Teammate', choose: 'Choose a teammate', unavailable: 'Selected teammate is no longer available',
-  scope: 'Capture sources with their own selected teammate keep that choice. Existing leads are not reassigned.',
-  notification: 'Unassigned leads do not send an assigned-teammate notification.',
   readOnly: 'You can view this setting but cannot change it.', denied: 'You do not have access to this setting.',
   loading: 'Loading default assignment…', loadError: 'Default assignment could not be loaded.',
   teammatesLoading: 'Loading teammates…', teammatesError: 'Teammates could not be loaded.', empty: 'No eligible teammates are available. You can leave leads unassigned.',

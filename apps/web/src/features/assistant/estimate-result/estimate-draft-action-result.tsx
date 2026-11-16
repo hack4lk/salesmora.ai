@@ -8,6 +8,7 @@ import type { EstimateDraftActionCardCommand } from "../../estimates/estimate-dr
 import { estimateButton } from "../../estimates/estimate-ui";
 import { estimateDraftActionBinding, estimateDraftActionRequest } from "./estimate-draft-action-client";
 import { estimateDraftActionResultData as c } from "./estimate-draft-action-result.data";
+import { useEstimateAssistantRequest } from "./use-estimate-assistant-request";
 
 type Props = {
   ticket: EstimateDraftActionChatTicket; workspaceId: string; disabled?: boolean;
@@ -19,6 +20,7 @@ export function ConnectedEstimateDraftAction(props: Props) {
   })} {...props} />;
 }
 function DraftActionResult({ ticket, workspaceId, disabled = false, onRefresh, onNavigate }: Props) {
+  const transport = useEstimateAssistantRequest(workspaceId, JSON.stringify(ticket));
   const [view, setView] = useState<EstimateDraftActionChatView | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -30,7 +32,7 @@ function DraftActionResult({ ticket, workspaceId, disabled = false, onRefresh, o
     if (lock.current || disabled || signal?.aborted) return;
     const request = ++sequence.current;
     try {
-      const result = await estimateDraftActionRequest(workspaceId, ticket, "GET", undefined, signal);
+      const result = await estimateDraftActionRequest(workspaceId, ticket, "GET", undefined, signal, transport);
       if (!isCurrent(request)) return;
       setView(result.view); setError("");
     } catch (caught) {
@@ -59,7 +61,7 @@ function DraftActionResult({ ticket, workspaceId, disabled = false, onRefresh, o
     const request = ++sequence.current;
     lock.current = true; setPending(true); setError("");
     try {
-      const result = await estimateDraftActionRequest(workspaceId, view.ticket, "POST", parsed.decision);
+      const result = await estimateDraftActionRequest(workspaceId, view.ticket, "POST", parsed.decision, undefined, transport);
       if (!isCurrent(request)) return { ok: false, message: c.unavailable };
       setView(result.view);
       if (parsed.decision === "open" && result.href) onNavigate(result.href);

@@ -2,9 +2,17 @@
 import { useCalendarScheduleRefresh } from '../../calendar/calendar-events';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { useApiQueryScope } from '../../api/api-query-provider';
+import { useApiQuery } from '../../api/use-api-query';
+import { useApiMutation } from '../../api/use-api-mutation';
+import { apiReadOptions, invalidateWorkspaceResources } from '../../api/api-read-options';
+import { apiRequest, ApiRequestError } from '../../api/api-request';
+import { isApiAccessError } from '../../api/api-query';
+import { workOrderDetailResultSchema, workOrderVisitManagementSchema, calendarSavedResultSchema, materialListResultSchema, materialSavedResultSchema } from '@salesmora/contracts';
 import { FormFeedback } from '@salesmora/ui';
 import { useWorkspaceAssistant } from '../../assistant/workspace-assistant/workspace-assistant';
-import type { WorkOrderVisitManagement, MaterialListResult, WorkOrderDetailResult, WorkOrderStatus } from '@salesmora/contracts';
+import type { WorkOrderDetailResult, WorkOrderStatus } from '@salesmora/contracts';
 import type { MaterialPickerOption } from '../../materials/material-picker/material-picker';
 import { WorkOrderDetailPage } from '../work-order-detail-page/work-order-detail-page';
 import { WorkOrderMoveDialog } from '../work-order-move-dialog/work-order-move-dialog';
@@ -14,7 +22,7 @@ import { WorkOrderVisitDialog, type WorkOrderVisitChange } from '../work-order-v
 import { WorkOrderScheduleDialog } from '../work-order-schedule-dialog/work-order-schedule-dialog';
 import { MaterialDialog } from '../../materials/material-dialog/material-dialog';
 import { fieldsFromForm, parseDollars, type MaterialFormValues } from '../../materials/material-dialog/material-form';
-import { createReceipts, workOrderRequest, WorkOrderRequestError } from '../work-order-client';
+import { createReceipts } from '../work-order-client';
 import { statusPayload, useWorkOrderWrites } from '../work-order-writes';
 import { woButton } from '../work-order-ui';
 import { toView } from '../work-order-view';
@@ -22,33 +30,35 @@ import { workOrdersRouteData as copy } from './work-orders-route.data';
 
 type Overlay = { kind: 'move'; to: WorkOrderStatus | null } | { kind: 'reopen' } | { kind: 'schedule' } | { kind: 'delete' } | { kind: 'join' | 'separate' };
 
-export function WorkOrderDetailRoute({ workspaceId, initial }: { workspaceId: string; initial: WorkOrderDetailResult }) {
+export function WorkOrderDetailRoute({ workspaceId, initial, initialUpdatedAt }: { workspaceId: string; initial: WorkOrderDetailResult; initialUpdatedAt: number }) {
   const router = useRouter(), writes = useWorkOrderWrites(workspaceId, copy.saveError);
-  const [detail, setDetail] = useState(initial), [overlay, setOverlay] = useState<Overlay>(), [loadError, setLoadError] = useState('');
+  const client = useQueryClient(), scope = useApiQueryScope();
+  const [overlay, setOverlay] = useState<Overlay>(), [loadError, setLoadError] = useState(''), [deleted, setDeleted] = useState(false), [blocked, setBlocked] = useState(false);
+  const detailOptions = apiReadOptions(scope, 'work-order-detail', { id: initial.workOrder.id },
+    `/api/work-orders/${initial.workOrder.id}?workspace=${encodeURIComponent(workspaceId)}`, raw => workOrderDetailResultSchema.parse(raw), copy.error);
+  const detailQuery = useApiQuery({ ...detailOptions, initialData: initial, initialDataUpdatedAt: initialUpdatedAt, enabled: !deleted });
+  const detail = detailQuery.data ?? initial;
   const w = detail.workOrder, view = toView(w), id = w.id;
-  const [visitPreview, setVisitPreview] = useState<{ key: string; value?: WorkOrderVisitManagement; error?: boolean }>();
-  const [visitRefresh, setVisitRefresh] = useState(0), [visitPending, setVisitPending] = useState(false), [visitError, setVisitError] = useState(''), [visitConflict, setVisitConflict] = useState(false);
+  const [visitPending, setVisitPending] = useState(false), [visitError, setVisitError] = useState(''), [visitConflict, setVisitConflict] = useState(false);
   const visitFlight = useRef(false), visitReceipts = useRef(createReceipts());
-  const visitKey = JSON.stringify([workspaceId, id, w.version, visitRefresh]);
-  const visitData = visitPreview?.key === visitKey ? visitPreview.value : undefined;
-  useEffect(() => {
-    const controller = new AbortController();
-    workOrderRequest<WorkOrderVisitManagement>(`/api/work-orders/${id}/visit?` + new URLSearchParams({ workspace: workspaceId }), { signal: controller.signal }, copy.error)
-      .then(value => { if (!controller.signal.aborted) setVisitPreview({ key: visitKey, value }); })
-      .catch(() => { if (!controller.signal.aborted) setVisitPreview({ key: visitKey, error: true }); });
-    return () => controller.abort();
-  }, [id, workspaceId, visitKey]);
-  const reloadVisits = () => { setVisitError(''); setVisitConflict(false); setVisitRefresh(n => n + 1); };
+  const visitQuery = useApiQuery({ ...apiReadOptions(scope, 'work-order-visit', { id, version: w.version },
+    `/api/work-orders/${id}/visit?workspace=${encodeURIComponent(workspaceId)}`, raw => workOrderVisitManagementSchema.parse(raw), copy.error), enabled: !deleted });
+  const visitData = visitQuery.isFetching ? undefined : visitQuery.data;
+  const visitMutation = useApiMutation('work-orders', raw => calendarSavedResultSchema.parse(raw), copy.saveError);
+  const catalogMutation = useApiMutation('materials', raw => materialSavedResultSchema.parse(raw), copy.saveError);
+  const reloadVisits = () => { setVisitError(''); setVisitConflict(false); void visitQuery.refetch(); };
   const openVisit = (kind: 'join' | 'separate') => { reloadVisits(); setOverlay({ kind }); };
   async function confirmVisit(draft: WorkOrderVisitChange) {
     if (visitFlight.current) throw new Error(copy.saveError);
     visitFlight.current = true; setVisitPending(true); setVisitError(''); setVisitConflict(false);
     try {
       const payload = { workspaceId, ...draft };
-      await workOrderRequest(`/api/work-orders/${id}/visit`, { method: 'PATCH', body: JSON.stringify({ ...payload, submissionId: visitReceipts.current(payload) }) }, copy.saveError);
+      await visitMutation.mutateAsync({ path: `/api/work-orders/${id}/visit`, method: 'PATCH', body: { ...payload, submissionId: visitReceipts.current(payload) } });
+      await invalidateWorkspaceResources(client, workspaceId, ['work-orders', 'jobs', 'calendar', 'home', 'reports']);
     } catch (e) {
       setVisitError(e instanceof Error ? e.message : copy.saveError);
-      setVisitConflict(e instanceof WorkOrderRequestError && e.status === 409);
+      if (isApiAccessError(e)) setBlocked(true);
+      setVisitConflict(e instanceof ApiRequestError && e.status === 409);
       throw e;
     } finally { visitFlight.current = false; setVisitPending(false); }
     setOverlay(undefined); reloadVisits(); await reload();
@@ -61,24 +71,20 @@ export function WorkOrderDetailRoute({ workspaceId, initial }: { workspaceId: st
   const query = `?workspace=${encodeURIComponent(workspaceId)}`;
   const searchCatalog = useCallback(async (q: string, signal: AbortSignal): Promise<MaterialPickerOption[]> => {
     const params = new URLSearchParams({ workspace: workspaceId, q, pageSize: '25' });
-    const response = await fetch(`/api/materials?${params}`, { signal });
-    if (!response.ok) throw new Error('Catalog search failed.');
-    const result = await response.json() as MaterialListResult;
+    const result = await client.fetchQuery({ ...apiReadOptions(scope, 'materials', { q, pageSize: 25 }, `/api/materials?${params}`,
+      raw => materialListResultSchema.parse(raw), copy.catalogError), queryFn: context => {
+        signal.throwIfAborted();
+        return apiRequest(`/api/materials?${params}`, { signal: AbortSignal.any([signal, context.signal]), parse: raw => materialListResultSchema.parse(raw), failureMessage: copy.catalogError });
+      } });
     return result.rows.map(m => ({ id: m.id, name: m.name, unit: m.unit, sku: m.sku, priceCents: m.priceCents }));
-  }, [workspaceId]);
-  const [catalogAccess, setCatalogAccess] = useState<Pick<MaterialListResult, 'canManage' | 'canPropose' | 'canViewCosts' | 'canViewPrices' | 'options'> | null>(null);
+  }, [workspaceId, client, scope]);
+  const catalogQuery = useApiQuery(apiReadOptions(scope, 'materials', { pageSize: 25 },
+    `/api/materials?${new URLSearchParams({ workspace: workspaceId, pageSize: '25' })}`, raw => materialListResultSchema.parse(raw), copy.catalogError));
+  const catalogAccess = catalogQuery.data;
   const [newMaterialOpen, setNewMaterialOpen] = useState(false), [newMaterialError, setNewMaterialError] = useState(''), [newMaterialPending, setNewMaterialPending] = useState(false);
   const catalogReceipts = useRef(createReceipts());
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch(`/api/materials?${new URLSearchParams({ workspace: workspaceId, pageSize: '25' })}`, { signal: controller.signal })
-      .then(response => (response.ok ? response.json() as Promise<MaterialListResult> : undefined))
-      .then(result => { if (result) setCatalogAccess({ canManage: result.canManage, canPropose: result.canPropose, canViewCosts: result.canViewCosts, canViewPrices: result.canViewPrices, options: result.options }); })
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, [workspaceId]);
   const reload = async () => {
-    try { setDetail(await workOrderRequest<WorkOrderDetailResult>(`/api/work-orders/${id}${query}`, undefined, copy.error)); setLoadError(''); }
+    try { await invalidateWorkspaceResources(client, workspaceId, ['work-orders']); setLoadError(''); }
     catch (e) { setLoadError(e instanceof Error ? e.message : copy.error); }
   };
   useCalendarScheduleRefresh(reload);
@@ -90,7 +96,7 @@ export function WorkOrderDetailRoute({ workspaceId, initial }: { workspaceId: st
   }
   async function remove() {
     const result = await writes.patch({ id, version: w.version }, { action: 'delete' });
-    if (result) router.push(`/work-orders${query}`);
+    if (result) { setDeleted(true); router.push(`/work-orders${query}`); }
   }
   const tasks = detail.tasks.map(t => ({ id: t.id, label: t.label, required: t.required }));
   const materials = detail.materials.map(({ id: materialId, catalogId, name, quantity, unit, status, note, customerPriceCents, costCents }) => ({ id: materialId, catalogId, name, quantity, unit, status, note, customerPriceCents, costCents }));
@@ -101,7 +107,8 @@ export function WorkOrderDetailRoute({ workspaceId, initial }: { workspaceId: st
     setNewMaterialPending(true); setNewMaterialError('');
     try {
       const payload = { action, item: fieldsFromForm(values, access) };
-      const created = await workOrderRequest<{ materialId: string }>('/api/materials', { method: 'POST', body: JSON.stringify({ workspaceId, submissionId: catalogReceipts.current(payload), ...payload }) }, copy.saveError);
+      const created = await catalogMutation.mutateAsync({ path: '/api/materials', method: 'POST', body: { workspaceId, submissionId: catalogReceipts.current(payload), ...payload } });
+      await invalidateWorkspaceResources(client, workspaceId, ['materials', 'estimates']);
       const price = access.canViewPrices ? parseDollars(values.price) : null, cost = access.canViewCosts ? parseDollars(values.cost) : null;
       const row = { catalogId: action === 'create' ? created.materialId : null, name: values.name.trim(), quantity: line.quantity, unit: values.unit, note: line.note, customerPriceCents: price, costCents: cost, status: 'needed' as const };
       if (await save({ action: 'materials', materials: [...materials, row] })) setNewMaterialOpen(false);
@@ -114,9 +121,15 @@ export function WorkOrderDetailRoute({ workspaceId, initial }: { workspaceId: st
     const created = await writes.create({ jobId: w.jobId, title: `${w.title}${copy.copySuffix}`.slice(0, 200), assigneeId: w.primaryAssigneeId, source: { kind: 'duplicate', workOrderId: id } });
     if (created) router.push(`/work-orders/${created.workOrderId}${query}`);
   }
+  const denied = blocked || writes.denied || isApiAccessError(detailQuery.error) || isApiAccessError(visitQuery.error);
+  useEffect(() => { if (denied) router.refresh(); }, [denied, router]);
+  if (denied) return <FormFeedback kind="error" message={copy.unavailable}/>;
+  if (deleted) return null;
+  if (detailQuery.isError) return <div className="grid gap-3"><FormFeedback kind="error" message={copy.error}/><button className={woButton} onClick={reload}>{copy.reloadVisits}</button></div>;
   return <div className="grid min-w-0 gap-4">
+    {catalogQuery.isError && !isApiAccessError(catalogQuery.error) && <FormFeedback kind="error" message={copy.catalogError}/>}
     {(loadError || (writes.error && !overlay)) && <FormFeedback kind="error" message={loadError || writes.error} />}
-    {visitPreview?.key === visitKey && visitPreview.error && !overlay && <div className="grid gap-3"><FormFeedback kind="error" message={copy.visitLoadError}/><button type="button" className={`${woButton} justify-self-start`} onClick={reloadVisits}>{copy.reloadVisits}</button></div>}
+    {visitQuery.isError && !overlay && <div className="grid gap-3"><FormFeedback kind="error" message={copy.visitLoadError}/><button type="button" className={`${woButton} justify-self-start`} onClick={reloadVisits}>{copy.reloadVisits}</button></div>}
     <WorkOrderDetailPage workspaceId={workspaceId} detail={detail} onBack={board} onOpenJob={jobId => router.push(`/jobs/${jobId}${query}`)}
       onHeaderAction={action => {
         writes.clearError();
@@ -155,7 +168,7 @@ export function WorkOrderDetailRoute({ workspaceId, initial }: { workspaceId: st
     {overlay?.kind === 'delete' && <WorkOrderDeleteDialog key={id} open number={w.number} title={w.title} pending={writes.pending} error={writes.error} onClose={() => setOverlay(undefined)} onConfirm={() => void remove()} />}
     {(overlay?.kind === 'join' || overlay?.kind === 'separate') && <WorkOrderVisitDialog open mode={overlay.kind} today={visitData?.today ?? ''}
       workOrder={{ id, jobId: w.jobId, number: w.number, title: w.title }} source={visitData?.source ?? null} target={visitData?.target}
-      state={visitData ? 'ready' : visitPreview?.key === visitKey && visitPreview.error ? 'error' : 'loading'} pending={visitPending} error={visitError} conflict={visitConflict}
+      state={visitData ? 'ready' : visitQuery.isError ? 'error' : 'loading'} pending={visitPending} error={visitError} conflict={visitConflict}
       onReload={reloadVisits} onClose={() => setOverlay(undefined)} onConfirm={confirmVisit} />}
     {overlay?.kind === 'schedule'  && <WorkOrderScheduleDialog key={id} open schedule={{ date: w.scheduledDate, window: w.arrivalWindow }} pending={writes.pending} error={writes.error} conflict={writes.conflict} onReload={() => void reload()} onClose={() => setOverlay(undefined)} onConfirm={v => void save({ action: 'schedule', ...v })} />}
   </div>;

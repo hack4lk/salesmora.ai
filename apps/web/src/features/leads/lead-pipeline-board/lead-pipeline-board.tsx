@@ -51,7 +51,7 @@ export function LeadPipelineBoard({ columns, now, timezone, pendingId, recordHre
     return () => clearTimeout(timer);
   }, [review]);
   return <>
-    <p id={`${id}-instructions`} className="mb-4 mt-0 text-sm leading-6 text-muted">{onConfirmMove && columns.some(column => column.leads.some(lead => lead.canMove)) ? copy.instructions : copy.readOnlyInstructions}</p>
+    <p id={`${id}-instructions`} className={onConfirmMove && columns.some(column => column.leads.some(lead => lead.canMove)) ? 'sr-only' : 'mb-4 mt-0 text-sm leading-6 text-muted'}>{onConfirmMove && columns.some(column => column.leads.some(lead => lead.canMove)) ? copy.instructions : copy.readOnlyInstructions}</p>
     <p role="status" aria-live="polite" className="sr-only">{announcement}</p>
     <div ref={board} role="region" aria-label={copy.label} tabIndex={0} aria-describedby={`${id}-instructions`} className="w-full min-w-0 max-w-full overflow-x-auto rounded-2xl pb-4 focus-visible:focus-ring">
       <div className="flex items-start gap-4">

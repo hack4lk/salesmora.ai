@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import type { JobStatus } from './job';
+import { jobDateSchema, jobStatusSchema, type JobStatus } from './job';
+import { calendarScheduleSchema } from './calendar';
 import { estimateStatusSchema, type EstimateStatus } from './estimate';
 export const notificationPreferencesSchema = z.object({
   leadAssignedEmail: z.boolean(),
@@ -57,6 +58,58 @@ export const captureNoticeReasonSchema = z.enum(['entitlement','source_capacity'
 export type CaptureNotificationRecord = { kind: 'capture'; id: string; sourceId: string; sourceName: string; reason: z.infer<typeof captureNoticeReasonSchema>; createdAt: string; read: boolean };
 export type NotificationRecord = CaptureNotificationRecord | JobAssignmentRemovalRecord | JobNotificationRecord | DeadlineNotificationRecord | VisitNotificationRecord | LeadNotificationRecord | WorkOrderNotificationRecord | MaterialNotificationRecord | EstimateNotificationRecord;
 export type NotificationResult = { items: NotificationRecord[]; unreadCount: number; hasMore: boolean; page: number };
+const notificationFields = { id: z.uuid(), createdAt: z.iso.datetime({ offset: true }), read: z.boolean() };
+const jobNotificationFields = {
+  ...notificationFields, kind: z.literal('job'), jobId: z.uuid(), jobNumber: z.string(),
+  jobTitle: z.string(), actorName: z.string(),
+};
+export const notificationRecordSchema: z.ZodType<NotificationRecord> = z.union([
+  z.object({
+    ...notificationFields, kind: z.literal('capture'), sourceId: z.uuid(), sourceName: z.string(), reason: captureNoticeReasonSchema,
+  }).strict(),
+  z.object({
+    ...notificationFields, kind: z.literal('lead'), leadId: z.uuid(), leadNumber: z.string(), leadName: z.string(),
+    service: z.string(), assignerName: z.string(),
+  }).strict(),
+  z.object({
+    ...notificationFields, kind: z.literal('estimate'), event: estimateNotificationEventSchema,
+    estimateId: z.uuid(), estimateNumber: z.string(), estimateName: z.string(), status: estimateStatusSchema,
+  }).strict(),
+  z.object({
+    ...notificationFields, kind: z.literal('work_order'), event: z.enum(workOrderNotificationEvents),
+    workOrderId: z.uuid(), workOrderNumber: z.string(), workOrderTitle: z.string(), actorName: z.string(),
+  }).strict(),
+  z.object({
+    ...notificationFields, kind: z.literal('material'), event: z.enum(materialNotificationEvents),
+    materialId: z.uuid(), materialName: z.string(), reason: z.string(), actorName: z.string(),
+  }).strict(),
+  z.object({
+    ...notificationFields, kind: z.literal('visit'), event: z.enum(['scheduled', 'rescheduled', 'cleared', 'joined', 'separated']),
+    actorName: z.string(), before: calendarScheduleSchema, after: calendarScheduleSchema, timezone: z.string(),
+    records: z.array(z.object({ type: z.enum(['job', 'work_order']), id: z.uuid(), number: z.string(), title: z.string() }).strict()).min(1),
+  }).strict(),
+  z.object({
+    ...notificationFields, kind: z.literal('deadline'), jobId: z.uuid(), jobNumber: z.string(), jobTitle: z.string(),
+    completionDeadline: jobDateSchema, reminderDate: jobDateSchema, timezone: z.string(), event: z.enum(['approaching', 'due', 'overdue']),
+  }).strict(),
+  z.object({ ...jobNotificationFields, event: z.literal('created') }).strict(),
+  z.object({ ...jobNotificationFields, event: z.literal('status'), before: jobStatusSchema, after: jobStatusSchema }).strict(),
+  z.object({
+    ...jobNotificationFields, event: z.literal('deadline'), before: jobDateSchema.nullable(), after: jobDateSchema.nullable(), timezone: z.string(),
+  }).strict(),
+  z.object({
+    ...jobNotificationFields, event: z.literal('assignment'), access: z.literal('current'), change: z.enum(['primary', 'team', 'updated', 'removed']),
+  }).strict(),
+  z.object({
+    ...notificationFields, kind: z.literal('job'), event: z.literal('assignment'), access: z.literal('ended'),
+    change: z.literal('removed'), jobNumber: z.string(),
+  }).strict(),
+]);
+export const notificationResultSchema = z.object({
+  items: z.array(notificationRecordSchema), unreadCount: z.number().int().nonnegative(),
+  hasMore: z.boolean(), page: z.number().int().min(1).max(50),
+}).strict();
+export const markNotificationReadResultSchema = z.object({ ok: z.literal(true) }).strict();
 export const saveNotificationPreferencesSchema = notificationPreferencesSchema.extend({
   workspaceId: z.uuid(),
   visitChangedEmail: z.boolean().optional(),
