@@ -23,3 +23,4 @@ export type IntakeDetailView = z.infer<typeof intakeDetailViewSchema>;
 export type IntakePreparedReview = z.infer<typeof intakePreparedReviewSchema>;
 
 export type IntakeQuery = z.infer<typeof intakeQuerySchema>;
+export const intakeDecisionResultSchema = z.object({ ok: z.literal(true) }).strict();

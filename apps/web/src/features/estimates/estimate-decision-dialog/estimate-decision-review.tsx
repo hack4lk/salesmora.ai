@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { EstimateDecisionReceipt, EstimateDecisionReview as DecisionReview } from "@salesmora/contracts";
+import { estimateDecisionReviewSchema, estimateDecisionReceiptSchema } from "@salesmora/contracts";
 import { EstimateDecisionDialog } from "./estimate-decision-dialog";
 import {
   initialEstimateDecisionValues, type EstimateDecisionMode, type EstimateDecisionRequest,
 } from "./estimate-decision-dialog.preview";
 import { estimateDecisionDialogData } from "./estimate-decision-dialog.data";
-import { estimateLifecycleRequest, EstimateLifecycleRequestError } from "../estimate-lifecycle-client";
+import { useEstimateRequest, EstimateLifecycleRequestError } from "../use-estimate-request";
 
 const c = estimateDecisionDialogData.live;
 export function EstimateDecisionReview({
@@ -22,6 +23,7 @@ export function EstimateDecisionReview({
   onRecorded: (receipt: EstimateDecisionReceipt, suggestionSource: string | null) => void;
 }) {
   const router = useRouter();
+  const estimateLifecycleRequest = useEstimateRequest();
   const [current, setCurrent] = useState(review);
   const [value, setValue] = useState(() => initialEstimateDecisionValues(review.estimate, review.today, outcome));
   const [readable, setReadable] = useState(true);
@@ -31,7 +33,7 @@ export function EstimateDecisionReview({
   const query = `?workspace=${encodeURIComponent(workspaceId)}`;
   const load = useCallback((signal?: AbortSignal, acceptNewVersion = false) => {
     return estimateLifecycleRequest<DecisionReview>(
-      `/api/estimates/${encodeURIComponent(review.estimate.id)}/decision${query}`, c.loadError, { signal },
+      `/api/estimates/${encodeURIComponent(review.estimate.id)}/decision${query}`, c.loadError, { signal }, raw => estimateDecisionReviewSchema.parse(raw),
     ).then(latest => {
       if (signal?.aborted) return;
       if (latest.estimate.id !== review.estimate.id) throw new Error(c.mismatch);
@@ -47,11 +49,11 @@ export function EstimateDecisionReview({
     }).catch((caught: unknown) => {
       if (signal?.aborted) return;
       setError({ kind: "error", message: caught instanceof Error ? caught.message : c.loadError });
-      setReadable(!(caught instanceof EstimateLifecycleRequestError && [401, 404].includes(caught.status)));
+      setReadable(!(caught instanceof EstimateLifecycleRequestError && [401, 403, 404, 423].includes(caught.status)));
       setCurrent(previous => ({ ...previous, canDecide: false, canCorrectDecision: false }));
       if (caught instanceof EstimateLifecycleRequestError && caught.status === 401) router.replace("/login");
     }).finally(() => { if (!signal?.aborted) setOperation(null); });
-  }, [outcome, query, review.estimate.id, review.estimate.version, review.estimate.decision?.id, review.snapshotHash, router]);
+  }, [outcome, query, review.estimate.id, review.estimate.version, review.estimate.decision?.id, review.snapshotHash, router, estimateLifecycleRequest]);
   useEffect(() => {
     const controller = new AbortController();
     void load(controller.signal);
@@ -70,7 +72,7 @@ export function EstimateDecisionReview({
     try {
       const receipt = await estimateLifecycleRequest<EstimateDecisionReceipt>(
         `/api/estimates/${encodeURIComponent(review.estimate.id)}/decision${query}`, c.saveError,
-        { method: "POST", body: JSON.stringify({ ...payload, submissionId: submission.current.id }) },
+        { method: "POST", body: JSON.stringify({ ...payload, submissionId: submission.current.id }) }, raw => estimateDecisionReceiptSchema.parse(raw),
       );
       if (receipt.estimateId !== request.estimateId || receipt.status !== request.outcome ||
           receipt.version !== request.expectedVersion + 1 || !receipt.decisionId) throw new Error(c.mismatch);
@@ -79,7 +81,7 @@ export function EstimateDecisionReview({
     } catch (caught) {
       const status = caught instanceof EstimateLifecycleRequestError ? caught.status : undefined;
       setError({ kind: status === 409 ? "conflict" : "error", message: caught instanceof Error ? caught.message : c.saveError });
-      if (status === 401 || status === 404) {
+      if (status !== undefined && [401, 403, 404, 423].includes(status)) {
         setReadable(false);
         setCurrent(previous => ({ ...previous, canDecide: false, canCorrectDecision: false }));
       }

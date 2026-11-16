@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Dialog from '@mui/material/Dialog';
-import { reportTemplateConfigurationSchema, reportTemplateSchema, reportTemplateListSchema, reportTemplateRunResultSchema,
+import { reportTemplateConfigurationSchema, reportTemplateSchema, reportTemplateRunResultSchema,
   type ReportTemplate, type ReportTemplateArea, type ReportTemplateConfiguration,
   type ReportTemplatePeriod } from '@salesmora/contracts';
 import { CloseOutlined, FormFeedback, SeafoamOutlineButton } from '@salesmora/ui';
@@ -11,6 +12,11 @@ import { ReportTemplateCallout } from '../report-template-callout/report-templat
 import { ReportTemplateNameDialog } from '../report-template-name-dialog/report-template-name-dialog';
 import { ReportTemplateDeleteDialog } from '../report-template-delete-dialog/report-template-delete-dialog';
 import { ReportTemplateUpdateDialog } from '../report-template-update-dialog/report-template-update-dialog';
+import { useApiQueryScope } from '../../api/api-query-provider';
+import { useApiQuery } from '../../api/use-api-query';
+import { isApiAccessError } from '../../api/api-query';
+import { apiRequest } from '../../api/api-request';
+import { reportTemplateListOptions, reportTemplateMutationOptions } from './report-template-queries';
 
 type Props = {
   area: ReportTemplateArea; workspaceId: string; query: object; period: ReportTemplatePeriod | null;
@@ -19,25 +25,25 @@ type Props = {
   listDialog?: { open: boolean; onOpen: () => void; onClose: () => void };
   onRun: (result: unknown, template: ReportTemplate) => void;
 };
-async function request(url: string, method: string, body?: unknown, signal?: AbortSignal): Promise<unknown> {
-  const response = await fetch(url, { method, cache: 'no-store', signal,
-    ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) });
-  if (!response.ok) {
-    const raw: unknown = await response.json();
-    const message = typeof raw === 'object' && raw !== null && 'error' in raw && typeof raw.error === 'string'
-      ? raw.error : 'The template request could not be completed.';
-    throw new Error(message);
-  }
-  return response.status === 204 ? undefined : response.json();
-}
 export function ReportTemplates(props: Props) {
   return <ReportTemplatesHost key={`${props.workspaceId}:${props.area}`} {...props} />;
 }
 function ReportTemplatesHost({ area, workspaceId, query, period, ready, active, onRun, children, listDialog }: Props) {
   const id = useId();
-  const [templates, setTemplates] = useState<ReportTemplate[]>([]);
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [error, setError] = useState<string>(), [pending, setPending] = useState(false), [retry, setRetry] = useState(0);
+  const scope = useApiQueryScope(), client = useQueryClient();
+  if (scope.workspaceId !== workspaceId) throw new Error('Template workspace does not match the current report.');
+  const listOptions = reportTemplateListOptions(scope, area);
+  const listQuery = useApiQuery(listOptions);
+  const command = useMutation(reportTemplateMutationOptions(client, scope, area));
+  const [actionError, setError] = useState<string>();
+  const pending = command.isPending, submitting = useRef(false);
+  const denied = isApiAccessError(listQuery.error) || isApiAccessError(command.error);
+  const state = listQuery.isError || denied ? 'error' : listQuery.isPending ? 'loading' : 'ready';
+  const templates = state === 'ready' ? listQuery.data ?? [] : [];
+  const error = actionError ?? listQuery.error?.message;
+  const setTemplates = (update: (current: ReportTemplate[]) => ReportTemplate[]) => {
+    client.setQueryData(listOptions.queryKey, current => update(current ?? []));
+  };
   const [dialog, setDialog] = useState<{ kind: 'save' } | { kind: 'rename' | 'delete' | 'update'; template: ReportTemplate }>();
   const mounted = useRef(true);
   const currentReport = useRef('');
@@ -48,20 +54,6 @@ function ReportTemplatesHost({ area, workspaceId, query, period, ready, active, 
     return () => { mounted.current = false; };
   }, []);
   const isCurrent = () => mounted.current;
-  useEffect(() => {
-    const abort = new AbortController();
-    void (async () => {
-      try {
-        const params = new URLSearchParams({ workspaceId, area });
-        const list = reportTemplateListSchema.parse(await request(`/api/reports/templates?${params}`, 'GET', undefined, abort.signal));
-        if (list.some(item => item.workspaceId !== workspaceId || item.area !== area)) throw new Error('Template list does not match this report.');
-        if (!abort.signal.aborted) { setTemplates(list); setState('ready'); }
-      } catch (failure) {
-        if (!abort.signal.aborted) { setState('error'); setError(failure instanceof Error ? failure.message : 'Templates could not be loaded.'); }
-      }
-    })();
-    return () => abort.abort();
-  }, [workspaceId, area, retry]);
   const list = templates.map(template => ({
     id: template.id, name: template.name, viewLabel: String(template.configuration.query.view),
     periodLabel: template.configuration.period?.preset === 'custom'
@@ -75,29 +67,35 @@ function ReportTemplatesHost({ area, workspaceId, query, period, ready, active, 
   void ignoredWorkspace; void page; void pageSize; void ignoredPeriod;
   const parsedConfiguration = reportTemplateConfigurationSchema.safeParse({ area, query: savedQuery, period });
   const config = parsedConfiguration.success ? parsedConfiguration.data : undefined;
-  const canSave = ready && !!config;
-  const refresh = () => { setState('loading'); setError(undefined); setRetry(value => value + 1); };
+  const canSave = ready && !!config && !denied;
+  const refresh = () => {
+    void listQuery.refetch().then(result => { if (isCurrent() && result.isSuccess) { setError(undefined); command.reset(); } });
+  };
   async function mutate(work: () => Promise<void>) {
-    if (pending) throw new Error('A template operation is already in progress.');
-    setPending(true); setError(undefined);
-    try { await work(); if (isCurrent()) setDialog(undefined); }
+    if (submitting.current) throw new Error('A template operation is already in progress.');
+    submitting.current = true; setError(undefined);
+    try { await command.mutateAsync(work); if (isCurrent()) setDialog(undefined); }
     catch (failure) {
       if (isCurrent()) setError(failure instanceof Error ? failure.message : 'Template operation failed.');
       throw failure;
-    } finally { if (isCurrent()) setPending(false); }
+    } finally { submitting.current = false; }
   }
   const activeTemplate = active && templates.find(item => item.id === active.id);
   const save = async (name: string) => mutate(async () => {
     if (!config) throw new Error('Choose a valid configuration. A selected individual day cannot be saved with a rolling period.');
-    const saved = reportTemplateSchema.parse(await request('/api/reports/templates', 'POST',
-      { workspaceId, name, configuration: config }));
+    const saved = await apiRequest('/api/reports/templates', {
+      method: 'POST', body: { workspaceId, name, configuration: config }, parse: reportTemplateSchema.parse,
+      failureMessage: 'The template request could not be completed.',
+    });
     if (saved.workspaceId !== workspaceId || saved.area !== area) throw new Error('Saved template does not match this report.');
     if (isCurrent()) setTemplates(current => [...current, saved]);
   });
   const patch = async (template: ReportTemplate, payload: { name?: string; configuration?: ReportTemplateConfiguration }) =>
     mutate(async () => {
-      const saved = reportTemplateSchema.parse(await request(`/api/reports/templates/${encodeURIComponent(template.id)}`, 'PATCH',
-        { workspaceId, version: template.version, ...payload }));
+      const saved = await apiRequest(`/api/reports/templates/${encodeURIComponent(template.id)}`, {
+        method: 'PATCH', body: { workspaceId, version: template.version, ...payload }, parse: reportTemplateSchema.parse,
+        failureMessage: 'The template request could not be completed.',
+      });
       if (saved.id !== template.id || saved.workspaceId !== workspaceId || saved.area !== area) throw new Error('Updated template does not match this report.');
       if (isCurrent()) setTemplates(current => current.map(item => item.id === saved.id ? saved : item));
     });
@@ -105,8 +103,10 @@ function ReportTemplatesHost({ area, workspaceId, query, period, ready, active, 
     const reportAtStart = currentReport.current;
     try {
       await mutate(async () => {
-        const raw = await request(`/api/reports/templates/${encodeURIComponent(template.id)}/run`, 'POST', { workspaceId });
-        const result = reportTemplateRunResultSchema.parse(raw);
+        const result = await apiRequest(`/api/reports/templates/${encodeURIComponent(template.id)}/run`, {
+          method: 'POST', body: { workspaceId }, parse: reportTemplateRunResultSchema.parse,
+          failureMessage: 'The template request could not be completed.',
+        });
         if (result.template.id !== template.id || result.template.workspaceId !== workspaceId || result.template.area !== area) {
           throw new Error('Template run does not match this report.');
         }
@@ -122,7 +122,7 @@ function ReportTemplatesHost({ area, workspaceId, query, period, ready, active, 
       if (isCurrent()) setError(failure instanceof Error ? failure.message : 'Template run failed.');
     }
   };
-  const templateList = <ReportTemplateList templates={list} canRead canCreate={canSave} state={state}
+  const templateList = <ReportTemplateList templates={list} canRead={!denied} canCreate={canSave} state={state}
     pendingIds={pending ? templates.map(item => item.id) : []}
     onCreate={() => { setError(undefined); setDialog({ kind: 'save' }); }}
     onRetry={refresh}
@@ -134,7 +134,7 @@ function ReportTemplatesHost({ area, workspaceId, query, period, ready, active, 
     }} />;
   return <div id={`report-templates-${area}`} className="grid min-w-0 gap-4">
     {error && <FormFeedback kind="error" message={error} />}
-    {error && state === 'ready' && !pending && <div>
+    {error && !pending && <div>
       <SeafoamOutlineButton label="Refresh templates" onClick={refresh} />
     </div>}
     {ready && !config && <FormFeedback kind="error"
@@ -165,7 +165,7 @@ function ReportTemplatesHost({ area, workspaceId, query, period, ready, active, 
     <div className={children ? 'px-4 pb-4 sm:px-8 sm:pb-8' : undefined}>
       <div className={children && area === 'overview' ? 'mx-auto max-w-6xl' : undefined}>
         <ReportTemplateCallout configurationLabel={`Current ${area} report configuration`}
-          canRead canSave={canSave && state === 'ready'} pending={pending}
+          canRead={!denied} canSave={canSave && state === 'ready'} pending={pending}
           activeTemplate={activeTemplate && { id: activeTemplate.id, name: activeTemplate.name, canUpdate: canSave }}
           onSave={() => { setError(undefined); setDialog({ kind: 'save' }); }}
           onUpdate={() => { if (activeTemplate) { setError(undefined); setDialog({ kind: 'update', template: activeTemplate }); } }}
@@ -177,17 +177,22 @@ function ReportTemplatesHost({ area, workspaceId, query, period, ready, active, 
       existingTemplates={templates} canSave={canSave} pending={pending} error={error}
       onClose={() => setDialog(undefined)} onSave={save} />}
     {dialog?.kind === 'rename' && <ReportTemplateNameDialog open mode="rename" templateId={dialog.template.id}
-      reportLabel={area} initialName={dialog.template.name} existingTemplates={templates} canSave pending={pending} error={error}
+      reportLabel={area} initialName={dialog.template.name} existingTemplates={templates} canSave={!denied} pending={pending} error={error}
       onClose={() => setDialog(undefined)} onSave={name => patch(dialog.template, { name })} />}
     {dialog?.kind === 'update' && <ReportTemplateUpdateDialog open template={dialog.template} canUpdate={canSave}
       pending={pending} error={error} onClose={() => setDialog(undefined)}
       onConfirm={() => config
         ? patch(dialog.template, { configuration: config })
         : mutate(async () => { throw new Error('The current report configuration is invalid.'); })} />}
-    {dialog?.kind === 'delete' && <ReportTemplateDeleteDialog open template={dialog.template} canDelete
+    {dialog?.kind === 'delete' && <ReportTemplateDeleteDialog open template={dialog.template} canDelete={!denied}
       pending={pending} error={error} onClose={() => setDialog(undefined)} onConfirm={() => mutate(async () => {
-        await request(`/api/reports/templates/${encodeURIComponent(dialog.template.id)}`, 'DELETE',
-          { workspaceId, version: dialog.template.version });
+        await apiRequest(`/api/reports/templates/${encodeURIComponent(dialog.template.id)}`, {
+          method: 'DELETE', body: { workspaceId, version: dialog.template.version },
+          parse: raw => {
+            if (raw !== undefined) throw new Error('Invalid template deletion receipt.');
+          },
+          failureMessage: 'The template request could not be completed.',
+        });
         if (isCurrent()) setTemplates(current => current.filter(item => item.id !== dialog.template.id));
       })} />}
   </div>;

@@ -1,7 +1,5 @@
 export const customersMetricsData = {
   title: "Customer overview",
-  description:
-    "Workspace totals exclude archived customers and stay the same when you filter the list.",
   customers: { label: "Customers", description: "In this workspace" },
   leads: {
     label: "With open leads",

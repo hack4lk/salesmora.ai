@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { reportSnapshotDecorator } from '../report-snapshot.story-helpers';
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import {
@@ -15,6 +16,7 @@ import { selectMetricEvidence } from '../report-summary/report-summary.story-hel
 
 let requests: LeadSourceQuery[] = [], release: (() => void) | undefined, aborted = false, settled = false;
 const meta = {
+  decorators: [reportSnapshotDecorator],
   title: 'Reports/LeadSourcePage', component: LeadSourcePage, tags: ['autodocs'],
   parameters: { layout: 'fullscreen', docs: { description: { component: 'Session-bound Sources page host composing the canonical LeadSourceReport with API-shaped mocks, date controls, personal templates, evidence selection, pagination and CSV preview/download. Current authority is checked before rendering results; cancellation and request keys isolate replaced workspaces. Production Reports permissions/navigation remain disabled. Facets, editing and assistant integration are deferred.' } } },
   args: { initial: sourceReadResponse(initialLeadSourceQuery), onRecord: fn(), onReload: fn() },

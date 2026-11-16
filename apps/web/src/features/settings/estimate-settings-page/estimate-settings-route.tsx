@@ -17,27 +17,39 @@ import { initialEstimateBusinessProfileDraft } from "../../estimates/estimate-bu
 import type { EstimateRole } from "../../estimates/estimate-preview.types";
 import { EstimateSettingsPage } from "./estimate-settings-page";
 import { estimateSettingsPageData as copy } from "./estimate-settings-page.data";
+import { SettingsQueryBoundary, useSettingsRequest } from "../use-settings-request";
+import { isApiAccessError } from "../../api/api-query";
 
 type RouteResponse = { status: number; body: unknown };
 type PendingNavigation =
   | { type: "href"; href: string }
   | { type: "sign-out"; button: HTMLButtonElement };
 
-export function EstimateSettingsRoute({
+type Props = {
+  workspaceId: string; timezone: string; initial: EstimateBusinessProfileRecord;
+  canManage: boolean; role: EstimateRole;
+};
+export function EstimateSettingsRoute(props: Props) {
+  return <SettingsQueryBoundary workspaceId={props.workspaceId}><EstimateSettingsHost {...props}/></SettingsQueryBoundary>;
+}
+function EstimateSettingsHost({
   workspaceId,
-  workspaceName,
   timezone,
   initial,
   canManage: initialCanManage,
   role: initialRole,
-}: {
-  workspaceId: string;
-  workspaceName: string;
-  timezone: string;
-  initial: EstimateBusinessProfileRecord;
-  canManage: boolean;
-  role: EstimateRole;
-}) {
+}: Props) {
+  const path = `/api/settings/estimates?workspace=${encodeURIComponent(workspaceId)}`;
+  const parseRecord = (raw: unknown) => {
+    const record = estimateBusinessProfileRecordSchema.parse(raw);
+    if (record.workspaceId !== workspaceId) throw new Error(copy.requestError);
+    return record;
+  };
+  const api = useSettingsRequest<ReturnType<typeof estimateBusinessProfileReadSchema.parse>, EstimateBusinessProfileRecord>('estimate-settings', path, raw => {
+    const result = estimateBusinessProfileReadSchema.parse(raw);
+    parseRecord(result.record);
+    return result;
+  }, copy.requestError);
   const router = useRouter();
   const [record, setRecord] = useState(initial);
   const [value, setValue] = useState(() => initialEstimateBusinessProfileDraft(initial));
@@ -114,7 +126,7 @@ export function EstimateSettingsRoute({
     const body: unknown = await result.json();
     if (!result.ok) {
       const status = result.status;
-      if (status === 401 || status === 404) setUnavailable(true);
+      if (api.isActive() && [401, 403, 404, 423].includes(status)) setUnavailable(true);
       throw Object.assign(new Error(), { status, body });
     }
     return { status: result.status, body };
@@ -125,11 +137,7 @@ export function EstimateSettingsRoute({
     inFlight.current = true;
     setPending(true);
     try {
-      const result = await response(fetch(
-        `/api/settings/estimates?workspace=${encodeURIComponent(workspaceId)}`,
-        { cache: "no-store" },
-      ));
-      const next = estimateBusinessProfileReadSchema.parse(result.body);
+      const next = await api.read();
       setRecord(next.record);
       setValue(initialEstimateBusinessProfileDraft(next.record));
       setCanManage(next.canManage);
@@ -138,13 +146,15 @@ export function EstimateSettingsRoute({
       setSaved(false);
       setUnavailable(false);
     } catch (error) {
+      if (!api.isActive()) throw error;
+      if (isApiAccessError(error)) setUnavailable(true);
       if (error instanceof Error && "status" in error && error.status === 409) {
         setConflict(true);
       }
       throw error;
     } finally {
       inFlight.current = false;
-      setPending(false);
+      if (api.isActive()) setPending(false);
     }
   }
 
@@ -154,26 +164,30 @@ export function EstimateSettingsRoute({
     setPending(true);
     setSaved(false);
     try {
-      const result = await response(fetch("/api/settings/estimates", {
+      const next = await api.write({
+        path: "/api/settings/estimates",
         method: "PUT",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(request),
-      }));
-      const body = result.body as { record?: unknown };
-      const next = estimateBusinessProfileRecordSchema.parse(body.record);
+        body: request,
+        parse: raw => {
+          if (!raw || typeof raw !== 'object' || !('record' in raw)) throw new Error(copy.requestError);
+          return parseRecord(raw.record);
+        },
+        failureMessage: copy.requestError,
+      });
       setRecord(next);
       setValue(initialEstimateBusinessProfileDraft(next));
       setSaved(true);
       setConflict(false);
     } catch (error) {
+      if (!api.isActive()) throw error;
+      if (isApiAccessError(error)) setUnavailable(true);
       if (error instanceof Error && "status" in error && error.status === 409) {
         setConflict(true);
       }
       throw error;
     } finally {
       inFlight.current = false;
-      setPending(false);
+      if (api.isActive()) setPending(false);
     }
   }
 
@@ -192,6 +206,7 @@ export function EstimateSettingsRoute({
         cache: "no-store",
         body: form,
       }));
+      if (!api.isActive()) throw new Error(copy.requestError);
       if (
         !result.body ||
         typeof result.body !== "object" ||
@@ -202,13 +217,14 @@ export function EstimateSettingsRoute({
       }
       return { logoPath: result.body.logoPath };
     } catch (error) {
+      if (!api.isActive()) throw error;
       if (error instanceof Error && "status" in error && error.status === 409) {
         setConflict(true);
       }
       throw error;
     } finally {
       inFlight.current = false;
-      setUploadPending(false);
+      if (api.isActive()) setUploadPending(false);
     }
   }
 
@@ -228,8 +244,6 @@ export function EstimateSettingsRoute({
 
   return <>
     <EstimateSettingsPage
-      workspaceName={workspaceName}
-      settingsHref={`/settings?workspace=${encodeURIComponent(workspaceId)}`}
       businessProfile={{
         source,
         value,

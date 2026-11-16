@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { EstimateArchiveReceipt } from "@salesmora/contracts";
+import { estimateEditorSeedSchema, estimateArchiveReceiptSchema, type EstimateArchiveReceipt } from "@salesmora/contracts";
 import type { EstimateEditorSeed } from "@salesmora/data";
 import { EstimateArchiveDialog } from "./estimate-archive-dialog";
 import {
   initialEstimateArchiveReview, type EstimateArchiveMode, type EstimateArchiveRecord, type EstimateArchiveRequest,
 } from "./estimate-archive-dialog.preview";
 import { estimateArchiveDialogData as c } from "./estimate-archive-dialog.data";
-import { estimateLifecycleRequest, EstimateLifecycleRequestError } from "../estimate-lifecycle-client";
+import { useEstimateRequest, EstimateLifecycleRequestError } from "../use-estimate-request";
 
 export function EstimateArchiveReview({
   workspaceId, estimate, mode, onClose, onArchived,
@@ -21,6 +21,7 @@ export function EstimateArchiveReview({
   onArchived: (receipt: EstimateArchiveReceipt) => void;
 }) {
   const router = useRouter();
+  const estimateLifecycleRequest = useEstimateRequest();
   const [current, setCurrent] = useState(estimate);
   const [review, setReview] = useState(() => initialEstimateArchiveReview(estimate, mode));
   const [access, setAccess] = useState({ read: true, archive: false });
@@ -30,7 +31,7 @@ export function EstimateArchiveReview({
   const query = `?workspace=${encodeURIComponent(workspaceId)}`;
   const load = useCallback((signal?: AbortSignal, acceptNewVersion = false) => {
     return estimateLifecycleRequest<EstimateEditorSeed>(
-      `/api/estimates/${encodeURIComponent(estimate.id)}${query}`, c.live.loadError, { signal },
+      `/api/estimates/${encodeURIComponent(estimate.id)}${query}`, c.live.loadError, { signal }, raw => estimateEditorSeedSchema.parse(raw),
     ).then(seed => {
       if (signal?.aborted) return;
       const record = seed.estimate;
@@ -46,11 +47,11 @@ export function EstimateArchiveReview({
     }).catch((caught: unknown) => {
       if (signal?.aborted) return;
       const status = caught instanceof EstimateLifecycleRequestError ? caught.status : undefined;
-      setAccess({ read: status !== 401 && status !== 404, archive: false });
+      setAccess({ read: status === undefined || ![401, 403, 404, 423].includes(status), archive: false });
       setError({ kind: "error", message: caught instanceof Error ? caught.message : c.live.loadError });
       if (status === 401) router.replace("/login");
     }).finally(() => { if (!signal?.aborted) setOperation(null); });
-  }, [estimate.id, estimate.version, mode, query, router]);
+  }, [estimate.id, estimate.version, mode, query, router, estimateLifecycleRequest]);
   useEffect(() => {
     const controller = new AbortController();
     void load(controller.signal);
@@ -66,7 +67,7 @@ export function EstimateArchiveReview({
     try {
       const receipt = await estimateLifecycleRequest<EstimateArchiveReceipt>(
         `/api/estimates/${encodeURIComponent(estimate.id)}/archive${query}`, c.live.saveError,
-        { method: "POST", body: JSON.stringify({ ...payload, submissionId: submission.current.id }) },
+        { method: "POST", body: JSON.stringify({ ...payload, submissionId: submission.current.id }) }, raw => estimateArchiveReceiptSchema.parse(raw),
       );
       if (receipt.estimateId !== request.estimateId || receipt.archived !== (request.mode === "archive") ||
           receipt.version !== request.expectedVersion + 1) throw new Error(c.errors.binding);
@@ -74,7 +75,7 @@ export function EstimateArchiveReview({
     } catch (caught) {
       const status = caught instanceof EstimateLifecycleRequestError ? caught.status : undefined;
       setError({ kind: status === 409 ? "conflict" : "error", message: caught instanceof Error ? caught.message : c.live.saveError });
-      if (status === 401 || status === 404) setAccess({ read: false, archive: false });
+      if (status !== undefined && [401, 403, 404, 423].includes(status)) setAccess({ read: false, archive: false });
       if (status === 401) router.replace("/login");
     } finally { setOperation(null); }
   }

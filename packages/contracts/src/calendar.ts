@@ -65,9 +65,32 @@ export type CalendarResult = {
   entries: (CalendarVisit & { scheduledDate: string })[]; unscheduled: CalendarVisit[]; unscheduledTotal: number; queuePages: number;
 };
 export const calendarAdvisorySchema = z.object({ workspaceId: z.uuid(), visitId: z.uuid(), revision: z.string().min(1).max(200), schedule: calendarScheduleSchema }).strict();
+export const calendarVisitSchema = z.object({
+  scheduledDate: jobDateSchema.nullable(), arrivalWindow: z.enum(arrivalWindows).nullable(),
+  id: z.uuid(), title: z.string(), customerName: z.string(), timezone: z.string(), location: z.string().nullable(), nextStep: z.string().nullable(),
+  records: z.array(z.discriminatedUnion("type", [
+    z.object({ type: z.literal("job"), id: z.uuid(), number: z.string(), title: z.string(), status: z.enum(["needs-scheduling", "scheduled", "in-progress", "waiting", "completed", "canceled"]) }),
+    z.object({ type: z.literal("work_order"), id: z.uuid(), number: z.string(), title: z.string(), status: z.enum(["draft", "issued", "in-progress", "completed", "canceled"]) }),
+  ])), crew: z.array(z.object({ id: z.string(), name: z.string() })),
+  completionDeadline: z.object({ date: jobDateSchema, overdue: z.boolean() }).nullable(),
+  waiting: z.boolean(), canReschedule: z.boolean(), revision: z.string(),
+  review: z.object({ expectedVisitVersion: z.number().int().positive(), records: z.array(calendarRecordRefSchema) }).nullable(),
+}) satisfies z.ZodType<CalendarVisit>;
+export const calendarResultSchema = z.object({
+  query: calendarQuerySchema, weekDate: jobDateSchema, today: jobDateSchema, timezone: z.string(), scope: z.enum(["workspace", "own"]), viewerId: z.string(),
+  members: z.array(z.object({ id: z.string(), name: z.string() })), canSchedule: z.boolean(),
+  entries: z.array(calendarVisitSchema.extend({ scheduledDate: jobDateSchema })), unscheduled: z.array(calendarVisitSchema),
+  unscheduledTotal: z.number().int().nonnegative(), queuePages: z.number().int().nonnegative(),
+}) satisfies z.ZodType<CalendarResult>;
+export const calendarAdvisoryResultSchema = z.object({ messages: z.array(z.string()) });
+export const calendarSavedResultSchema = z.object({ visitId: z.uuid(), version: z.number().int().positive(), records: z.array(calendarRecordRefSchema) });
 export { ZodError as CalendarContractError } from 'zod';
 
 const visitRevision = z.string().regex(/^[a-f0-9]{64}$/);
+export const workOrderCreationVisitSchema = z.object({
+  id: z.uuid(), scheduledDate: jobDateSchema, arrivalWindow: z.enum(arrivalWindows).nullable(), timezone: z.string(),
+  canJoin: z.boolean(), references: z.array(z.string()), revision: visitRevision,
+}).nullable();
 const workOrderVisitBase = { workspaceId: z.uuid(), submissionId: z.uuid(), workOrderId: z.uuid() };
 export const workOrderVisitChangeSchema = z.discriminatedUnion('kind', [
   z.object({ ...workOrderVisitBase, kind: z.literal('join'), sourceVisitId: z.uuid(), sourceRevision: visitRevision, visitId: z.uuid(), revision: visitRevision }).strict(),
@@ -76,3 +99,6 @@ export const workOrderVisitChangeSchema = z.discriminatedUnion('kind', [
     .refine(value => !value.arrivalWindow || !!value.scheduledDate, { message: 'An arrival window requires a scheduled date.' }),
 ]);
 export type WorkOrderVisitManagement = { source: CalendarVisit | null; target: CalendarVisit | null; today: string; canJoin: boolean; canSeparate: boolean };
+export const workOrderVisitManagementSchema = z.object({
+  source: calendarVisitSchema.nullable(), target: calendarVisitSchema.nullable(), today: jobDateSchema, canJoin: z.boolean(), canSeparate: z.boolean(),
+}) satisfies z.ZodType<WorkOrderVisitManagement>;

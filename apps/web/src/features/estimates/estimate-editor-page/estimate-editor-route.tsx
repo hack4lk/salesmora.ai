@@ -4,6 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   estimateEmailDestinationSchema,
+  estimateDecisionReviewSchema,
+  estimateSharingReviewSchema,
+  materialListResultSchema,
+  estimateDraftSaveResultSchema,
+  estimateDeletedResultSchema,
+  estimateShareReceiptSchema,
+  estimateLinkResultSchema,
   type EstimateConversionReceipt,
   type EstimateDraftValues,
   type EstimateRevisionFamily,
@@ -41,7 +48,9 @@ import { EstimateVoidReview } from "../estimate-void-dialog/estimate-void-review
 import { EstimateArchiveReview } from "../estimate-archive-dialog/estimate-archive-review";
 import { estimateArchiveDialogData as archiveCopy } from "../estimate-archive-dialog/estimate-archive-dialog.data";
 import { estimateLifecycleData } from "../estimate-lifecycle-client";
-import { estimateLifecycleRequest, EstimateLifecycleRequestError } from "../estimate-lifecycle-client";
+import { useEstimateRequest, EstimateLifecycleRequestError, isApiAccessError } from "../use-estimate-request";
+import { ApiQueryScopeBoundary } from "../../api/api-query-provider";
+import { ApiRequestError } from "../../api/api-request";
 import type { EstimateDecisionReview as DecisionReview } from "@salesmora/contracts";
 import { EstimateDecisionReview } from "../estimate-decision-dialog/estimate-decision-review";
 import { estimateDecisionDialogData as decisionCopy } from "../estimate-decision-dialog/estimate-decision-dialog.data";
@@ -64,12 +73,14 @@ class EstimateRequestError extends Error {
 }
 
 function statusOf(error: unknown): number | undefined {
-  return error instanceof EstimateRequestError
+  return error instanceof EstimateRequestError || error instanceof ApiRequestError
     ? error.status
     : undefined;
 }
 
 function codeOf(error: unknown): string | undefined {
+  if (error instanceof ApiRequestError && typeof error.details === "object" && error.details !== null &&
+      "code" in error.details && typeof error.details.code === "string") return error.details.code;
   return error instanceof EstimateRequestError
     ? error.code
     : undefined;
@@ -77,39 +88,6 @@ function codeOf(error: unknown): string | undefined {
 
 function messageOf(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
-}
-
-async function request<T>(
-  url: string,
-  init: RequestInit,
-  fallback: string,
-): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    cache: "no-store",
-    headers: init.body ? { "Content-Type": "application/json" } : init.headers,
-  });
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch {
-    body = undefined;
-  }
-  if (!response.ok) {
-    const errorMessage =
-      body && typeof body === "object" && "error" in body && typeof body.error === "string"
-        ? body.error
-        : fallback;
-    const error = new EstimateRequestError(
-      errorMessage,
-      response.status,
-      body && typeof body === "object" && "code" in body && typeof body.code === "string"
-        ? body.code
-        : undefined,
-    );
-    throw error;
-  }
-  return body as T;
 }
 
 function valuesFromSeed(seed: EstimateEditorSeed, currentUserId: string): EstimateEditorValues {
@@ -170,18 +148,20 @@ function fingerprint(value: unknown) {
   return JSON.stringify(value);
 }
 
-export function EstimateEditorRoute({
+type EstimateEditorRouteProps = { workspaceId: string; currentUserId: string; seed: EstimateEditorSeed; initialReview?: boolean };
+export function EstimateEditorRoute(props: EstimateEditorRouteProps) {
+  return <ApiQueryScopeBoundary scope={{ viewerId: props.currentUserId, workspaceId: props.workspaceId }}>
+    <EstimateEditorContent key={`${props.currentUserId}:${props.workspaceId}:${props.seed.estimate?.id ?? "new"}`} {...props}/>
+  </ApiQueryScopeBoundary>;
+}
+function EstimateEditorContent({
   workspaceId,
   currentUserId,
   seed,
   initialReview = false,
-}: {
-  workspaceId: string;
-  currentUserId: string;
-  seed: EstimateEditorSeed;
-  initialReview?: boolean;
-}) {
+}: EstimateEditorRouteProps) {
   const router = useRouter();
+  const estimateLifecycleRequest = useEstimateRequest();
   const initial = useMemo(() => valuesFromSeed(seed, currentUserId), [currentUserId, seed]);
   const [values, setValues] = useState(initial);
   const [step, setStep] = useState<EstimateCreationStep>(initialReview ? "review" : "details");
@@ -259,11 +239,11 @@ export function EstimateEditorRoute({
   const loadDecision = useCallback((signal?: AbortSignal) => {
     if (!recordId || recordStatus === "draft") return Promise.resolve();
     return estimateLifecycleRequest<DecisionReview>(
-      `/api/estimates/${encodeURIComponent(recordId)}/decision${query}`, decisionCopy.live.loadError, { signal },
+      `/api/estimates/${encodeURIComponent(recordId)}/decision${query}`, decisionCopy.live.loadError, { signal }, raw => estimateDecisionReviewSchema.parse(raw),
     ).then(review => {
       if (signal?.aborted) return;
       if (review.estimate.id !== recordId || review.estimate.version !== recordVersion) {
-        throw new EstimateLifecycleRequestError(decisionCopy.live.mismatch, 409);
+        throw new EstimateLifecycleRequestError(decisionCopy.live.mismatch, 409, undefined);
       }
       setDecisionReview(review);
       setRecord(current => current?.version === review.estimate.version && current.status !== review.estimate.status
@@ -275,11 +255,11 @@ export function EstimateEditorRoute({
       setDecisionReview(null);
       setDecisionError(messageOf(caught, decisionCopy.live.loadError));
       const status = caught instanceof EstimateLifecycleRequestError ? caught.status : undefined;
-      if (status === 401 || status === 404) setDecisionReadable(false);
+      if (isApiAccessError(caught)) setDecisionReadable(false);
       if (status === 409) setConflict(true);
       if (status === 401) router.replace("/login");
     });
-  }, [query, recordId, recordStatus, recordVersion, router]);
+  }, [query, recordId, recordStatus, recordVersion, router, estimateLifecycleRequest]);
   useEffect(() => {
     const controller = new AbortController();
     void loadDecision(controller.signal);
@@ -288,8 +268,8 @@ export function EstimateEditorRoute({
   const loadSharing = useCallback((signal?: AbortSignal, background = false) => {
     if (!recordId) return Promise.resolve(null);
     const sequence = ++sharingSequence.current;
-    return request<EstimateSharingReviewResult>(
-      `/api/estimates/${encodeURIComponent(recordId)}/sharing${query}`, { signal }, c.sharingError,
+    return estimateLifecycleRequest<EstimateSharingReviewResult>(
+      `/api/estimates/${encodeURIComponent(recordId)}/sharing${query}`, c.sharingError, { signal }, raw => estimateSharingReviewSchema.parse(raw),
     ).then(result => {
       if (signal?.aborted || sequence !== sharingSequence.current) return null;
       if (result.estimate.id !== recordId || result.estimate.version !== recordVersion) {
@@ -305,15 +285,15 @@ export function EstimateEditorRoute({
       if (signal?.aborted || sequence !== sharingSequence.current) return null;
       const message = messageOf(caught, c.sharingError);
       const status = statusOf(caught);
-      if (!background || status === 401 || status === 404 || status === 409) setSharing(null);
+      if (!background || isApiAccessError(caught) || status === 409) setSharing(null);
       setSharingError(message);
       setSharingDialogError({ kind: statusOf(caught) === 409 ? "conflict" : "error", message });
       if (statusOf(caught) === 409) setConflict(true);
-      if (statusOf(caught) === 401 || statusOf(caught) === 404) setSharingReadable(false);
+      if (isApiAccessError(caught)) setSharingReadable(false);
       if (statusOf(caught) === 401) router.replace("/login");
       return null;
     });
-  }, [query, recordId, recordVersion, router]);
+  }, [query, recordId, recordVersion, router, estimateLifecycleRequest]);
   useEffect(() => {
     if (!recordId) return;
     const controller = new AbortController();
@@ -339,10 +319,11 @@ export function EstimateEditorRoute({
     signal: AbortSignal,
   ): Promise<MaterialPickerOption[]> => {
     const params = new URLSearchParams({ workspace: workspaceId, q, pageSize: "25" });
-    const result = await request<MaterialListResult>(
+    const result = await estimateLifecycleRequest<MaterialListResult>(
       `/api/materials?${params}`,
-      { signal },
       c.searchError,
+      { signal, fresh: false },
+      raw => materialListResultSchema.parse(raw),
     );
     return result.rows.map((material) => ({
       id: material.id,
@@ -351,7 +332,7 @@ export function EstimateEditorRoute({
       sku: material.sku,
       priceCents: material.priceCents,
     }));
-  }, [workspaceId]);
+  }, [workspaceId, estimateLifecycleRequest]);
   const catalog = useMemo<EstimateItemsCatalog | undefined>(
     () => seed.capabilities.browseMaterials
       ? { search: searchCatalog, canViewPrices: seed.capabilities.viewMaterialPrices }
@@ -410,13 +391,14 @@ export function EstimateEditorRoute({
     inFlight.current = true;
     setPending(true);
     try {
-      const result = await request<EstimateDraftSaveResult>(
+      const result = await estimateLifecycleRequest<EstimateDraftSaveResult>(
         record ? `/api/estimates/${encodeURIComponent(record.id)}${query}` : `/api/estimates${query}`,
+        record ? c.saveError : c.createError,
         {
           method: record ? "PATCH" : "POST",
           body: JSON.stringify(payload),
         },
-        record ? c.saveError : c.createError,
+        raw => estimateDraftSaveResultSchema.parse(raw),
       );
       if (!record) {
         router.replace(`/estimates/${encodeURIComponent(result.id)}${query}${continueToReview ? "&review=1" : ""}`);
@@ -520,13 +502,14 @@ export function EstimateEditorRoute({
       expectedVersion: record.version,
     };
     try {
-      const result = await request<EstimateDraftSaveResult>(
+      const result = await estimateLifecycleRequest<EstimateDraftSaveResult>(
         `/api/estimates/${encodeURIComponent(record.id)}/duplicate${query}`,
+        c.duplicateError,
         {
           method: "POST",
           body: JSON.stringify({ ...payload, submissionId: submissionId(payload) }),
         },
-        c.duplicateError,
+        raw => estimateDraftSaveResultSchema.parse(raw),
       );
       router.push(`/estimates/${encodeURIComponent(result.id)}${query}`);
     } catch (caught) {
@@ -552,17 +535,18 @@ export function EstimateEditorRoute({
       workspaceId, estimateId: record.id, expectedVersion: revisionFamily.version, snapshotHash: revisionFamily.snapshotHash,
     };
     try {
-      const result = await request<EstimateDraftSaveResult>(
+      const result = await estimateLifecycleRequest<EstimateDraftSaveResult>(
         `/api/estimates/${encodeURIComponent(record.id)}/revise${query}`,
-        { method: "POST", body: JSON.stringify({ ...payload, submissionId: submissionId({ operation: "revise", ...payload }) }) },
         c.reviseError,
+        { method: "POST", body: JSON.stringify({ ...payload, submissionId: submissionId({ operation: "revise", ...payload }) }) },
+        raw => estimateDraftSaveResultSchema.parse(raw),
       );
       router.push(`/estimates/${encodeURIComponent(result.id)}${query}`);
     } catch (caught) {
       setError(messageOf(caught, c.reviseError));
       if (statusOf(caught) === 409) setConflict(true);
       if (statusOf(caught) === 401) router.replace("/login");
-      if (statusOf(caught) === 401 || statusOf(caught) === 404) {
+      if (isApiAccessError(caught)) {
         setRevisionFamily(null); setSharingReadable(false);
       }
     } finally {
@@ -577,10 +561,11 @@ export function EstimateEditorRoute({
     inFlight.current = true;
     setPending(true);
     try {
-      await request<{ deleted: true; id: string }>(
+      await estimateLifecycleRequest<{ deleted: true; id: string }>(
         `/api/estimates/${encodeURIComponent(record.id)}${query}`,
-        { method: "DELETE", body: JSON.stringify({ workspaceId, ...requestValue }) },
         c.deleteError,
+        { method: "DELETE", body: JSON.stringify({ workspaceId, ...requestValue }) },
+        raw => estimateDeletedResultSchema.parse(raw),
       );
       router.replace(`/estimates${query}`);
     } catch (caught) {
@@ -619,10 +604,11 @@ export function EstimateEditorRoute({
     const payload = { ...input, workspaceId };
     const sourceSubmissionId = submissionId(payload);
     try {
-      const receipt = await request<EstimateShareReceipt>(
+      const receipt = await estimateLifecycleRequest<EstimateShareReceipt>(
         `/api/estimates/${encodeURIComponent(record.id)}/sharing${query}`,
-        { method: "POST", body: JSON.stringify({ ...payload, submissionId: sourceSubmissionId }) },
         c.shareError,
+        { method: "POST", body: JSON.stringify({ ...payload, submissionId: sourceSubmissionId }) },
+        raw => estimateShareReceiptSchema.parse(raw),
       );
       if (receipt.estimateId !== input.estimateId || receipt.snapshotHash !== input.snapshotHash ||
           receipt.version !== input.expectedVersion + 1 || receipt.status !== (input.mode === "publish" ? "published" : "sent")) {
@@ -642,7 +628,7 @@ export function EstimateEditorRoute({
         message: messageOf(caught, c.shareError),
       });
       if (statusOf(caught) === 409) setConflict(true);
-      if (statusOf(caught) === 401 || statusOf(caught) === 404) {
+      if (isApiAccessError(caught)) {
         setSharing(null);
         setSharingReadable(false);
       }
@@ -659,8 +645,8 @@ export function EstimateEditorRoute({
     setCopyState("pending");
     setCopyError("");
     try {
-      const result = await request<{ path: string }>(
-        `/api/estimates/${encodeURIComponent(record.id)}/sharing/link${query}`, {}, c.copyError,
+      const result = await estimateLifecycleRequest<{ path: string }>(
+        `/api/estimates/${encodeURIComponent(record.id)}/sharing/link${query}`, c.copyError, {}, raw => estimateLinkResultSchema.parse(raw),
       );
       if (!/^\/e\/[A-Za-z0-9_-]{43}$/.test(result.path)) throw new Error(c.copyError);
       await navigator.clipboard.writeText(new URL(result.path, window.location.origin).href);

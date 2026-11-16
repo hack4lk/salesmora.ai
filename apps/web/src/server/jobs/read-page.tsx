@@ -44,7 +44,7 @@ export async function renderJobsPage(params: Record<string, string | string[] | 
       jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} billingAvailable={capabilities.billing} assistantAvailable={capabilities.assistant}
       chatEnabled={await workspaceChatAvailable(workspace.id)} contentWidth="full" onSignOut={signOut}>
       <JobsRoute key={`${workspace.id}:${jobId ?? "list"}`} workspaceId={workspace.id} userId={session.user.id} field={context.membership.role === "field"}
-        initial={initial} initialQuery={query} initialDetail={detail}
+        initial={initial} initialQuery={query} initialDetail={detail} initialUpdatedAt={Date.now()}
         workOrders={jobWorkOrders && { rows: jobWorkOrders.rows.map(w => ({ id: w.id, number: w.number, title: w.title, status: w.status, assigneeName: w.assigneeName, scheduledDate: w.scheduledDate, tasksDone: w.tasksDone, tasksTotal: w.tasksTotal, overdue: w.overdue })), canCreate: jobWorkOrders.canCreate }}
         initialMessages={jobMessages} />
     </WorkspaceShell>;

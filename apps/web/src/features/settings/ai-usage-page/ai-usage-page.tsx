@@ -12,9 +12,7 @@ export interface AIUsageSnapshot {
   resetAt: string;
 }
 export interface AIUsagePageProps {
-  workspaceName: string;
   viewerRole: WorkspaceRole;
-  settingsHref: string;
   state: 'ready' | 'loading' | 'error';
   usage?: AIUsageSnapshot;
   onRefresh?: () => void;
@@ -32,17 +30,14 @@ function parseUsage(usage?: AIUsageSnapshot) {
 }
 
 /** Presentation only. The live server must enforce Owner access before fetching any usage. */
-export function AIUsagePage({ workspaceName, viewerRole, settingsHref, state, usage, onRefresh }: AIUsagePageProps) {
+export function AIUsagePage({ viewerRole, state, usage, onRefresh }: AIUsagePageProps) {
   const id = useId();
   if (viewerRole !== 'owner') return <FormFeedback kind="error" title={copy.deniedTitle} message={copy.denied}/>;
   const summary = state === 'ready' ? parseUsage(usage) : null;
   const stats = summary ? [[copy.used, summary.used], [copy.remaining, summary.remaining], [copy.allowance, summary.allowance]] as const : [];
   return <div className="grid min-w-0 gap-6">
     <header>
-      <a href={settingsHref} className="inline-flex min-h-11 items-center rounded-lg text-sm font-semibold text-primary focus-visible:focus-ring">{copy.back}</a>
-      <p className="mb-0 mt-4 text-xs font-bold tracking-widest text-muted uppercase">{copy.eyebrow}</p>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-4"><h1 className="m-0 text-heading font-semibold text-ink sm:text-heading-lg">{copy.title}</h1><span className="rounded-full border border-line bg-paper px-3 py-2 text-xs font-semibold text-primary">{copy.ownerOnly}</span></div>
-      <p className="mb-0 mt-2 text-sm font-semibold text-muted wrap-anywhere">{workspaceName}</p>
+      <h1 className="m-0 text-heading font-semibold text-ink sm:text-heading-lg">{copy.title}</h1>
       <p className="mb-0 mt-4 text-base leading-relaxed text-muted">{copy.description}</p>
     </header>
     <section aria-labelledby={`${id}-summary`} aria-busy={state === 'loading'} className="min-w-0 rounded-2xl border border-line bg-paper p-6 sm:p-8">
@@ -62,6 +57,5 @@ export function AIUsagePage({ workspaceName, viewerRole, settingsHref, state, us
       <h2 id={`${id}-includes`} className="m-0 text-xl font-semibold text-ink">{copy.includesTitle}</h2>
       <p className="mb-0 mt-3 text-sm leading-6 text-muted">{copy.includes}</p><p className="mb-0 mt-3 text-sm leading-6 text-muted">{copy.reservations}</p><p className="mb-0 mt-3 text-sm leading-6 text-muted">{copy.availability}</p>
     </section>
-    <p className="m-0 text-sm leading-6 text-muted">{copy.note}</p>
   </div>;
 }

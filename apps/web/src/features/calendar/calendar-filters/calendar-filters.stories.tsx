@@ -20,7 +20,11 @@ const meta = {
 } satisfies Meta<typeof CalendarFilters>;
 export default meta;
 type Story = StoryObj<typeof meta>;
-export const Default: Story = {};
+export const Default: Story = { play: async ({ canvasElement }) => {
+  const c = within(canvasElement);
+  await expect(c.getByRole('status')).toHaveClass('sr-only');
+  await expect(c.queryByText('Shared visits appear once when a linked record matches your filters.')).not.toBeInTheDocument();
+} };
 export const ActiveFilters: Story = { args: { value: active }, play: async ({ canvasElement }) => {
   const c = within(canvasElement); await expect(c.getByRole('status')).toHaveTextContent(filterBarData.count(4));
   await expect(c.getByRole('button', { name: filterChipData.remove(copy.chip(copy.person, copy.stories.alex)) })).toBeVisible();

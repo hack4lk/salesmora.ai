@@ -12,6 +12,7 @@ import type { EstimateDraftDeleteCardCommand } from "../../estimates/estimate-dr
 import { estimateButton } from "../../estimates/estimate-ui";
 import { estimateDraftDeleteBinding, estimateDraftDeleteRequest } from "./estimate-draft-delete-client";
 import { estimateDraftDeleteResultData as c } from "./estimate-draft-delete-result.data";
+import { useEstimateAssistantRequest } from "./use-estimate-assistant-request";
 
 type Props = {
   ticket: EstimateDraftDeleteChatTicket;
@@ -29,6 +30,7 @@ export function ConnectedEstimateDraftDelete(props: Props) {
 }
 
 function DraftDeleteResult({ ticket, workspaceId, disabled = false, onRefresh }: Props) {
+  const transport = useEstimateAssistantRequest(workspaceId, JSON.stringify(ticket));
   const [view, setView] = useState<EstimateDraftDeleteChatView | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -46,7 +48,7 @@ function DraftDeleteResult({ ticket, workspaceId, disabled = false, onRefresh }:
     const request = ++sequence.current;
     try {
       const result = await estimateDraftDeleteRequest(
-        workspaceId, ticket, "GET", undefined, undefined, signal,
+        workspaceId, ticket, "GET", undefined, undefined, signal, transport,
       );
       if (!isCurrent(request)) return;
       setView(result.view);
@@ -93,6 +95,8 @@ function DraftDeleteResult({ ticket, workspaceId, disabled = false, onRefresh }:
         "POST",
         parsed.decision,
         parsed.typedConfirmation,
+        undefined,
+        transport,
       );
       if (!isCurrent(request)) return { ok: false, message: c.unavailable };
       setView(result.view);

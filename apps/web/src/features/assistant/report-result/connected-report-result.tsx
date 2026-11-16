@@ -4,11 +4,14 @@ import { reportAssistantResultResponseSchema, type ReportAssistantResultResponse
   type ReportAssistantTicket } from '@salesmora/contracts';
 import { reportHref } from '../../reports/report-navigation';
 import { ReportResult, type ReportResultProps } from './report-result';
+import { useAssistantResultRequest } from '../use-assistant-result-request';
+import { ApiRequestError } from '../../api/api-request';
 
 export function ConnectedReportResult({ ticket, workspaceId, turnId, disabled, onNavigate, onInvalidated }: {
   ticket: ReportAssistantTicket; workspaceId: string; turnId: string; disabled: boolean;
   onNavigate: (href: string) => void; onInvalidated?: () => void;
 }) {
+  const api = useAssistantResultRequest<string>(workspaceId, 'assistant-report-result', 'Report result unavailable.', JSON.stringify(ticket));
   const [current, setCurrent] = useState<ReportAssistantResultResponse>();
   const [state, setState] = useState<ReportResultProps['state']>('loading');
   const [opening, setOpening] = useState(false);
@@ -26,25 +29,24 @@ export function ConnectedReportResult({ ticket, workspaceId, turnId, disabled, o
     if (flight.current) return;
     const token = ++sequence.current, controller = new AbortController();
     controllers.current.add(controller);
-    let status: number | undefined;
     try {
       const params = new URLSearchParams({ workspaceId, turnId, resultId: ticket.id });
-      const response = await fetch(`/api/chat/reports?${params}`, { cache: 'no-store', signal: controller.signal });
-      status = response.status;
-      if (!response.ok) throw new Error('Report result unavailable.');
-      const next = reportAssistantResultResponseSchema.parse(await response.json());
-      if (next.snapshot.selection.query.workspaceId !== workspaceId || next.snapshot.result.id !== ticket.id ||
-        next.snapshot.result.area !== ticket.area || next.retrievedAt !== ticket.retrievedAt) {
-        throw new Error('Report ticket does not match the saved result.');
-      }
+      const next = await api.read(`/api/chat/reports?${params}`, raw => {
+        const next = reportAssistantResultResponseSchema.parse(raw);
+        if (next.snapshot.selection.query.workspaceId !== workspaceId || next.snapshot.result.id !== ticket.id ||
+          next.snapshot.result.area !== ticket.area || next.retrievedAt !== ticket.retrievedAt) {
+          throw new Error('Report ticket does not match the saved result.');
+        }
+        return next;
+      }, controller.signal);
       if (mounted.current && token === sequence.current) { setCurrent(next); setState('ready'); }
     } catch (error) {
       if (!controller.signal.aborted && mounted.current && token === sequence.current) {
         if (!(error instanceof Error)) throw error;
-        fail(status);
+        fail(error instanceof ApiRequestError ? error.status : undefined);
       }
     } finally { controllers.current.delete(controller); }
-  }, [workspaceId, turnId, ticket.id, ticket.area, ticket.retrievedAt, fail]);
+  }, [workspaceId, turnId, ticket.id, ticket.area, ticket.retrievedAt, fail, api]);
   useEffect(() => {
     mounted.current = true;
     void Promise.resolve().then(refresh);
@@ -63,22 +65,19 @@ export function ConnectedReportResult({ ticket, workspaceId, turnId, disabled, o
     flight.current = true; setOpening(true);
     const token = ++sequence.current, controller = new AbortController();
     controllers.current.add(controller);
-    let status: number | undefined;
     try {
-      const response = await fetch('/api/chat/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal, body: JSON.stringify({ workspaceId, turnId, resultId: id }) });
-      status = response.status;
-      if (!response.ok) throw new Error('Report navigation unavailable.');
-      const value: unknown = await response.json();
       const expected = reportHref(current.snapshot.selection);
-      if (!value || typeof value !== 'object' || !('href' in value) || value.href !== expected) {
-        throw new Error('Report navigation does not match the saved query.');
-      }
+      await api.write('/api/chat/reports', { workspaceId, turnId, resultId: id }, value => {
+        if (!value || typeof value !== 'object' || !('href' in value) || value.href !== expected) {
+          throw new Error('Report navigation does not match the saved query.');
+        }
+        return expected;
+      }, controller.signal);
       if (mounted.current && token === sequence.current && !latest.current.disabled) latest.current.onNavigate(expected);
     } catch (error) {
       if (!controller.signal.aborted && mounted.current && token === sequence.current) {
         if (!(error instanceof Error)) throw error;
-        fail(status);
+        fail(error instanceof ApiRequestError ? error.status : undefined);
       }
     } finally {
       controllers.current.delete(controller); flight.current = false;

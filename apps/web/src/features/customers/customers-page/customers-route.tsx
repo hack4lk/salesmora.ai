@@ -2,6 +2,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWorkspaceAssistant } from "../../assistant/workspace-assistant/workspace-assistant";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { ApiQueryScopeBoundary } from "../../api/api-query-provider";
+import { useApiQuery } from "../../api/use-api-query";
+import { useApiMutation } from "../../api/use-api-mutation";
+import { apiReadOptions, invalidateWorkspaceResources } from "../../api/api-read-options";
+import { isApiAccessError } from "../../api/api-query";
+import { ApiRequestError } from "../../api/api-request";
+import { customerListResultSchema, customerDetailResultSchema, customerLeadCandidatesSchema, customerSavedResultSchema, customerDuplicateResultSchema } from "@salesmora/contracts";
 import { Pagination, Toast, FormFeedback } from "@salesmora/ui";
 import {
   customerQuerySchema,
@@ -60,23 +68,34 @@ function queryURL(query: CustomerQuery) {
     if (key !== "workspaceId") p.set(key, String(value));
   return p;
 }
-export function CustomersRoute({
-  workspaceId,
-  initial,
-  initialQuery,
-  initialDetail,
-  initialTab,
-}: {
+export interface CustomersRouteProps {
   workspaceId: string;
+  viewerId: string;
+  initialUpdatedAt: number;
   initial: CustomerListResult;
   initialQuery: CustomerQuery;
   initialDetail?: CustomerDetailResult;
   initialTab?: string;
-}) {
+}
+export function CustomersRoute(props: CustomersRouteProps) {
+  return <ApiQueryScopeBoundary scope={{ viewerId: props.viewerId, workspaceId: props.workspaceId }}>
+    <CustomersContent key={`${props.viewerId}:${props.workspaceId}:${props.initialDetail?.customer.id ?? "list"}`} {...props} />
+  </ApiQueryScopeBoundary>;
+}
+function CustomersContent({
+  workspaceId,
+  viewerId,
+  initialUpdatedAt,
+  initial,
+  initialQuery,
+  initialDetail,
+  initialTab,
+}: CustomersRouteProps) {
   const router = useRouter();
+  const client = useQueryClient();
+  const scope = { viewerId, workspaceId };
   const setPageContext = useWorkspaceAssistant()?.setPageContext;
-  const [list, setList] = useState(initial),
-    [query, setQuery] = useState(initialQuery),
+  const [query, setQuery] = useState(initialQuery),
     [filters, setFilters] = useState<CustomerFilters>({
       search: query.q,
       relationship: query.relationship,
@@ -85,37 +104,47 @@ export function CustomersRoute({
       sort: query.sort,
       archived: query.archived,
     }),
-    [detail, setDetail] = useState(initialDetail),
     [selected, setSelected] = useState<string | undefined>(
       initialDetail?.customer.id,
     ),
-    [drawer, setDrawer] = useState(false),
-    [state, setState] = useState<"ready" | "loading" | "error" | "forbidden">(
-      "ready",
-    ),
-    [detailState, setDetailState] = useState<
-      "ready" | "loading" | "error" | "forbidden"
-    >("ready"),
-    [tick, setTick] = useState(0);
-  // Accept new server DTOs after a shared assistant confirmation, preserving local tabs and filters.
-  const [serverSnapshot, setServerSnapshot] = useState({
-    initial,
-    initialDetail,
+    [drawer, setDrawer] = useState(false);
+  const [review, setReview] = useState<CustomerRecord>();
+  const [blocked, setBlocked] = useState(false), [deleted, setDeleted] = useState(false);
+  const [leadsPage, setLeadsPage] = useState(1);
+  const [activityPage, setActivityPage] = useState(1), [notesPage, setNotesPage] = useState(1);
+  const listOptions = apiReadOptions(
+    scope, "customers", query, `/api/customers?${queryURL(query)}`,
+    raw => customerListResultSchema.parse(raw), c.failure,
+  );
+  const detailOptions = apiReadOptions(
+    scope, "customer-detail", { selected, activityPage, notesPage, leadsPage },
+    `/api/customers/${selected}?workspace=${workspaceId}&activityPage=${activityPage}&notesPage=${notesPage}&leadsPage=${leadsPage}`,
+    raw => customerDetailResultSchema.parse(raw), c.unavailable,
+  );
+  const listQuery = useApiQuery({
+    ...listOptions,
+    initialData: JSON.stringify(query) === JSON.stringify(initialQuery) ? initial : undefined,
+    initialDataUpdatedAt: initialUpdatedAt,
   });
-  if (
-    serverSnapshot.initial !== initial ||
-    serverSnapshot.initialDetail !== initialDetail
-  ) {
-    setServerSnapshot({ initial, initialDetail });
-    setList(initial);
-    if (initialDetail) {
-      setDetail(initialDetail);
-      setDetailState("ready");
-    }
-  }
+  const detailQuery = useApiQuery({
+    ...detailOptions,
+    enabled: !!selected && !deleted,
+    initialData: selected === initialDetail?.customer.id && activityPage === 1 && notesPage === 1 && leadsPage === 1
+      ? initialDetail : undefined,
+    initialDataUpdatedAt: initialUpdatedAt,
+  });
+  const list = listQuery.data ?? initial;
+  const detail = detailQuery.isError ? undefined : detailQuery.data;
+  const forbidden = blocked || isApiAccessError(listQuery.error) || isApiAccessError(detailQuery.error);
+  const state = forbidden ? "forbidden" : listQuery.isError ? "error" : listQuery.isPending ? "loading" : "ready";
+  const detailState = forbidden ? "forbidden" : detailQuery.isError ? "error" : selected && detailQuery.isPending ? "loading" : "ready";
+  const setDetail = (value: CustomerDetailResult | undefined) => {
+    if (value) client.setQueryData(detailOptions.queryKey, value);
+  };
   const profile = !!initialDetail;
   useEffect(() => {
-    if (profile && detail) {
+    if (state !== "ready" || detailState !== "ready") { setPageContext?.(undefined); }
+    else if (profile && detail) {
       setPageContext?.({
         key: `customer:${detail.customer.id}`,
         label: `${detail.customer.number} · ${detail.customer.name}`,
@@ -137,7 +166,7 @@ export function CustomersRoute({
       });
     } else setPageContext?.(undefined);
     return () => setPageContext?.(undefined);
-  }, [setPageContext, profile, detail, query]);
+  }, [setPageContext, profile, detail, query, state, detailState]);
   const [dialog, setDialog] = useState(false),
     [editing, setEditing] = useState(false),
     [values, setValues] = useState<CustomerValues>(empty),
@@ -156,24 +185,10 @@ export function CustomersRoute({
   const attempt = useRef<
       { signature: string; body: Record<string, unknown> } | undefined
     >(undefined),
-    mounted = useRef(false),
     serial = useRef(0);
-  const [review, setReview] = useState<CustomerRecord>();
-  const [leadsPage, setLeadsPage] = useState(1);
-  const [activityPage, setActivityPage] = useState(1),
-    [notesPage, setNotesPage] = useState(1);
+  const writeMutation = useApiMutation("customers", raw => customerSavedResultSchema.parse(raw), c.saveFailure);
   const hide = useCallback(() => {
-    setState("forbidden");
-    setDetailState("forbidden");
-    setList((l) => ({
-      ...l,
-      rows: [],
-      members: [],
-      total: 0,
-      totals: { customers: 0, withOpenLeads: 0 },
-      capabilities: denied,
-    }));
-    setDetail(undefined);
+    setBlocked(true);
     setReview(undefined);
     setValues(empty);
     setCandidates([]);
@@ -184,79 +199,28 @@ export function CustomersRoute({
     setUnlinking(undefined);
     setExporting(false);
     router.refresh();
-  }, [router]);
+  }, [router, setBlocked, setReview, setValues, setCandidates, setMatches, setDialog, setAction, setLinking, setUnlinking, setExporting]);
   const load = useCallback(
     async (signal?: AbortSignal) => {
       const run = ++serial.current;
-      setState("loading");
-      if (selected) setDetailState("loading");
       try {
-        const response = await fetch(`/api/customers?${queryURL(query)}`, {
-          cache: "no-store",
-          signal,
-        });
-        if (response.status === 401 || response.status === 404) {
-          hide();
-          return;
-        }
-        if (!response.ok) throw Error();
-        const result: CustomerListResult = await response.json();
-        let record: CustomerDetailResult | undefined;
-        if (selected) {
-          const d = await fetch(
-            `/api/customers/${selected}?workspace=${workspaceId}&activityPage=${activityPage}&notesPage=${notesPage}&leadsPage=${leadsPage}`,
-            { cache: "no-store", signal },
-          );
-          if (d.status === 401 || d.status === 404) {
-            if (run !== serial.current || signal?.aborted) return;
-            hide();
-            if (!profile) {
-              setSelected(undefined);
-              setTick((t) => t + 1);
-            }
-            return;
-          } else {
-            if (!d.ok) throw Error();
-            record = await d.json();
-          }
-        }
-        if (run !== serial.current || signal?.aborted) return;
-        setList(result);
-        setState("ready");
-        if (record) {
-          setDetail(record);
-          setDetailState("ready");
-        }
-      } catch {
+        await invalidateWorkspaceResources(client, workspaceId, ["customers", "customer-detail", "customer-candidates", "leads", "home", "jobs", "calendar", "reports"]);
+        setBlocked(false);
+        return true;
+      } catch (error) {
         if (signal?.aborted || run !== serial.current) return;
-        setState("error");
-        if (selected) setDetailState("error");
+        if (isApiAccessError(error)) hide();
+        setError(c.failure);
+        return false;
       }
     },
-    [
-      query,
-      selected,
-      workspaceId,
-      activityPage,
-      notesPage,
-      leadsPage,
-      hide,
-      profile,
-    ],
+    [client, workspaceId, hide, setBlocked],
   );
-  useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true;
-      return;
-    }
-    const abort = new AbortController();
-    void load(abort.signal);
-    return () => abort.abort();
-  }, [load, tick]);
+  const setTick = useCallback(() => { void load(); }, [load]);
   useEffect(() => {
     const refresh = () => {
       if (document.activeElement?.closest("form") || dialog || busy) return;
-      setTick((t) => t + 1);
+      setTick();
     };
     const timer = setInterval(refresh, 30000);
     window.addEventListener("focus", refresh);
@@ -264,7 +228,10 @@ export function CustomersRoute({
       clearInterval(timer);
       window.removeEventListener("focus", refresh);
     };
-  }, [dialog, busy]);
+  }, [dialog, busy, setTick]);
+  useEffect(() => {
+    if (forbidden) router.refresh();
+  }, [forbidden, router]);
   useEffect(() => {
     const timer = setTimeout(() => {
       const next = customerQuerySchema.parse({
@@ -292,18 +259,12 @@ export function CustomersRoute({
       setLinkLoading(true);
       setError("");
       try {
-        const response = await fetch(
-          `/api/customers/${selected}/leads?workspace=${workspaceId}&q=${encodeURIComponent(linkQuery)}`,
-          { signal: abort.signal, cache: "no-store" },
-        );
-        if (response.status === 401 || response.status === 404) {
-          hide();
-          return;
-        }
-        if (!response.ok) throw Error();
-        setCandidates((await response.json()).records);
-      } catch {
+        const result = await client.fetchQuery(apiReadOptions({ viewerId, workspaceId }, "customer-candidates", { selected, q: linkQuery },
+          `/api/customers/${selected}/leads?workspace=${workspaceId}&q=${encodeURIComponent(linkQuery)}`, raw => customerLeadCandidatesSchema.parse(raw), c.failure));
+        if (!abort.signal.aborted) setCandidates(result.records);
+      } catch (error) {
         if (!abort.signal.aborted) {
+          if (isApiAccessError(error)) hide();
           setCandidates([]);
           setError(c.failure);
         }
@@ -315,7 +276,7 @@ export function CustomersRoute({
       clearTimeout(timer);
       abort.abort();
     };
-  }, [linking, selected, linkQuery, workspaceId, hide]);
+  }, [linking, selected, linkQuery, workspaceId, viewerId, hide, client]);
   async function send(body: Record<string, unknown>, create = false) {
     if (busy) throw Error(c.saveFailure);
     setBusy(true);
@@ -330,31 +291,11 @@ export function CustomersRoute({
         body: { ...body, submissionId: crypto.randomUUID() },
       };
     try {
-      const response = await fetch(
-        create ? "/api/customers" : `/api/customers/${body.customerId}`,
-        {
-          method: create
-            ? "POST"
-            : body.action === "delete"
-              ? "DELETE"
-              : "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(attempt.current.body),
-        },
-      );
-      const result = await response.json();
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 404) {
-          hide();
-          throw Error(c.unavailable);
-        }
-        if (result.code === "duplicate") {
-          setMatches(result.matches);
-          return false;
-        }
-        setConflict(result.code === "conflict");
-        throw Error(result.error || c.saveFailure);
-      }
+      await writeMutation.mutateAsync({
+        path: create ? "/api/customers" : `/api/customers/${body.customerId}`,
+        method: create ? "POST" : body.action === "delete" ? "DELETE" : "PATCH",
+        body: attempt.current.body,
+      });
       attempt.current = undefined;
       setDialog(false);
       setAction(undefined);
@@ -366,12 +307,26 @@ export function CustomersRoute({
         body.action === "delete" ? c.deleted : create ? c.saved : c.changed,
       );
       if (body.action === "delete") {
+        setDeleted(true);
+        const resourceKey = detailOptions.queryKey.slice(0, 5);
+        await client.cancelQueries({ queryKey: resourceKey });
+        client.removeQueries({ queryKey: resourceKey, predicate: query => {
+          const filters = query.queryKey[6];
+          return typeof filters === "object" && filters !== null && "selected" in filters && filters.selected === body.customerId;
+        } });
+        if (!(await load())) setError(c.savedReload);
         setDrawer(false);
         router.push(`/customers?${queryURL(query)}`);
         router.refresh();
-      } else await load();
+      } else if (!(await load())) setError(c.savedReload);
       return true;
     } catch (e) {
+      if (isApiAccessError(e)) hide();
+      if (e instanceof ApiRequestError) {
+        const duplicate = customerDuplicateResultSchema.safeParse(e.details);
+        if (duplicate.success) { setMatches(duplicate.data.matches); return false; }
+        setConflict(typeof e.details === "object" && e.details !== null && "code" in e.details && e.details.code === "conflict");
+      }
       setError(e instanceof Error ? e.message : c.saveFailure);
       throw e;
     } finally {
@@ -400,7 +355,7 @@ export function CustomersRoute({
   };
   const current = detail?.customer,
     caps =
-      state === "forbidden"
+      state !== "ready" || detailState !== "ready"
         ? denied
         : (detail?.capabilities ?? list.capabilities);
   useEffect(() => {
@@ -432,8 +387,6 @@ export function CustomersRoute({
     router.push(`/leads/${id}?workspace=${encodeURIComponent(workspaceId)}`);
   const onRow = (id: string) => {
     setSelected(id);
-    setDetail(undefined);
-    setDetailState("loading");
     setActivityPage(1);
     setNotesPage(1);
     setLeadsPage(1);
@@ -453,18 +406,10 @@ export function CustomersRoute({
     }
     try {
       setError("");
-      const response = await fetch(
-        `/api/customers/${id}?workspace=${workspaceId}`,
-        { cache: "no-store" },
-      );
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 404) hide();
-        throw Error(c.unavailable);
-      }
-      const d: CustomerDetailResult = await response.json();
+      const d = await client.fetchQuery({ ...apiReadOptions(scope, "customer-detail", { selected: id, activityPage: 1, notesPage: 1, leadsPage: 1 },
+        `/api/customers/${id}?workspace=${workspaceId}`, raw => customerDetailResultSchema.parse(raw), c.unavailable), staleTime: 0 });
       setSelected(id);
-      setDetail(d);
-      setDetailState("ready");
+      setActivityPage(1); setNotesPage(1); setLeadsPage(1);
       if (next === "edit") {
         attempt.current = undefined;
         setValues(d.customer);
@@ -476,12 +421,15 @@ export function CustomersRoute({
         setReview(d.customer);
         setAction(next);
       }
-    } catch {
+    } catch (error) {
+      if (isApiAccessError(error)) hide();
       setError(c.unavailable);
     }
   };
   const profileURL = (id: string, tab?: string) =>
     `/customers/${id}?${queryURL(query)}${tab ? `&tab=${tab}` : ""}`;
+  if (forbidden) return <FormFeedback kind="error" message={c.unavailable}/>;
+  if (deleted) return <FormFeedback kind="success" message={c.deleted}/>;
   return (
     <div className="grid min-w-0 gap-6">
       {profile ? (
@@ -492,7 +440,7 @@ export function CustomersRoute({
               <button
                 type="button"
                 className={customerButton}
-                onClick={() => setTick((t) => t + 1)}
+                onClick={setTick}
               >
                 {c.retry}
               </button>
@@ -548,16 +496,13 @@ export function CustomersRoute({
               await mutation("note", { body });
               setNotesPage(1);
             }}
-            onRetry={() => setTick((t) => t + 1)}
+            onRetry={setTick}
           />
         </>
       ) : (
         <>
           <header className="flex flex-wrap items-end justify-between gap-5">
             <div>
-              <p className="mb-2 mt-0 text-sm font-semibold text-primary">
-                {c.eyebrow}
-              </p>
               <h1 className="m-0 text-heading font-semibold text-ink">
                 {c.title}
               </h1>
@@ -612,7 +557,7 @@ export function CustomersRoute({
                       ? "loading"
                       : "error"
                 }
-                onRetry={() => setTick((t) => t + 1)}
+                onRetry={setTick}
               />
               <CustomersToolbar
                 value={filters}
@@ -660,7 +605,7 @@ export function CustomersRoute({
                   onOpenLeads={(row) =>
                     router.push(profileURL(row.id, "leads"))
                   }
-                  onRetry={() => setTick((t) => t + 1)}
+                  onRetry={setTick}
                   sort={{
                     column: query.sort === "activity" ? "activity" : "name",
                     direction: query.sort === "name" ? "asc" : "desc",
@@ -719,7 +664,7 @@ export function CustomersRoute({
         onProfile={() => current && router.push(profileURL(current.id))}
         onEdit={() => change("edit")}
         onOpenRecord={openRecord}
-        onRetry={() => setTick((t) => t + 1)}
+        onRetry={setTick}
       />
       <CustomerDialog
         open={dialog}
@@ -736,21 +681,15 @@ export function CustomersRoute({
         onReload={async () => {
           if (!current) return;
           try {
-            const response = await fetch(
-              `/api/customers/${current.id}?workspace=${workspaceId}`,
-              { cache: "no-store" },
-            );
-            if (!response.ok) {
-              if (response.status === 401 || response.status === 404) hide();
-              throw Error(c.unavailable);
-            }
-            const next: CustomerDetailResult = await response.json();
+            await client.invalidateQueries({ queryKey: detailOptions.queryKey, refetchType: "none" });
+            const next = await client.fetchQuery(detailOptions);
             setDetail(next);
             setValues(next.customer);
             attempt.current = undefined;
             setConflict(false);
             setError("");
-          } catch {
+          } catch (error) {
+            if (isApiAccessError(error)) hide();
             setError(c.failure);
           }
         }}

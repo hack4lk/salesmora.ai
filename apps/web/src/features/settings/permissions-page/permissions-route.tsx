@@ -6,10 +6,23 @@ import { workspacePolicySchema } from '@salesmora/contracts';
 import { FormFeedback, PasswordField, SubmitButton } from '@salesmora/ui';
 import { PermissionsPage, type PermissionsPageProps, type PermissionSaveResult } from './permissions-page';
 import { permissionsRouteData as copy } from './permissions-route.data';
+import { SettingsQueryBoundary, useSettingsRequest } from '../use-settings-request';
+import { ApiRequestError } from '../../api/api-request';
+import { isApiAccessError } from '../../api/api-query';
 
 type Props = Omit<PermissionsPageProps, 'onSave' | 'onReload' | 'onReauthenticate'> & { email: string; userId: string };
 
-export function PermissionsRoute({ email, userId, ...props }: Props) {
+export function PermissionsRoute(props: Props) {
+  return <SettingsQueryBoundary workspaceId={props.policy.workspaceId}><PermissionsHost {...props}/></SettingsQueryBoundary>;
+}
+function PermissionsHost({ email, userId, ...props }: Props) {
+  const parse = (raw: unknown) => {
+    if (!raw || typeof raw !== 'object' || !('policy' in raw)) throw new Error(copy.reloadError);
+    const policy = workspacePolicySchema.parse(raw.policy);
+    if (policy.workspaceId !== props.policy.workspaceId) throw new Error(copy.reloadError);
+    return policy;
+  };
+  const api = useSettingsRequest('permissions', `/api/permissions?workspace=${encodeURIComponent(props.policy.workspaceId)}`, parse, copy.reloadError);
   const router = useRouter();
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
@@ -20,6 +33,7 @@ export function PermissionsRoute({ email, userId, ...props }: Props) {
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+  const [unavailable, setUnavailable] = useState(false);
 
   useEffect(() => {
     if (confirming) dialog.current?.showModal();
@@ -61,25 +75,29 @@ export function PermissionsRoute({ email, userId, ...props }: Props) {
     finally { submitting.current = false; setPending(false); }
   }
 
+  if (unavailable) return <FormFeedback kind="error" message={copy.unavailable}/>;
   return <div ref={root} className="grid min-w-0 gap-6">
-    <nav aria-label={copy.settingsNavigation} className="flex flex-wrap items-center gap-4"><a href={`/settings?workspace=${encodeURIComponent(props.policy.workspaceId)}`} className="inline-flex min-h-11 items-center rounded-xl px-4 py-2 text-sm font-semibold text-primary underline underline-offset-2 focus-visible:focus-ring">{copy.backToSettings}</a><span aria-current="page" className="text-sm font-semibold text-muted">{copy.permissions}</span></nav>
     <PermissionsPage {...props}
       onSave={async change => {
         try {
-          const response = await fetch('/api/permissions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(change) });
-          if (!response.ok) return { ok: false, reason: response.status === 409 ? 'conflict' : response.status === 428 ? 'reauthentication' : 'error' } satisfies PermissionSaveResult;
-          const result = workspacePolicySchema.safeParse((await response.json()).policy);
-          if (!result.success) return { ok: false, reason: 'error' };
+          const policy = await api.write({ path: '/api/permissions', method: 'POST', body: change, parse, failureMessage: copy.reloadError });
           router.refresh();
-          return { ok: true, policy: result.data };
-        } catch { return { ok: false, reason: 'error' }; }
+          return { ok: true, policy };
+        } catch (error) {
+          if (api.isActive() && isApiAccessError(error)) setUnavailable(true);
+          const status = error instanceof ApiRequestError ? error.status : undefined;
+          return { ok: false, reason: status === 409 ? 'conflict' : status === 428 ? 'reauthentication' : 'error' } satisfies PermissionSaveResult;
+        }
       }}
       onReload={async () => {
-        const response = await fetch(`/api/permissions?workspace=${encodeURIComponent(props.policy.workspaceId)}`, { cache: 'no-store' });
-        if (!response.ok) throw Error(copy.reloadError);
-        const policy = workspacePolicySchema.parse((await response.json()).policy);
-        router.refresh();
-        return policy;
+        try {
+          const policy = await api.read();
+          router.refresh();
+          return policy;
+        } catch (error) {
+          if (api.isActive() && isApiAccessError(error)) setUnavailable(true);
+          throw error;
+        }
       }}
       onReauthenticate={() => new Promise<void>((resolve, reject) => {
         confirmation.current = { resolve, reject };

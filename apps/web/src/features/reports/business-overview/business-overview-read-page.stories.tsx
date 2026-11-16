@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { reportSnapshotDecorator } from '../report-snapshot.story-helpers';
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { businessOverviewQuerySchema, businessOverviewReadResultSchema, businessOverviewExportInputSchema,
@@ -17,6 +18,7 @@ async function applyEmptyPeriod(element: HTMLElement) {
   await userEvent.click(canvas.getByRole('button', { name: 'Apply period' }));
 }
 const meta = {
+  decorators: [reportSnapshotDecorator],
   title: 'Reports/BusinessOverviewReadPage', component: BusinessOverviewReadPage, tags: ['autodocs'],
   parameters: { layout: 'fullscreen', docs: { description: { component: 'Session-bound Overview host composing the canonical BusinessOverviewPage with native API-shaped mocks and personal templates. Native domains and CSV export scopes remain independently available; period/current bases are preserved. Production permissions/navigation and assistant integration remain deferred.' } } },
   args: { initial: overviewReadResponse(initialOverviewQuery), onReload: fn(), onNavigate: fn() },

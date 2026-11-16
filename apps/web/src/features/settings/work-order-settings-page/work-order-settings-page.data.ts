@@ -19,6 +19,7 @@ export const workOrderSettingsPageData = {
   unchanged: 'No unsaved changes.',
   changed: 'You have unsaved changes.',
   saveErrorTitle: 'Settings not saved',
+  unavailable: 'These work order settings are no longer available. Reload the page to recheck access.',
   saveError: 'Your work order settings could not be saved. Check the phone number and try again.',
   successTitle: 'Settings saved',
   success: 'Your work order settings were updated.',

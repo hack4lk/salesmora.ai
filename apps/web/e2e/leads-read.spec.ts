@@ -33,6 +33,25 @@ async function login(page: import('@playwright/test').Page, role: string) {
   // Reuse the authenticated fixture session; repeated logins can hit the real auth rate limiter.
   await page.context().addCookies((await clients[role].storageState()).cookies);
 }
+test('fresh filtered Lead queries are reused without duplicate requests', async ({ page }) => {
+  await login(page, 'owner');
+  let filteredReads = 0;
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (request.method() === 'GET' && url.pathname === '/api/leads' && url.searchParams.get('q') === 'Jordan Read') filteredReads++;
+  });
+  await page.goto(`/leads?workspace=${workspaceId}&view=list`);
+  const search = page.getByRole('textbox', { name: /^Search leads/ });
+  await search.fill('Jordan Read');
+  await expect(page.getByText('Showing 1–1 of 1', { exact: true })).toBeVisible();
+  expect(filteredReads).toBe(1);
+  await page.getByRole('button', { name: 'Clear all', exact: true }).click();
+  await expect(page.getByText('Showing 1–25 of 66', { exact: true })).toBeVisible();
+  await search.fill('Jordan Read');
+  await expect(page).toHaveURL(/q=Jordan\+Read/);
+  await expect(page.getByText('Showing 1–1 of 1', { exact: true })).toBeVisible();
+  expect(filteredReads).toBe(1);
+});
 test('live queries enforce every role and tenant, including quick view, archives and current revocation', async () => {
   expect((await clients.owner.get('/api/leads?workspace=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')).status()).toBe(404);
   for (const role of ['owner', 'admin', 'office']) {

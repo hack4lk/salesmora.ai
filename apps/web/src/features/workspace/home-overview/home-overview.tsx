@@ -3,6 +3,7 @@ import { useId } from "react";
 import { homeOverviewData as copy } from "./home-overview.data";
 export interface HomeOverviewProps {
   headingLevel?: 1 | 2;
+  showHeader?: boolean;
   userName: string;
   workspaceName: string;
   role: keyof typeof copy.roles;
@@ -18,6 +19,7 @@ export interface HomeOverviewProps {
 /** Welcome content only. Record totals and data access are supplied by later features. */
 export function HomeOverview({
   headingLevel = 2,
+  showHeader = true,
   userName,
   workspaceName,
   role,
@@ -42,7 +44,7 @@ export function HomeOverview({
   ];
   return (
     <section aria-labelledby={`${id}-greeting`} className="grid min-w-0 gap-6">
-      <header className="grid min-w-0 gap-4 sm:flex sm:items-start sm:justify-between">
+      {showHeader && <header className="grid min-w-0 gap-4 sm:flex sm:items-start sm:justify-between">
         <div className="min-w-0">
           <Greeting
             id={`${id}-greeting`}
@@ -60,7 +62,7 @@ export function HomeOverview({
         <span className="w-fit shrink-0 rounded-full border border-line bg-paper px-4 py-2 text-sm font-semibold text-primary">
           {copy.roles[role]}
         </span>
-      </header>
+      </header>}
       {!empty && canCreateLead && createLeadHref && <a href={createLeadHref} className="seafoam-action inline-flex min-h-11 w-fit items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold hover:bg-none hover:bg-seafoam-dark focus-visible:focus-ring">{copy.leads.action}</a>}
       {empty && (
         <div className="min-w-0 rounded-2xl border border-line bg-paper p-6 sm:p-8">

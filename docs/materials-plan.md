@@ -23,6 +23,11 @@ Status: draft for Q&A walk-through. Follows the pattern of `work-orders-plan.md`
 ## 2. Requirements
 
 ### Catalog page (`/materials`)
+The catalog table expands to fit all rows on the selected page, without an
+internal vertical scrollbar. Pagination (25/50/100) and mobile cards remain;
+wide tables retain horizontal scrolling. Other shared DataTable consumers keep
+their existing height limit unless they opt out with `constrainHeight={false}`.
+
 | ID | Requirement | Status |
 |----|-------------|--------|
 | MAT-1 | Table with search, category filter, supplier filter, archived toggle, sort and numbered pages (25/50/100) | Proposed |

@@ -4,7 +4,7 @@ import { AIUsagePage } from './ai-usage-page';
 import { aiUsagePageData as copy } from './ai-usage-page.data';
 const meta = {
   title: 'Settings/AIUsagePage', component: AIUsagePage, parameters: { layout: 'fullscreen' },
-  args: { workspaceName: copy.stories.workspace, viewerRole: 'owner', settingsHref: copy.stories.settingsHref, state: 'ready', usage: { usedOrReservedTokens: '1250000', monthlyTokens: '5000000', resetAt: copy.stories.resetAt }, onRefresh: fn() },
+  args: { viewerRole: 'owner', state: 'ready', usage: { usedOrReservedTokens: '1250000', monthlyTokens: '5000000', resetAt: copy.stories.resetAt }, onRefresh: fn() },
   decorators: [Story => <main className="mx-auto min-h-screen w-full max-w-6xl p-4 sm:p-8"><p className="mb-6 mt-0 text-sm leading-6 text-muted">{copy.stories.notice}</p><Story /></main>],
 } satisfies Meta<typeof AIUsagePage>;
 export default meta;
@@ -12,9 +12,11 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = { play: async ({ canvasElement, args }) => {
   const c = within(canvasElement);
   await expect(c.getByRole('heading', { name: copy.title, level: 1 })).toBeVisible();
+  await expect(c.queryByText('Tokens measure AI usage. This is not a billing statement or a currency spending limit.')).not.toBeInTheDocument();
   await expect(c.getByText('3,750,000')).toBeVisible();
   await expect(c.getByRole('progressbar', { name: copy.meter })).toHaveAttribute('value', '25');
-  await expect(c.getByRole('link', { name: copy.back })).toHaveAttribute('href', copy.stories.settingsHref);
+  await expect(c.queryByRole('link', { name: 'Back to Settings' })).not.toBeInTheDocument();
+  for (const text of ['Workspace settings', 'Owner only', copy.stories.workspace]) await expect(c.queryByText(text)).not.toBeInTheDocument();
   const refresh = c.getByRole('button', { name: copy.refresh });
   refresh.focus(); await expect(refresh).toHaveFocus();
   await userEvent.keyboard('{Enter}'); await expect(args.onRefresh).toHaveBeenCalledOnce();
@@ -46,4 +48,4 @@ export const FieldDenied: Story = { ...AdminDenied, args: { viewerRole: 'field' 
 export const InvalidSnapshot: Story = { args: { usage: { ...meta.args.usage, usedOrReservedTokens: '-1' } }, play: async ({ canvasElement }) => {
   const c = within(canvasElement); await expect(c.getByRole('alert')).toHaveTextContent(copy.errorTitle); await expect(c.queryByRole('progressbar')).not.toBeInTheDocument();
 } };
-export const LongContent: Story = { args: { workspaceName: copy.stories.longWorkspace, usage: { ...meta.args.usage, monthlyTokens: '1000000000000', usedOrReservedTokens: '999999999999' } } };
+export const LongContent: Story = { args: { usage: { ...meta.args.usage, monthlyTokens: '1000000000000', usedOrReservedTokens: '999999999999' } } };

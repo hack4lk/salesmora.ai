@@ -1,10 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState, type ComponentProps } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within, fireEvent } from "storybook/test";
 import type { EstimateShareChatView } from "@salesmora/contracts";
 import { ConnectedEstimateSharing } from "./estimate-sharing-result";
 import { estimateSharingFixture, estimateSharingWorkspaceId } from "./estimate-sharing.fixtures";
 import { estimateSharingData as c } from "./estimate-sharing-client";
+import { ApiQueryScopeBoundary } from "../../api/api-query-provider";
 
 function mockReview(initial: EstimateShareChatView, fail = false) {
   const original = globalThis.fetch;
@@ -35,7 +36,7 @@ const meta = {
   component: ConnectedEstimateSharing,
   args: { ticket: estimateSharingFixture().ticket, workspaceId: estimateSharingWorkspaceId, onRefresh: fn(async () => {}), onNavigate: fn() },
   beforeEach: () => mockReview(estimateSharingFixture()),
-  decorators: [(Story) => <main className="mx-auto w-full max-w-4xl bg-canvas p-4"><Story /></main>],
+  decorators: [(Story) => <ApiQueryScopeBoundary scope={{ viewerId: "storybook-viewer", workspaceId: estimateSharingWorkspaceId }}><main className="mx-auto w-full max-w-4xl bg-canvas p-4"><Story /></main></ApiQueryScopeBoundary>],
 } satisfies Meta<typeof ConnectedEstimateSharing>;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -92,8 +93,7 @@ export const RecipientRefresh: Story = {
   play: async ({ canvasElement }) => {
     await userEvent.click(await within(canvasElement).findByRole("button", { name: c.review["estimate.resend"] }));
     const dialog = () => within(within(document.body).getByRole("alertdialog"));
-    await userEvent.clear(dialog().getByRole("textbox", { name: /Delivery email/ }));
-    await userEvent.type(dialog().getByRole("textbox", { name: /Delivery email/ }), "updated@example.test");
+    fireEvent.change(dialog().getByRole("textbox", { name: /Delivery email/ }), { target: { value: "updated@example.test" } });
     await expect(dialog().getByRole("button", { name: "Review updated recipient" })).toBeEnabled();
     await userEvent.click(dialog().getByRole("button", { name: "Review updated recipient" }));
     await expect(await within(canvasElement).findByText(c.refreshed)).toBeInTheDocument();

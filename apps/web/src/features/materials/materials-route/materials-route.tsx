@@ -1,31 +1,38 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { ApiQueryScopeBoundary, useApiQueryScope } from '../../api/api-query-provider';
+import { useApiQuery } from '../../api/use-api-query';
+import { useApiMutation } from '../../api/use-api-mutation';
+import { apiReadOptions, invalidateWorkspaceResources } from '../../api/api-read-options';
+import { isApiAccessError } from '../../api/api-query';
+import { ApiRequestError } from '../../api/api-request';
 import { FormFeedback } from '@salesmora/ui';
-import type { MaterialListResult, MaterialQuery, MaterialView } from '@salesmora/contracts';
+import { materialListResultSchema, materialSavedResultSchema, type MaterialListResult, type MaterialQuery, type MaterialView } from '@salesmora/contracts';
 import { MaterialsPage } from '../materials-page/materials-page';
 import { defaultMaterialsFilters, type MaterialsPageFilters, type MaterialsPageSort } from '../materials-page.types';
 import { MaterialDialog, type MaterialDialogMode } from '../material-dialog/material-dialog';
 import { MaterialRejectDialog } from '../material-reject-dialog/material-reject-dialog';
 import { MaterialArchiveDialog } from '../material-archive-dialog/material-archive-dialog';
 import { fieldsFromForm, patchFromForm, type MaterialFormValues } from '../material-dialog/material-form';
-import { createReceipts, workOrderRequest, WorkOrderRequestError } from '../../work-orders/work-order-client';
+import { createReceipts } from '../../work-orders/work-order-client';
 import { materialsRouteData as copy } from './materials-route.data';
-
-async function load(url: string, signal: AbortSignal): Promise<MaterialListResult> {
-  const response = await fetch(url, { cache: 'no-store', signal });
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error ?? copy.error);
-  return body;
-}
 
 type Dialog = { mode: MaterialDialogMode; row?: MaterialView };
 
-export function MaterialsRoute({ workspaceId, initial, initialQuery }: { workspaceId: string; initial: MaterialListResult; initialQuery: MaterialQuery }) {
-  const [list, setList] = useState(initial), [error, setError] = useState(''), [notice, setNotice] = useState(''), [loading, setLoading] = useState(false);
+export interface MaterialsRouteProps { workspaceId: string; viewerId: string; initialUpdatedAt: number; initial: MaterialListResult; initialQuery: MaterialQuery }
+export function MaterialsRoute(props: MaterialsRouteProps) {
+  return <ApiQueryScopeBoundary scope={{ viewerId: props.viewerId, workspaceId: props.workspaceId }}>
+    <MaterialsContent key={`${props.viewerId}:${props.workspaceId}`} {...props}/>
+  </ApiQueryScopeBoundary>;
+}
+function MaterialsContent({ workspaceId, initial, initialQuery, initialUpdatedAt }: MaterialsRouteProps) {
+  const client = useQueryClient(), scope = useApiQueryScope(), router = useRouter();
+  const [error, setError] = useState(''), [notice, setNotice] = useState(''), [blocked, setBlocked] = useState(false);
   const [page, setPage] = useState(initial.page), [pageSize, setPageSize] = useState(initial.pageSize);
   const [sort, setSort] = useState<MaterialsPageSort>({ column: initialQuery.sort ?? 'name', direction: initialQuery.direction ?? 'asc' });
   const [filters, setFilters] = useState<MaterialsPageFilters>({ ...defaultMaterialsFilters, q: initialQuery.q ?? '', category: initialQuery.category ?? 'all', supplier: initialQuery.supplier ?? 'all', archived: initialQuery.archived ?? false, status: initialQuery.status ?? 'active' });
-  const [refresh, setRefresh] = useState(0), sequence = useRef(0), first = useRef(true);
   const [dialog, setDialog] = useState<Dialog>(), [rejecting, setRejecting] = useState<MaterialView>(), [archiving, setArchiving] = useState<{ row: MaterialView; restore: boolean }>();
   const [pending, setPending] = useState(false), [writeError, setWriteError] = useState(''), [conflict, setConflict] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -36,30 +43,29 @@ export function MaterialsRoute({ workspaceId, initial, initialQuery }: { workspa
     status: filters.status, archived: String(filters.archived), page: String(page), pageSize: String(pageSize), sort: sort.column, direction: sort.direction,
   }).toString(), [filters, page, pageSize, sort, workspaceId]);
 
-  useEffect(() => {
-    if (first.current) { first.current = false; return; }
-    const controller = new AbortController(), current = ++sequence.current;
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      try { const result = await load(url, controller.signal); if (sequence.current === current) { setList(result); setPage(result.page); setError(''); } }
-      catch (e) { if (!controller.signal.aborted && sequence.current === current) setError(e instanceof Error ? e.message : copy.error); }
-      finally { if (!controller.signal.aborted && sequence.current === current) setLoading(false); }
-    }, 200);
-    return () => { clearTimeout(timer); controller.abort(); };
-  }, [url, refresh]);
-
-  const reload = () => setRefresh(value => value + 1);
+  const [initialURL] = useState(url);
+  const [readURL, setReadURL] = useState(url);
+  useEffect(() => { const timer = setTimeout(() => setReadURL(url), 200); return () => clearTimeout(timer); }, [url]);
+  const query = useApiQuery({ ...apiReadOptions(scope, 'materials', { url: readURL }, readURL, raw => materialListResultSchema.parse(raw), copy.error),
+    initialData: readURL === initialURL ? initial : undefined, initialDataUpdatedAt: initialUpdatedAt });
+  const list = query.data ?? initial, loading = query.isPending, denied = blocked || isApiAccessError(query.error);
+  const mutation = useApiMutation('materials', raw => materialSavedResultSchema.parse(raw), copy.saveError);
+  useEffect(() => { if (denied) router.refresh(); }, [denied, router]);
+  const reload = () => { setError(''); void query.refetch(); };
   const clearWrite = () => { setWriteError(''); setConflict(false); };
   async function write(payload: Record<string, unknown>, done: string): Promise<boolean> {
     if (flight.current) return false;
     flight.current = true; setPending(true); clearWrite(); setNotice('');
     try {
       const submissionId = receipts.current(payload);
-      await workOrderRequest('/api/materials', { method: 'POST', body: JSON.stringify({ workspaceId, submissionId, ...payload }) }, copy.saveError);
-      setNotice(done); reload();
+      await mutation.mutateAsync({ path: '/api/materials', method: 'POST', body: { workspaceId, submissionId, ...payload } });
+      setNotice(done);
+      try { await invalidateWorkspaceResources(client, workspaceId, ['materials', 'work-orders', 'estimates', 'home', 'reports']); }
+      catch { setError(copy.savedReload); }
       return true;
     } catch (e) {
-      setWriteError(e instanceof Error ? e.message : copy.saveError); setConflict(e instanceof WorkOrderRequestError && e.status === 409);
+      if (isApiAccessError(e)) setBlocked(true);
+      setWriteError(e instanceof Error ? e.message : copy.saveError); setConflict(e instanceof ApiRequestError && e.status === 409);
       return false;
     } finally { flight.current = false; setPending(false); }
   }
@@ -92,12 +98,13 @@ export function MaterialsRoute({ workspaceId, initial, initialQuery }: { workspa
   }
   const reloadAfterConflict = () => { clearWrite(); closeDialog(); setRejecting(undefined); setArchiving(undefined); reload(); };
 
+  if (denied) return <FormFeedback kind="error" message={copy.unavailable}/>;
   return (
     <div className="grid min-w-0 gap-6">
       <header><h1 className="m-0 text-heading font-semibold text-ink sm:text-heading-lg">{copy.title}</h1><p className="mb-0 mt-3 text-base leading-relaxed text-muted">{copy.description}</p></header>
       {notice && <div role="status"><FormFeedback kind="success" message={notice} /></div>}
-      {error && !loading && <FormFeedback kind="error" message={error} />}
-      <MaterialsPage {...list} canExport={list.canExport} exporting={exporting} onExport={() => void exportCsv()} filters={filters} sort={sort} state={loading ? 'loading' : error ? 'error' : 'ready'} pendingId={pending ? (dialog?.row ?? rejecting ?? archiving?.row)?.id : undefined}
+      {(error || query.isError) && !loading && <FormFeedback kind="error" message={error || copy.error} />}
+      <MaterialsPage {...list} canExport={list.canExport} exporting={exporting} onExport={() => void exportCsv()} filters={filters} sort={sort} state={loading ? 'loading' : query.isError ? 'error' : 'ready'} pendingId={pending ? (dialog?.row ?? rejecting ?? archiving?.row)?.id : undefined}
         onFilters={next => { setFilters(next); setPage(1); }} onSort={next => { setSort(next); setPage(1); }} onPage={setPage} onPageSize={size => { setPageSize(size); setPage(1); }}
         onAdd={() => { clearWrite(); setDialog({ mode: list.canManage ? 'create' : 'propose' }); }} onEdit={row => { clearWrite(); setDialog({ mode: 'edit', row }); }}
         onArchive={row => { clearWrite(); setArchiving({ row, restore: false }); }} onRestore={row => { clearWrite(); setArchiving({ row, restore: true }); }}

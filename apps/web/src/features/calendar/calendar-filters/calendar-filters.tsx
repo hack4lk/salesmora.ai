@@ -42,7 +42,7 @@ export function CalendarFilters({ value, members, viewerId, scope, disabled = fa
   if (visible.status !== 'all') chips.push({ id: 'status', label: copy.chip(copy.status, statuses.find(status => status.value === visible.status)!.label) });
   if (visible.customerQuery.trim()) chips.push({ id: 'customerQuery', label: copy.chip(copy.search, visible.customerQuery.trim()) });
   return <div className="grid min-w-0 gap-3 text-ink">
-    <FilterBar title={copy.title} activeFilters={chips} disabled={disabled}
+    <FilterBar hideEmptyStatus title={copy.title} activeFilters={chips} disabled={disabled}
       onClearAll={() => change({ ...emptyCalendarFilters, person: scope === 'own' ? 'me' : 'all' })}
       onRemove={key => { if (key === 'person') change({ person: 'all' }); else if (key === 'recordType') change({ recordType: 'all' }); else if (key === 'status') change({ status: 'all' }); else if (key === 'customerQuery') change({ customerQuery: '' }); }}>
       <label className={`${jobLabel} flex-1 basis-48`}>{copy.person}<select className={jobInput} value={visible.person} disabled={disabled || scope === 'own'} onChange={event => change({ person: people.find(person => person.value === event.target.value)?.value ?? 'all' })}>
@@ -61,6 +61,5 @@ export function CalendarFilters({ value, members, viewerId, scope, disabled = fa
       </label>
     </FilterBar>
     {scope === 'own' && <p id={`${id}-scope`} className="m-0 text-sm leading-6 text-muted">{copy.ownScope}</p>}
-    <p className="m-0 text-xs leading-5 text-muted">{copy.shared}</p>
   </div>;
 }

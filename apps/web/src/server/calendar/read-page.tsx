@@ -29,7 +29,7 @@ export async function renderCalendarPage(params: Record<string, string | string[
       user={{ name: session.user.name, email: session.user.email, role: context.membership.role }} authorizedPages={workspaceNavigationPages(context)}
       jobNotificationsAvailable={caps.jobNotifications} permissionsAvailable={caps.permissions} ganttAvailable={caps.readGantt} billingAvailable={caps.billing} assistantAvailable={caps.assistant} chatEnabled={await workspaceChatAvailable(workspace.id)}
       chatSurface="calendar" contentWidth="full" onSignOut={signOut}>
-      <CalendarRoute key={`calendar:${workspace.id}`} initial={initial} initialVisit={initialVisit}/>
+      <CalendarRoute key={`calendar:${workspace.id}`} initial={initial} initialVisit={initialVisit} initialUpdatedAt={Date.now()}/>
     </WorkspaceShell>;
   } catch (error) { if (error instanceof AuthorizationAccessError || error instanceof CalendarContractError) notFound(); throw error; }
 }

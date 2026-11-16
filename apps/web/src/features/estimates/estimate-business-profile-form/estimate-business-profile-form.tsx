@@ -5,7 +5,6 @@ import { FormFeedback } from "@salesmora/ui";
 import { EstimateBusinessLogo } from "../estimate-business-logo";
 import { isEstimatePaperLogoPath } from "../estimate-preview-paper/estimate-preview-paper.preview";
 import type { EstimateRole } from "../estimate-preview.types";
-import { createEstimateTimestampFormatter } from "../estimate-timestamp";
 import { estimateButton, estimateInput, estimatePanel, estimatePrimary } from "../estimate-ui";
 import { estimateBusinessProfileFormData as c, estimateBusinessProfileLimits as limits, estimateBusinessLogoLimits as logoLimits } from "./estimate-business-profile-form.data";
 import {
@@ -36,7 +35,7 @@ export function EstimateBusinessProfileForm(props: EstimateBusinessProfileFormPr
   return <BusinessProfileSession key={JSON.stringify([props.value.workspaceId, props.value.expectedVersion, props.canRead, props.canManage, props.role, binding, props.conflict, !!props.onChange, !!props.onUploadLogo])} {...props} />;
 }
 function BusinessProfileSession({
-  source, value, role, canRead, canManage, timezone, pending = false, conflict = false, saved = false,
+  source, value, role, canRead, canManage, pending = false, conflict = false, saved = false,
   onChange, onSave, onDiscard, onReload, onUploadLogo,
 }: EstimateBusinessProfileFormProps) {
   const id = useId(), form = useRef<HTMLFormElement>(null), addButton = useRef<HTMLButtonElement>(null);
@@ -131,14 +130,16 @@ function BusinessProfileSession({
     {onReload ? <button type="button" className={`${estimateButton} justify-self-start`} disabled={busy} onClick={() => { void reload(); }}>{working === "reload" ? c.reloading : c.reload}</button>
       : <p className="m-0 text-sm text-muted">{c.noReload}</p>}
   </div>;
-  return <section aria-labelledby={`${id}-title`} aria-busy={busy} className="grid min-w-0 gap-5 text-ink">
-    <header><h2 id={`${id}-title`} className="m-0 text-xl font-semibold">{c.title}</h2>
-      {canRead && <p className="mb-0 mt-3 text-sm leading-6 text-muted">{c.description}</p>}</header>
+  return <section aria-label={c.title} aria-busy={busy} className="grid min-w-0 gap-5 text-ink">
     {!canRead ? <FormFeedback kind="error" message={c.cannotRead} />
       : source.state !== "ready" ? <div className={`${estimatePanel} grid gap-4`}>
         {source.state === "loading" ? <p role="status" className="m-0">{c.loading}</p> : <><FormFeedback kind="error" message={source.state === "error" ? c.loadError : c.unavailable} />{reloadControl}</>}
         {failure && <FormFeedback kind="error" message={failure} />}
       </div> : <form ref={form} noValidate className="grid min-w-0 gap-5" onSubmit={(event) => { event.preventDefault(); void save(); }}>
+        {!!identityIssues.length && <div role="alert" className="rounded-xl border border-error bg-error/5 p-4 text-sm leading-6 text-ink">
+          <p className="m-0 font-semibold text-error">{c.identityIncomplete}</p>
+          <ul className="mb-0 mt-2 pl-5">{identityIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul>
+        </div>}
         {!editable && !review.issues.length && <p role="status" className="m-0 text-sm text-muted">{review.editable ? c.noChange : c.readOnly}</p>}
         {review.issues.map((issue) => <FormFeedback key={issue} kind="error" message={issue} />)}
         {!!review.issues.length && reloadControl}
@@ -181,10 +182,9 @@ function BusinessProfileSession({
             <span className="text-sm font-semibold">{c.addressRequired}</span>
           </label>
           <p id={`${id}-address-hint`} className="m-0 text-sm leading-6 text-muted">{c.addressHint}</p>
-          <div role="status" className="rounded-xl border border-line bg-canvas p-4 text-sm leading-6">
-            <p className="m-0">{identityIssues.length ? c.identityIncomplete : c.identityComplete}</p>
-            {!!identityIssues.length && <ul className="mb-0 mt-2 pl-5">{identityIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}
-          </div>
+          {!identityIssues.length && <div role="status" className="rounded-xl border border-line bg-canvas p-4 text-sm leading-6">
+            <p className="m-0">{c.identityComplete}</p>
+          </div>}
         </fieldset>
         <fieldset disabled={locked} className={`${estimatePanel} m-0 grid min-w-0 gap-5`}>
           <legend className="sr-only">{c.defaults}</legend>
@@ -256,9 +256,7 @@ function BusinessProfileSession({
           <dl className="m-0 grid min-w-0 gap-4 sm:grid-cols-2">{([
             [c.prefix, source.record.numberPrefix.trim() || c.unavailable],
             [c.nextNumber, Number.isSafeInteger(source.record.nextNumber) && source.record.nextNumber > 0 ? String(source.record.nextNumber) : c.unavailable],
-            [c.timezone, timezone.trim() && createEstimateTimestampFormatter(timezone) ? timezone : c.timezoneMissing],
           ] as const).map(([label, text]) => <div key={label} className="min-w-0"><dt className="text-sm text-muted">{label}</dt><dd className="m-0 mt-1 text-sm font-semibold wrap-anywhere">{text}</dd></div>)}</dl>
-          <p className="m-0 text-sm leading-6 text-muted">{c.numberingHint}</p>
         </section>
         {failure && <FormFeedback kind="error" message={failure} />}
         {reviewed && Object.keys(errors).length > 0 && <FormFeedback kind="error" message={c.defaultsInvalid} />}

@@ -10,11 +10,13 @@ import {
   estimateIdSchema,
   estimateExportColumns,
   estimateExportPreviewSchema,
+  estimateListResultSchema,
+  estimateRevisionFamilySchema,
+  estimateDraftSaveResultSchema,
   type EstimateExportColumn,
   type EstimateExportPreview,
   type EstimateRevisionFamily,
   type EstimateListQuery,
-  type EstimateListResult,
 } from "@salesmora/contracts";
 import { FormFeedback, Pagination } from "@salesmora/ui";
 import type { EstimateDraftSaveResult } from "@salesmora/data";
@@ -50,7 +52,11 @@ import { estimateArchiveDialogData as archiveCopy } from "../estimate-archive-di
 import { EstimateDeleteDraftReview } from "../estimate-delete-draft-dialog/estimate-delete-draft-review";
 import type { EstimateDeleteDraftRecord } from "../estimate-delete-draft-dialog/estimate-delete-draft-dialog.preview";
 import { estimateDeleteDraftDialogData as deleteCopy } from "../estimate-delete-draft-dialog/estimate-delete-draft-dialog.data";
-import { estimateLifecycleRequest, EstimateLifecycleRequestError } from "../estimate-lifecycle-client";
+import { useEstimateRequest, EstimateLifecycleRequestError } from "../use-estimate-request";
+import { ApiQueryScopeBoundary, useApiQueryScope } from "../../api/api-query-provider";
+import { apiReadOptions } from "../../api/api-read-options";
+import { useApiQuery } from "../../api/use-api-query";
+import { isApiAccessError } from "../../api/api-query";
 import type { EstimateRow } from "../estimate-preview.types";
 import { useWorkspaceAssistant } from "../../assistant/workspace-assistant/workspace-assistant";
 
@@ -66,20 +72,23 @@ const readOnlyCapabilities: EstimateCapabilities = {
   export: false,
 };
 
-export function EstimatesReadRoute({
+type EstimatesReadRouteProps = {
+  workspaceId: string; viewerId: string; initialQuery: EstimateListQuery; canReadLeads: boolean; canReadJobs: boolean;
+};
+export function EstimatesReadRoute(props: EstimatesReadRouteProps) {
+  return <ApiQueryScopeBoundary scope={{ viewerId: props.viewerId, workspaceId: props.workspaceId }}>
+    <EstimatesContent key={`${props.viewerId}:${props.workspaceId}`} {...props}/>
+  </ApiQueryScopeBoundary>;
+}
+function EstimatesContent({
   workspaceId,
   viewerId,
   initialQuery,
   canReadLeads,
   canReadJobs,
-}: {
-  workspaceId: string;
-  viewerId: string;
-  initialQuery: EstimateListQuery;
-  canReadLeads: boolean;
-  canReadJobs: boolean;
-}) {
+}: EstimatesReadRouteProps) {
   const router = useRouter();
+  const scope = useApiQueryScope(), estimateLifecycleRequest = useEstimateRequest();
   const workspaceAssistant = useWorkspaceAssistant();
   const setAssistantPageContext = workspaceAssistant?.setPageContext;
   const searchParams = useSearchParams();
@@ -123,11 +132,6 @@ export function EstimatesReadRoute({
     draft.rawParams === rawParams
       ? draft.filters
       : estimateFiltersFromQuery(query);
-  const [request, setRequest] = useState<{
-    key: string;
-    state: "loading" | "ready" | "error";
-    result?: EstimateListResult;
-  }>({ key: "", state: "loading" });
   const [retry, setRetry] = useState(0);
   const [voidRecord, setVoidRecord] = useState<EstimateVoidRecord | null>(null);
   const [archiveReview, setArchiveReview] = useState<{ estimate: EstimateArchiveRecord; mode: EstimateArchiveMode } | null>(null);
@@ -148,56 +152,27 @@ export function EstimatesReadRoute({
   const submission = useRef<{ payload: string; id: string } | null>(null);
   const [navigating, startTransition] = useTransition();
   const requestUrl = estimateListQueryToURL(query);
-  const requestKey = `${requestUrl}:${retry}`;
-  const state =
-    request.key === requestKey ? request.state : "loading";
-  const result = state === "ready" ? request.result : undefined;
-
+  const listQuery = useApiQuery({
+    ...apiReadOptions(scope, "estimates", query, `/api/estimates?${requestUrl}`, raw => estimateListResultSchema.parse(raw), copy.actions.changed),
+    refetchInterval: current => current.state.data?.scope === "assigned_job" ? 15_000 : false,
+  });
+  const state = listQuery.isPending ? "loading" : listQuery.isError ? "error" : "ready";
+  const result = state === "ready" ? listQuery.data : undefined;
+  const refetch = listQuery.refetch;
+  const previousRetry = useRef(retry);
+  useEffect(() => { if (previousRetry.current !== retry) { previousRetry.current = retry; void refetch(); } }, [retry, refetch]);
   useEffect(() => {
-    const abort = new AbortController();
-    fetch(`/api/estimates?${requestUrl}`, {
-      cache: "no-store",
-      signal: abort.signal,
-    })
-      .then(async (response) => {
-        if (response.status === 401) {
-          router.replace("/login");
-          return undefined;
-        }
-        if (!response.ok) throw new Error("Estimates list request failed.");
-        return (await response.json()) as EstimateListResult;
-      })
-      .then((body) => {
-        if (!body || abort.signal.aborted) return;
-        setRequest({ key: requestKey, state: "ready", result: body });
-      })
-      .catch(() => {
-        if (!abort.signal.aborted) {
-          setRequest({ key: requestKey, state: "error" });
-        }
-      });
-    return () => abort.abort();
-  }, [requestKey, requestUrl, router]);
-
-  useEffect(() => {
-    if (result?.scope !== "assigned_job") return;
-    const refresh = () => {
-      if (document.visibilityState === "visible") setRetry((value) => value + 1);
-    };
-    const timer = setInterval(refresh, 15_000);
-    window.addEventListener("focus", refresh);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener("focus", refresh);
-    };
-  }, [result?.scope]);
+    if (!isApiAccessError(listQuery.error)) return;
+    if (listQuery.error.status === 401) router.replace("/login");
+    else router.refresh();
+  }, [listQuery.error, router]);
 
   const navigate = useCallback(
     (next: EstimateListQuery, replace = false) => {
       const href = `/estimates?${estimateListQueryToURL(next)}`;
       startTransition(() => {
         if (replace) router.replace(href, { scroll: false });
-        else router.push(href, { scroll: false });
+        else window.history.pushState(null, "", href);
       });
     },
     [router],
@@ -425,12 +400,12 @@ export function EstimatesReadRoute({
       let snapshotHash: string | undefined;
       if (action === "revise") {
         const family = await estimateLifecycleRequest<EstimateRevisionFamily>(
-          `${baseUrl}/revisions${workspaceQuery}`, fallback,
+          `${baseUrl}/revisions${workspaceQuery}`, fallback, {}, raw => estimateRevisionFamilySchema.parse(raw),
         );
         if (family.currentEstimateId !== row.id || family.version !== row.version || !family.snapshotHash) {
-          throw new EstimateLifecycleRequestError(copy.actions.changed, 409);
+          throw new EstimateLifecycleRequestError(copy.actions.changed, 409, undefined);
         }
-        if (!family.canRevise) throw new EstimateLifecycleRequestError(copy.actions.changed, 403);
+        if (!family.canRevise) throw new EstimateLifecycleRequestError(copy.actions.changed, 403, undefined);
         snapshotHash = family.snapshotHash;
       }
       const payload = { workspaceId, estimateId: row.id, expectedVersion: row.version,
@@ -439,13 +414,13 @@ export function EstimatesReadRoute({
       if (submission.current?.payload !== fingerprint) submission.current = { payload: fingerprint, id: crypto.randomUUID() };
       const receipt = await estimateLifecycleRequest<EstimateDraftSaveResult>(
         `${baseUrl}/${action}${workspaceQuery}`, fallback,
-        { method: "POST", body: JSON.stringify({ ...payload, submissionId: submission.current.id }) },
+        { method: "POST", body: JSON.stringify({ ...payload, submissionId: submission.current.id }) }, raw => estimateDraftSaveResultSchema.parse(raw),
       );
       if (!estimateIdSchema.safeParse(receipt.id).success || receipt.id === row.id ||
           !Number.isSafeInteger(receipt.version) || receipt.version < 1 ||
           (action === "revise" ? receipt.number !== row.number || receipt.revision <= row.revision
             : receipt.revision !== 1 || receipt.number === row.number)) {
-        throw new EstimateLifecycleRequestError(copy.actions.mismatch, 409);
+        throw new EstimateLifecycleRequestError(copy.actions.mismatch, 409, undefined);
       }
       router.push(`/estimates/${encodeURIComponent(receipt.id)}${workspaceQuery}`);
     } catch (caught) {

@@ -23,6 +23,7 @@ export const estimateLeadStageSuggestionData = {
   notConnected: "Lead-stage review is not available here.",
   live: {
     moved: "Lead stage updated. The estimate is unchanged.",
+    savedReload: "The lead stage was saved, but related data could not be refreshed. Reload to see the latest details.",
     saveError: "The lead stage could not be confirmed. Retry this confirmation or reload and review again.",
     mismatch: "The estimate or lead changed. Reload details and review the current records before confirming.",
   },

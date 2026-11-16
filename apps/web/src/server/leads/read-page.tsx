@@ -30,8 +30,9 @@ export async function renderLeadsPage(params: LeadSearchParams, leadId?: string)
     if (leadId) { detail = await workspaceLead(session.user.id, workspace.id, leadId); initial = { rows: [], total: 0, columns: [], page: 1, pageSize: query.pageSize, owners: detail.owners, canAssign: detail.canAssign, canExport: detail.canExport, exportScope: detail.exportScope, timezone: detail.timezone, scope: detail.scope, canCreate: detail.canCreate, canShowArchived: detail.canShowArchived, policyRevision: detail.policyRevision }; }
     else initial = await workspaceLeads(session.user.id, query);
   } catch (error) { if (error instanceof AuthorizationAccessError) notFound(); throw error; }
+  const initialUpdatedAt = Date.now();
   return <WorkspaceShell currentPage="leads" workspaceId={workspace.id} workspaceName={workspace.businessName} user={{ name: session.user.name, email: session.user.email, role: context.membership.role }}
     authorizedPages={workspaceNavigationPages(context)} assistantAvailable={capabilities.assistant} chatEnabled={await workspaceChatAvailable(workspace.id)} chatSurface={leadId ? 'lead.detail' : 'leads.list'} chatContext={leadAssistantContext(query, detail?.lead)} jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} billingAvailable={capabilities.billing} contentWidth="full" onSignOut={signOut}>
-    <LeadsReadRoute key={`${workspace.id}-${leadId ?? 'list'}-${detail?.lead.version ?? 0}-${detail?.activityTotal ?? 0}`} workspaceId={workspace.id} viewerId={session.user.id} initial={initial} initialDetail={detail} initialQuery={query}/>
+    <LeadsReadRoute workspaceId={workspace.id} viewerId={session.user.id} initial={initial} initialDetail={detail} initialQuery={query} initialUpdatedAt={initialUpdatedAt}/>
   </WorkspaceShell>;
 }

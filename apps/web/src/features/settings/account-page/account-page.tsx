@@ -8,7 +8,6 @@ import { accountPageData as copy } from './account-page.data';
 export interface AccountPageProps {
   viewerRole: WorkspaceRole;
   account?: { name: string; email: string; workspace: string };
-  settingsHref?: string;
   billingHref?: string;
   deletionAllowed?: boolean;
   onDelete?: (input: { password: string; confirmation: string; acknowledged: true }) => Promise<{ ok: boolean; message?: string }>;
@@ -17,7 +16,7 @@ const button = 'inline-flex min-h-11 cursor-pointer items-center justify-center 
 const destructive = 'inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-error bg-error px-5 py-3 text-sm font-semibold text-white hover:brightness-95 focus-visible:focus-ring disabled:cursor-not-allowed disabled:border-line disabled:bg-line disabled:text-muted';
 
 /** Presentation and confirmation only. The connected adapter performs server-verified deletion. */
-export function AccountPage({ viewerRole, account, settingsHref = '/settings', billingHref = '/settings/billing', deletionAllowed = true, onDelete }: AccountPageProps) {
+export function AccountPage({ viewerRole, account, billingHref = '/settings/billing', deletionAllowed = true, onDelete }: AccountPageProps) {
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const cancelButton = useRef<HTMLButtonElement>(null);
@@ -46,7 +45,7 @@ export function AccountPage({ viewerRole, account, settingsHref = '/settings', b
     finally { setPassword(''); setPending(false); }
   }
   return <div className="grid min-w-0 gap-6">
-    <header><a href={settingsHref} className="inline-flex min-h-11 items-center rounded-lg text-sm font-semibold text-primary focus-visible:focus-ring">{copy.back}</a><p className="mb-0 mt-4 text-xs font-bold tracking-widest text-muted uppercase">{copy.eyebrow}</p><h1 className="mb-0 mt-3 text-heading font-semibold text-ink sm:text-heading-lg">{copy.title}</h1><p className="mb-0 mt-4 text-muted">{copy.description}</p></header>
+    <header><h1 className="m-0 text-heading font-semibold text-ink sm:text-heading-lg">{copy.title}</h1><p className="mb-0 mt-4 text-muted">{copy.description}</p></header>
     <section aria-labelledby={`${id}-profile`} className="rounded-2xl border border-line bg-paper p-6 sm:p-8"><h2 id={`${id}-profile`} className="m-0 text-xl font-semibold text-ink">{copy.profile}</h2><dl className="mb-0 mt-6 grid gap-6 sm:grid-cols-3">{[[copy.name,details.name],[copy.email,details.email],[copy.role,copy.roles[viewerRole]]].map(([label,value]) => <div key={label} className="min-w-0"><dt className="text-sm text-muted">{label}</dt><dd className="mb-0 ml-0 mt-2 font-semibold text-ink wrap-anywhere">{value}</dd></div>)}</dl></section>
     <section aria-labelledby={`${id}-danger`} className="rounded-2xl border border-l-8 border-error bg-error/5 p-6 sm:p-8"><div className="flex flex-wrap items-center justify-between gap-4"><h2 id={`${id}-danger`} className="m-0 text-2xl font-semibold text-ink">{copy.danger}</h2><span className="rounded-full border border-error px-3 py-2 text-xs font-semibold text-ink">{copy.noRecovery}</span></div><h3 className="mb-0 mt-6 text-lg font-semibold text-ink">{owner ? copy.ownerTitle : copy.memberTitle}</h3><p className="text-base leading-relaxed text-ink">{owner ? copy.ownerDescription : copy.memberDescription}</p><ul className="space-y-2 pl-5 text-sm leading-6 text-ink">{(owner ? copy.ownerConsequences : copy.memberConsequences).map(item => <li key={item}>{item}</li>)}</ul><p className="my-5 text-sm leading-6 text-muted">{copy.retention}</p><button type="button" disabled={!available || complete} className={destructive} onClick={() => { reset(); setError(''); setComplete(false); dialog.current?.showModal(); cancelButton.current?.focus(); }}>{owner ? copy.ownerTitle : copy.memberTitle}</button>{account && !available && <p role="note" className="mb-0 mt-4 text-sm leading-6 text-muted">{copy.unavailable}</p>}</section>
     {owner && <section className="rounded-2xl border border-line bg-paper p-6"><h2 className="m-0 text-lg font-semibold text-ink">{copy.transferTitle}</h2><p className="mb-0 mt-3 text-sm leading-6 text-muted">{copy.transferNote}</p><p className="mb-4 mt-4 text-sm leading-6 text-muted">{copy.cancellation}</p><a className={button} href={billingHref}>{copy.billing}</a></section>}

@@ -5,8 +5,11 @@ import {paymentRecoveryResultSchema,type PaymentRecoveryResult,type WorkspaceBil
 import {ConnectedPaymentMethodDialog} from '../payment-method-dialog/connected-payment-method-dialog';
 import {PaymentRecoveryDialog,type PaymentRecoveryState} from './payment-recovery-dialog';
 import {paymentRecoveryDialogData as copy} from './payment-recovery-dialog.data';
+import {useBillingMutation} from '../use-billing-request';
 
 export function ConnectedPaymentRecoveryDialog({workspaceId,snapshot,publishableKey,onClose,onUpdated}:{workspaceId:string;snapshot:WorkspaceBillingSnapshot;publishableKey?:string;onClose:()=>void;onUpdated:()=>Promise<void>}){
+  const api=useBillingMutation('/api/billing/recovery',paymentRecoveryResultSchema.parse,copy.unavailable);
+  const preview=useRef<Promise<PaymentRecoveryResult>|null>(null);
   const[value,setValue]=useState<PaymentRecoveryResult>();
   const[state,setState]=useState<PaymentRecoveryState>('loading');
   const[cardOpen,setCardOpen]=useState(false);
@@ -14,9 +17,7 @@ export function ConnectedPaymentRecoveryDialog({workspaceId,snapshot,publishable
   useEffect(()=>{updated.current=onUpdated;},[onUpdated]);
   const stripe=useMemo(()=>publishableKey?.startsWith('pk_test_')?loadStripe(publishableKey).catch(()=>null):null,[publishableKey]);
   async function request(action:'preview'|'confirm'|'status',quoteId?:string){
-    const response=await fetch('/api/billing/recovery',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(action==='preview'?{workspaceId,action}:{workspaceId,action,quoteId})});
-    if(!response.ok)throw Error('Recovery unavailable');
-    return paymentRecoveryResultSchema.parse(await response.json());
+    return api.request(action==='preview'?{workspaceId,action}:{workspaceId,action,quoteId},action!=='preview');
   }
   async function accept(next:PaymentRecoveryResult){
     if(!mounted.current)return;
@@ -49,7 +50,8 @@ export function ConnectedPaymentRecoveryDialog({workspaceId,snapshot,publishable
   }
   useEffect(()=>{
     let active=true;mounted.current=true;
-    void request('preview').then(next=>{if(active)return accept(next);}).catch(()=>{if(active)setState('unavailable');});
+    preview.current??=request('preview');
+    void preview.current.then(next=>{if(active)return accept(next);}).catch(()=>{if(active)setState('unavailable');});
     return()=>{active=false;mounted.current=false;};
     // Request callbacks use only this workspace and mutable refs for the latest refresh callback.
     // eslint-disable-next-line react-hooks/exhaustive-deps

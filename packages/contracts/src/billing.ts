@@ -31,6 +31,17 @@ export const billingCheckoutRequestSchema = z
     action: z.enum(["checkout", "free", "refresh"]),
   })
   .strict();
+export const billingCheckoutPreparationSchema = z.object({
+  clientSecret: z.string().min(1),
+}).strict();
+export const billingCheckoutStatusSchema = z.object({
+  billing: z.object({
+    hasCheckout: z.boolean(),
+    intendedPlan: workspacePlanIdSchema,
+    plan: workspacePlanIdSchema,
+    status: z.string(),
+  }).strict().nullable(),
+}).strict();
 
 const nonnegative = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 export const billingInvoiceSchema = z

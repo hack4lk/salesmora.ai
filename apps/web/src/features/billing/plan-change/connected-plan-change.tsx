@@ -5,6 +5,7 @@ import { loadStripe } from '@stripe/stripe-js';
 import { planChangeQuoteSchema, planChangeResultSchema, type PlanChangeQuote, type PlanChangeResult, type WorkspaceBillingSnapshot, type WorkspacePlanId } from '@salesmora/contracts';
 import { PlanChange } from './plan-change';
 import { planChangeData as copy } from './plan-change.data';
+import { useBillingMutation } from '../use-billing-request';
 function CardPayment({onComplete,onBusyChange}:{onComplete:()=>void;onBusyChange:(busy:boolean)=>void}){
  const stripe=useStripe(),elements=useElements();const[pending,setPending]=useState(false),[error,setError]=useState(false);
  useEffect(()=>{onBusyChange(pending);},[pending,onBusyChange]);
@@ -12,6 +13,9 @@ function CardPayment({onComplete,onBusyChange}:{onComplete:()=>void;onBusyChange
  return <div className="grid gap-4"><PaymentElement/>{error&&<p role="alert" className="text-error">{copy.error}</p>}<button type="button" disabled={!stripe||!elements||pending} onClick={()=>void pay()} className="seafoam-action min-h-11 cursor-pointer rounded-xl px-4 py-3 text-sm font-semibold enabled:hover:bg-none enabled:hover:bg-seafoam-dark disabled:bg-none disabled:bg-line disabled:text-muted focus-visible:focus-ring">{pending?copy.busy:copy.pay}</button></div>;
 }
 export function ConnectedPlanChange({workspaceId,snapshot,publishableKey,onClose,onUpdated,mode='plan',onBusyChange,onPaymentChange}:{workspaceId:string;snapshot:WorkspaceBillingSnapshot;publishableKey?:string;onClose:()=>void;onUpdated:()=>Promise<void>;mode?:'plan'|'cancel';onBusyChange?:(busy:boolean)=>void;onPaymentChange?:(active:boolean)=>void}){
+ const preview=useBillingMutation('/api/billing/plan',planChangeQuoteSchema.parse,copy.error);
+ const change=useBillingMutation('/api/billing/plan',planChangeResultSchema.parse,copy.error);
+ const running=useRef(false);
  const[quote,setQuote]=useState<PlanChangeQuote|undefined>(snapshot.change??undefined);
  const[result,setResult]=useState<PlanChangeResult|undefined>(snapshot.change?{status:snapshot.change.status==='scheduled'?'scheduled':'payment'}:undefined);
  const[pending,setPending]=useState(false),[error,setError]=useState<string>();
@@ -20,12 +24,11 @@ export function ConnectedPlanChange({workspaceId,snapshot,publishableKey,onClose
  useEffect(()=>{onPaymentChange?.(result?.status==='payment');},[result?.status,onPaymentChange]);
  const stripe=useMemo(()=>publishableKey?.startsWith('pk_test_')?loadStripe(publishableKey).catch(()=>null):null,[publishableKey]);
  async function request(action:'preview'|'confirm'|'refresh'|'undo',plan?:WorkspacePlanId){
-  if(pending)return;setPending(true);setError(undefined);
+  if(running.current)return;running.current=true;setPending(true);setError(undefined);
   try{
-   const response=await fetch('/api/billing/plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(action==='preview'?{workspaceId,action,plan}:{workspaceId,action,quoteId:quote?.id})});
-   if(!response.ok)throw Error();const body=await response.json();
-   if(action==='preview')setQuote(planChangeQuoteSchema.parse(body));else{const next=planChangeResultSchema.parse(body);setResult(next);await onUpdated();}
-  }catch{setError(copy.error);}finally{setPending(false);}
+   if(action==='preview')setQuote(await preview.request({workspaceId,action,plan}));
+   else{const next=await change.request({workspaceId,action,quoteId:quote?.id},true);setResult(next);await onUpdated();}
+  }catch{if(change.isActive())setError(copy.error);}finally{running.current=false;if(change.isActive())setPending(false);}
  }
  const cancelRef=useRef(mode==='cancel'&&!snapshot.change);
  const requestRef=useRef(request);

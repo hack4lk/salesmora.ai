@@ -5,7 +5,7 @@ export const accountPageData = {
   failed: 'Deletion could not be confirmed. Try again; if you have been signed out, your request may already have been accepted.',
   accepted: 'Deletion requested. Your account access has ended. Subscription cancellation and permanent application-data removal are being processed. There is no recovery period.',
   signIn: 'Return to sign in',
-  title: 'Account', eyebrow: 'Personal settings', back: 'Back to Settings',
+  title: 'Account',
   description: 'Your account details and permanent deletion options.',
   preview: 'Design preview · Fictional account · No account, workspace or payment changes',
   profile: 'Your details', name: 'Name', email: 'Email', role: 'Workspace role',

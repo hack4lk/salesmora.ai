@@ -14,13 +14,15 @@ function fixture(operation: 'suggest_website_fields' | 'create_source' | 'save_d
   return { ticket: { workspaceId, proposalId, inputHash: 'a'.repeat(64), operation, target: operation === 'create_source' ? { kind: 'new_source' } : { kind: 'source', sourceId, sourceVersion: 1, draftVersion: 1, approvedVersion: null }, state: 'pending', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 600000).toISOString() }, review: { name: base.name, configuration: config, before: operation === 'create_source' ? null : config, base: operation === 'create_source' ? null : base, sample, findings }, receipt: null };
 }
 let posts: unknown[] = [];
-function mock(initial = fixture(), mode: 'ready' | 'denied' | 'mismatch' = 'ready') {
+function mock(initial = fixture(), mode: 'ready' | 'denied' | 'mismatch' | 'wrong-receipt' | 'revoked-decision' = 'ready') {
   const original = globalThis.fetch; let view = structuredClone(initial); posts = [];
   globalThis.fetch = fn(async (_input, options) => {
     if (mode === 'denied') return Response.json({}, { status: 403 });
     if (options?.method === 'POST') {
       const body = JSON.parse(String(options.body)); posts.push(body); const confirmed = body.decision === 'confirm';
+      if (mode === 'revoked-decision') return Response.json({}, { status: 403 });
       view = { ...view, ticket: { ...view.ticket, state: confirmed ? 'confirmed' : 'cancelled' }, receipt: confirmed ? ['create_source', 'save_draft'].includes(view.ticket.operation) ? { kind: 'saved', ok: true, sourceId, sourceVersion: 2, draftVersion: 2 } : { kind: 'suggestions', sourceId, configuration: view.review.configuration, base: view.review.base!, sample: view.review.sample, findings: view.review.findings, sampleApproved: false } : null };
+      if (mode === 'wrong-receipt') view = { ...view, ticket: { ...view.ticket, workspaceId: sourceId } };
     }
     return Response.json({ view: mode === 'mismatch' ? { ...view, ticket: { ...view.ticket, inputHash: 'b'.repeat(64) } } : view });
   }); return () => { globalThis.fetch = original; };
@@ -32,6 +34,21 @@ export const ChangedUnsavedDraft: Story = { args: { apply: fn(() => false) }, pl
 export const Cancelled: Story = { play: async ({ canvasElement }) => { const c = within(canvasElement); await userEvent.click(await c.findByRole('button', { name: copy.cancel })); await expect(await c.findByText(copy.cancelled)).toBeVisible(); } };
 export const Denied: Story = { beforeEach: () => mock(fixture(), 'denied'), play: async ({ canvasElement }) => { await expect(await within(canvasElement).findByText(copy.unavailable)).toBeVisible(); } };
 export const MismatchedBinding: Story = { beforeEach: () => mock(fixture(), 'mismatch'), play: async ({ canvasElement }) => { await expect(await within(canvasElement).findByText(copy.unavailable)).toBeVisible(); } };
+export const WrongReceiptScope: Story = { beforeEach: () => mock(fixture(), 'wrong-receipt'), play: async ({ canvasElement, args }) => {
+  const c = within(canvasElement); await userEvent.click(await c.findByRole('button', { name: copy.review }));
+  await userEvent.click(c.getByRole('button', { name: 'Apply suggested fields' }));
+  await expect(await c.findByText(copy.failed)).toBeVisible();
+  await expect(args.apply).toHaveBeenCalledTimes(1);
+  await expect(args.apply).toHaveBeenCalledWith(expect.anything(), true);
+  await expect(args.onSaved).not.toHaveBeenCalled();
+} };
+export const RevokedOnConfirm: Story = { beforeEach: () => mock(fixture(), 'revoked-decision'), play: async ({ canvasElement, args }) => {
+  const c = within(canvasElement); await userEvent.click(await c.findByRole('button', { name: copy.review }));
+  await userEvent.click(c.getByRole('button', { name: 'Apply suggested fields' }));
+  await expect(await c.findByText(copy.failed)).toBeVisible();
+  await expect(posts).toHaveLength(1);
+  await expect(args.onSaved).not.toHaveBeenCalled();
+} };
 export const CreateDraft: Story = { args: { ticket: fixture('create_source').ticket }, beforeEach: () => mock(fixture('create_source')), play: async ({ canvasElement }) => { const c = within(canvasElement); await userEvent.click(await c.findByRole('button', { name: copy.review })); await userEvent.click(c.getByRole('button', { name: 'Create source draft' })); await expect(await c.findByText('Draft saved. Publication requires a separate review.')).toBeVisible(); } };
 export const SaveDraft: Story = { args: { ticket: fixture('save_draft').ticket }, beforeEach: () => mock(fixture('save_draft')), play: async ({ canvasElement }) => { const c = within(canvasElement); await userEvent.click(await c.findByRole('button', { name: copy.review })); await userEvent.click(c.getByRole('button', { name: 'Save source draft' })); await expect(await c.findByText('Draft saved. Publication requires a separate review.')).toBeVisible(); } };
 export const PastedSample: Story = { args: { ticket: fixture('extract_sample').ticket }, beforeEach: () => mock(fixture('extract_sample')), play: async ({ canvasElement }) => { const c = within(canvasElement); await userEvent.click(await c.findByRole('button', { name: copy.review })); await expect(await c.findByText('jordan@example.test', { exact: true })).toBeVisible(); } };

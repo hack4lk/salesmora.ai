@@ -254,6 +254,9 @@ export const EmptyIdentity: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText(c.identityIncomplete)).toBeVisible();
+    const alert = canvas.getByText(c.identityIncomplete).closest('[role="alert"]');
+    await expect(alert).toHaveClass("border-error", "bg-error/5");
+    await expect(canvasElement.querySelector("form")?.firstElementChild).toBe(alert);
     await expect(canvas.getByRole("textbox", { name: c.validForDays })).toHaveValue("30");
     await expect(canvas.getByRole("textbox", { name: c.taxRate })).toHaveValue("0");
     await expect(canvas.getByRole("button", { name: c.save })).toBeDisabled();

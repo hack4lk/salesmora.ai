@@ -1,6 +1,8 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type ReactNode } from "react";
+import { useLayoutEffect, useState, useTransition, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { removeOtherWorkspaceQueries } from "../../api/api-query";
 import {
   AssistantPanel,
   FormFeedback,
@@ -38,6 +40,8 @@ export interface WorkspaceShellProps {
   printChromeHidden?: boolean;
   onSignOut: () => Promise<void>;
   children: ReactNode;
+  /** Home can place its welcome beside the canonical notifications, above the assistant. */
+  beforeAssistant?: (notifications: ReactNode) => ReactNode;
 }
 export function WorkspaceShell({
   currentPage = "home",
@@ -61,8 +65,13 @@ export function WorkspaceShell({
   chatSurface = "home",
   chatContext,
   printChromeHidden = false,
+  beforeAssistant,
 }: WorkspaceShellProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  useLayoutEffect(() => {
+    removeOtherWorkspaceQueries(queryClient, workspaceId);
+  }, [queryClient, workspaceId]);
   // Every active teammate can open personal settings; business settings still authorize independently.
   const accountHref = `/settings/account?workspace=${encodeURIComponent(workspaceId)}`;
   const [pending, startTransition] = useTransition();
@@ -70,6 +79,7 @@ export function WorkspaceShell({
   function signOut() {
     if (pending) return;
     setError(false);
+    queryClient.clear();
     startTransition(async () => {
       try {
         await onSignOut();
@@ -180,7 +190,9 @@ export function WorkspaceShell({
           <div
             className={`mx-auto w-full ${contentWidth === "standard" ? "max-w-4xl" : ""}`}
           >
-            <div
+            {beforeAssistant ? beforeAssistant(
+              <ConnectedNotificationMenu key={workspaceId} workspaceId={workspaceId} workspaceName={workspaceName} />
+            ) : <div
               className={`mb-6 flex justify-end ${printChromeHidden ? "print:hidden" : ""}`}
             >
               <ConnectedNotificationMenu
@@ -188,7 +200,7 @@ export function WorkspaceShell({
                 workspaceId={workspaceId}
                 workspaceName={workspaceName}
               />
-            </div>
+            </div>}
             {assistantAvailable &&
               (chatEnabled ? (
                 <ConnectedAssistant

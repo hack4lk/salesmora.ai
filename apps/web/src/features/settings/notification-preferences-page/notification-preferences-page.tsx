@@ -15,7 +15,6 @@ export type NotificationPreferencesPageProps = {
   showJobActivity?: boolean;
   /** Keep live copy accurate while remaining Job lifecycle events are implemented separately. */
   jobActivityScope?: 'all' | 'creation' | 'creation-status' | 'creation-status-assignment';
-  settingsHref: string;
   state: 'ready' | 'loading' | 'error';
   values: NotificationPreferencesValues;
   savedValues: NotificationPreferencesValues;
@@ -28,7 +27,7 @@ export type NotificationPreferencesPageProps = {
 const secondaryClass = 'inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-line bg-paper px-4 py-2 text-sm font-semibold text-primary hover:bg-canvas focus-visible:focus-ring disabled:cursor-not-allowed disabled:text-muted';
 
 /** Controlled personal preferences. The live adapter owns identity, persistence and request state. */
-export function NotificationPreferencesPage({ showVisitChanges = false, showEstimateNotifications = false, showDeadlineReminders = false, showJobActivity = false, jobActivityScope = 'all', settingsHref, state, values, savedValues, saveState, onChange, onSave, onDiscard, onRetry }: NotificationPreferencesPageProps) {
+export function NotificationPreferencesPage({ showVisitChanges = false, showEstimateNotifications = false, showDeadlineReminders = false, showJobActivity = false, jobActivityScope = 'all', state, values, savedValues, saveState, onChange, onSave, onDiscard, onRetry }: NotificationPreferencesPageProps) {
   const id = useId(), interactive = useFormReady();
   const pending = saveState === 'pending';
   const dirty = values.leadAssignedEmail !== savedValues.leadAssignedEmail ||
@@ -45,9 +44,7 @@ export function NotificationPreferencesPage({ showVisitChanges = false, showEsti
   ];
   return <div className="grid min-w-0 gap-6">
     <header>
-      <a href={settingsHref} className="inline-flex min-h-11 items-center rounded-lg text-sm font-semibold text-primary focus-visible:focus-ring">{copy.back}</a>
-      <p className="mb-0 mt-4 text-xs font-bold tracking-widest text-muted uppercase">{copy.eyebrow}</p>
-      <h1 className="mb-0 mt-3 text-heading font-semibold text-ink sm:text-heading-lg">{copy.title}</h1>
+      <h1 className="m-0 text-heading font-semibold text-ink sm:text-heading-lg">{copy.title}</h1>
       <p className="mb-0 mt-4 text-base leading-relaxed text-muted">{copy.description}</p>
     </header>
     {state === 'loading' ? <p role="status" className="m-0 rounded-2xl border border-line bg-paper p-6 text-base text-muted">{copy.loading}</p> : state === 'error' ? <div className="grid gap-4">
@@ -84,6 +81,6 @@ export function NotificationPreferencesPage({ showVisitChanges = false, showEsti
         </div>
       </div>
     </form>}
-    <p className="m-0 text-sm leading-6 text-muted">{showJobActivity ? copy.jobActivityLater : showDeadlineReminders ? copy.deadlineLater : showVisitChanges ? copy.visitLater : copy.later}</p>
+    {!showJobActivity && <p className="m-0 text-sm leading-6 text-muted">{showDeadlineReminders ? copy.deadlineLater : showVisitChanges ? copy.visitLater : copy.later}</p>}
   </div>;
 }

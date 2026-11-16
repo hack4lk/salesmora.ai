@@ -11,6 +11,28 @@ const meta = {
 } satisfies Meta<typeof WorkspaceNavigation>;
 export default meta;
 type Story = StoryObj<typeof meta>;
+export const CustomDestinations: Story = {
+  args: {
+    homeHref: '/home?workspace=fixture',
+    intakeHref: '/intake?workspace=fixture',
+    leadsHref: '/leads?workspace=fixture',
+    customersHref: '/customers?workspace=fixture',
+    estimatesHref: '/estimates?workspace=fixture',
+    jobsHref: '/jobs?workspace=fixture',
+    calendarHref: '/calendar?workspace=fixture',
+    workOrdersHref: '/work-orders?workspace=fixture',
+    materialsHref: '/materials?workspace=fixture',
+    reportsHref: '/reports?workspace=fixture',
+    leadCaptureHref: '/lead-capture?workspace=fixture',
+    settingsHref: '/settings?workspace=fixture',
+  },
+  play: async ({ canvasElement }) => {
+    const c = await openNavigationIfMobile(canvasElement);
+    for (const item of copy.items) {
+      await expect(c.getByRole('link', { name: item.label })).toHaveAttribute('href', `${item.href}?workspace=fixture`);
+    }
+  },
+};
 export const LeadSettings: Story = { args: { currentPage: 'settings', currentSettingsPage: 'leads', authorizedPages: ['settings', 'lead-settings'], leadSettingsHref: '/settings/leads?workspace=fictional-workspace' }, play: async ({ canvasElement }) => {
   const c = await openNavigationIfMobile(canvasElement); await expect(c.getByRole('link', { name: copy.leadSettings })).toHaveAttribute('aria-current', 'page');
 } };

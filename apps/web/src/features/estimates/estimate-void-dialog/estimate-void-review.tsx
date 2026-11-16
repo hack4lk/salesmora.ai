@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { EstimateVoidReceipt } from "@salesmora/contracts";
+import { estimateEditorSeedSchema, estimateVoidReceiptSchema, type EstimateVoidReceipt } from "@salesmora/contracts";
 import type { EstimateEditorSeed } from "@salesmora/data";
 import { EstimateVoidDialog } from "./estimate-void-dialog";
 import { initialEstimateVoidValues, type EstimateVoidRecord, type EstimateVoidRequest } from "./estimate-void-dialog.preview";
-import { estimateLifecycleData as c, estimateLifecycleRequest, EstimateLifecycleRequestError } from "../estimate-lifecycle-client";
+import { estimateLifecycleData as c } from "../estimate-lifecycle-client";
+import { useEstimateRequest, EstimateLifecycleRequestError } from "../use-estimate-request";
 
 export function EstimateVoidReview({
   workspaceId, estimate, onClose, onVoided,
@@ -17,6 +18,7 @@ export function EstimateVoidReview({
   onVoided: (receipt: EstimateVoidReceipt) => void;
 }) {
   const router = useRouter();
+  const estimateLifecycleRequest = useEstimateRequest();
   const [current, setCurrent] = useState(estimate);
   const [value, setValue] = useState(() => initialEstimateVoidValues(estimate));
   const [access, setAccess] = useState({ read: true, void: true });
@@ -26,7 +28,7 @@ export function EstimateVoidReview({
   const query = `?workspace=${encodeURIComponent(workspaceId)}`;
   const load = useCallback((signal?: AbortSignal, acceptNewVersion = false) => {
     return estimateLifecycleRequest<EstimateEditorSeed>(
-      `/api/estimates/${encodeURIComponent(estimate.id)}${query}`, c.reviewError, { signal },
+      `/api/estimates/${encodeURIComponent(estimate.id)}${query}`, c.reviewError, { signal }, raw => estimateEditorSeedSchema.parse(raw),
     ).then(seed => {
       if (signal?.aborted) return;
       const record = seed.estimate;
@@ -42,12 +44,12 @@ export function EstimateVoidReview({
     }).catch((caught: unknown) => {
       if (signal?.aborted) return;
       setError({ kind: "error", message: caught instanceof Error ? caught.message : c.reviewError });
-      setAccess({ read: !(caught instanceof EstimateLifecycleRequestError && [401, 404].includes(caught.status)), void: false });
+      setAccess({ read: !(caught instanceof EstimateLifecycleRequestError && [401, 403, 404, 423].includes(caught.status)), void: false });
       if (caught instanceof EstimateLifecycleRequestError && caught.status === 401) router.replace("/login");
     }).finally(() => {
       if (!signal?.aborted) setOperation(null);
     });
-  }, [estimate.id, estimate.version, query, router]);
+  }, [estimate.id, estimate.version, query, router, estimateLifecycleRequest]);
   useEffect(() => {
     const abort = new AbortController();
     void load(abort.signal);
@@ -63,7 +65,7 @@ export function EstimateVoidReview({
     try {
       const receipt = await estimateLifecycleRequest<EstimateVoidReceipt>(
         `/api/estimates/${encodeURIComponent(estimate.id)}/void${query}`, c.voidError,
-        { method: "POST", body: JSON.stringify({ ...payload, submissionId: submission.current.id }) },
+        { method: "POST", body: JSON.stringify({ ...payload, submissionId: submission.current.id }) }, raw => estimateVoidReceiptSchema.parse(raw),
       );
       if (receipt.estimateId !== request.estimateId || receipt.status !== "void" || receipt.version !== request.expectedVersion + 1) {
         throw new Error(c.mismatch);
@@ -72,7 +74,7 @@ export function EstimateVoidReview({
     } catch (caught) {
       const status = caught instanceof EstimateLifecycleRequestError ? caught.status : undefined;
       setError({ kind: status === 409 ? "conflict" : "error", message: caught instanceof Error ? caught.message : c.voidError });
-      if (status === 401 || status === 404) setAccess({ read: false, void: false });
+      if (status !== undefined && [401, 403, 404, 423].includes(status)) setAccess({ read: false, void: false });
       if (status === 401) router.replace("/login");
     } finally { setOperation(null); }
   }

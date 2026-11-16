@@ -8,6 +8,7 @@ import {
 } from "../../estimates/estimate-archive-card/estimate-archive-card.fixtures";
 
 const initial = estimateArchiveCardFixture();
+const restore = estimateArchiveCardFixture("restore");
 function mockReview(initialView = initial) {
   const original = globalThis.fetch;
   let view = structuredClone(initialView);
@@ -41,8 +42,8 @@ export const Archive: Story = { play: async ({ canvasElement, args }) => {
   await expect(args.onNavigate).not.toHaveBeenCalled();
 } };
 export const Restore: Story = {
-  args: { ticket: estimateArchiveCardFixture("restore").ticket },
-  beforeEach: () => mockReview(estimateArchiveCardFixture("restore")),
+  args: { ticket: restore.ticket },
+  beforeEach: () => mockReview(restore),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByRole("button", { name: card.restore.confirm })).toBeEnabled();

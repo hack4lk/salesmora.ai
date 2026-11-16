@@ -12,6 +12,7 @@ import { scoped as scopedWorkOrderQuery } from '../work-orders/store';
 import { estimateReportContext } from './estimate-context';
 import { estimateActivityReportActionSQL, validateEstimateReportActivity } from './activity-estimates';
 import { resolveActivityReportExportScopes } from './activity-export-access';
+import { leadActivityActionSQL, jobActivityActionSQL } from '../activity-summary';
 
 const estimateValidationSchema = z.object({
   id: z.uuid(), createdAt: z.string(), source: z.string(), actorName: z.null(), type: z.string(), changes: z.unknown(),
@@ -54,10 +55,7 @@ export async function prepareActivityReportInTransaction(
       .select(trx.raw(`'lead'::text AS domain, h.id AS "eventId", h."createdAt" AS "occurredAt",
         h."actorId", h."actorName", h."actorType" AS source, h.type, l.id AS "recordId", NULL::jsonb AS validation,
         left('Lead L-' || l."leadNumber"::text || ' / ' || l.name, 160) AS "recordLabel",
-        CASE WHEN jsonb_typeof(h.changes) = 'object' THEN CASE h.type
-          WHEN 'created' THEN 'created' WHEN 'edited' THEN 'updated' WHEN 'restored' THEN 'updated'
-          WHEN 'archived' THEN 'archived' WHEN 'stage' THEN 'stage-changed'
-          WHEN 'assigned' THEN 'assignment-changed' END END AS action`))
+        ${leadActivityActionSQL} AS action`))
       .toSQL());
   }
   const jobs = resolveAuthorizedCollectionScope(context, 'jobs.read');
@@ -71,11 +69,7 @@ export async function prepareActivityReportInTransaction(
       .select(trx.raw(`'job'::text AS domain, h.id AS "eventId", h."createdAt" AS "occurredAt",
         h."actorId", h."actorName", h.source, h.type, j.id AS "recordId", NULL::jsonb AS validation,
         left('Job J-' || j."jobNumber"::text || ' / ' || j.title, 160) AS "recordLabel",
-        CASE WHEN jsonb_typeof(h.changes) = 'object' THEN CASE h.type
-          WHEN 'created' THEN 'created' WHEN 'edit' THEN 'updated' WHEN 'assign' THEN 'assignment-changed'
-          WHEN 'deadline' THEN 'deadline-changed' WHEN 'schedule' THEN 'visit-changed'
-          WHEN 'status' THEN CASE WHEN h.changes->>'to' = 'completed' THEN 'completed'
-            WHEN h.changes->>'to' IN ('needs-scheduling','scheduled','in-progress','waiting','canceled') THEN 'status-changed' END END END AS action`))
+        ${jobActivityActionSQL} AS action`))
       .toSQL());
   }
   const customers = customerCapabilities(context);

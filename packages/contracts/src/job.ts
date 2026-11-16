@@ -87,6 +87,29 @@ export type JobListResult = { rows: JobView[]; total: number; page: number; page
   canCreate: boolean; canScheduleCreation: boolean;
 };
 export type JobDetailResult = { job: JobView; activity: JobActivityRecord[]; activityTotal: number; activityPage: number; canOpenCustomer: boolean; canOpenLead: boolean };
+export const jobViewSchema = z.object({
+  id: z.uuid(), number: z.string(), customerId: z.uuid().nullable(), customerName: z.string(), sourceLeadId: z.uuid().nullable(),
+  title: z.string(), service: z.string(), location: z.string(), description: z.string(), status: jobStatusSchema,
+  primaryOwnerId: z.string().nullable(), teamUserIds: z.array(z.string()), scheduledDate: jobDateSchema.nullable(),
+  arrivalWindow: z.enum(arrivalWindows).nullable(), completionDeadline: jobDateSchema.nullable(), waitingReason: z.enum(jobWaitingReasons).nullable(),
+  version: z.number().int().positive(), createdAt: z.string(), updatedAt: z.string(),
+  ownerName: z.string(), teamNames: z.array(z.string()), nextStep: z.string(),
+  capabilities: z.object({ status: z.boolean(), complete: z.boolean(), cancel: z.boolean(), reopen: z.boolean(), schedule: z.boolean(), assign: z.boolean(), note: z.boolean(), edit: z.boolean(), files: z.boolean(), removeFiles: z.boolean() }),
+}) satisfies z.ZodType<JobView>;
+export const jobListResultSchema = z.object({
+  rows: z.array(jobViewSchema), total: z.number().int().nonnegative(), page: z.number().int().positive(), pageSize: z.number().int().positive(),
+  timezone: z.string(), today: jobDateSchema, metrics: z.object({ active: z.number().nonnegative(), overdue: z.number().nonnegative(), waiting: z.number().nonnegative(), unassigned: z.number().nonnegative() }),
+  options: z.object({ members: z.array(z.object({ id: z.string(), name: z.string(), role: z.enum(["owner", "admin", "office", "field"]) })), customers: z.array(z.object({ id: z.uuid(), name: z.string() })), customerNames: z.array(z.string()), services: z.array(z.string()) }),
+  canCreate: z.boolean(), canScheduleCreation: z.boolean(),
+}) satisfies z.ZodType<JobListResult>;
+export const jobDetailResultSchema = z.object({
+  job: jobViewSchema, activity: z.array(z.object({ id: z.string(), actorName: z.string(), source: z.string(), type: z.string(), changes: z.record(z.string(), z.unknown()), createdAt: z.string() })),
+  activityTotal: z.number().int().nonnegative(), activityPage: z.number().int().positive(), canOpenCustomer: z.boolean(), canOpenLead: z.boolean(),
+}) satisfies z.ZodType<JobDetailResult>;
+export const jobSavedResultSchema = z.object({ jobId: z.uuid() });
+export const jobMessageSavedSchema = z.object({ id: z.uuid(), authorId: z.string(), authorName: z.string(), createdAt: z.string() });
+export const jobMessageSchema = z.object({ id: z.uuid(), authorId: z.string(), author: z.string(), at: z.string(), text: z.string(), assistant: z.boolean().optional(), unread: z.boolean().optional() });
+export const jobMessagesResultSchema = z.object({ messages: z.array(jobMessageSchema) });
 /** Only recognized URL parameters are projected into the strict query contract. */
 export function jobQueryFromURL(workspaceId: string, params: URLSearchParams): JobQuery {
   const optional = (key: string) => params.get(key) || undefined;

@@ -7,12 +7,14 @@ import { JobReportPage } from './job-report-page';
 import { initialJobQuery, jobReadResponse, largeJobReadResponse } from './job-read.fixtures';
 import { selectMetricEvidence } from '../report-summary/report-summary.story-helpers';
 import { jobExportDatasetsForView } from './job-export.client';
+import { reportSnapshotDecorator } from '../report-snapshot.story-helpers';
 
 let requests: JobReportQuery[] = [], release: (() => void) | undefined, aborted = false, settled = false;
 function parseQuery(input: RequestInfo | URL) {
   return jobReportQuerySchema.parse(JSON.parse(new URL(String(input), 'https://story.example.test').searchParams.get('query')!));
 }
 const meta = {
+  decorators: [reportSnapshotDecorator],
   title: 'Reports/JobReportPage', component: JobReportPage, tags: ['autodocs'],
   parameters: { layout: 'fullscreen', docs: { description: { component: 'API-bound canonical Jobs workspace with independent period/current drafts, native evidence selections, authorized facets and CSV review. Initial data is server supplied; strict authority validation and race-safe reads protect evidence. Configuration, assistant and production activation remain deferred.' } } },
   args: { initial: jobReadResponse(initialJobQuery), onRecord: fn(), onReload: fn() },
@@ -50,6 +52,17 @@ const meta = {
 } satisfies Meta<typeof JobReportPage>;
 export default meta;
 type Story = StoryObj<typeof meta>;
+export const FreshViewCache: Story = {
+  play: async ({ canvasElement }) => {
+    expect(requests).toHaveLength(0);
+    await switchView(canvasElement, 'completion');
+    expect(requests).toHaveLength(1);
+    await switchView(canvasElement, 'lifecycle');
+    await switchView(canvasElement, 'completion');
+    expect(requests).toHaveLength(1);
+    await expect(summary(canvasElement).getByRole('group', { name: 'Average elapsed calendar days' })).toHaveTextContent('7.5 days');
+  },
+};
 export const CsvPreview: Story = {
   args: { initial: { ...jobReadResponse(initialJobQuery), exportScope: 'assigned' } },
 };
@@ -118,14 +131,16 @@ export const BackendContracts: Story = {
     expect(canvas.queryAllByRole('button', { name: /^View record:/ })).toHaveLength(0);
     await selectMetricEvidence(canvasElement, 'Completed Jobs');
     await waitFor(() => expect(canvas.getByRole('combobox', { name: 'Report view' })).toBeEnabled());
-    expect(requests.at(-1)).not.toHaveProperty('selectedDate');
+    await expect(canvas.getByRole('button', { name: 'View record: Completed installation' })).toBeVisible();
     await switchView(canvasElement, 'workload');
     expect(canvas.queryByRole('button', { name: 'Apply period' })).not.toBeInTheDocument();
     for (const [label, metric] of [['Overdue', 'overdue'], ['Due soon', 'dueSoon'], ['No completion deadline', 'noDeadline'],
       ['Waiting', 'waiting'], ['No current primary owner', 'unassigned'], ['Active Jobs', 'active']] as const) {
+      const before = requests.length;
       await selectMetricEvidence(canvasElement, label);
       await waitFor(() => expect(canvas.getByRole('combobox', { name: 'Report view' })).toBeEnabled());
-      expect(requests.at(-1)).toMatchObject({ view: 'workload', selection: { kind: 'metric', metric } });
+      if (metric === 'active') expect(requests).toHaveLength(before);
+      else expect(requests.at(-1)).toMatchObject({ view: 'workload', selection: { kind: 'metric', metric } });
       expect(requests.at(-1)).not.toHaveProperty('period');
     }
     for (const [label, group, id] of [['In Progress', 'status', 'in-progress'], ['Teammate A', 'owner', 'member:member-a'],
@@ -165,11 +180,13 @@ export const IndependentFilters: Story = {
     await selectFacet(canvasElement, 'Current primary owner', 'No current primary owner');
     await expect(summary(canvasElement).getByRole('group', { name: 'Active Jobs' })).toHaveTextContent('1');
     expect(requests.at(-1)?.filters).toEqual({ statuses: [], owners: ['unassigned'], services: [] });
+    const before = requests.length;
     await switchView(canvasElement, 'lifecycle');
-    expect(requests.at(-1)?.filters).toEqual({ statuses: ['completed'], owners: [], services: ['service:installation'] });
+    expect(requests).toHaveLength(before);
     await expect(canvas.getByRole('button', { name: 'Remove filter: Current status: Completed' })).toBeVisible();
+    await expect(canvas.getByRole('button', { name: 'Remove filter: Current service: Installation' })).toBeVisible();
     await switchView(canvasElement, 'workload');
-    expect(requests.at(-1)?.filters).toEqual({ statuses: [], owners: ['unassigned'], services: [] });
+    expect(requests).toHaveLength(before);
     await expect(canvas.getByRole('button', { name: 'View record: D3 / no deadline or primary owner' })).toBeVisible();
   },
 };
@@ -283,7 +300,8 @@ export const Pagination: Story = {
     expect(args.onRecord).toHaveBeenLastCalledWith('00000000-0000-4000-8000-000000002651');
     await userEvent.click(canvas.getByRole('button', { name: 'Go to previous page' }));
     await waitFor(() => expect(canvas.getByRole('combobox', { name: /Rows per page/ })).toBeEnabled());
-    expect(requests.at(-1)?.page).toBe(1);
+    expect(requests.at(-1)?.page).toBe(2);
+    expect(canvas.getByRole('button', { name: firstName })).toBeInTheDocument();
     await userEvent.selectOptions(canvas.getByRole('combobox', { name: /Rows per page/ }), '100');
     await waitFor(() => expect(canvas.getByRole('combobox', { name: /Rows per page/ })).toBeEnabled());
     expect(requests.at(-1)).toMatchObject({ page: 1, pageSize: 100 });

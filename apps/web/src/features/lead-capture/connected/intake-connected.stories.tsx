@@ -9,11 +9,11 @@ const initial: IntakeDetailView = { workspaceId, decisionKind: null, timezone: '
   capabilities: { canEdit: true, canCreate: true, canLink: true, canDismiss: true, canReadMatches: true } };
 let posts: Record<string, unknown>[] = [], preparations: Record<string, unknown>[] = [];
 const candidate = { leadId: '00000000-0000-4000-8000-000000000005', leadVersion: 1, name: 'Existing Alex', contact: 'alex@example.com', reason: 'Matching email or phone', canLink: true, changes: [{ id: 'service', label: 'Service', existing: 'Repair', proposed: 'Water heater quote' }] };
-const meta = { title: 'Lead Capture/ConnectedIntake', component: IntakeDetailRoute, args: { initial }, parameters: { layout: 'fullscreen', nextjs: { appDirectory: true } }, decorators: [Story => <main className="min-h-screen bg-canvas p-4 text-ink sm:p-8"><Story /></main>], beforeEach: ({ parameters, args }) => {
+const meta = { title: 'Lead Capture/ConnectedIntake', component: IntakeDetailRoute, args: { initial, viewerId: 'intake-story-viewer', initialUpdatedAt: Date.now() }, parameters: { layout: 'fullscreen', nextjs: { appDirectory: true } }, decorators: [Story => <main className="min-h-screen bg-canvas p-4 text-ink sm:p-8"><Story /></main>], beforeEach: ({ parameters, args }) => {
   const original = globalThis.fetch; posts = []; preparations = []; let failed = false;
   globalThis.fetch = async (input, options) => {
     const path = String(input), body = options?.body ? JSON.parse(String(options.body)) : null;
-    if (path === '/api/intake/review') { preparations.push(body); if (parameters.denied) return Response.json({ code: 'unavailable' }, { status: 404 }); if (parameters.prepareError) return Response.json({ code: 'error' }, { status: 500 }); return Response.json({ detail: args.initial, reviewId: body.requestId, expiresAt: new Date(Date.now() + 600000).toISOString(), answers: body.answers, candidates: parameters.duplicate ? [candidate] : [], duplicateRequired: !!parameters.duplicate, capacity: parameters.capacity ? 'exhausted' : 'available', assignmentReady: !parameters.assignmentUnavailable }); }
+    if (path === '/api/intake/review') { preparations.push(body); if (parameters.denied) return Response.json({ code: 'unavailable' }, { status: 404 }); if (parameters.prepareError) return Response.json({ code: 'error' }, { status: 500 }); return Response.json({ detail: args.initial, reviewId: body.requestId, expiresAt: new Date(Date.now() + (parameters.expired ? -1 : 600000)).toISOString(), answers: body.answers, candidates: parameters.duplicate ? [candidate] : [], duplicateRequired: !!parameters.duplicate, capacity: parameters.capacity ? 'exhausted' : 'available', assignmentReady: !parameters.assignmentUnavailable }); }
     if (path === '/api/intake/decisions') { posts.push(body); if (parameters.conflict) return Response.json({ code: 'conflict' }, { status: 409 }); if (parameters.retry && !failed) { failed = true; return Response.json({ code: 'error' }, { status: 500 }); } return Response.json({ ok: true }); }
     if (path.startsWith(`/api/intake/${intakeId}`)) return Response.json(args.initial);
     return original(input, options);
@@ -33,7 +33,15 @@ export const ReadOnly: Story = { args: { initial: { ...initial, capabilities: { 
 export const ResolvedDismissal: Story = { args: { initial: { ...initial, decisionKind: 'dismiss', item: { ...initial.item, status: 'dismissed', version: 2 } } }, play: async ({ canvasElement }) => { const c = within(canvasElement); expect(c.getByText(/Saved decision: Dismiss intake item/)).toBeVisible(); expect(preparations).toHaveLength(0); } };
 export const AccessRevoked: Story = { parameters: { denied: true }, play: async ({ canvasElement }) => { const c = within(canvasElement); await expect(await c.findByText('This intake item or workspace is unavailable.')).toBeVisible(); expect(c.queryByText('alex@example.com')).not.toBeInTheDocument(); } };
 export const ReviewUnavailable: Story = { parameters: { prepareError: true }, play: async ({ canvasElement }) => { await expect(await within(canvasElement).findByRole('button', { name: 'Retry review checks' })).toBeVisible(); } };
-export const List: Story = { render: () => <IntakeListRoute initial={{ workspaceId, timezone: initial.timezone, total: 1, page: 1, pageSize: 25, sources: [{ id: sourceId, name: initial.source.name }], rows: [{ id: intakeId, name: 'Alex Morgan', contact: 'alex@example.com', summary: 'Water heater quote', source: initial.source, status: 'awaiting', flags: ['uncertain'], receivedAt: initial.receipt.receivedAt, canOpen: true, canReview: true }] }} query={intakeQuerySchema.parse({ workspaceId })} /> };
+export const ExpiredReview: Story = { parameters: { expired: true }, play: async ({ canvasElement }) => {
+  const c = within(canvasElement);
+  await expect(await c.findByRole('button', { name: 'Retry review checks' })).toBeVisible();
+  await expect(c.getByRole('textbox', { name: /^Name/ })).toHaveValue('Alex Morgan');
+  await new Promise(resolve => setTimeout(resolve, 600));
+  expect(preparations).toHaveLength(1);
+  expect(posts).toHaveLength(0);
+} };
+export const List: Story = { render: () => <IntakeListRoute viewerId="intake-story-viewer" initialUpdatedAt={Date.now()} initial={{ workspaceId, timezone: initial.timezone, total: 1, page: 1, pageSize: 25, sources: [{ id: sourceId, name: initial.source.name }], rows: [{ id: intakeId, name: 'Alex Morgan', contact: 'alex@example.com', summary: 'Water heater quote', source: initial.source, status: 'awaiting', flags: ['uncertain'], receivedAt: initial.receipt.receivedAt, canOpen: true, canReview: true }] }} query={intakeQuerySchema.parse({ workspaceId })} /> };
 
 export const DuplicateLink: Story = { parameters: { duplicate: true }, play: async ({ canvasElement }) => {
   const c = within(canvasElement); await expect(await c.findByText('Existing Alex')).toBeVisible();

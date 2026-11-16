@@ -208,4 +208,31 @@ export type CustomerDetailResult = {
 };
 
 export const customerIdSchema = z.uuid();
+export const customerRecordSchema = z.object({
+  name: z.string(), type: z.enum(["person", "business"]), companyName: z.string(), email: z.string(), phone: z.string(),
+  location: z.string(), internalNotes: z.string(), ownerId: z.string(), id: z.uuid(), number: z.string(),
+  createdAt: z.string(), lastActivityAt: z.string(), archived: z.boolean(), openLeadCount: z.number().int().nonnegative(), version: z.number().int().positive(),
+}) satisfies z.ZodType<CustomerRecord>;
+const customerReadShape = {
+  members: z.array(z.object({ id: z.string(), name: z.string() })),
+  capabilities: z.object({ read: z.boolean(), create: z.boolean(), update: z.boolean(), archive: z.boolean(), delete: z.boolean(), export: z.boolean(), link: z.boolean(), note: z.boolean() }),
+  policyRevision: z.number().int().nonnegative(),
+};
+export const customerLeadSchema = z.object({
+  id: z.uuid(), number: z.string(), name: z.string(), status: z.string(), version: z.number().int().positive(),
+  customerId: z.uuid().nullable(), customerName: z.string().optional(), canUnlink: z.boolean().optional(),
+}) satisfies z.ZodType<CustomerLead>;
+export const customerListResultSchema = z.object({
+  ...customerReadShape, rows: z.array(customerRecordSchema), total: z.number().int().nonnegative(), page: z.number().int().positive(),
+  totals: z.object({ customers: z.number().int().nonnegative(), withOpenLeads: z.number().int().nonnegative() }), now: z.string(),
+}) satisfies z.ZodType<CustomerListResult>;
+export const customerDetailResultSchema = z.object({
+  ...customerReadShape, customer: customerRecordSchema, leads: z.array(customerLeadSchema), leadsTotal: z.number().int().nonnegative(),
+  events: z.array(z.object({ id: z.string(), text: z.string(), actor: z.string(), createdAt: z.string(), source: z.enum(["customer", "lead", "job"]) })),
+  notes: z.array(z.object({ id: z.string(), body: z.string(), author: z.string(), createdAt: z.string() })),
+  activityTotal: z.number().int().nonnegative(), notesTotal: z.number().int().nonnegative(),
+}) satisfies z.ZodType<CustomerDetailResult>;
+export const customerLeadCandidatesSchema = z.object({ records: z.array(customerLeadSchema) });
+export const customerSavedResultSchema = z.object({ customerId: z.uuid(), version: z.number().int().positive().optional(), deleted: z.boolean().optional() });
+export const customerDuplicateResultSchema = z.object({ code: z.literal("duplicate"), matches: z.array(z.object({ id: z.uuid(), name: z.string(), number: z.string(), reason: z.enum(["email", "phone", "name"]) })) });
 export { ZodError as CustomerContractError } from "zod";

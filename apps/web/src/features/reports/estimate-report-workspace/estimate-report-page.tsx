@@ -39,7 +39,6 @@ function EstimateReportPageHost({ initial, onRecord, onReload, template, onTempl
     current: initial.query.view === 'estimate-current' ? initial.query.selected : initialEstimateEvidence.current,
   });
   const [page, setPage] = useState(initial.query.page), [pageSize, setPageSize] = useState<number>(initial.query.pageSize);
-  const [retry, setRetry] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
   const range = useMemo(() => {
     const resolved = resolveReportPeriod(period, today, 'history').range;
@@ -48,10 +47,10 @@ function EstimateReportPageHost({ initial, onRecord, onReload, template, onTempl
   }, [period, today]);
   const request = useMemo(() => estimateReportRequest({ workspaceId: initial.workspaceId, view, filters, range, evidence, page, pageSize }),
     [initial.workspaceId, view, filters, range, evidence, page, pageSize]);
-  const key = `${scopeKey}:${JSON.stringify(request)}:${retry}`;
+  const key = `${scopeKey}:${today}:${timezone}:${JSON.stringify(request)}`;
   const validate = useCallback((raw: unknown) => { adaptEstimateReadResponse(raw, { request, scopeKey, today, timezone }); },
     [request, scopeKey, today, timezone]);
-  const loaded = useReportRead({ key, initial, validate,
+  const loaded = useReportRead({ key, initial, initialUpdatedAt: Date.parse(initial.report.asOf), validate,
     url: `/api/reports/estimates?${new URLSearchParams({ query: JSON.stringify(request) })}`,
     failureMessage: 'Estimates report could not be loaded. Try again.' });
   let projection: EstimateReportProjection = { view, filters: filters[view === 'current' ? 'current' : 'period'],
@@ -84,7 +83,7 @@ function EstimateReportPageHost({ initial, onRecord, onReload, template, onTempl
       canReadHandoff={!!raw?.authority.handoff} canExport={!loaded.pending && !error && !!raw?.exportAccess} canEdit={false} pending={loaded.pending}
       onViewChange={next => { setView(next); reset(); }}
       onFiltersChange={(context, value) => { setFilters(previous => ({ ...previous, [context]: value })); reset(); }}
-      onRetryFilters={() => setRetry(value => value + 1)} onRetry={() => setRetry(value => value + 1)}
+      onRetryFilters={loaded.refresh} onRetry={loaded.refresh}
       onEvidence={id => {
         if (loaded.pending || !raw) return;
         const selected = estimateReportEvidenceSelection(raw, id);

@@ -1,4 +1,7 @@
 export { createDatabase } from './database';
+export { homeClock, readHomeLeadsInTransaction, readHomeJobsInTransaction, canReadHomeWorkload, readHomeWorkloadInTransaction, readHomeActivityInTransaction } from './home/read';
+export { readHomeScheduleInTransaction } from './calendar/read';
+export { listHomeIntakeInTransaction } from './lead-capture/intake-store';
 export { createAuthPool } from './auth-pool';
 export { createDatabaseMeasurement, withDatabasePhase, withDatabaseOperation } from './database-metrics';
 export { notifyChatCancellation, subscribeChatCancellation } from './chat-cancellation';

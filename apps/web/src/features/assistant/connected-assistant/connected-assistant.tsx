@@ -1,4 +1,5 @@
 "use client";
+import { ApiQueryScopeBoundary, useApiQueryScope, useApiViewerId } from "../../api/api-query-provider";
 import { ConnectedCaptureSource } from '../capture-result/connected-capture-source';
 import { ConnectedCaptureSetup } from '../capture-result/connected-capture-setup';
 import type { CaptureAssistantProposalTicket } from '@salesmora/contracts';
@@ -36,6 +37,12 @@ import type {
   ReportAssistantTicket,
 } from "@salesmora/contracts";
 import { useRouter } from "next/navigation";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiQueryKeys, isApiAccessError, removeDeniedApiQueries } from "../../api/api-query";
+import { ApiRequestError } from "../../api/api-request";
+import { assistantCancelOptions, assistantHistoryOptions, assistantLeadActionOptions, assistantLeadNavigationOptions } from "../assistant-queries";
+import { invalidateLeadQueries } from "../../leads/leads-page/lead-queries";
+import { invalidateWorkspaceResources } from "../../api/api-read-options";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AssistantPanel,
@@ -43,9 +50,7 @@ import {
   type AssistantPanelProps,
 } from "@salesmora/ui";
 import {
-  chatHistoryResponseSchema,
   chatReplayResponseSchema,
-  chatActionResponseSchema,
   type ChatSurfaceKey,
   type ChatTurnRequest,
 } from "@salesmora/contracts";
@@ -66,7 +71,13 @@ const rememberThread = (workspaceId: string, id?: string) => {
     else sessionStorage.removeItem(storageKey(workspaceId));
   } catch {}
 };
-export function ConnectedAssistant({
+export function ConnectedAssistant(props: { workspaceId: string; surfaceKey: ChatSurfaceKey }) {
+  const viewerId = useApiViewerId();
+  return <ApiQueryScopeBoundary scope={{ viewerId, workspaceId: props.workspaceId }}>
+    <AssistantContent key={`${viewerId}:${props.workspaceId}`} {...props}/>
+  </ApiQueryScopeBoundary>;
+}
+function AssistantContent({
   workspaceId,
   surfaceKey,
 }: {
@@ -74,6 +85,11 @@ export function ConnectedAssistant({
   surfaceKey: ChatSurfaceKey;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const scope = useApiQueryScope();
+  const { mutateAsync: cancelTurn } = useMutation(assistantCancelOptions());
+  const { mutateAsync: navigateLead } = useMutation(assistantLeadNavigationOptions());
+  const { mutateAsync: decideLead } = useMutation(assistantLeadActionOptions(queryClient, scope));
   const workspaceAssistant = useWorkspaceAssistant();
   const captureSaved = useCallback(() => { router.refresh(); }, [router]);
   const setAssistantStatus = workspaceAssistant?.setStatus;
@@ -115,6 +131,8 @@ export function ConnectedAssistant({
   const mounted = useRef(true);
   const lastRequest = useRef<ChatTurnRequest | undefined>(undefined);
   const recoveryRequired = useRef(false);
+  const historyGeneration = useRef(0);
+  const invalidateHistory = useCallback(() => { historyGeneration.current++; }, []);
   useEffect(() => {
     setAssistantStatus?.(
       blocked || recoveryRequired.current
@@ -126,13 +144,17 @@ export function ConnectedAssistant({
   }, [setAssistantStatus, blocked, loading, runStatus]);
   const restore = useCallback(
     async (id: string) => {
-      const response = await fetch(
-        `/api/chat/threads?workspace=${encodeURIComponent(workspaceId)}&thread=${encodeURIComponent(id)}`,
-        { cache: "no-store" },
-      );
-      if (!response.ok) throw Error("History unavailable");
-      const history = chatHistoryResponseSchema.parse(await response.json());
-      if (!mounted.current) return history;
+      const generation = historyGeneration.current;
+      const history = await queryClient.fetchQuery(assistantHistoryOptions(scope, id)).catch(error => {
+        if (mounted.current && generation === historyGeneration.current) {
+          removeDeniedApiQueries(queryClient, apiQueryKeys.resource(scope, 'assistant-history'), error);
+          setMessages([{ id: "history-error", role: "assistant", text: isApiAccessError(error) ? copy.denied : copy.historyUnavailable }]);
+          setBlocked(true);
+          setRunStatus("failed");
+        }
+        throw error;
+      });
+      if (!mounted.current || generation !== historyGeneration.current) return history;
       thread.current = history.threadId;
       rememberThread(workspaceId, history.threadId);
       setMessages(
@@ -228,7 +250,7 @@ export function ConnectedAssistant({
       }
       return history;
     },
-    [workspaceId, surfaceKey],
+    [workspaceId, surfaceKey, queryClient, scope],
   );
   useEffect(() => {
     mounted.current = true;
@@ -236,20 +258,17 @@ export function ConnectedAssistant({
     thread.current = id;
     void Promise.resolve()
       .then(() => (id ? restore(id) : undefined))
-      .catch(() => {
-        if (mounted.current) {
-          setBlocked(true);
-          setRunStatus("failed");
-        }
-      })
+      .catch(() => {})
       .finally(() => {
         if (mounted.current) setLoading(false);
       });
     return () => {
       mounted.current = false;
+      invalidateHistory();
       abort.current?.abort();
+      void queryClient.cancelQueries({ queryKey: apiQueryKeys.resource(scope, 'assistant-history') });
     };
-  }, [workspaceId, restore]);
+  }, [workspaceId, restore, queryClient, scope, invalidateHistory]);
   // Reopen/focus and bounded idle refresh reauthorize cached customer cards without model calls.
   useEffect(() => {
     if (!workspaceAssistant?.open || loading) return;
@@ -260,10 +279,7 @@ export function ConnectedAssistant({
         document.visibilityState === "hidden"
       )
         return;
-      void restore(thread.current).catch(() => {
-        setMessages([]);
-        setBlocked(true);
-      });
+      void restore(thread.current).catch(() => {});
     };
     refresh();
     window.addEventListener("focus", refresh);
@@ -283,10 +299,7 @@ export function ConnectedAssistant({
       return;
     const timer = setInterval(() => {
       if (thread.current)
-        void restore(thread.current).catch(() => {
-          setBlocked(true);
-          setRunStatus("failed");
-        });
+        void restore(thread.current).catch(() => {});
     }, 1500);
     return () => clearInterval(timer);
   }, [runStatus, restore]);
@@ -296,6 +309,8 @@ export function ConnectedAssistant({
     if (recoveryRequired.current && !reconciliation)
       return { ok: false as const, message: copy.interrupted };
     pending.current = true;
+    invalidateHistory();
+    void queryClient.cancelQueries({ queryKey: apiQueryKeys.resource(scope, 'assistant-history') });
     stopRequested.current = false;
     const request: ChatTurnRequest = reconciliation ?? {
       workspaceId,
@@ -390,6 +405,8 @@ export function ConnectedAssistant({
         if (response.status === 409 && (await response.json().catch(() => null))?.error === 'calendar_context_changed') throw Error(copy.calendarContextChanged);
         if ([401, 403].includes(response.status)) {
           accessDenied = true;
+          removeDeniedApiQueries(queryClient, apiQueryKeys.resource(scope, 'assistant-history'),
+            new ApiRequestError(copy.denied, response.status, undefined));
           setMessages([]);
           setBlocked(true);
           throw Error(copy.denied);
@@ -580,6 +597,8 @@ export function ConnectedAssistant({
             setRunStatus("failed");
             if (event.code === "access_denied") {
               accessDenied = true;
+              removeDeniedApiQueries(queryClient, apiQueryKeys.resource(scope, 'assistant-history'),
+                new ApiRequestError(copy.denied, 403, undefined));
               setMessages([]);
               setBlocked(true);
             }
@@ -632,13 +651,13 @@ export function ConnectedAssistant({
     stopRequested.current = true;
     if (!turn.current) return; // Cancel immediately once acceptance supplies the durable run ID.
     try {
-      const response = await fetch("/api/chat/cancel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workspaceId, turnId: turn.current }),
-      });
-      if (!response.ok) abort.current?.abort();
-    } catch {
+      await cancelTurn({ workspaceId, turnId: turn.current });
+    } catch (error) {
+      if (mounted.current && isApiAccessError(error)) {
+        removeDeniedApiQueries(queryClient, apiQueryKeys.resource(scope, 'assistant-history'), error);
+        setMessages([{ id: "access-error", role: "assistant", text: copy.denied }]);
+        setBlocked(true);
+      }
       abort.current?.abort();
     }
   }
@@ -672,6 +691,8 @@ export function ConnectedAssistant({
   }
   function newConversation() {
     if (pending.current) return;
+    invalidateHistory();
+    queryClient.removeQueries({ queryKey: apiQueryKeys.resource(scope, 'assistant-history') });
     thread.current = undefined;
     turn.current = undefined;
     lastRequest.current = undefined;
@@ -690,36 +711,38 @@ export function ConnectedAssistant({
     if (pending.current || blocked)
       return { ok: false, message: copy.unavailable };
     try {
-      const response = await fetch("/api/chat/leads/navigation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const body = await navigateLead({
           workspaceId,
           resultId,
           ...(leadId ? { leadId } : {}),
-        }),
       });
-      if (!response.ok) {
-        // Clear cached content immediately if a snapshot is no longer authorized/current.
-        setMessages([]);
-        if (thread.current) await restore(thread.current).catch(() => {});
-        return { ok: false, message: changedMessage };
-      }
-      const body: { href?: unknown } = await response.json();
-      // Only the app route generates destinations. Never follow arbitrary model/client URLs.
-      if (
-        typeof body.href !== "string" ||
-        !/^\/leads(?:\/[0-9a-f-]{36})?\?/.test(body.href)
-      )
-        throw Error("Invalid destination");
+      if (!mounted.current) return { ok: false, message: copy.unavailable };
       workspaceAssistant?.setOpen(false);
       workspaceAssistant?.clearPageContext();
       router.push(body.href);
       return { ok: true };
-    } catch {
+    } catch (error) {
+      if (!mounted.current) return { ok: false, message: copy.unavailable };
+      if (error instanceof ApiRequestError) {
+        if (isApiAccessError(error)) {
+          removeDeniedApiQueries(queryClient, apiQueryKeys.resource(scope, 'assistant-history'), error);
+          setMessages([{ id: "access-error", role: "assistant", text: copy.denied }]);
+          setBlocked(true);
+        } else {
+          setMessages([]);
+          if (thread.current) await restore(thread.current).catch(() => {});
+        }
+        return { ok: false, message: changedMessage };
+      }
       return { ok: false, message: copy.unavailable };
     }
   }
+  async function refreshEstimates() {
+    await invalidateWorkspaceResources(queryClient, workspaceId, ["estimates", "home", "reports"], { refetchType: "none" });
+    if (thread.current) await restore(thread.current);
+    router.refresh();
+  }
+
   return (
     <AssistantPanel
       open={workspaceAssistant?.open}
@@ -760,7 +783,7 @@ export function ConnectedAssistant({
           {captureSource && <ConnectedCaptureSource ticket={captureSource} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} onSaved={captureSaved} />}
           {captureSetup && <ConnectedCaptureSetup ticket={captureSetup} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} apply={workspaceAssistant?.applyCaptureSetup} onSaved={captureSaved} />}
           {capture && <ConnectedCaptureRead ticket={capture} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} onNavigate={href => { workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href); }} />}
-          {calendar?.calendarProposal && <ConnectedCalendarSchedule ticket={calendar.calendarProposal} workspaceId={workspaceId} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} onRefresh={async () => { if (thread.current) await restore(thread.current);router.refresh(); }}/>}
+          {calendar?.calendarProposal && <ConnectedCalendarSchedule ticket={calendar.calendarProposal} workspaceId={workspaceId} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} onRefresh={async () => { await invalidateWorkspaceResources(queryClient, workspaceId, ["calendar", "jobs", "work-orders", "home", "reports"]); if (thread.current) await restore(thread.current);router.refresh(); }}/>}
           {calendar?.calendarResult && calendar.calendarTurnId && <ConnectedCalendarResult key={`${workspaceId}:${calendar.calendarTurnId}:${calendar.calendarResult.id}`} result={calendar.calendarResult} workspaceId={workspaceId} turnId={calendar.calendarTurnId} disabled={blocked || runStatus === 'thinking' || runStatus === 'streaming'} onNavigate={href => { workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href); }}/>}
           {report?.reportResult && report.reportTurnId ? <ConnectedReportResult
             key={`${workspaceId}:${report.reportTurnId}:${report.reportResult.id}`}
@@ -781,6 +804,7 @@ export function ConnectedAssistant({
                 blocked || runStatus === "thinking" || runStatus === "streaming"
               }
               onRefresh={async () => {
+                await invalidateWorkspaceResources(queryClient, workspaceId, ["work-orders", "materials", "estimates", "jobs", "calendar", "home", "reports"]);
                 if (thread.current) await restore(thread.current);
                 router.refresh();
               }}
@@ -799,25 +823,27 @@ export function ConnectedAssistant({
               blocked || runStatus === "thinking" || runStatus === "streaming"
             }
             onRefresh={async (deleted) => {
+              await invalidateWorkspaceResources(queryClient, workspaceId, ["customers", "leads", "jobs", "calendar", "home", "reports"], { refetchType: deleted ? "none" : "active" });
               if (deleted) {
+                const customerQueries = { predicate: (query: { queryKey: readonly unknown[] }) =>
+                  query.queryKey[0] === "api" && query.queryKey[2] === "workspace" && query.queryKey[3] === workspaceId &&
+                  ["customers", "customer-detail", "customer-candidates"].includes(String(query.queryKey[4])) };
+                await queryClient.cancelQueries(customerQueries);
+                queryClient.removeQueries(customerQueries);
                 setMessages([]);
                 lastRequest.current = undefined;
                 setCanRetry(false);
                 workspaceAssistant?.clearPageContext();
+                if (window.location.pathname.startsWith("/customers/")) {
+                  workspaceAssistant?.setOpen(false);
+                  router.replace(`/customers?workspace=${workspaceId}`);
+                  return;
+                }
               }
               try {
                 if (thread.current) await restore(thread.current);
               } catch (error) {
                 if (!deleted) throw error;
-              }
-              if (
-                deleted &&
-                window.location.pathname.startsWith("/customers/")
-              ) {
-                workspaceAssistant?.setOpen(false);
-                workspaceAssistant?.clearPageContext();
-                router.replace(`/customers?workspace=${workspaceId}`);
-                return;
               }
               router.refresh();
             }}
@@ -834,6 +860,8 @@ export function ConnectedAssistant({
           workspaceId={workspaceId}
           disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
           onRefresh={async () => {
+            await invalidateLeadQueries(queryClient, workspaceId);
+            await invalidateWorkspaceResources(queryClient, workspaceId, ["estimates", "customers", "jobs", "work-orders", "calendar", "home", "reports"], { refetchType: "none" });
             if (thread.current) await restore(thread.current);
           }}
           onNavigate={href => {
@@ -845,7 +873,7 @@ export function ConnectedAssistant({
         {estimateDraft && <ConnectedEstimateDraft
           key={estimateDraft.draft.id} view={estimateDraft} workspaceId={workspaceId}
           disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
-          onRefresh={async () => { if (thread.current) await restore(thread.current); router.refresh(); }}
+          onRefresh={refreshEstimates}
           onNavigate={href => {
             workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href);
           }}
@@ -853,7 +881,7 @@ export function ConnectedAssistant({
         {estimateSharing && <ConnectedEstimateSharing
           key={estimateSharing.id} ticket={estimateSharing} workspaceId={workspaceId}
           disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
-          onRefresh={async () => { if (thread.current) await restore(thread.current); router.refresh(); }}
+          onRefresh={refreshEstimates}
           onNavigate={href => {
             workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href);
           }}
@@ -861,7 +889,7 @@ export function ConnectedAssistant({
         {estimateVoid && <ConnectedEstimateVoid
           key={estimateVoid.id} ticket={estimateVoid} workspaceId={workspaceId}
           disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
-          onRefresh={async () => { if (thread.current) await restore(thread.current); router.refresh(); }}
+          onRefresh={refreshEstimates}
           onNavigate={href => {
             workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href);
           }}
@@ -869,7 +897,7 @@ export function ConnectedAssistant({
         {estimateDraftAction && <ConnectedEstimateDraftAction
           key={estimateDraftAction.id} ticket={estimateDraftAction} workspaceId={workspaceId}
           disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
-          onRefresh={async () => { if (thread.current) await restore(thread.current); router.refresh(); }}
+          onRefresh={refreshEstimates}
           onNavigate={href => {
             workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href);
           }}
@@ -877,7 +905,7 @@ export function ConnectedAssistant({
         {estimateDecision && <ConnectedEstimateDecision
           key={estimateDecision.id} ticket={estimateDecision} workspaceId={workspaceId}
           disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
-          onRefresh={async () => { if (thread.current) await restore(thread.current); router.refresh(); }}
+          onRefresh={refreshEstimates}
           onNavigate={href => {
             workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href);
           }}
@@ -885,7 +913,7 @@ export function ConnectedAssistant({
         {estimateArchive && <ConnectedEstimateArchive
           key={estimateArchive.id} ticket={estimateArchive} workspaceId={workspaceId}
           disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
-          onRefresh={async () => { if (thread.current) await restore(thread.current); router.refresh(); }}
+          onRefresh={refreshEstimates}
           onNavigate={href => {
             workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href);
           }}
@@ -893,14 +921,14 @@ export function ConnectedAssistant({
         {estimateDraftDelete && <ConnectedEstimateDraftDelete
           key={estimateDraftDelete.id} ticket={estimateDraftDelete} workspaceId={workspaceId}
           disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
-          onRefresh={async () => { if (thread.current) await restore(thread.current); router.refresh(); }}
+          onRefresh={refreshEstimates}
         />}
         {estimateConversion && <ConnectedEstimateConversion
           key={estimateConversion.id}
           ticket={estimateConversion}
           workspaceId={workspaceId}
           disabled={blocked || runStatus === "thinking" || runStatus === "streaming"}
-          onRefresh={async () => { if (thread.current) await restore(thread.current); }}
+          onRefresh={async () => { await invalidateLeadQueries(queryClient, workspaceId); await invalidateWorkspaceResources(queryClient, workspaceId, ["estimates", "customers", "jobs", "work-orders", "calendar", "home", "reports"], { refetchType: "none" }); if (thread.current) await restore(thread.current); }}
           onOpenReview={() => workspaceAssistant?.setOpen(false)}
           onNavigate={href => {
             workspaceAssistant?.setOpen(false);
@@ -926,51 +954,34 @@ export function ConnectedAssistant({
       onAction={async (draft, decision, typedConfirmation) => {
         if (pending.current || blocked)
           return { ok: false, message: copy.unavailable };
+        pending.current = true;
+        invalidateHistory();
         try {
+          await queryClient.cancelQueries({ queryKey: apiQueryKeys.resource(scope, 'assistant-history') });
+          if (!mounted.current) return { ok: false, message: copy.decisionInterrupted };
           const isDelete =
             "actionType" in draft && draft.actionType === "lead.delete";
           const isExport =
             "actionType" in draft &&
             draft.actionType === "lead.export" &&
             decision === "confirm";
-          const response = await fetch(
-            isDelete
-              ? "/api/chat/deletions"
-              : isExport
-                ? "/api/chat/exports"
-                : "/api/chat/actions",
-            {
+          const body = {
+            workspaceId,
+            draftId: draft.id,
+            inputHash: draft.inputHash,
+            decision,
+            ...(isDelete ? { typedConfirmation: typedConfirmation ?? "" } : {}),
+          };
+          if (isExport) {
+            const response = await fetch("/api/chat/exports", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                workspaceId,
-                draftId: draft.id,
-                inputHash: draft.inputHash,
-                decision,
-                ...(isDelete
-                  ? { typedConfirmation: typedConfirmation ?? "" }
-                  : {}),
-              }),
-            },
-          );
-          if (!response.ok) {
-            const failure = await response.json().catch(() => null);
-            if (thread.current) await restore(thread.current);
-            return {
-              ok: false,
-              message:
-                failure?.error === "plan_limit"
-                  ? copy.leadLimit
-                  : response.status === 403
-                    ? copy.denied
-                    : response.status === 409
-                      ? copy.draftChanged
-                      : copy.interrupted,
-            };
-          }
-          if (isExport) {
+              body: JSON.stringify(body),
+            });
+            if (!response.ok) throw new ApiRequestError(copy.interrupted, response.status, await response.json().catch(() => undefined));
             // Await the complete body: never download a partial CSV after a stream failure.
             const blob = await response.blob();
+            if (!mounted.current) return { ok: false, message: copy.interrupted };
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
@@ -988,9 +999,8 @@ export function ConnectedAssistant({
             );
             return { ok: true };
           }
-          const { action } = chatActionResponseSchema.parse(
-            await response.json(),
-          );
+          const { action } = await decideLead({ path: isDelete ? "/api/chat/deletions" : "/api/chat/actions", body });
+          if (!mounted.current) return { ok: false, message: copy.decisionInterrupted };
           if (
             "actionType" in action &&
             action.actionType === "lead.delete" &&
@@ -1020,6 +1030,12 @@ export function ConnectedAssistant({
               ),
             );
           if (decision === "confirm" && action.state === "confirmed") {
+            try {
+              await invalidateLeadQueries(queryClient, workspaceId,
+                "actionType" in action && action.actionType === "lead.delete" ? action.lead.id : undefined);
+            } catch {
+              setMessages(current => [...current, { id: crypto.randomUUID(), role: "assistant", text: copy.leadSavedReload }]);
+            }
             if (
               "actionType" in action &&
               action.actionType === "lead.delete" &&
@@ -1033,8 +1049,25 @@ export function ConnectedAssistant({
             } else router.refresh();
           }
           return { ok: true };
-        } catch {
+        } catch (error) {
+          if (mounted.current && error instanceof ApiRequestError) {
+            const denied = isApiAccessError(error);
+            const status = error.status;
+            if (denied) {
+              removeDeniedApiQueries(queryClient, apiQueryKeys.resource(scope, 'assistant-history'), error);
+              setMessages([{ id: "access-error", role: "assistant", text: copy.denied }]);
+              setBlocked(true);
+            } else if (thread.current) await restore(thread.current).catch(() => {});
+            return {
+              ok: false,
+              message: error.details && typeof error.details === "object" && "error" in error.details && error.details.error === "plan_limit"
+                ? copy.leadLimit
+                : denied ? copy.denied : status === 409 ? copy.draftChanged : copy.interrupted,
+            };
+          }
           return { ok: false, message: copy.decisionInterrupted };
+        } finally {
+          pending.current = false;
         }
       }}
       onSend={send}

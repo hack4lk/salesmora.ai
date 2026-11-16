@@ -11,10 +11,16 @@ function Preview(args: LeadSettingsPageProps) {
 const assignment = { value: { kind: 'unassigned' as const }, savedValue: { kind: 'unassigned' as const }, revision: 1, canRead: true, canManage: true, teammates: [{ id: 'alex', name: assignmentCopy.stories.alex }], onChange: fn(), onDiscard: fn(), onReload: fn(), onRetryTeammates: fn(), onSave: fn(async () => {}) };
 const meta = { title: 'Settings/LeadSettingsPage', component: LeadSettingsPage, render: args => <Preview {...args} />, parameters: { layout: 'fullscreen' },
   decorators: [Story => <main className="mx-auto grid min-h-screen max-w-4xl content-start gap-6 bg-canvas p-4 sm:p-8"><p className="m-0 text-sm leading-6 text-muted">{copy.stories.notice}</p><Story /></main>],
-  args: { settingsHref: '/settings?workspace=fictional-workspace', assignment },
+  args: { assignment },
 } satisfies Meta<typeof LeadSettingsPage>;
 export default meta; type Story = StoryObj<typeof meta>;
-export const Default: Story = { play: async ({ canvasElement }) => { const c = within(canvasElement); await expect(c.getByRole('heading', { name: copy.title, level: 1 })).toBeVisible(); await expect(c.getByRole('link', { name: copy.back })).toHaveAttribute('href', '/settings?workspace=fictional-workspace'); } };
+export const Default: Story = { play: async ({ canvasElement }) => {
+  const c = within(canvasElement);
+  await expect(c.getByRole('heading', { name: copy.title, level: 1 })).toBeVisible();
+  await expect(c.queryByRole('link', { name: /Back to settings/i })).not.toBeInTheDocument();
+  await expect(c.queryByText('Business settings')).not.toBeInTheDocument();
+  await expect(c.queryByText('Manage the business default for new leads from your capture sources.')).not.toBeInTheDocument();
+} };
 export const Save: Story = { play: async ({ canvasElement, args }) => { const c = within(canvasElement); await userEvent.click(c.getByRole('radio', { name: assignmentCopy.teammate })); await userEvent.selectOptions(c.getByRole('combobox'), 'alex'); await userEvent.click(c.getByRole('button', { name: assignmentCopy.save })); await expect(args.assignment.onSave).toHaveBeenCalledWith({ value: { kind: 'teammate', teammateId: 'alex' }, expectedVersion: 1 }); } };
 export const ReadOnly: Story = { args: { assignment: { ...assignment, canManage: false } } };
 export const Loading: Story = { args: { assignment: { ...assignment, state: 'loading' } } };

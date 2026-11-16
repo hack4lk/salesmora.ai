@@ -92,3 +92,17 @@ export const EditorHandoff: Story = {
     await expect(args.onRefresh).not.toHaveBeenCalled();
   },
 };
+export const AccessRevoked: Story = {
+  beforeEach: () => {
+    const fetch = globalThis.fetch;
+    globalThis.fetch = fn(async () => Response.json({ error: c.error }, { status: 403 }));
+    return () => { globalThis.fetch = fetch; };
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Confirm Draft creation" }));
+    await expect(await canvas.findByRole("alert")).toHaveTextContent(c.error);
+    await expect(canvas.queryByRole("button", { name: "Confirm Draft creation" })).not.toBeInTheDocument();
+    await expect(args.onNavigate).not.toHaveBeenCalled();
+  },
+};

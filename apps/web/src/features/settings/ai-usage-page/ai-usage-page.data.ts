@@ -1,7 +1,7 @@
 export const aiUsagePageData = {
-  title: 'AI usage', eyebrow: 'Workspace settings', ownerOnly: 'Owner only',
+  title: 'AI usage',
   description: 'Track the monthly assistant allowance shared by everyone in your workspace.',
-  back: 'Back to Settings', refresh: 'Refresh usage', refreshing: 'Refreshing…',
+  refresh: 'Refresh usage', refreshing: 'Refreshing…',
   summary: 'Monthly token allowance', used: 'Used or reserved', remaining: 'Tokens remaining', allowance: 'Monthly allowance',
   meter: 'Monthly token allowance used or reserved',
   resets: 'Next reset', timezone: 'Resets at 00:00 UTC on the first of each month.',
@@ -17,11 +17,10 @@ export const aiUsagePageData = {
   noAllowance: 'New assistant requests are paused. Manual workspace features remain available.',
   loading: 'Loading AI usage…', errorTitle: 'Usage could not be loaded', error: 'Try refreshing to load the current workspace allowance.',
   deniedTitle: 'Only the workspace Owner can view AI usage', denied: 'Contact your workspace Owner for information about the assistant allowance.',
-  note: 'Tokens measure AI usage. This is not a billing statement or a currency spending limit.',
   percent: (value: number) => `${value}% used or reserved`,
   stories: {
     workspace: 'Northstar Plumbing', longWorkspace: 'Northstar Property Maintenance, Construction and Professional Services',
-    settingsHref: '/settings?workspace=fictional-workspace', resetAt: '2026-11-01T00:00:00.000Z',
+    resetAt: '2026-11-01T00:00:00.000Z',
     notice: 'Design preview with fictional usage. No live usage data or configuration changes.',
   },
 } as const;

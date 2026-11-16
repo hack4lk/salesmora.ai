@@ -50,7 +50,17 @@ export async function readIntakeItem(db: Knex, identity: WorkspaceIdentity, enab
 }
 export async function listIntakeItems(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], raw: unknown) {
   const input = intakeQuerySchema.parse(raw); workspace(input, identity);
-  return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
+  return withWorkspaceAuthorization(db, identity, enabled, false, (trx, context) => listIntakeInTransaction(trx, context, input));
+}
+export async function listHomeIntakeInTransaction(trx: Knex.Transaction, context: AuthorizationContext) {
+  const list = await listIntakeInTransaction(trx, context, intakeQuerySchema.parse({ workspaceId: context.workspaceId, status: 'awaiting' }), true);
+  const flaggedTotal = Number((await trx('intakeItems').where({ workspaceId: context.workspaceId, status: 'awaiting' })
+    .whereRaw('jsonb_array_length(flags)>0').count('* as count').first())?.count);
+  if (!Number.isSafeInteger(flaggedTotal) || flaggedTotal < 0) throw new CaptureDraftValidationError();
+  return { ...list, flaggedTotal };
+}
+async function listIntakeInTransaction(trx: Knex.Transaction, context: AuthorizationContext, input: ReturnType<typeof intakeQuerySchema.parse>, home = false) {
+    const identity = { workspaceId: context.workspaceId };
     read(context);
     const query = trx('intakeItems as i').join('captureSources as s', function () { this.on('s.id', 'i.sourceId').andOn('s.workspaceId', 'i.workspaceId'); }).join('captureReceipts as r', function () { this.on('r.id', 'i.receiptId').andOn('r.workspaceId', 'i.workspaceId'); }).join('captureSourceVersions as v', function () { this.on('v.sourceId', 'i.sourceId').andOn('v.workspaceId', 'i.workspaceId').andOn('v.configurationVersion', 'r.configurationVersion'); }).where('i.workspaceId', identity.workspaceId);
     if (input.sourceId) query.where('i.sourceId', input.sourceId);
@@ -60,11 +70,12 @@ export async function listIntakeItems(db: Knex, identity: WorkspaceIdentity, ena
     else if (input.flag !== 'all') query.whereRaw('i.flags @> ?::jsonb', [JSON.stringify([input.flag])]);
     if (input.search) query.whereRaw("(i.answers::text ILIKE ? OR s.name ILIKE ? OR r.evidence->>'subject' ILIKE ?)", Array(3).fill(`%${input.search.replace(/[\\%_]/g, '\\$&')}%`));
     const total = Number((await query.clone().count('* as n').first())?.n ?? 0);
-    const rows = await query.select('i.id', 'i.answers', 'i.status', 'i.flags', 's.id as sourceId', 's.name as sourceName', 's.type as sourceType', 'r.receivedAt', 'v.configuration').orderBy('r.receivedAt', 'desc').orderBy('i.id', 'desc').limit(input.pageSize).offset((input.page - 1) * input.pageSize);
+    const selected = query.select('i.id', 'i.answers', 'i.status', 'i.flags', 's.id as sourceId', 's.name as sourceName', 's.type as sourceType', 'r.receivedAt', 'v.configuration');
+    if (home) selected.orderByRaw('(jsonb_array_length(i.flags)>0) DESC');
+    const rows = await selected.orderBy('r.receivedAt', home ? 'asc' : 'desc').orderBy('i.id', home ? 'asc' : 'desc').limit(home ? 5 : input.pageSize).offset((input.page - 1) * input.pageSize);
     const sources = await trx('captureSources as s').where('s.workspaceId', identity.workspaceId).whereExists(trx('intakeItems as i').select(trx.raw('1')).whereRaw('i."workspaceId"=s."workspaceId" AND i."sourceId"=s.id')).select('s.id', 's.name').orderBy('s.name').orderBy('s.id').limit(1000);
     return intakeListViewSchema.parse({ workspaceId: identity.workspaceId, timezone: (await trx('workspaces').where({ id: identity.workspaceId }).first('timezone')).timezone, total, page: input.page, pageSize: input.pageSize, sources,
       rows: rows.map(row => { const values = intakeLeadValues(row.configuration, row.answers); return { id: row.id, name: values.name, contact: [values.email, values.phone].filter(Boolean).join(' · '), summary: values.service, source: { id: row.sourceId, name: row.sourceName, type: row.sourceType }, status: row.status, flags: row.flags, receivedAt: row.receivedAt.toISOString(), canOpen: true, canReview: allowed(context, 'intake.approve', row.id) || allowed(context, 'intake.dismiss', row.id) }; }) });
-  });
 }
 
 const mergeFields = ['name', 'email', 'phone', 'service', 'address', 'details'] as const;

@@ -84,7 +84,8 @@ test('creates from Home using real members, saves every field once, and updates 
   const userId = await account(api);
   const workspaceId = await workspace(api);
   await page.goto(`/home?workspace=${workspaceId}`);
-  await expect(page.getByRole('heading', { name: 'Leads by pipeline stage' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Leads by pipeline stage' })).toBeVisible();
+  await expect(page.getByText('0 leads across your pipeline', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Create lead', exact: true }).click();
   await expect(page).toHaveURL(`${origin}/leads/new?workspace=${workspaceId}`);
   await expect(page.getByRole('button', { name: copy.submit, exact: true })).toBeEnabled();
@@ -104,7 +105,9 @@ test('creates from Home using real members, saves every field once, and updates 
   expect(await db('leads')).toHaveLength(1);
   await page.goto(`/home?workspace=${workspaceId}`);
   await expect(page.getByRole('heading', { name: 'Start your customer work' })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Create lead', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Home actions' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Create lead', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
   await expect(page.getByRole('heading', { name: 'Leads by pipeline stage' })).toBeVisible();
   await expect(page.getByText('1 lead across your pipeline', { exact: true })).toBeVisible();
   await expect(page.getByRole('meter', { name: 'Estimate sent', exact: true })).toHaveAttribute('aria-valuenow', '1');
@@ -131,7 +134,7 @@ test('Home aggregates only assigned Field leads and excludes other workspaces at
       await expect(meter).toHaveAttribute('aria-valuenow', String(count));
       await expect(meter).toHaveAttribute('aria-valuemax', '2');
     }
-    await expect(page.getByRole('link', { name: 'View pipeline', exact: true })).toHaveAttribute('href', `/leads?workspace=${workspaceId}`);
+    await expect(page.getByRole('link', { name: 'View pipeline', exact: true })).toHaveAttribute('href', `/leads?workspace=${workspaceId}&view=pipeline`);
     await page.evaluate(() => document.fonts.ready);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: `/private/tmp/salesmora-home-pipeline-${width}.png`, fullPage: true });

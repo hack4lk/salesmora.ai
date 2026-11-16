@@ -43,7 +43,6 @@ function CalendarReportPageHost({ initial, onRecord, onReload, template, onTempl
     unscheduled: initial.query.view === 'calendar-unscheduled' ? initial.query.selected : defaults.unscheduled,
   });
   const [page, setPage] = useState(initial.query.page), [pageSize, setPageSize] = useState<number>(initial.query.pageSize);
-  const [retry, setRetry] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
   const range = useMemo(() => {
     const resolved = resolveReportPeriod(period, today, 'calendar').range;
@@ -52,10 +51,10 @@ function CalendarReportPageHost({ initial, onRecord, onReload, template, onTempl
   }, [period, today]);
   const request = useMemo(() => calendarReportRequest({ workspaceId: initial.workspaceId, view, filters, range, evidence, page, pageSize }),
     [initial.workspaceId, view, filters, range, evidence, page, pageSize]);
-  const key = `${scopeKey}:${JSON.stringify(request)}:${retry}`;
+  const key = `${scopeKey}:${today}:${timezone}:${JSON.stringify(request)}`;
   const validate = useCallback((raw: unknown) => { adaptCalendarReadResponse(raw, { request, scopeKey, today, timezone }); },
     [request, scopeKey, today, timezone]);
-  const loaded = useReportRead({ key, initial, validate, url: `/api/reports/calendar?${new URLSearchParams({ query: JSON.stringify(request) })}`,
+  const loaded = useReportRead({ key, initial, initialUpdatedAt: Date.parse(initial.report.asOf), validate, url: `/api/reports/calendar?${new URLSearchParams({ query: JSON.stringify(request) })}`,
     failureMessage: 'Calendar report could not be loaded. Try again.' });
   let projection: CalendarReportProjection = { view, state: { kind: loaded.pending ? 'loading' : 'error' },
     filters: filters[view === 'unscheduled' ? 'unscheduled' : 'dated'], scopeKey, attribution: [] };
@@ -87,7 +86,7 @@ function CalendarReportPageHost({ initial, onRecord, onReload, template, onTempl
       canExport={!loaded.pending && !error && !!raw?.canExport} canEdit={false} canOpenCalendar={false}
       pending={loaded.pending} onViewChange={next => { setView(next); reset(); }}
       onFiltersChange={(context, value) => { setFilters(previous => ({ ...previous, [context]: value })); reset(); }}
-      onRetryFilters={() => setRetry(value => value + 1)} onRetry={() => setRetry(value => value + 1)}
+      onRetryFilters={loaded.refresh} onRetry={loaded.refresh}
       onEvidence={id => {
         if (loaded.pending || !adapted) return;
         if (view === 'scheduled' && ['scheduled-visits', 'busy-person-days'].includes(id)) {

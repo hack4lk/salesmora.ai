@@ -46,7 +46,7 @@ export function CalendarWeekGrid({ weekDate, today, entries, scopeLabel, state =
     {state === 'error' ? <div className="grid gap-4 rounded-2xl border border-line bg-paper p-5"><FormFeedback kind="error" title={copy.errorTitle} message={copy.error}/>
       {onRetry && <button type="button" onClick={onRetry} className="min-h-11 cursor-pointer justify-self-start rounded-xl border border-line bg-paper px-4 py-2 text-sm font-semibold text-primary focus-visible:focus-ring">{copy.retry}</button>}
     </div> : <>
-      {state === 'loading' ? <p role="status" className="m-0 text-sm text-muted">{copy.loading}</p> : <p id={`${id}-help`} className="m-0 text-xs leading-5 text-muted">{copy.keyboard}<span className="hidden md:inline"> {copy.scroll}</span></p>}
+      {state === 'loading' ? <p role="status" className="m-0 text-sm text-muted">{copy.loading}</p> : <p id={`${id}-help`} className="sr-only">{copy.keyboard} {copy.scroll}</p>}
       <div role="region" aria-label={calendarToolbarData.range(start, end)} aria-describedby={state === 'ready' ? `${id}-help` : undefined}
         tabIndex={0} className="min-w-0 max-w-full overflow-x-auto rounded-2xl p-1 focus-visible:focus-ring">
         <div className={grid}>

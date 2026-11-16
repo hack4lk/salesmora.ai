@@ -76,7 +76,6 @@ export default async function EstimateSettingsPageRoute({
     <EstimateSettingsRoute
       key={`estimate-settings-${workspace.id}`}
       workspaceId={workspace.id}
-      workspaceName={workspace.businessName}
       timezone={workspaceDetails.timezone}
       initial={result.record}
       canManage={result.canManage}

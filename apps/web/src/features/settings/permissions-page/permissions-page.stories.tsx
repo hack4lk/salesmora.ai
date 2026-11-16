@@ -12,9 +12,9 @@ const save = async (change: PolicyChange): Promise<PermissionSaveResult> => ({ o
 const meta = {
   title: 'Settings/PermissionsPage',
   component: PermissionsPage,
-  parameters: { layout: 'fullscreen' },
+  parameters: { layout: 'fullscreen', docs: { description: { component: 'Owner-only permission editor. Role tabs match Lead Capture intake styling and support Left/Right, Home and End navigation. Unsaved changes persist across roles until explicitly reviewed and saved.' } } },
   args: {
-    workspaceName: copy.stories.workspace, viewerRole: 'owner', policy,
+    viewerRole: 'owner', policy,
     defaultPolicy: policy, availablePermissions, initialRole: 'office',
     onSave: fn(save), onReload: fn(async () => ({ ...policy, revision: 1 })),
     onReauthenticate: fn(async () => {}),
@@ -24,7 +24,14 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
+export const Default: Story = { play: async ({ canvasElement }) => {
+  const footer = canvasElement.querySelector('footer');
+  await expect(footer).toHaveStyle({ position: 'static' });
+  const c = within(canvasElement);
+  await expect(c.getAllByRole('heading', { level: 1, name: copy.title })).toHaveLength(1);
+  for (const text of ['Workspace settings', 'Only the Owner can change permissions.', copy.stories.workspace]) await expect(c.queryByText(text)).not.toBeInTheDocument();
+  await expect(c.queryByRole('link', { name: 'Back to Settings' })).not.toBeInTheDocument();
+} };
 export const Field: Story = { args: { initialRole: 'field' }, play: async ({ canvasElement }) => {
   const c = within(canvasElement);
   await expect(c.getByRole('switch', { name: copy.labels['leads.create'] })).not.toBeChecked();
@@ -45,13 +52,14 @@ export const AdminViewerDenied: Story = { args: { viewerRole: 'admin' }, play: a
   await expect(args.onSave).not.toHaveBeenCalled();
 } };
 export const Mobile: Story = { globals: { viewport: { value: 'phone', isRotated: false } } };
-export const LongContent: Story = { args: { workspaceName: copy.stories.longWorkspace } };
 
 const openReview: NonNullable<Story['play']> = async ({ canvasElement, args }) => {
   const c = within(canvasElement);
   await userEvent.click(c.getByRole('switch', { name: copy.labels['leads.create'] }));
+  await expect(canvasElement.querySelector('footer')).toHaveStyle({ position: 'static' });
   await userEvent.click(c.getByRole('button', { name: copy.review }));
   await expect(c.getByRole('heading', { name: copy.reviewTitle })).toHaveFocus();
+  await expect(canvasElement.querySelector('footer')).toHaveStyle({ position: 'static' });
   await expect(args.onSave).not.toHaveBeenCalled();
 };
 export const Review: Story = { play: openReview };
@@ -68,10 +76,38 @@ export const SaveChanges: Story = { play: async context => {
 export const DraftAcrossRoles: Story = { play: async ({ canvasElement }) => {
   const c = within(canvasElement);
   await userEvent.click(c.getByRole('switch', { name: copy.labels['leads.create'] }));
-  await userEvent.click(c.getByRole('button', { name: copy.roles.field }));
-  await userEvent.click(c.getByRole('button', { name: copy.roles.office }));
+  await userEvent.click(c.getByRole('tab', { name: copy.roles.field }));
+  await userEvent.click(c.getByRole('tab', { name: copy.roles.office }));
   await expect(c.getByRole('switch', { name: copy.labels['leads.create'] })).not.toBeChecked();
   await expect(c.getByText(copy.pending(1))).toBeVisible();
+} };
+export const RoleTabsKeyboard: Story = { play: async ({ canvasElement, args }) => {
+  const c = within(canvasElement);
+  const tabs = within(c.getByRole('tablist', { name: copy.rolesLabel }));
+  const office = tabs.getByRole('tab', { name: copy.roles.office });
+  await userEvent.click(c.getByRole('switch', { name: copy.labels['leads.create'] }));
+  office.focus();
+  for (const [key, name] of [
+    ['{ArrowRight}', copy.roles.field],
+    ['{ArrowRight}', copy.roles.owner],
+    ['{ArrowLeft}', copy.roles.field],
+    ['{Home}', copy.roles.owner],
+    ['{End}', copy.roles.field],
+    ['{ArrowLeft}', copy.roles.office],
+  ]) {
+    await userEvent.keyboard(key);
+    const selected = tabs.getByRole('tab', { name });
+    await expect(selected).toHaveFocus();
+    await expect(selected).toHaveAttribute('aria-selected', 'true');
+    await expect(selected).toHaveAttribute('tabindex', '0');
+    await expect(c.getByRole('tabpanel', { name })).toHaveAttribute('id', selected.getAttribute('aria-controls'));
+    await expect(tabs.getAllByRole('tab', { selected: true })).toHaveLength(1);
+  }
+  await userEvent.tab();
+  await expect(c.getByRole('tabpanel', { name: copy.roles.office })).toHaveFocus();
+  await expect(c.getByRole('switch', { name: copy.labels['leads.create'] })).not.toBeChecked();
+  await expect(c.getByText(copy.pending(1))).toBeVisible();
+  await expect(args.onSave).not.toHaveBeenCalled();
 } };
 export const DependencyError: Story = { play: async ({ canvasElement, args }) => {
   const c = within(canvasElement);

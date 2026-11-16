@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f8fc">
+  <title>Home review · SalesMora prototype</title>
+  <style>
+    :root{font-family:"Source Sans 3","Segoe UI",Arial,sans-serif;color:#23384d;background:#f4f8fc;--ink:#23384d;--muted:#52677b;--primary:#3b6fa5;--line:#e2eaf1;--paper:#fff;--seafoam:#b2e9db}
+    *{box-sizing:border-box}body{margin:0}a{color:var(--primary)}button,input,textarea,select{font:inherit}button,a,select{touch-action:manipulation}button{cursor:pointer}a,button,textarea,select{outline-offset:4px}a:focus-visible,button:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--primary)}[hidden]{display:none!important}
+    .skip{position:absolute;top:-100px;left:16px;z-index:10;background:white;padding:12px}.skip:focus{top:12px}
+    .review-bar{padding:12px 24px;background:#e7eff7;border-bottom:1px solid #c6d8e8;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;font-size:14px}.review-bar strong{display:block}.review-bar p{margin:3px 0 0;color:var(--muted)}.review-controls{display:flex;flex-wrap:wrap;gap:12px;margin-left:auto}.review-controls label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600}select{min-height:40px;min-width:0;max-width:100%;padding:6px 10px;border:1px solid #a7bccf;border-radius:8px;color:var(--ink);background:white}
+    .app{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:calc(100vh - 90px)}.sidebar{background:white;border-right:1px solid var(--line);padding:28px 16px;display:flex;flex-direction:column;gap:24px}.wordmark{font-size:24px;font-weight:700;letter-spacing:-1px;text-decoration:none;color:var(--ink)}.wordmark span{color:var(--primary)}.workspace{padding:12px;border:1px solid var(--line);border-radius:12px;font-size:14px}.workspace small{display:block;color:var(--muted);margin-top:5px}.nav{display:grid;gap:4px}.nav a{display:flex;align-items:center;min-height:44px;padding:10px 14px;text-decoration:none;color:var(--muted);border-radius:10px;font-weight:600;font-size:14px}.nav a:hover{background:#f4f8fc}.nav a[aria-current]{background:#d4f3e9;color:var(--ink)}.sidebar-foot{margin-top:auto;border-top:1px solid var(--line);padding-top:20px;display:grid;gap:6px;font-size:14px}.sidebar-foot small{color:var(--muted)}
+    main{min-width:0;padding:24px 40px 48px}.top-tools{display:flex;justify-content:flex-end;margin-bottom:20px}.button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 16px;gap:8px;border:1px solid var(--line);border-radius:12px;background:white;text-decoration:none;color:var(--ink);font-size:14px;font-weight:600}.button:hover{background:#edf4fa}.button.primary{background:linear-gradient(110deg,#d4f3e9,#b2e9db);border-color:#b2e9db}.button.primary:hover{background:#b2e9db}
+    .assistant{border:1px solid #4c6b89;border-radius:16px;background:#213146;color:#e4eef7;margin-bottom:28px;overflow:hidden}.assistant-head{background:#274c75;padding:20px 24px;display:flex;justify-content:space-between;align-items:center;gap:16px}.assistant h2{font-size:20px;margin:0}.assistant p{color:#b6c8d9;font-size:14px;margin:8px 0 0;line-height:1.5}.assistant-body{padding:20px 24px}.composer{display:flex;align-items:flex-end;gap:12px}.composer label{flex:1;min-width:0;font-size:13px}.composer textarea{display:block;width:100%;min-height:76px;margin-top:8px;padding:12px;background:#263d56;color:#e4eef7;border:1px solid #4c6b89;border-radius:10px;resize:vertical}.composer textarea::placeholder{color:#b6c8d9}.assistant .badge{border-color:#4c6b89;color:#e4eef7;background:transparent}.suggestions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.suggestions button{min-height:40px;padding:8px 12px;background:#263d56;color:#e4eef7;border:1px solid #4c6b89;border-radius:20px;font-size:13px}.assistant a:focus-visible,.assistant button:focus-visible,.assistant textarea:focus-visible{outline-color:#b2e9db}
+    .heading{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:24px}.heading h1{margin:0;font-size:30px;letter-spacing:-.025em;font-weight:600}.heading p{font-size:14px;color:var(--muted);margin:8px 0}.quick-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+    .dashboard{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}.card{min-width:0;background:white;border:1px solid var(--line);border-radius:16px;overflow:hidden}.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 22px 16px}.card h2{font-size:18px;margin:0;font-weight:600}.card-head p{font-size:13px;line-height:1.5;color:var(--muted);margin:6px 0 0}.card-head a{font-size:14px;font-weight:600;white-space:nowrap;min-height:32px;display:flex;align-items:center}.badge{display:inline-block;border:1px solid var(--line);border-radius:20px;padding:4px 8px;background:#f4f8fc;font-size:12px;font-weight:600;white-space:nowrap}.badge.warning{background:#fff4df;border-color:#ecd6a4;color:#755014}.badge.danger{background:#fceceb;border-color:#edc2bf;color:#99251f}.badge.success{background:#eaf6ef;border-color:#c7e3d1;color:#236144}
+    .rows{list-style:none;margin:0;padding:0 22px 8px}.row{border-top:1px solid var(--line);padding:16px 0;display:flex;gap:14px;align-items:center}.row-copy{min-width:0;flex:1}.row-title{display:block;font-size:15px;font-weight:600;line-height:1.4;overflow-wrap:anywhere}.row-meta{margin:5px 0 0;font-size:13px;color:var(--muted);line-height:1.5;overflow-wrap:anywhere}.row .button{padding:8px 12px;font-size:13px;min-height:40px;flex-shrink:0}.row-label{font-size:12px;font-weight:600;display:block;margin-bottom:6px;color:#755014}.row-label.overdue{color:#99251f}.empty{padding:4px 22px 24px;color:var(--muted);font-size:14px;line-height:1.6}.card-footer{padding:0 22px 18px;color:var(--muted);font-size:12px}.metrics{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.metric{display:flex;flex-direction:column;align-items:flex-start;padding:20px;text-decoration:none;color:var(--ink);background:white;border:1px solid var(--line);border-radius:14px;min-width:0}.metric:hover{border-color:#9cb9d1}.metric-label{font-size:14px;color:var(--muted);line-height:1.4}.metric-value{font-size:32px;font-weight:600;line-height:1.3;margin:10px 0 6px}.metric small{font-size:12px;color:var(--muted)}
+    .pipeline{padding:0 22px 22px}.pipeline-row{display:grid;grid-template-columns:110px minmax(0,1fr) 28px;align-items:center;gap:14px;font-size:14px;margin-top:16px}.pipeline-row meter{width:100%;height:16px;accent-color:var(--primary)}.pipeline-row strong{text-align:right}.workload-head{display:flex;gap:14px;justify-content:flex-end;padding:0 22px 8px;color:var(--muted);font-size:12px}.workload-counts{display:flex;gap:14px;flex-shrink:0;font-weight:600}.workload-counts span{min-width:36px;text-align:right}.welcome{padding:28px;background:white;border:1px solid var(--line);border-radius:16px}.welcome h2{margin:12px 0;font-size:24px}.welcome p{color:var(--muted);max-width:640px;line-height:1.6}.welcome-actions{display:flex;gap:12px;flex-wrap:wrap}.state-note{font-size:13px;color:var(--muted);padding:12px 16px;border:1px dashed #a7bccf;border-radius:10px;margin-bottom:20px}.error-box{padding:0 22px 22px}.error-box p{color:#99251f;font-size:14px}.loading{padding:0 22px 22px;min-height:180px;color:var(--muted)}.skeleton{height:12px;background:#e7eff7;border-radius:6px;margin:20px 0;width:85%}.skeleton:nth-child(2){width:60%}
+    .heading-actions{display:flex;gap:8px;align-items:start}.action-menu{position:relative}.action-menu summary{list-style:none;cursor:pointer;width:48px}.action-menu summary::-webkit-details-marker{display:none}.action-menu summary:focus-visible{outline:3px solid var(--primary);outline-offset:4px}.action-menu .quick-actions{position:absolute;right:0;top:calc(100% + 8px);z-index:4;display:flex;flex-direction:column;align-items:stretch;gap:4px;width:220px;padding:8px;border:1px solid var(--line);border-radius:12px;background:white;box-shadow:0 8px 24px #23384d26}.action-menu .quick-actions .button{justify-content:flex-start;border:0;background:white;flex:none}.action-menu .quick-actions .button:hover{background:#edf4fa}.notification-icon{width:24px;height:24px;fill:currentColor}.dashboard{grid-template-columns:minmax(0,1fr)}.dashboard-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}.dashboard-column{display:flex;flex-direction:column;gap:20px;min-width:0}.dashboard-column>.card{width:100%}
+    dialog{width:min(540px,calc(100% - 32px));border:1px solid var(--line);border-radius:16px;padding:24px;color:var(--ink)}dialog::backdrop{background:#23384d70}dialog h2{margin:0 0 12px;font-size:22px}dialog p{font-size:15px;line-height:1.6;color:var(--muted)}dialog form{display:flex;justify-content:flex-end;margin-top:20px}
+    @media(min-width:1400px){main{padding-left:48px;padding-right:48px}.heading h1{font-size:36px}}
+    @media(max-width:1050px){.app{grid-template-columns:190px minmax(0,1fr)}main{padding:24px}.heading{flex-direction:column}.quick-actions{justify-content:flex-start}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.card-head{flex-wrap:wrap}}
+    @media(max-width:750px){.app{display:block}.sidebar{padding:16px;border-right:0;border-bottom:1px solid var(--line);gap:12px}.workspace,.sidebar-foot{display:none}.wordmark{font-size:22px}.nav{display:flex;flex-wrap:wrap;gap:4px}.nav a{min-height:40px;padding:8px 12px}.review-bar{padding:12px 16px}.review-controls{margin-left:0;width:100%}.review-controls label{flex:1;min-width:120px}main{padding:20px 16px 40px}.dashboard{grid-template-columns:minmax(0,1fr)}.metrics{grid-column:auto}.assistant-head,.assistant-body{padding:18px}.assistant-head{flex-wrap:wrap}.composer{flex-direction:column;align-items:stretch}.composer .button{align-self:flex-end}.heading h1{font-size:28px}.quick-actions{width:100%}.quick-actions .button{flex:1}.card-head{padding:18px}.rows{padding:0 18px 6px}.pipeline{padding:0 18px 22px}.pipeline-row{grid-template-columns:minmax(0,1fr) 28px;gap:8px}.pipeline-row meter{grid-row:2;grid-column:1/-1}.pipeline-row strong{grid-column:2;grid-row:1}.row{flex-wrap:wrap}.row-copy{flex-basis:180px}.row .button{margin-left:auto}.metrics{gap:10px}.metric{padding:16px}.metric-label{font-size:13px}.metric-value{font-size:28px}.card-head a{white-space:normal}}
+    @media(max-width:1050px){.heading{flex-direction:row;flex-wrap:wrap}.heading-actions{justify-items:start}}
+    @media(max-width:750px){.heading-actions{width:100%;justify-content:flex-end}.dashboard-columns{grid-template-columns:minmax(0,1fr)}.dashboard-column{display:contents}#attention{order:0}#schedule{order:1}#intake{order:2}#jobs{order:3}#pipeline{order:4}#workload{order:5}#activity{order:6}.dashboard-columns[data-own="true"] #schedule{order:0}.dashboard-columns[data-own="true"] #attention{order:1}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to Home content</a>
+  <header class="review-bar" aria-label="Prototype review controls">
+    <div><strong>Home design review</strong><p>Static prototype · Fictional data · No real actions or API requests</p></div>
+    <div class="review-controls">
+      <label>Preview role<select id="role"><option value="owner">Owner</option><option value="admin">Admin</option><option value="office">Office</option><option value="field">Field</option></select></label>
+      <label>Preview state<select id="state"><option value="populated">Populated</option><option value="empty">New workspace</option><option value="quiet">Nothing needs attention</option><option value="limited">Permission-limited</option><option value="loading">Loading</option><option value="error">Attention data error</option></select></label>
+    </div>
+  </header>
+  <div class="app">
+    <aside class="sidebar">
+      <a class="wordmark" href="prototype-screen-45-home-review.html">Sales<span>Mora</span></a>
+      <div class="workspace"><strong>Harbor Home Services</strong><small>Sample workspace</small></div>
+      <nav class="nav" aria-label="Workspace navigation">
+        <a href="prototype-screen-45-home-review.html" aria-current="page">Home</a>
+        <a href="prototype-screen-26-intake-review.html" data-nav="intake">Intake Review</a>
+        <a href="prototype-screen-05-leads.html" data-nav="leads">Leads</a>
+        <a href="prototype-screen-09-jobs.html">Jobs</a>
+        <a href="prototype-screen-30-scheduling-calendar.html">Calendar</a>
+        <a href="prototype-screen-08-customers.html" data-nav="customers">Customers</a>
+        <a href="prototype-screen-34-estimates.html" data-nav="estimates">Estimates</a>
+        <a href="prototype-screen-16-settings.html">Settings</a>
+      </nav>
+      <div class="sidebar-foot"><strong id="user-name">Ava Morgan</strong><small id="user-role">Owner</small><a href="prototype-screen-03-home-owner.html">Original owner prototype</a><a href="prototype-screen-04-home-team.html">Original team prototype</a></div>
+    </aside>
+    <main id="main" tabindex="-1">
+      <header class="heading">
+        <div><h1 id="greeting">Welcome, Ava.</h1><p>Sunday, November 15, 2026 · America/New_York</p></div>
+        <div class="heading-actions">
+          <a class="button" href="prototype-screen-31-deadline-notifications.html" aria-label="Notifications"><svg class="notification-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2m6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5z"/></svg></a>
+          <details class="action-menu" id="action-menu"><summary class="button" aria-label="Home actions"><svg class="notification-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></summary><nav class="quick-actions" aria-label="Quick actions" id="quick-actions"></nav></details>
+        </div>
+      </header>
+      <section class="assistant" aria-labelledby="assistant-title" id="assistant">
+        <div class="assistant-head"><div><h2 id="assistant-title">What would you like to get done?</h2><p>Find work or prepare the next step. You stay in control.</p></div><span class="badge">Assistant preview</span></div>
+        <div class="assistant-body">
+          <form class="composer" id="assistant-form"><label>Ask the SalesMora assistant<textarea id="prompt" placeholder="Describe what you need help with..." required></textarea></label><button class="button primary" type="submit">Ask assistant</button></form>
+          <div class="suggestions" id="suggestions"></div>
+          <p id="assistant-response" role="status" hidden></p>
+        </div>
+      </section>
+      <p class="state-note" id="state-note" hidden></p>
+      <section class="welcome" id="welcome" aria-labelledby="welcome-title" hidden><span class="badge success">Workspace ready</span><h2 id="welcome-title">Start your customer work</h2><p id="welcome-copy">Bring customer opportunities and team work into one place. Add your first lead or explore the calendar when you are ready.</p><div class="welcome-actions" id="welcome-actions"></div></section>
+      <div class="dashboard" id="dashboard"></div>
+    </main>
+  </div>
+  <dialog id="detail" aria-labelledby="detail-title"><h2 id="detail-title"></h2><p id="detail-copy"></p><p>This is a fictional record preview. In the application, this action opens the existing authorized record or review screen. Nothing is saved or changed here.</p><form method="dialog"><button class="button primary" autofocus>Close preview</button></form></dialog>
+  <script>
+    const today = "2026-11-15";
+    const firstLeadDate = "2026-10-17";
+    const routes = { leads: "prototype-screen-05-leads.html", createLead: "prototype-screen-06-lead-form.html", jobs: "prototype-screen-09-jobs.html", calendar: "prototype-screen-30-scheduling-calendar.html", intake: "prototype-screen-26-intake-review.html" };
+    const members = [{ id: "ava", name: "Ava Morgan" }, { id: "morgan", name: "Morgan Lee" }, { id: "sam", name: "Sam Rivera" }, { id: "alex", name: "Alex Chen" }];
+    const roles = { owner: { name: "Ava", fullName: "Ava Morgan", viewer: "ava", label: "Owner" }, admin: { name: "Morgan", fullName: "Morgan Lee", viewer: "morgan", label: "Admin" }, office: { name: "Morgan", fullName: "Morgan Lee", viewer: "morgan", label: "Office" }, field: { name: "Sam", fullName: "Sam Rivera", viewer: "sam", label: "Field" } };
+    const jobs = [
+      { id: "J-101", title: "Miller · Bathroom plumbing", status: "waiting", owner: "sam", deadline: "2026-11-13", date: today, window: "Morning", location: "240 Oak Avenue", updated: "2026-11-14", reason: "Waiting for replacement parts" },
+      { id: "J-102", title: "Carter · Water heater repair", status: "scheduled", owner: "sam", deadline: "2026-11-17", date: today, window: "Morning", location: "18 Willow Street", updated: "2026-11-15", reason: "Customer confirmed" },
+      { id: "J-103", title: "Brooks · Furnace inspection", status: "in-progress", owner: "sam", deadline: "2026-11-18", date: today, window: "Afternoon", location: "6 Pine Court", updated: "2026-11-15", reason: "Inspection underway" },
+      { id: "J-104", title: "Nguyen · Kitchen plumbing", status: "needs-scheduling", owner: "alex", deadline: "2026-11-21", date: null, window: null, location: "42 Elm Road", updated: "2026-11-12", reason: "Choose a visit date" },
+      { id: "J-105", title: "Patel · Drain repair", status: "waiting", owner: "alex", deadline: "2026-11-14", date: null, window: null, location: "7 Birch Lane", updated: "2026-11-13", reason: "Waiting for customer access" },
+      { id: "J-106", title: "Reed · Boiler service", status: "scheduled", owner: "alex", deadline: "2026-11-20", date: today, window: "Afternoon", location: "90 Lake Drive", updated: "2026-11-14", reason: "Annual service" },
+      { id: "J-107", title: "Lopez · Tap replacement", status: "scheduled", owner: "morgan", deadline: null, date: today, window: null, location: "15 Maple Street", updated: "2026-11-14", reason: "Arrival window not set" },
+      { id: "J-108", title: "Davis · Heating assessment", status: "needs-scheduling", owner: null, deadline: null, date: null, window: null, location: "28 Cedar Way", updated: "2026-11-11", reason: "Assign and schedule" },
+      { id: "J-109", title: "Stone · Leak repair", status: "completed", owner: "sam", deadline: "2026-11-10", date: "2026-11-10", window: "Morning", location: "3 Park Lane", updated: "2026-11-10", reason: "Completed" }
+    ];
+    const leads = [
+      { id: "L-201", title: "Jordan Lee · Kitchen remodel", stage: "new", owner: null, created: "2026-11-13" },
+      { id: "L-202", title: "Taylor Ross · Heating repair", stage: "new", owner: null, created: "2026-11-14" },
+      { id: "L-203", title: "Casey Bell · Boiler installation", stage: "contacted", owner: "sam", created: "2026-11-12" },
+      { id: "L-204", title: "Robin Hall · Bathroom upgrade", stage: "estimate-sent", owner: "alex", created: "2026-11-01" },
+      { id: "L-205", title: "Jamie King · Drain cleaning", stage: "new", owner: "morgan", created: "2026-11-15" },
+      { id: "L-206", title: "Dana Wood · Tap replacement", stage: "won", owner: "sam", created: "2026-10-20" },
+      { id: "L-207", title: "Charlie Moss · Annual service", stage: "lost", owner: "alex", created: "2026-10-08" },
+      { id: "L-208", title: "Riley Lane · Radiator repair", stage: "contacted", owner: "sam", created: "2026-10-10" }
+    ];
+    const intake = [
+      { id: "I-301", title: "Parker Gray · Water pressure", source: "Website form", flags: ["Missing details"], received: "2026-11-14T09:00:00-05:00", status: "awaiting" },
+      { id: "I-302", title: "Jordan Lee · Kitchen inquiry", source: "Gmail", flags: ["Possible duplicate"], received: "2026-11-15T10:00:00-05:00", status: "awaiting" },
+      { id: "I-303", title: "Sky Ellis · Heating service", source: "Website form", flags: [], received: "2026-11-15T11:00:00-05:00", status: "awaiting" },
+      { id: "I-304", title: "Jamie King · Drain cleaning", source: "Website form", flags: [], received: "2026-11-15T08:00:00-05:00", status: "approved" }
+    ];
+    const events = [
+      { kind: "lead", record: "L-205", text: "Morgan Lee created a lead", at: "2026-11-15T15:10:00-05:00" },
+      { kind: "job", record: "J-103", text: "Sam Rivera started work", at: "2026-11-15T14:20:00-05:00" },
+      { kind: "job", record: "J-102", text: "Sam Rivera confirmed the schedule", at: "2026-11-15T08:15:00-05:00" },
+      { kind: "job", record: "J-101", text: "Sam Rivera marked the job as waiting", at: "2026-11-14T16:30:00-05:00" },
+      { kind: "lead", record: "L-202", text: "Ava Morgan created a lead", at: "2026-11-14T15:00:00-05:00" }
+    ];
+    const stageLabels = { new: "New", contacted: "Contacted", "estimate-sent": "Estimate sent", won: "Won", lost: "Lost" };
+    const statusLabels = { "needs-scheduling": "Needs scheduling", scheduled: "Scheduled", "in-progress": "In progress", waiting: "Waiting" };
+    const dateFormat = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" });
+    const eventFormat = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    const element = id => document.getElementById(id);
+    const escape = text => String(text).replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
+    const dateLabel = date => dateFormat.format(new Date(`${date}T12:00:00-05:00`));
+    const ownerName = id => members.find(member => member.id === id)?.name ?? "Unassigned";
+    const active = job => !["completed", "canceled"].includes(job.status);
+    const overdue = job => active(job) && job.deadline !== null && job.deadline < today;
+    const needsAttention = job => overdue(job) || ["waiting", "needs-scheduling"].includes(job.status);
+    const openLead = lead => !["won", "lost"].includes(lead.stage);
+    const link = (label, href, primary = false) => `<a class="button${primary ? " primary" : ""}" href="${href}">${escape(label)}</a>`;
+    function row(record, label, meta, reason = "", isOverdue = false, action = "Open") {
+      return `<li class="row"><div class="row-copy">${reason ? `<span class="row-label${isOverdue ? " overdue" : ""}">${escape(reason)}</span>` : ""}<span class="row-title">${escape(label)}</span><p class="row-meta">${escape(meta)}</p></div><button class="button" type="button" data-record="${escape(record.id)}" data-title="${escape(label)}" data-copy="${escape(meta)}">${escape(action)}</button></li>`;
+    }
+    function card(id, title, subtitle, body, href, proposed = false) {
+      const state = element("state").value;
+      const content = state === "loading" ? `<div class="loading" role="status">Loading ${escape(title.toLowerCase())}...<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>` : body;
+      return `<section class="card" id="${id}" aria-labelledby="${id}-title"${state === "loading" ? ' aria-busy="true"' : ""}><header class="card-head"><div><h2 id="${id}-title">${escape(title)}</h2><p>${escape(state === "loading" ? "Waiting for authorized data" : subtitle)}</p>${proposed ? '<p><span class="badge warning">Proposed data connection</span></p>' : ""}</div>${href ? `<a href="${href}">View all</a>` : ""}</header>${content}</section>`;
+    }
+    const rowsOrEmpty = (rows, message) => rows.length ? `<ul class="rows">${rows.join("")}</ul>` : `<p class="empty">${escape(message)}</p>`;
+    function render() {
+      const role = element("role").value, state = element("state").value, user = roles[role];
+      const own = role === "field" || state === "limited";
+      const scope = own ? "Assigned to you" : role === "office" ? "Accessible work" : "Workspace";
+      const canReadLeads = !own, canReadIntake = !own, canReadTeam = ["owner", "admin"].includes(role) && !own;
+      const visibleJobs = jobs.filter(job => active(job) && (!own || job.owner === user.viewer));
+      const visibleLeads = canReadLeads ? leads : [];
+      const awaiting = canReadIntake ? intake.filter(item => item.status === "awaiting") : [];
+      const quiet = state === "quiet";
+      const shownJobs = quiet ? visibleJobs.filter(job => !needsAttention(job)) : visibleJobs;
+      const shownIntake = quiet ? [] : awaiting;
+      const shownLeads = quiet ? visibleLeads.filter(lead => lead.owner !== null) : visibleLeads;
+      element("greeting").textContent = `Welcome, ${user.name}.`;
+      element("user-name").textContent = user.fullName;
+      element("user-role").textContent = user.label;
+      element("action-menu").open = false;
+      element("assistant").hidden = state === "limited";
+      element("assistant-response").hidden = true;
+      document.querySelectorAll("[data-nav]").forEach(item => { item.hidden = own; });
+      const actions = own ? [link("Today's schedule", routes.calendar, true), link("Open my jobs", routes.jobs)] : [link("Create lead", routes.createLead, true), link("Review intake", routes.intake), link("Open calendar", routes.calendar)];
+      element("quick-actions").innerHTML = actions.join("");
+      element("welcome-actions").innerHTML = actions.slice(0, 2).join("");
+      element("suggestions").innerHTML = (own ? ["Summarize my jobs today", "Show my next visit", "Help prepare a progress note"] : ["Show what needs attention", "Prepare a new lead", "Summarize my pipeline"]).map(prompt => `<button type="button" data-prompt="${escape(prompt)}">${escape(prompt)}</button>`).join("");
+      element("welcome").hidden = state !== "empty";
+      element("welcome-title").textContent = own ? "Your assigned work" : "Start your customer work";
+      element("welcome-copy").textContent = own ? "No work is assigned to you in this sample. Your jobs and visits will appear here when available. This does not mean the workspace has no records." : "Your new workspace is ready. Add your first customer opportunity, then manage the work that follows.";
+      element("state-note").hidden = !["limited", "quiet", "loading"].includes(state);
+      element("state-note").textContent = state === "limited" ? "Review state: only assigned jobs and calendar are granted. Leads, intake, team totals, and assistant are omitted. This sample policy is not a change to application permissions." : state === "quiet" ? "Review state: accessible records exist, but none currently meet the attention rules. The dashboard remains available." : "Review state: waiting for data. Counts are not shown as zero.";
+      if (state === "empty") { element("dashboard").innerHTML = ""; return; }
+      const attentionItems = [
+        ...shownJobs.filter(needsAttention).map(job => ({ record: job, priority: overdue(job) ? 0 : 3, date: overdue(job) ? job.deadline : job.updated, reason: overdue(job) ? `Overdue · Due ${dateLabel(job.deadline)}` : statusLabels[job.status], meta: `${job.id} · ${ownerName(job.owner)} · ${job.reason}`, action: "Open job" })),
+        ...shownIntake.filter(item => item.flags.length).map(item => ({ record: item, priority: 1, date: item.received, reason: item.flags.join(", "), meta: `${item.id} · ${item.source} · Received ${eventFormat.format(new Date(item.received))}`, action: "Review" })),
+        ...shownLeads.filter(lead => openLead(lead) && lead.owner === null).map(lead => ({ record: lead, priority: 2, date: lead.created, reason: "Unassigned lead", meta: `${lead.id} · ${stageLabels[lead.stage]} · Created ${dateLabel(lead.created)}`, action: "Review lead" }))
+      ].sort((a, b) => a.priority - b.priority || a.date.localeCompare(b.date) || a.record.id.localeCompare(b.record.id));
+      const attentionBody = state === "error" ? '<div class="error-box" role="alert"><p>We could not load your attention items. Other sections are still available.</p><button class="button" type="button" id="retry">Retry attention</button></div>' : rowsOrEmpty(attentionItems.slice(0, 5).map(item => row(item.record, item.record.title, item.meta, item.reason, item.priority === 0, item.action)), "Nothing needs attention. Check your schedule for upcoming work.") + (attentionItems.length > 5 ? `<p class="card-footer">Showing 5 of ${attentionItems.length} items. Review the relevant job, lead, or intake lists for the rest.</p>` : "");
+      const attentionCard = card("attention", "Needs your attention", `${scope} · Prioritized by explicit deadlines and review needs`, attentionBody);
+      // Visit identity is explicit: J-103 and its work order are one sample visit.
+      const visits = shownJobs.filter(job => job.date === today).map(job => ({ ...job, visitId: `visit-${job.id}`, linked: job.id === "J-103" })).sort((a, b) => ({ Morning: 0, Afternoon: 1 }[a.window] ?? 2) - ({ Morning: 0, Afternoon: 1 }[b.window] ?? 2) || a.id.localeCompare(b.id));
+      const scheduleCard = card("schedule", "Today's schedule", `${scope} · ${visits.length} visits · Arrival windows, not exact times`, rowsOrEmpty(visits.slice(0, 5).map(visit => row(visit, visit.title, `${visit.location} · ${ownerName(visit.owner)}${visit.linked ? " · Job + linked work order" : ""}`, visit.window ?? "Arrival window not set", false, "Open visit")), "No visits scheduled today. Open the calendar to see upcoming work."), routes.calendar);
+      const attentionJobCount = shownJobs.filter(needsAttention).length;
+      const metricData = own ? [
+        { label: "Visits today", value: visits.length, note: "Assigned to you · Linked visits counted once", href: routes.calendar },
+        { label: "Active jobs", value: shownJobs.length, note: "Assigned to you · Excludes closed jobs", href: routes.jobs },
+        { label: "Jobs needing attention", value: attentionJobCount, note: "Overdue, waiting, or needs scheduling", href: routes.jobs }
+      ] : [
+        { label: "New leads", value: shownLeads.filter(lead => lead.created >= firstLeadDate && lead.created <= today).length, note: "Oct 17-Nov 15 · All stages", href: routes.leads },
+        { label: "Active jobs", value: shownJobs.length, note: "Excludes completed and canceled", href: routes.jobs },
+        { label: "Jobs needing attention", value: attentionJobCount, note: "Distinct jobs · No double-counting", href: routes.jobs },
+        { label: "Awaiting intake", value: shownIntake.length, note: "Not yet approved or dismissed", href: routes.intake }
+      ];
+      const metrics = `<section class="metrics" aria-label="Summary metrics">${metricData.map(metric => `<a class="metric" href="${metric.href}"><span class="metric-label">${escape(metric.label)}</span>${state === "loading" ? '<span class="metric-value" aria-label="Loading">...</span>' : `<strong class="metric-value">${metric.value}</strong>`}<small>${escape(metric.note)}</small></a>`).join("")}</section>`;
+      const activeJobs = [...shownJobs].sort((a, b) => Number(overdue(b)) - Number(overdue(a)) || Number(b.date === today) - Number(a.date === today) || (a.deadline ?? "9999").localeCompare(b.deadline ?? "9999") || a.id.localeCompare(b.id));
+      const jobsCard = card("jobs", "Active jobs", `${scope} · ${shownJobs.length} active jobs`, rowsOrEmpty(activeJobs.slice(0, 5).map(job => row(job, job.title, `${job.id} · ${ownerName(job.owner)} · ${job.deadline ? `Due ${dateLabel(job.deadline)}` : "No completion deadline"}`, statusLabels[job.status], overdue(job), "Open job")), "No active jobs available to you."), routes.jobs);
+      const sortedIntake = [...shownIntake].sort((a, b) => Number(b.flags.length > 0) - Number(a.flags.length > 0) || a.received.localeCompare(b.received));
+      const intakeCard = canReadIntake ? card("intake", "Intake review", `${scope} · ${shownIntake.length} awaiting review`, rowsOrEmpty(sortedIntake.slice(0, 3).map(item => row(item, item.title, `${item.source} · ${eventFormat.format(new Date(item.received))}`, item.flags.join(", ") || "Ready for review", false, "Review")), "No intake items awaiting review."), routes.intake) : "";
+      const pipelineCard = canReadLeads ? card("pipeline", "Lead pipeline", `${scope} · ${shownLeads.length} leads · All five stages`, `<div class="pipeline">${Object.entries(stageLabels).map(([stage, label]) => { const count = shownLeads.filter(lead => lead.stage === stage).length; return `<div class="pipeline-row"><span>${label}</span><meter min="0" max="${Math.max(1, shownLeads.length)}" value="${count}" aria-label="${label}: ${count} of ${shownLeads.length} leads"></meter><strong>${count}</strong></div>`; }).join("")}</div>`, routes.leads) : "";
+      const workloads = members.map(member => ({ ...member, jobs: shownJobs.filter(job => job.owner === member.id).length, leads: shownLeads.filter(lead => openLead(lead) && lead.owner === member.id).length })).sort((a, b) => b.jobs - a.jobs || b.leads - a.leads || a.name.localeCompare(b.name));
+      const workloadCard = canReadTeam ? card("workload", "Team workload", "Workspace · Assigned counts, not capacity or utilization", `<div class="workload-head"><span>Open leads</span><span>Active jobs</span></div><ul class="rows">${workloads.slice(0, 5).map(member => `<li class="row"><div class="row-copy"><span class="row-title">${escape(member.name)}</span><a href="${routes.jobs}">View jobs for ${escape(member.name)} <span class="badge">Prototype list</span></a></div><div class="workload-counts"><span aria-label="${member.leads} open leads">${member.leads}</span><span aria-label="${member.jobs} active jobs">${member.jobs}</span></div></li>`).join("")}</ul><p class="card-footer">Production requires a scoped aggregate and authorized owner-filtered destinations. This link opens the sample jobs list, not a filtered live result.</p>`, null, true) : "";
+      const visibleEvents = events.filter(event => (event.kind === "job" ? shownJobs : shownLeads).some(record => record.id === event.record)).sort((a, b) => b.at.localeCompare(a.at));
+      const activityCard = card("activity", "Recent activity", `${scope} · Supported lead and job events only`, rowsOrEmpty(visibleEvents.slice(0, 5).map(event => { const record = (event.kind === "job" ? shownJobs : shownLeads).find(item => item.id === event.record); return row(record, event.text, `${record.title} · ${eventFormat.format(new Date(event.at))}`); }), "No recent activity available to you."), null, true);
+      const leftColumn = own ? [scheduleCard, jobsCard] : [attentionCard, intakeCard, pipelineCard];
+      const rightColumn = own ? [attentionCard, activityCard] : [scheduleCard, jobsCard, workloadCard, activityCard];
+      element("dashboard").innerHTML = metrics + `<div class="dashboard-columns" data-own="${own}"><div class="dashboard-column">${leftColumn.join("")}</div><div class="dashboard-column">${rightColumn.join("")}</div></div>`;
+    }
+    element("role").addEventListener("change", render);
+    element("state").addEventListener("change", render);
+    document.addEventListener("click", event => {
+      if (!element("action-menu").contains(event.target)) element("action-menu").open = false;
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && element("action-menu").open) {
+        element("action-menu").open = false;
+        element("action-menu").querySelector("summary").focus();
+      }
+    });
+    element("assistant-form").addEventListener("submit", event => {
+      event.preventDefault();
+      element("assistant-response").hidden = false;
+      element("assistant-response").textContent = `Preview only: "${element("prompt").value.trim()}". The existing assistant remains here; this prototype does not call AI or change any records.`;
+    });
+    element("suggestions").addEventListener("click", event => {
+      const button = event.target.closest("[data-prompt]");
+      if (button) { element("prompt").value = button.dataset.prompt; element("prompt").focus(); }
+    });
+    element("dashboard").addEventListener("click", event => {
+      if (event.target.closest("#retry")) { element("state").value = "populated"; render(); element("attention").scrollIntoView({ block: "nearest" }); return; }
+      const button = event.target.closest("[data-record]");
+      if (button) {
+        element("detail-title").textContent = `${button.dataset.record} · ${button.dataset.title}`;
+        element("detail-copy").textContent = button.dataset.copy;
+        element("detail").showModal();
+      }
+    });
+    render();
+  </script>
+</body>
+</html>

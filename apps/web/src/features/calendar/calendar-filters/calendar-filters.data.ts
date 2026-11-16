@@ -8,7 +8,6 @@ export const calendarFiltersData = {
   status: 'Status', allStatuses: 'All active statuses', job: 'Job', workOrder: 'Work Order',
   search: 'Customer search', placeholder: 'Search customers…', mine: 'Only mine',
   ownScope: 'Your access is limited to your own permitted schedule.',
-  shared: 'Shared visits appear once when a linked record matches your filters.',
   chip: (label: string, value: string) => `${label}: ${value}`,
   stories: { title: 'Calendar filters preview', description: 'Fictional filter state only; live queries and URL synchronization will be connected later.',
     viewerId: 'sam', sam: 'Sam Rivera', alex: 'Alex Chen', jordan: 'Jordan Lee', customer: 'Jordan',

@@ -1,6 +1,4 @@
 export const notificationPreferencesPageData = {
-  back: 'Back to settings',
-  eyebrow: 'Personal settings',
   title: 'Notification preferences',
   description: 'Choose which activity emails you receive. Your choices apply only to you, not to other teammates.',
   emailTitle: 'Email notifications',
@@ -11,7 +9,6 @@ export const notificationPreferencesPageData = {
   jobActivityAssignmentDescription: 'Email me when a teammate creates a Job, changes its status or updates its assignments, for Jobs assigned to me. This includes a final removal notice while I remain in the workspace. My own changes do not send me an email. Completion-deadline change emails are coming next. Visit changes and deadline reminders have separate controls.',
   jobActivityDescription: 'Email me when a teammate creates a Job, changes its status, updates its assignment or changes its completion deadline, for Jobs assigned to me. This includes a final removal notice while I remain in the workspace. My own changes do not send me an email. Visit changes and deadline reminders have separate controls.',
   jobActivityAppDescription: 'Turning off an email does not turn off its in-app notification. You will still receive in-app notices for records you can access. Your email preferences do not change workspace rules or other teammates’ preferences.',
-  jobActivityLater: 'Job activity emails follow workspace email-event settings, your personal preference and your current Job access. Visit-change emails and deadline-reminder emails remain independently controlled.',
   deadlineReminders: 'Job deadline reminders',
   deadlineDescription: 'Email me completion-deadline reminders for Jobs where I am the primary owner, on the assigned team or an additional reminder recipient. Timing follows workspace settings. This preference does not change visit schedule emails.',
   deadlineAppDescription: 'In-app notifications stay on for records you can access, including Job deadline reminders. Turning off reminder emails affects only your email delivery; it does not change workspace timing or other teammates’ preferences.',
@@ -46,6 +43,5 @@ export const notificationPreferencesPageData = {
   success: 'Your email notification preferences have been updated.',
   stories: {
     notice: 'Interactive design preview. Changes are simulated; no preferences are stored and no emails are sent.',
-    settingsHref: '/settings?workspace=preview-workspace',
   },
 } as const;

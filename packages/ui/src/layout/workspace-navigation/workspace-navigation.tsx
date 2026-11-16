@@ -132,6 +132,20 @@ export function WorkspaceNavigation({
   const [accountOpen, setAccountOpen] = useState(false);
   const mobileButton = useRef<HTMLButtonElement>(null);
   const accountButton = useRef<HTMLButtonElement>(null);
+  const destinations: Record<WorkspaceNavigationPage, string> = {
+    home: homeHref,
+    leads: leadsHref,
+    intake: intakeHref,
+    campaigns: leadCaptureHref,
+    customers: customersHref,
+    jobs: jobsHref,
+    calendar: calendarHref,
+    estimates: estimatesHref,
+    reports: reportsHref,
+    "work-orders": workOrdersHref,
+    materials: materialsHref,
+    settings: settingsHref,
+  };
   const canManage = copy.items.some(
     (item) => item.management && authorizedPages.includes(item.id),
   );
@@ -164,31 +178,7 @@ export function WorkspaceNavigation({
         return (
           <div key={item.id}>
             <a
-              href={
-                item.id === "home"
-                  ? homeHref
-                  : item.id === "leads"
-                    ? leadsHref
-                    : item.id === "intake"
-                      ? intakeHref
-                      : item.id === "campaigns"
-                        ? leadCaptureHref
-                        : item.id === "customers"
-                          ? customersHref
-                          : item.id === "jobs"
-                            ? jobsHref
-                            : item.id === "calendar"
-                              ? calendarHref
-                              : item.id === "estimates"
-                                ? estimatesHref
-                                : item.id === "reports"
-                                  ? reportsHref
-                                  : item.id === "work-orders"
-                                    ? workOrdersHref
-                                    : item.id === "materials"
-                                      ? materialsHref
-                                      : settingsHref
-              }
+              href={destinations[item.id]}
               aria-current={
                 currentPage === item.id &&
                 !(item.id === "settings" && currentSettingsPage) &&

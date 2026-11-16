@@ -30,6 +30,50 @@ export type LeadListResult = {
 };
 export type LeadDetailResult = { relatedCustomer?: {name:string;number:string;email:string;phone:string;differs:boolean;customerId?:string}; owners: LeadListResult['owners']; canExport: boolean; exportScope: 'workspace' | 'assigned'; canAssign: boolean; lead: LeadReadRecord; teamNotes: LeadReadNote[]; notesTotal: number; activity: { id: string; actorName: string | null; actorType: string; type: string; changes: unknown; createdAt: string }[]; activityTotal: number; timezone: string; scope: 'workspace' | 'assigned'; canCreate: boolean; canShowArchived: boolean; policyRevision: number };
 
+export const leadReadRecordSchema = z.object({
+  id: z.uuid(), leadNumber: z.string().min(1), version: z.number().int().positive(),
+  name: z.string(), service: z.string(), email: z.string(), phone: z.string(), address: z.string(), details: z.string(), notes: z.string(),
+  stage: z.enum(leadStages), source: z.enum(leadSources),
+  owner: z.object({ id: z.string().min(1), name: z.string(), former: z.boolean() }).nullable(),
+  createdAt: z.iso.datetime({ offset: true }), updatedAt: z.iso.datetime({ offset: true }), lastActivityAt: z.iso.datetime({ offset: true }),
+  archived: z.boolean(), needsAttention: z.boolean(), canMove: z.boolean(), canEdit: z.boolean(), canAssign: z.boolean(),
+  canArchive: z.boolean(), canRestore: z.boolean(), canDelete: z.boolean(), origin: z.enum(['manual', 'gmail', 'campaign', 'lead_capture']),
+}) satisfies z.ZodType<LeadReadRecord>;
+const leadReadAccessShape = {
+  owners: z.array(z.object({ id: z.string().min(1), name: z.string(), openLeadCount: z.number().int().nonnegative() })),
+  canExport: z.boolean(), exportScope: z.enum(['workspace', 'assigned']), canAssign: z.boolean(),
+  scope: z.enum(['workspace', 'assigned']), canCreate: z.boolean(), canShowArchived: z.boolean(),
+  timezone: z.string().min(1), policyRevision: z.number().int().nonnegative(),
+};
+export const leadListResultSchema = z.object({
+  ...leadReadAccessShape,
+  rows: z.array(leadReadRecordSchema), total: z.number().int().nonnegative(),
+  page: z.number().int().positive(), pageSize: z.number().int().positive(),
+  columns: z.array(z.object({
+    stage: z.enum(leadStages), total: z.number().int().nonnegative(), leads: z.array(leadReadRecordSchema),
+    hasMore: z.boolean(), page: z.number().int().positive(),
+  })),
+}) satisfies z.ZodType<LeadListResult>;
+export const leadReadNoteSchema = z.object({
+  id: z.uuid(), body: z.string(), authorName: z.string(), createdAt: z.iso.datetime({ offset: true }), viaAssistant: z.boolean(),
+}) satisfies z.ZodType<LeadReadNote>;
+export const leadDetailResultSchema = z.object({
+  ...leadReadAccessShape,
+  relatedCustomer: z.object({ name: z.string(), number: z.string(), email: z.string(), phone: z.string(), differs: z.boolean(), customerId: z.uuid().optional() }).optional(),
+  lead: leadReadRecordSchema, teamNotes: z.array(leadReadNoteSchema), notesTotal: z.number().int().nonnegative(),
+  activity: z.array(z.object({
+    id: z.uuid(), actorName: z.string().nullable(), actorType: z.string(), type: z.string(),
+    changes: z.unknown(), createdAt: z.iso.datetime({ offset: true }),
+  })),
+  activityTotal: z.number().int().nonnegative(),
+}) satisfies z.ZodType<LeadDetailResult>;
+export const leadNotesResultSchema = z.object({ notes: z.array(leadReadNoteSchema), total: z.number().int().nonnegative() });
+export const leadNoteSavedSchema = z.object({ ok: z.literal(true), note: leadReadNoteSchema });
+export const leadVersionSavedSchema = z.object({ version: z.number().int().positive() });
+export const leadArchiveSavedSchema = leadVersionSavedSchema.extend({ archived: z.boolean() });
+export const leadDeletedSchema = z.object({ deleted: z.literal(true) });
+export const leadCreatedSchema = z.object({ leadId: z.uuid() });
+
 export const leadStageActivitySchema = z.object({ from: z.enum(leadStages), to: z.enum(leadStages), reason: z.string().max(500).optional() });
 export const moveLeadStageSchema = z.object({
   workspaceId: z.uuid(), leadId: z.uuid(), submissionId: z.uuid(), expectedVersion: z.number().int().positive(),

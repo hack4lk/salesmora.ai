@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { JobListResult, LeadListResult, EstimateParentOption } from "@salesmora/contracts";
+import { estimateParentOptionsSchema, leadListResultSchema, jobListResultSchema } from "@salesmora/contracts";
+import { ApiQueryScopeBoundary } from "../../api/api-query-provider";
+import { useEstimateRequest } from "../use-estimate-request";
 import { FormFeedback } from "@salesmora/ui";
 import { estimateButton, estimateInput, estimatePanel } from "../estimate-ui";
 import { estimateParentPickerData as c } from "./estimate-parent-picker.data";
@@ -21,14 +23,8 @@ type Search = (
   signal: AbortSignal,
 ) => Promise<ParentOption[]>;
 
-async function json<T>(url: string, signal: AbortSignal): Promise<T> {
-  const response = await fetch(url, { cache: "no-store", signal });
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error ?? c.searchError);
-  return body as T;
-}
-
 async function searchParents(
+  request: ReturnType<typeof useEstimateRequest>,
   workspaceId: string,
   type: ParentType,
   query: string,
@@ -41,7 +37,7 @@ async function searchParents(
       q: query,
       rows: "50",
     });
-    const result = await json<LeadListResult>(`/api/leads?${params}`, signal);
+    const result = await request(`/api/leads?${params}`, c.searchError, { signal, fresh: false }, raw => leadListResultSchema.parse(raw));
     return result.rows.map((lead) => ({
       id: lead.id,
       number: lead.leadNumber,
@@ -58,7 +54,7 @@ async function searchParents(
         closed: String(closed),
         pageSize: "50",
       });
-      return json<JobListResult>(`/api/jobs?${params}`, signal);
+      return request(`/api/jobs?${params}`, c.searchError, { signal, fresh: false }, raw => jobListResultSchema.parse(raw));
     }),
   );
   const jobs = new Map(
@@ -73,22 +69,25 @@ async function searchParents(
   }));
 }
 
-export function EstimateParentPicker({
+type EstimateParentPickerProps = {
+  workspaceId: string; viewerId: string; customerId?: string; canReadLeads: boolean; canReadJobs: boolean;
+  search?: Search; onSelect?: (type: ParentType, id: string) => void;
+};
+export function EstimateParentPicker(props: EstimateParentPickerProps) {
+  return <ApiQueryScopeBoundary scope={{ viewerId: props.viewerId, workspaceId: props.workspaceId }}>
+    <ParentPickerContent key={`${props.viewerId}:${props.workspaceId}:${props.customerId ?? ""}`} {...props}/>
+  </ApiQueryScopeBoundary>;
+}
+function ParentPickerContent({
   workspaceId,
   customerId,
   canReadLeads,
   canReadJobs,
   search,
   onSelect,
-}: {
-  workspaceId: string;
-  customerId?: string;
-  canReadLeads: boolean;
-  canReadJobs: boolean;
-  search?: Search;
-  onSelect?: (type: ParentType, id: string) => void;
-}) {
+}: EstimateParentPickerProps) {
   const router = useRouter();
+  const request = useEstimateRequest();
   const id = useId();
   const [type, setType] = useState<ParentType>(
     canReadLeads ? "lead" : "job",
@@ -103,11 +102,11 @@ export function EstimateParentPicker({
   const [retry, setRetry] = useState(0);
   const defaultSearch = useCallback(
     (kind: ParentType, text: string, signal: AbortSignal) => customerId
-      ? json<EstimateParentOption[]>(`/api/estimates/parents?${new URLSearchParams({
+      ? request(`/api/estimates/parents?${new URLSearchParams({
           workspace: workspaceId, customerId, type: kind, q: text,
-        })}`, signal)
-      : searchParents(workspaceId, kind, text, signal),
-    [workspaceId, customerId],
+        })}`, c.searchError, { signal, fresh: false }, raw => estimateParentOptionsSchema.parse(raw))
+      : searchParents(request, workspaceId, kind, text, signal),
+    [workspaceId, customerId, request],
   );
   const searchRecords = search ?? defaultSearch;
   const available = (type === "lead" && canReadLeads) || (type === "job" && canReadJobs);

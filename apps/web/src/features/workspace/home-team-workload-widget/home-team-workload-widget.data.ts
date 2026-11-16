@@ -1,0 +1,20 @@
+export const homeTeamWorkloadWidgetData = {
+  title: 'Team workload',
+  about: 'About team workload',
+  description: 'Current teammates, ordered by active assigned jobs, then open assigned leads, then name. Open leads are New, Contacted, or Estimate sent; active jobs are Needs scheduling, Scheduled, In progress, or Waiting. Counts describe assigned work, not capacity, availability, or utilization.',
+  empty: 'No current teammates to show.',
+  loading: 'Loading team workload...',
+  errorTitle: 'Team workload unavailable',
+  error: 'We could not load team workload. Other sections are still available.',
+  retry: 'Retry workload',
+  jobs: (count: number) => `${new Intl.NumberFormat('en-US').format(count)} active jobs`,
+  leads: (count: number) => `${new Intl.NumberFormat('en-US').format(count)} open leads`,
+  jobsAction: (name: string, count: number) => `View ${count} active jobs assigned to ${name}`,
+  leadsAction: (name: string, count: number) => `View ${count} open leads assigned to ${name}`,
+  remainder: (shown: number, total: number) => `Showing ${shown} of ${new Intl.NumberFormat('en-US').format(total)} teammates.`,
+  stories: {
+    title: 'Home team workload',
+    notice: 'Component preview. Counts and destinations are fictional; no live report access is granted.',
+    workspaceId: '00000000-0000-4000-8000-000000000001',
+  },
+} as const;

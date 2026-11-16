@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { reportSnapshotDecorator } from '../report-snapshot.story-helpers';
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { activityReportQuerySchema, activityReportReadResultSchema, activityReportExportInputSchema,
@@ -12,6 +13,7 @@ function parseQuery(input: RequestInfo | URL) {
   return activityReportQuerySchema.parse(JSON.parse(new URL(String(input), 'https://story.example.test').searchParams.get('query')!));
 }
 const meta = {
+  decorators: [reportSnapshotDecorator],
   title: 'Reports/ActivityReportPage', component: ActivityReportPage, tags: ['autodocs'],
   parameters: { layout: 'fullscreen', docs: { description: { component: 'Live canonical Activity host with mocked native API responses. Safe five-domain history, domain-qualified parent navigation, personal templates, native date/facet semantics and independently authorized CSV. Assistant and production activation remain deferred.' } } },
   args: { initial: activityReadResponse(), onRecord: fn(), onReload: fn() },

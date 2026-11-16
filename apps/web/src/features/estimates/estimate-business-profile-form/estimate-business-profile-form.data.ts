@@ -62,7 +62,6 @@ export const estimateBusinessProfileFormData = {
   numbering: "Estimate numbering",
   prefix: "Number prefix",
   nextNumber: "Next number",
-  numberingHint: "Read-only in MVP. The server allocates the number when an estimate is saved; this display does not reserve it.",
   timezone: "Workspace timezone",
   timezoneMissing: "Workspace timezone unavailable. Date defaults must be resolved by the host before creating an estimate.",
   loading: "Loading estimate settings...",

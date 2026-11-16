@@ -1,17 +1,25 @@
 'use client';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EmbeddedCheckout, EmbeddedCheckoutProvider } from '@stripe/react-stripe-js';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
-import type { WorkspacePlanId } from '@salesmora/contracts';
+import { billingCheckoutPreparationSchema, billingCheckoutStatusSchema, type WorkspacePlanId } from '@salesmora/contracts';
 import { getWorkspacePlan } from '@salesmora/domain';
 import { checkoutHandoffData as copy } from './checkout-handoff.data';
+import { BillingQueryBoundary, useBillingMutation } from '../use-billing-request';
 const clients = new Map<string, Promise<Stripe | null>>();
 function stripeClient(key:string) {
   let client=clients.get(key);
   if(!client){client=loadStripe(key);clients.set(key,client);}
   return client;
 }
-export function CheckoutHandoff({workspaceId,plan,hasCheckout=false,publishableKey,paymentPreview}:{workspaceId:string;plan:WorkspacePlanId;hasCheckout?:boolean;publishableKey?:string;paymentPreview?:ReactNode}) {
+type Props={workspaceId:string;plan:WorkspacePlanId;hasCheckout?:boolean;publishableKey?:string;paymentPreview?:ReactNode};
+export function CheckoutHandoff(props:Props) {
+  return <BillingQueryBoundary workspaceId={props.workspaceId} unavailable={copy.error}><CheckoutContent {...props}/></BillingQueryBoundary>;
+}
+function CheckoutContent({workspaceId,plan,hasCheckout=false,publishableKey,paymentPreview}:Props) {
+  const checkout=useBillingMutation('/api/billing/checkout',billingCheckoutPreparationSchema.parse,copy.error);
+  const {request:readStatus,isActive}=useBillingMutation('/api/billing/checkout',billingCheckoutStatusSchema.parse,copy.error);
+  const running=useRef(false);
   const [pending,setPending]=useState(false);
   const [error,setError]=useState<string>();
   const [notice,setNotice]=useState<string>();
@@ -20,24 +28,21 @@ export function CheckoutHandoff({workspaceId,plan,hasCheckout=false,publishableK
   const [started,setStarted]=useState(hasCheckout);
   const stripe=useMemo(()=>publishableKey?.startsWith('pk_test_') ? stripeClient(publishableKey).catch(()=>{setError(copy.error);return null;}) : null,[publishableKey]);
   const refresh=useCallback(async()=>{
+    if(running.current)return;running.current=true;
     setPending(true);setError(undefined);
     try {
-      const response=await fetch('/api/billing/checkout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspaceId,action:'refresh'})});
-      const body=await response.json();
-      if(!response.ok)throw Error();
+      const body=await readStatus({workspaceId,action:'refresh'},true);
       if(body.billing?.plan && body.billing.plan!=='free'){window.location.assign(`/home?workspace=${workspaceId}`);return;}
       setNotice(copy.verifying);
-    }catch{setError(copy.error);}finally{setPending(false);}
-  },[workspaceId]);
+    }catch{if(isActive())setError(copy.error);}finally{running.current=false;if(isActive())setPending(false);}
+  },[workspaceId,readStatus,isActive]);
   const onComplete=useCallback(()=>{setCompleted(true);setClientSecret(undefined);void refresh();},[refresh]);
   async function start() {
-    if(pending)return;setPending(true);setError(undefined);setNotice(undefined);
+    if(running.current)return;running.current=true;setPending(true);setError(undefined);setNotice(undefined);
     try {
-      const response=await fetch('/api/billing/checkout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspaceId,action:'checkout'})});
-      const body=await response.json();
-      if(!response.ok||typeof body.clientSecret!=='string')throw Error();
+      const body=await checkout.request({workspaceId,action:'checkout'});
       setStarted(true);setClientSecret(body.clientSecret);
-    }catch{setError(copy.error);}finally{setPending(false);}
+    }catch{if(checkout.isActive())setError(copy.error);}finally{running.current=false;if(checkout.isActive())setPending(false);}
   }
   const buttonBase='min-h-11 cursor-pointer rounded-xl border px-5 py-3 font-semibold focus-visible:focus-ring disabled:cursor-not-allowed';
   const button=`${buttonBase} border-line bg-paper text-primary disabled:text-muted`;

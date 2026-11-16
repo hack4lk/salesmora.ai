@@ -130,7 +130,7 @@ export async function renderNewEstimatePage(params: EstimateEditorSearchParams) 
         throw error;
       });
       return shell(page, <EstimateParentPicker key={`${workspace.id}:${customerId}`} workspaceId={workspace.id}
-        customerId={customerId} {...sources} />);
+        viewerId={session.user.id} customerId={customerId} {...sources} />);
     }
     const creation = await estimateCreationAvailability(
       database(),
@@ -141,6 +141,7 @@ export async function renderNewEstimatePage(params: EstimateEditorSearchParams) 
       page,
       <EstimateParentPicker
         workspaceId={workspace.id}
+        viewerId={session.user.id}
         canReadLeads={capabilities.readLeads && creation.workspace}
         canReadJobs={capabilities.readJobs && (creation.workspace || creation.assignedJob)}
       />,

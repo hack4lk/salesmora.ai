@@ -14,7 +14,7 @@ function fixture(operation: Operation = 'publish', blocked = false): CaptureSour
   return { ticket: { workspaceId, proposalId, inputHash: 'a'.repeat(64), operation, target: { kind: 'source', sourceId, sourceVersion: 1, draftVersion: source.draftVersion, approvedVersion: source.approvedVersion }, ...(scheduled ? { transition: { transitionId, configurationVersion: 1 } } : {}), state: 'pending', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 600000).toISOString() }, source: { canEdit: true, policyRevision: 0, business: { businessName: 'Fictional repairs', businessEmail: '', businessPhone: '', services: ['Plumbing'], serviceArea: '', timezone: 'America/New_York', gmailAccess: 'available', teammates: [] }, detail: { source, draft: draft ? { id: proposalId, version: 1, baseApprovedVersion: null, configuration: config } : null, approved: draft ? null : { version: 1, definitionVersion: 1, workflowVersion: 1, configuration: config as NonNullable<CaptureSourceProposalView['source']['detail']['approved']>['configuration'] } }, publicationReview: { sourceId, sourceVersion: 1, draftVersion: source.draftVersion, baseApprovedVersion: source.approvedVersion, configurationVersion: draft ? 1 : 2, canActivate: true, ready: !blocked, plan: 'standard', used: 0, limit: 3, checks, pending: scheduled ? { id: transitionId, configurationVersion: 1, at, timezone: 'America/New_York' } : null }, lifecycleReview: { sourceId, sourceVersion: 1, approvedVersion: source.approvedVersion, canPause: status === 'active', canResume: status === 'paused', canArchive: status !== 'archived', canRestore: status === 'archived', restoreReady: !blocked, restoreFailures: [], resumeReady: !blocked, resumeFailures: blocked ? ['delivery'] : [] } }, timing: operation === 'publish' ? { kind: 'now' } : operation === 'change_schedule' ? { kind: 'scheduled', at: new Date(Date.now() + 7200000).toISOString(), timezone: 'America/New_York' } : null, configurationKind: operation === 'duplicate' ? 'approved' : null, copyName: operation === 'duplicate' ? 'Fictional duplicate' : null, ready: !blocked, checks, receipt: null };
 }
 let posts: unknown[] = [];
-function mock(initial = fixture(), mode: 'ready' | 'denied' | 'conflict' = 'ready') {
+function mock(initial = fixture(), mode: 'ready' | 'denied' | 'conflict' | 'wrong-transition' | 'revoked-decision' = 'ready') {
   const original = globalThis.fetch;
   let view = structuredClone(initial);
   posts = [];
@@ -22,12 +22,14 @@ function mock(initial = fixture(), mode: 'ready' | 'denied' | 'conflict' = 'read
     if (mode === 'denied')
       return Response.json({}, { status: 403 });
     if (options?.method === 'POST') {
+      if (mode === 'revoked-decision') return Response.json({}, { status: 403 });
       if (mode === 'conflict')
         return Response.json({}, { status: 409 });
       const body = JSON.parse(String(options.body));
       posts.push(body);
       const confirmed = body.decision === 'confirm', op = view.ticket.operation;
       view = { ...view, ticket: { ...view.ticket, state: confirmed ? 'confirmed' : 'cancelled' }, receipt: !confirmed ? null : op === 'duplicate' ? { kind: 'draft', sourceId: copyId, sourceVersion: 1, draftVersion: 1 } : ['publish', 'change_schedule', 'cancel_schedule'].includes(op) ? { kind: 'publication', sourceId, sourceVersion: 2, configurationVersion: 1, status: op === 'cancel_schedule' ? 'cancelled' : op === 'change_schedule' ? 'scheduled' : 'active', transitionId: op === 'publish' ? null : transitionId } : { kind: 'source', sourceId, sourceVersion: 2 } };
+      if (mode === 'wrong-transition') view = { ...view, ticket: { ...view.ticket, transition: { transitionId: copyId, configurationVersion: 1 } } };
     }
     return Response.json({ view });
   });
@@ -48,3 +50,21 @@ export const ChangeSchedule = action('change_schedule', 'Confirm new launch time
 export const CancelSchedule = action('cancel_schedule', 'Confirm cancellation', 'Pending launch cancelled. Existing receipts are retained.');
 export const BlockedPublication: Story = { beforeEach: () => mock(fixture('publish', true)), play: async ({ canvasElement }) => { const c = within(canvasElement); await userEvent.click(await c.findByRole('button', { name: copy.review })); await expect(c.getByRole('button', { name: 'Approve and launch' })).toBeDisabled(); await expect(posts).toEqual([]); } };
 export const Denied: Story = { beforeEach: () => mock(fixture(), 'denied'), play: async ({ canvasElement }) => { await expect(await within(canvasElement).findByText(copy.unavailable)).toBeVisible(); } };
+export const MismatchedTransition: Story = { args: { ticket: fixture('change_schedule').ticket }, beforeEach: () => mock(fixture('change_schedule'), 'wrong-transition'), play: async ({ canvasElement, args }) => {
+  const c = within(canvasElement); await userEvent.click(await c.findByRole('button', { name: copy.review }));
+  await userEvent.click(await within(document.body).findByRole('button', { name: 'Confirm new launch time' }));
+  await expect(await c.findByText(copy.failed)).toBeVisible();
+  await expect(args.onSaved).not.toHaveBeenCalled();
+} };
+export const RevokedOnConfirm: Story = { args: { ticket: fixture('pause').ticket }, beforeEach: () => mock(fixture('pause'), 'revoked-decision'), play: async ({ canvasElement, args }) => {
+  const c = within(canvasElement); await userEvent.click(await c.findByRole('button', { name: copy.review }));
+  await userEvent.click(await within(document.body).findByRole('button', { name: 'Pause intake' }));
+  await expect(await c.findByText(copy.failed)).toBeVisible();
+  await expect(args.onSaved).not.toHaveBeenCalled();
+} };
+export const Cancelled: Story = { play: async ({ canvasElement, args }) => {
+  const c = within(canvasElement); await userEvent.click(await c.findByRole('button', { name: copy.cancel }));
+  await expect(await c.findByText(copy.cancelled)).toBeVisible();
+  await expect(posts).toEqual([{ workspaceId, proposalId, inputHash: 'a'.repeat(64), decision: 'cancel' }]);
+  await expect(args.onSaved).not.toHaveBeenCalled();
+} };

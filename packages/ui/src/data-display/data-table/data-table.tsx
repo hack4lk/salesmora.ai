@@ -16,12 +16,13 @@ export interface DataTableProps<Row>{
   selectedIds?:readonly string[];onSelectionChange?:(ids:string[])=>void;
   onRowOpen?:(row:Row)=>void;
   renderCard?:(row:Row)=>ReactNode;
+  constrainHeight?:boolean;
   state?:'ready'|'loading'|'error';emptyMessage?:string;errorMessage?:string;onRetry?:()=>void;
 }
 const interactive='a,button,input,select,textarea,[role="button"],[role="checkbox"]';
 const action='inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-line bg-paper px-4 py-2 text-sm font-semibold text-primary hover:bg-canvas focus-visible:focus-ring';
 /** Controlled presentation primitive. Authorization, filtering, sorting and pagination belong to its consumer. */
-export function DataTable<Row>({caption,columns,rows,getRowId,getRowLabel,sort,onSort,selectedIds=[],onSelectionChange,onRowOpen,renderCard,state='ready',emptyMessage=copy.empty,errorMessage=copy.error,onRetry}:DataTableProps<Row>){
+export function DataTable<Row>({caption,columns,rows,getRowId,getRowLabel,sort,onSort,selectedIds=[],onSelectionChange,onRowOpen,renderCard,constrainHeight=true,state='ready',emptyMessage=copy.empty,errorMessage=copy.error,onRetry}:DataTableProps<Row>){
   const id=useId(),selected=new Set(selectedIds),selectable=!!onSelectionChange;
   const selectedOnPage=rows.filter(row=>selected.has(getRowId(row))).length;
   const all=rows.length>0&&selectedOnPage===rows.length,some=selectedOnPage>0&&!all;
@@ -38,7 +39,7 @@ export function DataTable<Row>({caption,columns,rows,getRowId,getRowLabel,sort,o
     :state==='error'?<div className="grid justify-items-start gap-4 p-6"><p role="alert" className="m-0 text-sm text-error">{errorMessage}</p>{onRetry&&<button type="button" className={action} onClick={onRetry}>{copy.retry}</button>}</div>
     :rows.length===0?<p role="status" className="m-0 p-6 text-sm leading-6 text-muted">{emptyMessage}</p>:<>
       {onRowOpen&&<p id={`${id}-keyboard`} className="sr-only">{copy.keyboard}</p>}
-      <div tabIndex={0} role="group" aria-label={caption} className="hidden max-h-96 overflow-auto focus-visible:focus-ring md:block">
+      <div tabIndex={0} role="group" aria-label={caption} className={`hidden overflow-auto focus-visible:focus-ring md:block ${constrainHeight?'max-h-96':''}`}>
         <table className="w-full border-collapse text-left text-sm">
           <caption className="sr-only">{caption}</caption>
           <thead className="sticky top-0 z-10 bg-canvas"><tr>

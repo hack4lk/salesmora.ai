@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateLeadQueries } from "../../leads/leads-page/lead-queries";
 import {
   estimateLeadStageReceiptSchema, estimateLeadStageReviewSchema,
   type EstimateLeadStageQuery, type EstimateLeadStageReview,
 } from "@salesmora/contracts";
 import { MoveStageDialog, type MoveStageDialogProps, type MoveStageRequest, type MoveStageValue } from "../../leads/move-stage-dialog/move-stage-dialog";
-import { estimateLifecycleRequest, EstimateLifecycleRequestError } from "../estimate-lifecycle-client";
+import { useEstimateRequest, EstimateLifecycleRequestError, isApiAccessError } from "../use-estimate-request";
 import { EstimateLeadStageSuggestion } from "./estimate-lead-stage-suggestion";
 import { estimateLeadStageSuggestionData as c } from "./estimate-lead-stage-suggestion.data";
 
@@ -26,6 +28,8 @@ export function EstimateLeadStageConnected({
   printHidden?: boolean;
 }) {
   const router = useRouter();
+  const estimateLifecycleRequest = useEstimateRequest();
+  const queryClient = useQueryClient();
   const [review, setReview] = useState<EstimateLeadStageReview | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error" | "unavailable">("loading");
   const [error, setError] = useState<MoveStageDialogProps["error"]>();
@@ -42,11 +46,11 @@ export function EstimateLeadStageConnected({
   const busy = pending || working;
   const load = useCallback((signal?: AbortSignal) => {
     const requestSequence = ++sequence.current;
-    return estimateLifecycleRequest<unknown>(url, c.error, { signal }).then(raw => {
+    return estimateLifecycleRequest(url, c.error, { signal }, raw => estimateLeadStageReviewSchema.parse(raw)).then(raw => {
       if (signal?.aborted || requestSequence !== sequence.current) return null;
       const latest = estimateLeadStageReviewSchema.parse(raw);
       if (latest.estimate.id !== estimateId || latest.estimate.version !== expectedEstimateVersion) {
-        throw new EstimateLifecycleRequestError(c.live.mismatch, 409);
+        throw new EstimateLifecycleRequestError(c.live.mismatch, 409, undefined);
       }
       setReview(latest);
       setState("ready");
@@ -56,13 +60,13 @@ export function EstimateLeadStageConnected({
       if (signal?.aborted || requestSequence !== sequence.current) return null;
       const status = caught instanceof EstimateLifecycleRequestError ? caught.status : undefined;
       setReview(null);
-      setState(status === 401 || status === 404 ? "unavailable" : "error");
+      setState(isApiAccessError(caught) ? "unavailable" : "error");
       setError({ kind: status === 409 ? "conflict" : "error", message: caught instanceof Error ? caught.message : c.error });
       onOpenChange(false);
       if (status === 401) router.replace("/login");
       return null;
     });
-  }, [estimateId, expectedEstimateVersion, onOpenChange, router, url]);
+  }, [estimateId, expectedEstimateVersion, onOpenChange, router, url, estimateLifecycleRequest]);
   useEffect(() => {
     const controller = new AbortController();
     void load(controller.signal);
@@ -106,7 +110,7 @@ export function EstimateLeadStageConnected({
     try {
       const raw = await estimateLifecycleRequest<unknown>(url, c.live.saveError, {
         method: "POST", body: JSON.stringify({ ...payload, submissionId }),
-      });
+      }, raw => estimateLeadStageReceiptSchema.parse(raw));
       const receipt = estimateLeadStageReceiptSchema.parse(raw);
       if (receipt.estimateId !== estimateId || receipt.leadId !== request.lead.id ||
           receipt.submissionId !== submissionId || receipt.version < request.lead.version + 1) {
@@ -114,10 +118,12 @@ export function EstimateLeadStageConnected({
       }
       onOpenChange(false);
       onMoved();
+      try { await invalidateLeadQueries(queryClient, workspaceId); }
+      catch { setError({ kind: "error", message: c.live.savedReload }); }
     } catch (caught) {
       const status = caught instanceof EstimateLifecycleRequestError ? caught.status : undefined;
       setError({ kind: status === 409 ? "conflict" : "error", message: caught instanceof Error ? caught.message : c.live.saveError });
-      if (status === 401 || status === 404) {
+      if (isApiAccessError(caught)) {
         setReview(null);
         setState("unavailable");
         onOpenChange(false);
