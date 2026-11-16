@@ -38,6 +38,8 @@ export interface WorkspaceShellProps {
   printChromeHidden?: boolean;
   onSignOut: () => Promise<void>;
   children: ReactNode;
+  /** Home can place its welcome beside the canonical notifications, above the assistant. */
+  beforeAssistant?: (notifications: ReactNode) => ReactNode;
 }
 export function WorkspaceShell({
   currentPage = "home",
@@ -61,6 +63,7 @@ export function WorkspaceShell({
   chatSurface = "home",
   chatContext,
   printChromeHidden = false,
+  beforeAssistant,
 }: WorkspaceShellProps) {
   const router = useRouter();
   // Every active teammate can open personal settings; business settings still authorize independently.
@@ -180,7 +183,9 @@ export function WorkspaceShell({
           <div
             className={`mx-auto w-full ${contentWidth === "standard" ? "max-w-4xl" : ""}`}
           >
-            <div
+            {beforeAssistant ? beforeAssistant(
+              <ConnectedNotificationMenu key={workspaceId} workspaceId={workspaceId} workspaceName={workspaceName} />
+            ) : <div
               className={`mb-6 flex justify-end ${printChromeHidden ? "print:hidden" : ""}`}
             >
               <ConnectedNotificationMenu
@@ -188,7 +193,7 @@ export function WorkspaceShell({
                 workspaceId={workspaceId}
                 workspaceName={workspaceName}
               />
-            </div>
+            </div>}
             {assistantAvailable &&
               (chatEnabled ? (
                 <ConnectedAssistant

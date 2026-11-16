@@ -145,6 +145,20 @@ export async function readCalendar(db: Knex, identity: WorkspaceIdentity, enable
       canSchedule: canPlan, entries, unscheduled, unscheduledTotal, queuePages };
   });
 }
+/** Bounded Home projection: count explicit authorized visit identities, then project only five. */
+export async function readHomeScheduleInTransaction(trx: Knex.Transaction, context: AuthorizationContext, today: string) {
+  const meta = await metadata(trx, context);
+  const own = context.membership.role === 'field';
+  const visible = () => trx.with('visible', scopedCalendarRecordsQuery(trx, context, { from: today, to: today }, own));
+  const total = Number((await visible().from('visible').where('scheduledDate', today).countDistinct('visitId as count').first()).count);
+  if (!Number.isSafeInteger(total) || total < 0) throw new Error('The Home visit total is invalid.');
+  const ids = trx('visible').select('visitId').where('scheduledDate', today).groupBy('visitId')
+    .orderByRaw('min("arrivalWindow") ASC NULLS LAST').orderBy('visitId').limit(5);
+  const rows: Row[] = await visible().from('visible').select('*').whereIn('visitId', ids);
+  const visits = await project(trx, context, rows, { ...meta, today, scope: own ? 'own' : meta.scope });
+  visits.sort((a, b) => (a.arrivalWindow ?? '99').localeCompare(b.arrivalWindow ?? '99') || a.id.localeCompare(b.id));
+  return { total, visits, scope: own ? 'own' as const : meta.scope };
+}
 export async function readCalendarVisit(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], visitId: string): Promise<CalendarVisit> {
   return withWorkspaceAuthorization(db, identity, enabled, false,
     (trx, context) => readCalendarVisitInTransaction(trx, context, visitId));

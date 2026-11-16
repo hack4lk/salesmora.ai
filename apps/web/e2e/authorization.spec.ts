@@ -41,7 +41,9 @@ test('all roles reach Home; only Owner/Admin/Office create leads through pages a
       const member = await context.newPage();
       await member.goto(`/home?workspace=${workspaceId}`);
       await expect(member.getByRole('button', { name: 'SalesMora assistant How can I help?' })).toBeVisible();
-      await expect(member.getByRole('link', { name: 'Create lead', exact: true })).toHaveCount(role === 'field' ? 0 : 1);
+      await member.getByRole('button', { name: 'Home actions' }).click();
+      await expect(member.getByRole('menuitem', { name: 'Create lead', exact: true })).toHaveCount(role === 'field' ? 0 : 1);
+      await member.keyboard.press('Escape');
       await member.goto(`/leads/new?workspace=${workspaceId}`);
       await expect(member.getByRole('form', { name: 'Create a lead' })).toHaveCount(role === 'field' ? 0 : 1);
       expect((await context.request.post('/api/leads', { headers, data: lead(workspaceId) })).status()).toBe(role === 'field' ? 403 : 201);

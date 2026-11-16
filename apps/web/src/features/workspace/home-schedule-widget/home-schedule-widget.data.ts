@@ -1,0 +1,23 @@
+export const homeScheduleWidgetData = {
+  title: "Today's schedule",
+  about: "About today's schedule",
+  description: 'Visits scheduled for today in the displayed timezone. Arrival windows are not exact appointment times. A linked job and work order count as one visit.',
+  calendar: 'Open calendar',
+  open: 'Open visit',
+  openLabel: (title: string) => `Open visit: ${title}`,
+  empty: 'No visits scheduled today. Open the calendar to see upcoming work.',
+  loading: 'Loading today’s visits…',
+  errorTitle: 'Schedule unavailable',
+  error: 'We could not load today’s visits. Other sections are still available.',
+  retry: 'Retry schedule',
+  noLocation: 'Location not set',
+  crew: 'Assigned team',
+  remainder: (shown: number, total: number) => `Showing ${shown} of ${total} visits. Open the calendar for the rest.`,
+  stories: {
+    title: 'Home schedule review',
+    notice: 'Component preview. Visits and destinations are fictional; no schedules are changed.',
+    workspaceId: '00000000-0000-4000-8000-000000000001',
+    date: '2026-11-15',
+    timezone: 'America/New_York',
+  },
+} as const;

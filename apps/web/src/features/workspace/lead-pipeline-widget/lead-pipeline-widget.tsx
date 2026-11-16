@@ -1,6 +1,6 @@
 'use client';
 import { useId } from 'react';
-import { ArrowForwardOutlined } from '@salesmora/ui';
+import { ArrowForwardOutlined, HelpTooltip } from '@salesmora/ui';
 import type { LeadInput } from '@salesmora/contracts';
 import { leadPipelineWidgetData as copy } from './lead-pipeline-widget.data';
 export type LeadPipelineCounts = Record<LeadInput['stage'], number>;
@@ -14,9 +14,9 @@ export interface LeadPipelineWidgetProps {
 export function LeadPipelineWidget({ counts, onViewPipeline, pipelineHref }: LeadPipelineWidgetProps) {
   const id = useId();
   const total = copy.stages.reduce((sum, stage) => sum + counts[stage.id], 0);
-  return <section aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`} className="grid min-w-0 gap-6 rounded-2xl border border-line bg-paper p-6 sm:p-8">
+  return <section aria-labelledby={`${id}-title`} className="grid min-w-0 gap-6 rounded-2xl border border-line bg-paper p-6 sm:p-8">
     <header className="flex flex-wrap items-start justify-between gap-4">
-      <div className="min-w-0"><h2 id={`${id}-title`} className="m-0 text-lg font-semibold text-ink">{copy.title}</h2><p id={`${id}-description`} className="mb-0 mt-1 text-sm leading-6 text-muted">{copy.description}</p></div>
+      <div className="flex min-w-0 items-center gap-1"><h2 id={`${id}-title`} className="m-0 text-lg font-semibold text-ink">{copy.title}</h2><HelpTooltip label={copy.about} paragraphs={[copy.description]} /></div>
       {pipelineHref ? <a href={pipelineHref} className="inline-flex min-h-11 items-center gap-2 rounded-xl text-sm font-semibold text-primary hover:text-primary-dark focus-visible:focus-ring">{copy.action}<ArrowForwardOutlined aria-hidden="true" className="size-4"/></a> : <button type="button" disabled={!onViewPipeline} onClick={onViewPipeline} className="inline-flex min-h-11 flex-wrap items-center gap-2 rounded-xl text-sm font-semibold text-primary hover:text-primary-dark focus-visible:focus-ring disabled:cursor-not-allowed disabled:text-muted">
         <span>{copy.action}</span>{onViewPipeline ? <ArrowForwardOutlined aria-hidden="true" className="size-4" /> : <span className="text-xs font-normal">{copy.unavailable}</span>}
       </button>}

@@ -1,8 +1,8 @@
 import { workspaceChatAvailable } from '../../../server/chat/config';
 import { AuthorizationAccessError } from '@salesmora/data';
 import { workspaceAuthorization, workspaceCapabilities, workspaceNavigationPages } from '../../../server/authorization/permissions';
-import { workspaceLeadPipelineCounts } from '../../../server/leads/store';
-import { LeadPipelineWidget } from '../../../features/workspace/lead-pipeline-widget/lead-pipeline-widget';
+import { readHomeSnapshot } from '../../../server/home/read';
+import { HomeRoute } from '../../../features/workspace/home-page-view/home-route';
 import { revalidatePath } from 'next/cache';
 import { safelyDeliverOwnerInvitations } from '../../../server/invitations/store';
 import { EmailVerificationRoute } from '../../../features/auth/email-verification-notice/email-verification-route';
@@ -13,8 +13,6 @@ import { getSession } from '../../../server/auth/session';
 import { auth } from '../../../server/auth/auth';
 import { findWorkspace, workspaceSummary } from '../../../server/workspaces/store';
 import { onboardingFlowData as flowCopy } from '../../../features/onboarding/onboarding-flow/onboarding-flow.data';
-import { HomeOverview } from '../../../features/workspace/home-overview/home-overview';
-import { WorkspaceShell } from '../../../features/workspace/workspace-shell/workspace-shell';
 const copy = flowCopy.home;
 export const metadata = { title: copy.documentTitle };
 async function signOut() {
@@ -41,14 +39,18 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   if (!capabilities.home) notFound();
   const isOwner = workspace.ownerId === session.user.id;
   const summary = isOwner && capabilities.inviteField ? await workspaceSummary(session.user.id, workspace.id) : { invitations: [] };
-  const pipelineCounts = capabilities.readLeads ? await workspaceLeadPipelineCounts(session.user.id, workspace.id) : null;
-  const hasLeads = Object.values(pipelineCounts ?? {}).some(count => count > 0);
-  return <WorkspaceShell chatEnabled={await workspaceChatAvailable(workspace.id)} chatSurface="home" billingAvailable={capabilities.billing} jobNotificationsAvailable={capabilities.jobNotifications} permissionsAvailable={capabilities.permissions} ganttAvailable={capabilities.readGantt} authorizedPages={workspaceNavigationPages(context)} assistantAvailable={capabilities.assistant} contentWidth="full" workspaceId={workspace.id} workspaceName={workspace.businessName} user={{name:session.user.name,email:session.user.email,role:context.membership.role}} onSignOut={signOut}>
-    {/* Campaign and activity storage are not implemented yet. Lead existence is scoped to this workspace. */}
-    <HomeOverview headingLevel={1} userName={session.user.name} workspaceName={workspace.businessName} role={context.membership.role} canCreateLead={capabilities.createLead} canCreateCampaign={false} createLeadHref={`/leads/new?workspace=${encodeURIComponent(workspace.id)}`} activity={{hasLeads,hasCampaigns:false,hasActivity:false}} entry={isOwner?'created':'joined'} />
-    {hasLeads && pipelineCounts && <div className="mt-6"><LeadPipelineWidget counts={pipelineCounts} pipelineHref={`/leads?workspace=${encodeURIComponent(workspace.id)}`} /></div>}
+  const home = await readHomeSnapshot(session.user.id, workspace.id).catch(error => { if (error instanceof AuthorizationAccessError) notFound(); throw error; });
+  const current = workspaceCapabilities(home.context);
+  return <HomeRoute initial={home.snapshot} entry={isOwner ? 'created' : 'joined'} shell={{
+    chatEnabled: await workspaceChatAvailable(workspace.id), chatSurface: 'home',
+    billingAvailable: current.billing, jobNotificationsAvailable: current.jobNotifications,
+    permissionsAvailable: current.permissions, ganttAvailable: current.readGantt,
+    authorizedPages: workspaceNavigationPages(home.context), assistantAvailable: current.assistant,
+    workspaceId: workspace.id, workspaceName: workspace.businessName,
+    user: { name: session.user.name, email: session.user.email, role: home.context.membership.role }, onSignOut: signOut,
+  }} notices={<>
     {isOwner && summary.invitations.length > 0 && <p className="mt-4 text-sm leading-6 text-muted">{session.user.emailVerified ? copy.delivery : copy.verification}</p>}
     {isOwner && session.user.emailVerified && summary.invitations.some(row => ['queued','pending_verification'].includes(row.status)) && <form action={retryInvitations} className="mt-4 grid gap-3"><p className="m-0 text-sm leading-6 text-muted">{copy.retryNote}</p><SubmitButton label={copy.retryInvitations} /></form>}
     {!session.user.emailVerified && <div className="mt-6"><EmailVerificationRoute email={session.user.email} verified={false} /></div>}
-  </WorkspaceShell>;
+  </>} />;
 }
