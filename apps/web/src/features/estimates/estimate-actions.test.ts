@@ -7,7 +7,7 @@ const rowActions: Record<EstimateStatus, EstimateRowAction[]> = {
   draft: ["open", "duplicate", "delete-draft"],
   sent: ["open", "duplicate", "revise", "void"],
   published: ["open", "duplicate", "revise", "void"],
-  accepted: ["open", "duplicate"],
+  accepted: ["open", "duplicate", "archive"],
   declined: ["open", "duplicate", "revise", "archive"],
   expired: ["open", "duplicate", "revise", "archive"],
   superseded: ["open", "duplicate", "archive"],

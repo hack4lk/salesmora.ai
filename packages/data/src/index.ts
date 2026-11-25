@@ -55,7 +55,7 @@ export { resolveLeadSourceExportAccess, canExportLeadSourceDataset } from './rep
 export { prepareLeadSourceCSVProjectionInTransaction } from './reports/lead-source-export-projection';
 export { previewLeadSourceExport, createLeadSourceCSVExport } from './reports/lead-source-export';
 export type { Knex } from 'knex';
-export { withWorkspaceAuthorization, withWorkspaceAuthoritySnapshot, workspaceAuthoritySnapshot, loadWorkspaceAuthorization, initializeWorkspacePolicy, saveWorkspacePolicy, listAuthorizedLeads, authorizedLeadPipelineCounts, AuthorizationAccessError, AuthorizationConflictError, WorkspaceSuspendedError, type WorkspaceIdentity, type LeadSummary } from './authorization/store';
+export { withCurrentWorkspaceMutation, withWorkspaceAuthorization, withWorkspaceAuthoritySnapshot, workspaceAuthoritySnapshot, loadWorkspaceAuthorization, initializeWorkspacePolicy, saveWorkspacePolicy, listAuthorizedLeads, authorizedLeadPipelineCounts, AuthorizationAccessError, AuthorizationConflictError, WorkspaceSuspendedError, type WorkspaceIdentity, type LeadSummary } from './authorization/store';
 export { admittedChatTurn, admittedChatClock, stageAdmittedChatTurn, withAdmittedChatTurn,
   type AdmittedChatTurn, type ChatTurnEvidenceUpdate } from './chat-request';
 export { embeddingSpace, createOpenAIEmbedder, validateVectors, type Embedder } from './knowledge/embeddings';
@@ -210,3 +210,48 @@ export { assistantCapturedRecordsAllowed, type AssistantCapturedRecords } from '
 export * from './chat-proposals';
 export { initializeProposalStorage } from './proposal-storage-authority';
 export { leadProposalStorage, customerProposalStorage, workOrderProposalStorage } from './proposal-storage';
+export { workflowAccess, readWorkflows, readWorkflowsInTransaction, changeWorkflow, WorkflowConflictError } from './workflows/store';
+export { canPublishWorkflow, prepareWorkflowInTransaction, visibleWorkflowDraft, decideWorkflow, WorkflowDraftError } from './workflows/proposals';
+
+export { processWorkflowReminders } from './workflows/execution';
+export { previewWorkflowRun, confirmWorkflowRun } from './workflows/manual-runs';
+export { changeWorkflowNotifications } from './workflows/notifications';
+
+export { processLeadWorkflowEmails, type LeadWorkflowEmail } from "./notifications/lead-workflows";
+export { processWorkflowStep } from "./workflows/execution";
+export { claimWorkflowQueue, cleanupWorkflowQueue, acknowledgeWorkflowQueue, readWorkflowQueueEntry, workflowQueueTicketSchema,
+  type WorkflowQueueEntry, type WorkflowQueueTicket } from "./workflows/queue";
+export { workflowQueueListener } from "./workflows/queue-listener";
+
+export * from "./workflows/briefings";
+export * from "./notifications/workflow-briefings";
+
+export * from "./workflows/visits";
+export * from "./notifications/workflow-visits";
+
+export { readWorkflowEditData, editWorkflow, editWorkflowInTransaction } from "./workflows/editing";
+export * from './calendar/availability';
+export * from './calendar/booking';
+export { readRoutineBookingOptions } from './workflows/booking';
+export { processWorkflowBookingEmails } from './notifications/workflow-booking';
+export * from './services/store';
+
+export {readCancellationOpeningInTransaction,readCancellationOptions,readCancellationOpening,confirmCancellationBooking,processCancellationStep} from "./workflows/cancellation";
+export {processCancellationEmails} from "./notifications/workflow-cancellation";
+
+export {processServiceDueStep,canSendServiceEmail,readServiceDue,readServiceDueInTransaction,serviceDueOptions,dueWorkflow} from "./workflows/service-due";
+export {changeServiceDue,unsubscribeServiceEmail,outreachFacts} from "./workflows/service-outreach";
+export {processServiceDueEmail} from "./notifications/service-due";
+export {configuredEmailSender} from "./email/transport";
+
+export {completionHandoffOptions,processCompletionHandoffStep,processCompletionHandoffEmail} from "./workflows/completion-handoff";
+export * from './team/settings';
+export { routingOptions } from './workflows/routing';
+
+export { customerVisitOptions, saveCustomerVisitCompany, unsubscribeVisitReminder } from './workflows/customer-visits';
+
+export { assignedLeadColdOptions } from './workflows/assigned-lead-cold';
+
+export { postJobOptions, unsubscribePostJob } from './workflows/post-job';
+
+export { scheduleChangeOptions, unsubscribeScheduleChanges } from './workflows/customer-schedule-changes';

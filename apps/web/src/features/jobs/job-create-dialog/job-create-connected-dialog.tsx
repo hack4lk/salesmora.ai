@@ -24,6 +24,6 @@ export function JobCreateConnectedDialog({ workspaceId, onPreviewReload, ...prop
     <p role={state === 'error' ? 'alert' : 'status'} className="m-0 text-sm leading-6 text-muted">{state === 'error' ? deadlineCopy.error : deadlineCopy.loading}</p>
     {state === 'error' && <button type="button" className={jobButton} onClick={reload}>{deadlineCopy.reload}</button>}
   </JobDialog>;
-  return <JobCreateDialog {...props} onReload={reload} canSchedule={props.canSchedule !== false && preview.canOverride}
+  return <JobCreateDialog {...props} services={preview.services??props.services} onReload={reload} canSchedule={props.canSchedule !== false && preview.canOverride}
     deadlineContext={{ context: preview.context, state, canOverride: preview.canOverride, onReload: reload }}/>;
 }

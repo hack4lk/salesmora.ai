@@ -72,7 +72,7 @@ try {
         assert(rows.every(row => row.length === projection.columns.length));
         return { projection, rows };
       });
-    for (let i = 0; i < 4; i++) jobs.push((await createJob(trx, identity, enabled, {
+    for (let i = 0; i < 4; i++) jobs.push((await createJob(trx, identity, enabled, {postalCode:'10001',
       workspaceId, submissionId: randomUUID(), customerId, title: 'Identical fixture Job',
       primaryOwnerId: field, teamUserIds: [teammate], scheduledDate: '2026-11-01', arrivalWindow: '09:00-11:00',
     })).jobId);
@@ -86,8 +86,8 @@ try {
       workspaceId, workOrderId: order.workOrderId, submissionId: randomUUID(), expectedVersion: order.version,
       action: 'status', to: 'issued', confirmed: true,
     });
-    await createJob(trx, identity, enabled, { workspaceId, submissionId: randomUUID(), customerId, title: 'Unscheduled', primaryOwnerId: field });
-    const unassigned = await createJob(trx, identity, enabled, {
+    await createJob(trx, identity, enabled, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: 'Unscheduled', primaryOwnerId: field });
+    const unassigned = await createJob(trx, identity, enabled, {postalCode:'10001',
       workspaceId, submissionId: randomUUID(), customerId, title: 'Unassigned scheduled', scheduledDate: '2026-11-02',
       primaryOwnerId: null,
     });
@@ -202,7 +202,7 @@ try {
         enabled.filter(id => id !== 'reports.export')), AuthorizationAccessError);
     });
     await check('Calendar CSV assigned-job export preserves supporting parent read while excluding drafts and enforcing own participation', async () => {
-      const parent = await createJob(trx, identity, enabled, {
+      const parent = await createJob(trx, identity, enabled, {postalCode:'10001',
         workspaceId, submissionId: randomUUID(), customerId, title: 'Parent assignment support',
         scheduledDate: '2026-11-05', primaryOwnerId: owner,
       });
@@ -343,7 +343,7 @@ try {
       });
     });
     await check('Calendar CSV cursors include more than 100 visits and pairs, keep stable order and close after cancellation', async () => {
-      for (let i = 0; i < 105; i++) await createJob(trx, identity, enabled, {
+      for (let i = 0; i < 105; i++) await createJob(trx, identity, enabled, {postalCode:'10001',
         workspaceId, submissionId: randomUUID(), customerId, title: `Unpaged export ${i}`,
         scheduledDate: '2026-11-04', arrivalWindow: '09:00-11:00', primaryOwnerId: field,
       });
@@ -370,7 +370,7 @@ try {
       });
     });
     await check('bounded stable evidence clamps final pages and future schedules do not infer attendance', async () => {
-      for (let i = 0; i < 27; i++) await createJob(trx, identity, enabled, {
+      for (let i = 0; i < 27; i++) await createJob(trx, identity, enabled, {postalCode:'10001',
         workspaceId, submissionId: randomUUID(), customerId, title: 'Paged future visit',
         scheduledDate: '2026-11-02', primaryOwnerId: field,
       });

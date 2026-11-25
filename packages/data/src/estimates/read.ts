@@ -1,3 +1,4 @@
+import {serviceDisplaySql} from '../services/store';
 import type { Knex } from "knex";
 import {
   estimateListQuerySchema,
@@ -904,7 +905,7 @@ export async function readEstimates(
             `COALESCE(c.name, l.name, j."customerName", '') AS "customerName"`,
           ),
           trx.raw(
-            `COALESCE(l.service, j.service, '') AS service`,
+            `COALESCE(${serviceDisplaySql('l')}, ${serviceDisplaySql('j')}, '') AS service`,
           ),
           trx.raw(
             `COALESCE(e."leadId", e."jobId")::text AS "parentId"`,

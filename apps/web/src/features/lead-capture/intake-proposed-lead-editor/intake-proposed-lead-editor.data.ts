@@ -9,7 +9,7 @@ export const intakeProposedLeadEditorData = {
   loading: 'Loading proposed lead details…', error: 'Proposed lead details could not be loaded. Your corrections are preserved.', retry: 'Try again',
   stories: {
     description: 'Corrections update preview state only. No intake item is saved and no lead is created.',
-    labels: { name: 'Full name', email: 'Email', phone: 'Phone', service: 'Service requested', details: 'Project details', address: 'Service address', timing: 'Preferred timing', interests: 'Services of interest', date: 'Preferred date' },
+    labels: { name: 'Full name', email: 'Email', phone: 'Phone', service: 'Service requested', details: 'Project details', address: 'Service address', postalCode:'ZIP code', timing: 'Preferred timing', interests: 'Services of interest', date: 'Preferred date' },
     name: 'Jamie Carter', email: 'jamie.carter@example.com', phone: '(555) 014-2280', service: 'Kitchen cabinet replacement', corrected: 'Kitchen remodeling',
     choices: ['Morning', 'Afternoon'], interests: ['Kitchen', 'Bathroom'], long: 'A detailed residential remodeling request with customer preferences and service requirements. ',
   },

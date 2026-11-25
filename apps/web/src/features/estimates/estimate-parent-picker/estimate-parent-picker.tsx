@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
+import Tab from "@mui/material/Tab";
+import Tabs from "@mui/material/Tabs";
 import { estimateParentOptionsSchema, leadListResultSchema, jobListResultSchema } from "@salesmora/contracts";
 import { ApiQueryScopeBoundary } from "../../api/api-query-provider";
 import { useEstimateRequest } from "../use-estimate-request";
@@ -162,28 +164,11 @@ function ParentPickerContent({
         <h1 className="m-0 text-heading font-semibold text-ink sm:text-heading-lg">{c.title}</h1>
         <p className="mb-0 mt-3 text-base leading-6 text-muted">{customerId ? c.customerDescription : c.description}</p>
       </header>
-      <div role="group" aria-label="Related record type" className="flex flex-wrap gap-2">
-        {canReadLeads && (
-          <button
-            type="button"
-            aria-pressed={type === "lead"}
-            className={estimateButton}
-            onClick={() => setType("lead")}
-          >
-            {c.lead}
-          </button>
-        )}
-        {canReadJobs && (
-          <button
-            type="button"
-            aria-pressed={type === "job"}
-            className={estimateButton}
-            onClick={() => setType("job")}
-          >
-            {c.job}
-          </button>
-        )}
-      </div>
+      <Tabs value={type} onChange={(_, next: ParentType) => setType(next)} aria-label="Related record type" className="border-b border-line">
+        {canReadLeads && <Tab id={`${id}-lead-tab`} value="lead" label={c.lead} aria-controls={`${id}-panel`} />}
+        {canReadJobs && <Tab id={`${id}-job-tab`} value="job" label={c.job} aria-controls={`${id}-panel`} />}
+      </Tabs>
+      <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-${type}-tab`} tabIndex={0} className="grid min-w-0 gap-5 focus-visible:focus-ring">
       <div className="grid min-w-0 gap-2">
         <label htmlFor={`${id}-search`} className="text-sm font-semibold text-ink">{c.search}</label>
         <input
@@ -205,18 +190,21 @@ function ParentPickerContent({
           </button>
         </div>
       ) : current.options.length ? (
-        <ul className="m-0 grid list-none gap-3 p-0">
+        <ul className="m-0 min-w-0 list-none divide-y divide-line overflow-hidden rounded-xl border border-line p-0">
           {current.options.map((option) => (
             <li key={option.id}>
               <button
                 type="button"
-                className="grid min-h-16 w-full gap-1 rounded-xl border border-line bg-paper p-4 text-left hover:bg-canvas focus-visible:focus-ring"
+                className="grid min-h-11 w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 bg-paper px-3 py-2 text-left hover:bg-canvas focus-visible:focus-ring focus-visible:-outline-offset-3"
                 onClick={() => select(option)}
               >
                 <span className="sr-only">{c.choose(type)}</span>
-                <span className="text-sm text-muted">{option.number} · {option.status}</span>
-                <span className="font-semibold wrap-anywhere">{option.name}</span>
-                <span className="text-sm text-muted wrap-anywhere">{option.detail}</span>
+                <span className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                  <span className="whitespace-nowrap text-xs text-muted">{option.number}</span>
+                  <span className="text-sm font-semibold text-ink wrap-anywhere">{option.name}</span>
+                  {option.detail && <span className="text-sm text-muted wrap-anywhere">{option.detail}</span>}
+                </span>
+                <span className="whitespace-nowrap text-xs text-muted">{option.status}</span>
               </button>
             </li>
           ))}
@@ -224,6 +212,7 @@ function ParentPickerContent({
       ) : (
         <p role="status" className="m-0 text-sm text-muted">{c.noResults}</p>
       )}
+      </div>
       <a className="text-sm font-semibold text-primary underline underline-offset-2" href={`/estimates?workspace=${encodeURIComponent(workspaceId)}`}>
         {c.back}
       </a>

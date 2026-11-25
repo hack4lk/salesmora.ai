@@ -25,10 +25,10 @@ export function LeadNextStepCard({ lead, suggestion, assistantStatus = 'ready', 
       {suggestion?.title.trim() && <h3 className="m-0 text-base font-semibold text-ink wrap-anywhere">{suggestion.title}</h3>}
       {suggestion?.body.trim() && <p className="m-0 text-base leading-6 whitespace-pre-line text-muted wrap-anywhere">{suggestion.body}</p>}
     </div> : <div className="grid gap-2"><p className="m-0 text-base text-ink">{copy.empty}</p><p className="m-0 text-sm leading-6 text-muted">{copy.emptyHelp}</p></div>}
-    <div className="grid gap-3"><button type="button" ref={prepareButtonRef} disabled={!available} aria-describedby={`${id}-hint`}
+    <div className="grid gap-3"><button type="button" ref={prepareButtonRef} disabled={!available} aria-describedby={available ? undefined : `${id}-hint`}
       onClick={() => { if (available) onPrepare?.({ lead, prompt: copy.prompt(lead.leadNumber) }); }}
       className="flex min-h-11 w-fit max-w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-line bg-paper px-4 py-3 text-sm font-semibold text-primary hover:bg-canvas focus-visible:focus-ring disabled:cursor-not-allowed disabled:text-muted">
       {copy.prepare}<ArrowForwardOutlined aria-hidden="true"/>
-    </button><p id={`${id}-hint`} className="m-0 text-sm leading-6 text-muted">{available ? copy.draftHint : reason}</p></div>
+    </button>{!available && <p id={`${id}-hint`} className="m-0 text-sm leading-6 text-muted">{reason}</p>}</div>
   </section>;
 }

@@ -127,8 +127,8 @@ export async function setEstimateArchivedInTransaction(
   }
   if (row.version !== input.expectedVersion) throw new EstimateDraftConflictError();
   if (archived) {
-    if (row.archivedAt || !["declined", "expired", "superseded", "void"].includes(status)) {
-      throw new EstimateDraftValidationError("Only an unarchived Declined, Expired, Superseded or Void estimate can be archived.");
+    if (row.archivedAt || !["accepted", "declined", "expired", "superseded", "void"].includes(status)) {
+      throw new EstimateDraftValidationError("Only an unarchived Accepted, Declined, Expired, Superseded or Void estimate can be archived.");
     }
   } else if (!row.archivedAt) {
     throw new EstimateDraftValidationError("Only an archived estimate can be restored.");

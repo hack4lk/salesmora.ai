@@ -6,13 +6,13 @@ import { StatusBadge } from '@salesmora/ui';
 import { leadContactCardData as copy } from './lead-contact-card.data';
 
 export type LeadContact = {
-  name: string; email: string | null; phone: string | null;
+  postalCode?: string; name: string; email: string | null; phone: string | null;
   owner: { id: string; name: string; former?: boolean } | null;
 };
-export type LeadContactCardProps = { contact: LeadContact; viewerId?: string; pending?: boolean };
+export type LeadContactCardProps = { contact: LeadContact; viewerId?: string; pending?: boolean; onEdit?: () => void };
 
 /** Read-only scoped contact snapshot. Unsupported contact formats remain copyable plain text. */
-export function LeadContactCard({ contact, viewerId, pending = false }: LeadContactCardProps) {
+export function LeadContactCard({ contact, viewerId, pending = false, onEdit }: LeadContactCardProps) {
   const id = useId();
   const email = contact.email?.trim() ?? '';
   const phone = contact.phone?.trim() ?? '';
@@ -22,7 +22,11 @@ export function LeadContactCard({ contact, viewerId, pending = false }: LeadCont
   const phoneHref = /^\+?[\d ().-]+$/.test(phone) && digits.length >= 3 && digits.length <= 15 ? `tel:${phone.startsWith('+') ? '+' : ''}${digits}` : undefined;
   const link = 'inline-flex min-h-11 max-w-full items-center rounded-lg font-semibold text-primary hover:underline focus-visible:focus-ring';
   return <section aria-labelledby={`${id}-title`} aria-busy={pending} className="grid min-w-0 gap-5 rounded-2xl border border-line bg-paper p-6">
-    <h2 id={`${id}-title`} className="m-0 text-lg font-semibold text-ink">{copy.title}</h2>
+    <div className="flex min-w-0 items-center justify-between gap-3">
+      <h2 id={`${id}-title`} className="m-0 text-lg font-semibold text-ink">{copy.title}</h2>
+      {onEdit && <button type="button" disabled={pending} onClick={onEdit}
+        className="min-h-11 shrink-0 cursor-pointer rounded-xl border border-line bg-paper px-4 text-sm font-semibold text-primary hover:bg-canvas focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50">{copy.edit}</button>}
+    </div>
     <dl className="m-0 grid min-w-0 gap-x-6 gap-y-5 sm:grid-cols-2">
       <div className="min-w-0"><dt className="text-sm text-muted">{copy.name}</dt><dd className="m-0 mt-2 text-base leading-6 text-ink wrap-anywhere">{contact.name.trim() || copy.missing}</dd></div>
       <div className="min-w-0"><dt className="text-sm text-muted">{copy.owner}</dt><dd className="m-0 mt-2 flex min-w-0 flex-wrap items-center gap-2 text-base leading-6 text-ink wrap-anywhere">
@@ -30,6 +34,7 @@ export function LeadContactCard({ contact, viewerId, pending = false }: LeadCont
       </dd></div>
       <div className="min-w-0"><dt className="text-sm text-muted">{copy.email}</dt><dd className="m-0 mt-1 text-base leading-6 text-ink wrap-anywhere">{email && mailHref && !pending ? <a href={mailHref} className={link}>{email}</a> : <span className="inline-flex min-h-11 max-w-full items-center">{email || copy.missing}</span>}</dd></div>
       <div className="min-w-0"><dt className="text-sm text-muted">{copy.phone}</dt><dd className="m-0 mt-1 text-base leading-6 text-ink wrap-anywhere">{phone && phoneHref && !pending ? <a href={phoneHref} className={link}>{phone}</a> : <span className="inline-flex min-h-11 max-w-full items-center">{phone || copy.missing}</span>}</dd></div>
+      {contact.postalCode!==undefined&&<div><dt className="text-sm text-muted">ZIP code · United States</dt><dd className="m-0 mt-2 text-base text-ink">{contact.postalCode||copy.missing}</dd></div>}
     </dl>
   </section>;
 }

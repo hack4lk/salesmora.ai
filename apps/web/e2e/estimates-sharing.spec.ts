@@ -1,11 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import { expect, request as requests, test, type APIRequestContext, type Page } from "@playwright/test";
-import { createDatabase, processEstimateEmails } from "@salesmora/data";
+import { createDatabase, processEstimateEmails, prepareWorkflowInTransaction, withWorkspaceAuthorization, createWorkOrder, readWorkOrderCreationVisit } from "@salesmora/data";
 import { startEstimateEmails } from "../../worker/src/estimate-emails";
 import { startEstimateExpiry } from "../../worker/src/estimate-expiry";
 import type { EstimateDraftSaveResult, EstimateSharingReviewResult } from "@salesmora/data";
 import type { EstimateArchiveReceipt, EstimateDecisionReview, EstimateLifecycleRead, EstimateListResult, EstimateRevisionFamily, RelatedEstimatesResult } from "@salesmora/contracts";
-import { estimateEditorSeedSchema, estimateSharingReviewSchema, estimateListResultSchema } from "@salesmora/contracts";
+import { estimateEditorSeedSchema, estimateSharingReviewSchema, estimateListResultSchema, permissionIds } from "@salesmora/contracts";
 
 test.setTimeout(120_000);
 const connection = process.env.TEST_DATABASE_URL;
@@ -1116,7 +1116,125 @@ test("decision APIs enforce origin, snapshot/version binding, permissions and ex
   expect((await db("estimate_deliveries").where({ estimateId: saved.id }).first()).status).toBe("failed");
 });
 
+test("unassigned lead workflow publishes and runs a reviewed reminder from the workflow page", async ({ browser }) => {
+  const leadId = randomUUID();
+  await db("leads").insert({ id: leadId, workspaceId, name: "Unassigned workflow browser fixture", email: "", phone: "", service: "Repair",
+    submissionId: randomUUID(), submissionHash: "fixture", address: "", details: "", source: "other", notes: "", stage: "new" });
+  const threadId = randomUUID(), turnId = randomUUID();
+  await db("chatThreads").insert({ id: threadId, workspaceId, userId: ownerId });
+  await db("chatTurns").insert({ id: turnId, threadId, workspaceId, userId: ownerId, clientTurnId: randomUUID(),
+    requestHash: "lead-workflow-browser", surfaceKey: "workflows.list", state: "completed", leaseUntil: new Date(), proposalFamilies: JSON.stringify(["workflow"]) });
+  const draft = await withWorkspaceAuthorization(db, { userId: ownerId, workspaceId }, permissionIds, true,
+    (trx, authority) => prepareWorkflowInTransaction(trx, authority, { threadId, turnId },
+      { kind: "unassigned_lead", name: "Unassigned lead reminder", businessDays: 1, recipient: "me" }));
+  const published = await owner.post("/api/chat/workflows/proposals", { headers, data: {
+    workspaceId, id: draft.id, inputHash: draft.inputHash, decision: "confirm", notifications: { inApp: true, email: true },
+  } });
+  expect(published.status()).toBe(200);
+  expect((await published.json()).draft.definition.kind).toBe("unassigned_lead");
+  const context = await browser.newContext({ storageState: await owner.storageState() });
+  try {
+    const page = await context.newPage();
+    await page.goto(`${origin}/workflows?workspace=${workspaceId}`);
+    await page.getByRole("button", { name: "Actions for Unassigned lead reminder", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Run now", exact: true }).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog.getByText(/1 unassigned lead/)).toBeVisible();
+    await dialog.getByRole("button", { name: "Run now", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("status").filter({ hasText: "1 action completed" })).toBeVisible();
+    await page.getByRole("button", { name: /^Open notifications/ }).click();
+    const notifications = page.getByRole("dialog", { name: "Notifications", exact: true });
+    await expect(notifications.getByRole("heading", { name: "A new lead is still unassigned", exact: true })).toBeVisible();
+    await expect(notifications.getByRole("link", { name: "View lead", exact: true })).toHaveAttribute("href", `/leads/${leadId}?workspace=${workspaceId}`);
+    await notifications.getByRole("button", { name: /Mark.*read/ }).click();
+    await expect(notifications.getByRole("heading", { name: "A new lead is still unassigned", exact: true })).toHaveCount(0);
+  } finally { await context.close(); }
+  const notice = await db("leadWorkflowNotifications").where({ workflowId: draft.id, leadId }).first();
+  expect(notice.emailStatus).toBe("queued");
+  expect(notice.readAt).not.toBeNull();
+});
+
+test("estimate follow-up publishes and runs a reviewed staff reminder from the workflow page", async ({ browser }) => {
+  const saved = await shareForWithdrawal("Follow-up browser fixture", "send");
+  const sent = await processEstimateEmails(db, permissionIds, async () => ({ providerMessageId: "follow-up-fixture-transport" }));
+  expect(sent.sent).toBe(1);
+  const threadId = randomUUID(), turnId = randomUUID();
+  await db("chatThreads").insert({ id: threadId, workspaceId, userId: ownerId });
+  await db("chatTurns").insert({ id: turnId, threadId, workspaceId, userId: ownerId, clientTurnId: randomUUID(),
+    requestHash: "follow-up-browser", surfaceKey: "workflows.list", state: "completed", leaseUntil: new Date(), proposalFamilies: JSON.stringify(["workflow"]) });
+  const draft = await withWorkspaceAuthorization(db, { userId: ownerId, workspaceId }, permissionIds, true,
+    (trx, authority) => prepareWorkflowInTransaction(trx, authority, { threadId, turnId },
+      { kind: "estimate_follow_up", name: "Sent estimate follow-up", businessDays: 2, recipient: "me" }));
+  const published = await owner.post("/api/chat/workflows/proposals", { headers, data: {
+    workspaceId, id: draft.id, inputHash: draft.inputHash, decision: "confirm", notifications: { inApp: true, email: true },
+  } });
+  expect(published.status()).toBe(200);
+  expect((await published.json()).draft.definition.kind).toBe("estimate_follow_up");
+  const context = await browser.newContext({ storageState: await owner.storageState() });
+  try {
+    const page = await context.newPage();
+    await page.goto(`${origin}/workflows?workspace=${workspaceId}`);
+    await page.getByRole("button", { name: "Actions for Sent estimate follow-up", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Run now", exact: true }).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog.getByText(/1 sent estimate without a recorded decision/)).toBeVisible();
+    await dialog.getByRole("button", { name: "Run now", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("status").filter({ hasText: "1 action completed" })).toBeVisible();
+    await page.getByRole("button", { name: /^Open notifications/ }).click();
+    const notifications = page.getByRole("dialog", { name: "Notifications", exact: true });
+    await expect(notifications.getByRole("heading", { name: "An Estimate is awaiting a decision", exact: true })).toBeVisible();
+  } finally { await context.close(); }
+  const notice = await db("estimateNotifications").where({ workflowId: draft.id, estimateId: saved.id }).first();
+  expect(notice.event).toBe("awaiting_decision");
+  expect(notice.emailStatus).toBe("queued");
+});
+
+test("accepted Estimate can be archived and restored from its detail actions", async ({ browser }) => {
+  const name = "Accepted archive browser fixture";
+  const saved = await shareForWithdrawal(name, "publish");
+  const review: EstimateDecisionReview = await (await owner.get(`/api/estimates/${saved.id}/decision?workspace=${workspaceId}`)).json();
+  const accepted = await owner.post(`/api/estimates/${saved.id}/decision`, { headers, data: {
+    workspaceId, estimateId: saved.id, expectedVersion: saved.version, snapshotHash: review.snapshotHash,
+    submissionId: randomUUID(), mode: "record", expectedDecisionId: null, outcome: "accepted", decisionDate: review.today, channel: "phone", note: "Keep this approval",
+  } });
+  expect(accepted.status()).toBe(200);
+  const decisions = await db("estimate_decisions").where({ estimateId: saved.id });
+  const context = await browser.newContext({ storageState: await owner.storageState() });
+  try {
+    const page = await context.newPage();
+    await openReadyEditor(page, saved.id);
+    await selectEstimateAction(page, name, "Archive estimate");
+    let dialog = page.getByRole("alertdialog", { name: "Archive this estimate?", exact: true });
+    await expect(dialog.getByRole("button", { name: "Archive estimate", exact: true })).toBeEnabled();
+    await dialog.getByRole("button", { name: "Archive estimate", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText("Estimate archived. Use Include archived and superseded to find it in the list.", { exact: true })).toBeVisible();
+    await selectEstimateAction(page, name, "Restore estimate");
+    dialog = page.getByRole("alertdialog", { name: "Restore this estimate?", exact: true });
+    await expect(dialog.getByRole("button", { name: "Restore estimate", exact: true })).toBeEnabled();
+    await dialog.getByRole("button", { name: "Restore estimate", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText("Estimate restored. Its status and customer-link validity are unchanged.", { exact: true })).toBeVisible();
+  } finally { await context.close(); }
+  expect(await db("estimates").where({ id: saved.id }).first("status", "archivedAt")).toMatchObject({ status: "accepted", archivedAt: null });
+  expect(await db("estimate_decisions").where({ estimateId: saved.id })).toEqual(decisions);
+});
+
 test("live Accept, Decline and metadata corrections retain history, frozen paper and the converted Job", async ({ browser }) => {
+  const settings = await (await owner.get(`/api/settings/estimates?workspace=${workspaceId}`)).json();
+  const { default: sharp } = await import("sharp");
+  const logo = await sharp({ create: { width: 8, height: 8, channels: 3, background: "#63ad99" } }).png().toBuffer();
+  const uploaded = await owner.post("/api/settings/estimates/logo", { headers, multipart: {
+    workspaceId, expectedVersion: String(settings.record.version), file: { name: "fixture.png", mimeType: "image/png", buffer: logo },
+  } });
+  expect(uploaded.status()).toBe(200);
+  const staged = await uploaded.json();
+  const settingsSaved = await owner.put("/api/settings/estimates", { headers, data: {
+    workspaceId, expectedVersion: settings.record.version, profile: { ...settings.record.profile, logoPath: staged.logoPath },
+  } });
+  expect(settingsSaved.status()).toBe(200);
   const saved = await shareForWithdrawal("Decision browser fixture", "publish");
   const url = `/api/estimates/${saved.id}/decision?workspace=${workspaceId}`;
   const review: EstimateDecisionReview = await (await owner.get(url)).json();
@@ -1143,10 +1261,18 @@ test("live Accept, Decline and metadata corrections retain history, frozen paper
     const rail = page.getByRole("region", { name: "Estimate status", exact: true });
     await expect(rail.getByText("PRIVATE_BROWSER_ACCEPT")).toBeVisible();
     await expect(page.getByRole("button", { name: "Mark accepted" })).toHaveCount(0);
+    const acceptedSharing = await owner.get(`/api/estimates/${saved.id}/sharing?workspace=${workspaceId}`);
+    expect(acceptedSharing.status()).toBe(200);
+    expect(estimateSharingReviewSchema.safeParse(await acceptedSharing.json()).success).toBe(true);
+    const deliveryCard = page.getByRole("region", { name: "Delivery and customer link", exact: true });
+    await expect(deliveryCard.getByText("Active", { exact: true })).toBeVisible();
+    await expect(deliveryCard.getByRole("alert")).toHaveCount(0);
     await db("jobs").where({ id: jobId }).update({ acceptedEstimateId: saved.id });
     const linkedJobBefore = await db("jobs").where({ id: jobId }).first();
     await page.reload();
     await expect(rail.getByText("Job unchanged:", { exact: false })).toBeVisible();
+    await expect(deliveryCard.getByText("Active", { exact: true })).toBeVisible();
+    await expect(deliveryCard.getByRole("alert")).toHaveCount(0);
     await page.getByRole("button", { name: "Correct decision", exact: true }).click();
     dialog = page.getByRole("alertdialog", { name: "Correct customer decision", exact: true });
     await expect(dialog.getByRole("button", { name: "Confirm correction", exact: true })).toBeDisabled();
@@ -1934,4 +2060,270 @@ test("related card hides cached rows and Create after Office access is withdrawn
     await db("workspaceMemberships").where({ workspaceId, userId: otherId }).delete();
     if (membership) await db("workspaceMemberships").insert(membership);
   }
+});
+
+test("Monday briefing publishes, previews a saved snapshot and opens from notifications", async ({ browser }) => {
+  const threadId = randomUUID(), turnId = randomUUID();
+  await db("chatThreads").insert({ id: threadId, workspaceId, userId: ownerId });
+  await db("chatTurns").insert({ id: turnId, threadId, workspaceId, userId: ownerId, clientTurnId: randomUUID(),
+    requestHash: "weekly-briefing-browser", surfaceKey: "workflows.list", state: "completed", leaseUntil: new Date(), proposalFamilies: JSON.stringify(["workflow"]) });
+  const draft = await withWorkspaceAuthorization(db, { userId: ownerId, workspaceId }, permissionIds, true,
+    (trx, authority) => prepareWorkflowInTransaction(trx, authority, { threadId, turnId },
+      { kind: "weekly_briefing", name: "Monday team briefing", businessDays: null, recipient: "me" }));
+  const published = await owner.post("/api/chat/workflows/proposals", { headers, data: {
+    workspaceId, id: draft.id, inputHash: draft.inputHash, decision: "confirm", notifications: { inApp: true, email: true },
+  } });
+  expect(published.status()).toBe(200);
+  const scheduled = await db("workflowSteps").where({ workflowId: draft.id, origin: "scheduled", status: "queued" }).first();
+  const context = await browser.newContext({ storageState: await owner.storageState() });
+  try {
+    const page = await context.newPage();
+    await page.goto(`${origin}/workflows?workspace=${workspaceId}`);
+    await page.getByRole("button", { name: "Actions for Monday team briefing", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Run now", exact: true }).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog.getByRole("heading", { name: "Your Monday briefing", exact: true })).toBeVisible();
+    await expect(dialog.getByRole("listitem")).toHaveCount(4);
+    await dialog.getByRole("button", { name: "Run now", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await page.getByRole("button", { name: /^Open notifications/ }).click();
+    const notifications = page.getByRole("dialog", { name: "Notifications", exact: true });
+    await expect(notifications.getByRole("heading", { name: "Your Monday briefing is ready", exact: true })).toBeVisible();
+    await notifications.getByRole("link", { name: "View briefing", exact: true }).click();
+    await expect(page).toHaveURL(/\/workflows\/briefings\//);
+    await expect(page.getByRole("heading", { name: "Your Monday briefing", exact: true })).toBeVisible();
+    const briefing = page.getByRole("region", { name: "Monday briefing", exact: true });
+    await expect(briefing.getByRole("listitem")).toHaveCount(4);
+    await expect(briefing.getByRole("link")).toHaveCount(4);
+    const id = page.url().split("/briefings/")[1].split("?")[0];
+    const saved = await owner.get(`/api/workflows/briefings/${id}?workspace=${workspaceId}`);
+    expect(saved.status()).toBe(200);
+    expect((await other.get(`/api/workflows/briefings/${id}?workspace=${workspaceId}`)).status()).toBe(404);
+    expect((await anonymous.get(`/api/workflows/briefings/${id}?workspace=${workspaceId}`)).status()).toBe(401);
+    expect((await owner.get(`/api/workflows/briefings/${id}?workspace=${randomUUID()}`)).status()).toBe(404);
+    await page.reload();
+    await expect(briefing.getByRole("listitem")).toHaveCount(4);
+    const briefingBell = page.getByRole("button", { name: /^Open notifications/ });
+    await expect(briefingBell).toHaveAccessibleName(/Open notifications, [1-9][0-9]* unread/);
+    await expect(briefingBell.locator('span').last()).toBeVisible();
+    await briefingBell.click();
+    const savedPageNotifications = page.getByRole("dialog", { name: "Notifications", exact: true });
+    await expect(savedPageNotifications.getByRole("heading", { name: "Your Monday briefing is ready", exact: true })).toBeVisible();
+    await savedPageNotifications.getByRole("button", { name: "Close", exact: true }).click();
+    await briefing.getByRole("link", { name: "View estimates awaiting a decision", exact: true }).click();
+    await expect(page).toHaveURL(/\/reports\/estimates\?/);
+  } finally { await context.close(); }
+  expect((await db("workflowSteps").where({ id: scheduled.id }).first()).dueAt.toISOString()).toBe(scheduled.dueAt.toISOString());
+});
+
+test("unassigned visit workflow publishes, sends one reviewed reminder and opens the Calendar visit", async ({ browser }) => {
+  const record = await db("calendarVisitRecords").where({ workspaceId, jobId }).whereNull("endedAt").first("visitId");
+  await db("jobs").where({ workspaceId, id: jobId }).update({ primaryOwnerId: null });
+  await db("calendarVisits").where({ workspaceId, id: record.visitId }).update({ scheduledDate: "2027-03-15", arrivalWindow: "09:00-11:00" });
+  const threadId = randomUUID(), turnId = randomUUID();
+  await db("chatThreads").insert({ id: threadId, workspaceId, userId: ownerId });
+  await db("chatTurns").insert({ id: turnId, threadId, workspaceId, userId: ownerId, clientTurnId: randomUUID(), requestHash: "unassigned-visit-browser",
+    surfaceKey: "workflows.list", state: "completed", leaseUntil: new Date(), proposalFamilies: JSON.stringify(["workflow"]) });
+  const draft = await withWorkspaceAuthorization(db, { workspaceId, userId: ownerId }, permissionIds, true,
+    (trx, context) => prepareWorkflowInTransaction(trx, context, { threadId, turnId }, { kind: "unassigned_visit", name: "Unassigned visit reminder", businessDays: null, recipient: "me" }));
+  const published = await owner.post("/api/chat/workflows/proposals", { headers, data: { workspaceId, id: draft.id, inputHash: draft.inputHash, decision: "confirm", localTime: "08:15" } });
+  expect(published.status()).toBe(200);
+  expect((await published.json()).draft.definition.localTime).toBe("08:15");
+  const settings = await owner.put("/api/settings/notifications", { headers, data: { workspaceId, leadAssignedEmail: true, workflowVisitEmail: false, workflowBriefingEmail: false } });
+  expect(settings.status()).toBe(200);
+  const preferences = await (await owner.get(`/api/settings/notifications?workspace=${workspaceId}`)).json();
+  expect(preferences.workflowVisitEmail).toBe(false); expect(preferences.workflowBriefingEmail).toBe(false);
+  const context = await browser.newContext({ storageState: await owner.storageState() });
+  try {
+    const page = await context.newPage(); await page.goto(`${origin}/workflows?workspace=${workspaceId}`);
+    await expect(page.getByRole("group", { name: "Current workflows", exact: true }).getByText(/at 8:15 AM the day before a visit/)).toBeVisible();
+    await page.getByRole("button", { name: "Actions for Unassigned visit reminder", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Run now", exact: true }).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog.getByText(/1 upcoming unassigned visit/)).toBeVisible();
+    await dialog.getByRole("button", { name: "Run now", exact: true }).click(); await expect(dialog).toHaveCount(0);
+    const bell = page.getByRole("button", { name: /^Open notifications/ });
+    await bell.click();
+    const notifications = page.getByRole("dialog", { name: "Notifications", exact: true });
+    await expect(notifications.getByRole("heading", { name: "A scheduled visit has no assignee", exact: true })).toBeVisible();
+    const link = notifications.getByRole("link", { name: "Open visit", exact: true });
+    await expect(link).toHaveAttribute("href", `/calendar?workspace=${workspaceId}&date=2027-03-15&visit=${record.visitId}`);
+    await link.click();
+    await expect(page).toHaveURL(/\/calendar\?.*visit=/);
+    const drawer = page.getByRole("dialog", { name: "Sharing fixture job", exact: true });
+    await expect(drawer.getByText("Unassigned", { exact: true })).toBeVisible();
+    await expect(drawer.getByRole("button", { name: /Open Job/ })).toBeVisible();
+    await drawer.getByRole("button", { name: "Close panel", exact: true }).click();
+    await page.getByRole("button", { name: /^Open notifications/ }).click();
+    const note = page.getByRole("dialog", { name: "Notifications", exact: true });
+    const item = note.getByRole("listitem").filter({ has: page.getByRole("heading", { name: "A scheduled visit has no assignee", exact: true }) });
+    await item.getByRole("button", { name: "Mark as read", exact: true }).click();
+    await expect(note.getByRole("heading", { name: "A scheduled visit has no assignee", exact: true })).toHaveCount(0);
+  } finally { await context.close(); }
+  const notice = await db("workflowVisitNotifications").where({ workflowId: draft.id, visitId: record.visitId }).first();
+  expect(notice.readAt).not.toBeNull();
+  expect((await db("workflowVisitNotifications").where({ workflowId: draft.id, visitId: record.visitId })).length).toBe(1);
+});
+
+test("visit materials workflow publishes and opens a work order whose material status can be resolved", async ({ browser }) => {
+  const identity = { workspaceId, userId: ownerId };
+  const record = await db("calendarVisitRecords").where({ workspaceId, jobId }).whereNull("endedAt").first("visitId");
+  await db("calendarVisits").where({ workspaceId, id: record.visitId }).update({ scheduledDate: "2027-03-15" });
+  const choice = await readWorkOrderCreationVisit(db, identity, permissionIds, jobId); expect(choice?.canJoin).toBe(true);
+  const order = await createWorkOrder(db, identity, permissionIds, { workspaceId, submissionId: randomUUID(), jobId,
+    title: "Workflow material fixture", assigneeId: ownerId, visit: { kind: "job", visitId: choice!.id, revision: choice!.revision } });
+  const materialWrite = await owner.patch(`/api/work-orders/${order.workOrderId}`, { headers, data: { workspaceId, submissionId: randomUUID(), expectedVersion: order.version,
+    action: "materials", materials: [{ name: "Replacement faucet", quantity: 1, unit: "each", status: "needed" }] } });
+  expect(materialWrite.status()).toBe(200);
+  const issued = await owner.patch(`/api/work-orders/${order.workOrderId}`, { headers, data: { workspaceId, submissionId: randomUUID(), expectedVersion: (await materialWrite.json()).version,
+    action: "status", to: "issued", confirmed: true } }); expect(issued.status()).toBe(200);
+  const threadId = randomUUID(), turnId = randomUUID();
+  await db("chatThreads").insert({ id: threadId, workspaceId, userId: ownerId });
+  await db("chatTurns").insert({ id: turnId, threadId, workspaceId, userId: ownerId, clientTurnId: randomUUID(), requestHash: "materials-browser",
+    surfaceKey: "workflows.list", state: "completed", leaseUntil: new Date(), proposalFamilies: JSON.stringify(["workflow"]) });
+  const draft = await withWorkspaceAuthorization(db, identity, permissionIds, true, (trx, context) => prepareWorkflowInTransaction(trx, context,
+    { threadId, turnId }, { kind: "visit_materials", name: "Visit material reminder", businessDays: null, localTime: "08:00", recipient: "me" }));
+  const published = await owner.post("/api/chat/workflows/proposals", { headers, data: { workspaceId, id: draft.id, inputHash: draft.inputHash, decision: "confirm" } });
+  expect(published.status()).toBe(200); expect((await published.json()).draft.definition.kind).toBe("visit_materials");
+  const preferences = await owner.put("/api/settings/notifications", { headers, data: { workspaceId, leadAssignedEmail: true, workflowMaterialsEmail: false } });
+  expect(preferences.status()).toBe(200); expect((await preferences.json()).workflowMaterialsEmail).toBe(false);
+  const context = await browser.newContext({ storageState: await owner.storageState() });
+  try {
+    const page = await context.newPage(); await page.goto(`${origin}/workflows?workspace=${workspaceId}`);
+    await page.getByRole("button", { name: "Actions for Visit material reminder", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Run now", exact: true }).click();
+    const review = page.getByRole("alertdialog");
+    await expect(review.getByText(/1 upcoming visit with materials marked Needed or Ordered/)).toBeVisible();
+    await review.getByRole("button", { name: "Run now", exact: true }).click(); await expect(review).toHaveCount(0);
+    await page.getByRole("button", { name: /^Open notifications/ }).click();
+    const notices = page.getByRole("dialog", { name: "Notifications", exact: true });
+    await expect(notices.getByRole("heading", { name: "Materials need attention before a visit", exact: true })).toBeVisible();
+    await expect(notices.getByText(/1 Needed, 0 Ordered/)).toBeVisible();
+    await notices.getByRole("link", { name: "Open visit", exact: true }).click();
+    const drawer = page.getByRole("dialog", { name: "Sharing fixture job", exact: true });
+    await drawer.getByRole("button", { name: /Open Work Order/ }).click();
+    await expect(page).toHaveURL(new RegExp(`/work-orders/${order.workOrderId}`));
+    const saved = page.waitForResponse(response => response.request().method() === "PATCH" && response.url().includes(`/api/work-orders/${order.workOrderId}`));
+    await page.getByRole("combobox", { name: "Status: Replacement faucet", exact: true }).selectOption("on-hand");
+    expect((await saved).status()).toBe(200);
+    await expect(page.getByRole("combobox", { name: "Status: Replacement faucet", exact: true })).toHaveValue("on-hand");
+    await page.getByRole("button", { name: /^Open notifications/ }).click();
+    await expect(page.getByRole("dialog", { name: "Notifications", exact: true }).getByRole("heading", { name: "Materials need attention before a visit", exact: true })).toHaveCount(0);
+    expect((await db.raw(`SELECT to_char("scheduledDate",'YYYY-MM-DD') AS date FROM "calendarVisits" WHERE id = ?`, [record.visitId])).rows[0].date).toBe("2027-03-15");
+  } finally { await context.close(); }
+  expect((await db("workflowVisitNotifications").where({ workflowId: draft.id })).length).toBe(1);
+});
+
+test("workflow editing updates pending reminders, preserves pause and rejects stale changes", async ({ browser }) => {
+  await db("workspaces").where({ id: workspaceId }).update({ timezone: "America/New_York" });
+  await db("workspaceMemberships").insert({ workspaceId, userId: otherId, role: "admin" }).onConflict(["workspaceId", "userId"]).merge({ role: "admin" });
+  const threadId = randomUUID(), turnId = randomUUID();
+  await db("chatThreads").insert({ id: threadId, workspaceId, userId: ownerId });
+  await db("chatTurns").insert({ id: turnId, threadId, workspaceId, userId: ownerId, clientTurnId: randomUUID(), requestHash: "workflow-edit-browser",
+    surfaceKey: "workflows.list", state: "completed", leaseUntil: new Date(), proposalFamilies: JSON.stringify(["workflow"]) });
+  const draft = await withWorkspaceAuthorization(db, { workspaceId, userId: ownerId }, permissionIds, true, (trx, context) => prepareWorkflowInTransaction(trx, context,
+    { threadId, turnId }, { kind: "unassigned_lead", name: "Lead handoff", businessDays: 1, localTime: "17:00", recipient: "me" }));
+  const published = await owner.post("/api/chat/workflows/proposals", { headers, data: { workspaceId, id: draft.id, inputHash: draft.inputHash, decision: "confirm" } });
+  expect(published.status()).toBe(200);
+  const leadId = randomUUID(); await db("leads").insert({ id: leadId, workspaceId, name: "Pending edit lead", email: "", phone: "", service: "Repair", submissionId: randomUUID(),
+    submissionHash: "edit-fixture", address: "", details: "", source: "other", notes: "", stage: "new", createdAt: new Date("2027-03-12T18:00:00Z") });
+  const step = await db("workflowSteps").where({ workflowId: draft.id, leadId }).first();
+  const oldTicket = await db("workflowQueueOutbox").where({ stepId: step.id }).first();
+  const noOrigin = await owner.post(`/api/workflows/edit?workspace=${workspaceId}`, { data: { workspaceId, id: draft.id, version: 1, requestId: randomUUID(), values: {} } });
+  expect(noOrigin.status()).toBe(403);
+  const context = await browser.newContext({ storageState: await owner.storageState() });
+  try {
+    const page = await context.newPage(); page.setDefaultTimeout(10_000); const editReads: string[] = [];
+    page.on("request", request => { if (request.method() === "GET" && request.url().includes("/api/workflows/edit?")) editReads.push(request.url()); });
+    await page.goto(`${origin}/workflows?workspace=${workspaceId}`);
+    await page.getByRole("button", { name: "Actions for Lead handoff", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
+    let dialog = page.getByRole("dialog", { name: "Edit Lead handoff", exact: true });
+    await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue("Lead handoff");
+    await expect(dialog.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
+    await dialog.getByLabel("Name", { exact: true }).fill("Office lead handoff");
+    await dialog.getByRole("combobox", { name: "Recipient", exact: true }).selectOption(otherId);
+    await dialog.getByLabel("Delay (business days)", { exact: true }).fill("2");
+    await dialog.getByLabel("Send at", { exact: true }).fill("08:30");
+    await dialog.getByRole("checkbox", { name: "Email", exact: true }).uncheck();
+    expect(editReads).toHaveLength(1);
+    await dialog.getByRole("button", { name: "Save changes", exact: true }).click(); await expect(dialog).toHaveCount(0);
+    await expect(page.getByText("Workflow updated.", { exact: true })).toBeVisible();
+    const saved = await db("workflows").where({ id: draft.id }).first();
+    expect(saved.definition.localTime).toBe("08:30"); expect(saved.definition.businessDays).toBe(2); expect(saved.definition.recipientId).toBe(otherId);
+    expect(saved.definition.notifications).toEqual({ inApp: true, email: false }); expect(saved.version).toBe(2);
+    expect((await db("workflowSteps").where({ id: step.id }).first()).dueAt.toISOString()).toBe("2027-03-16T12:30:00.000Z");
+    expect((await db("workflowQueueOutbox").where({ id: oldTicket.id }).first()).version).toBeGreaterThan(oldTicket.version);
+    await page.getByRole("button", { name: "Actions for Office lead handoff", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
+    dialog = page.getByRole("dialog", { name: "Edit Office lead handoff", exact: true });
+    await expect(dialog.getByLabel("Send at", { exact: true })).toHaveValue("08:30");
+    await dialog.getByLabel("Send at", { exact: true }).fill("09:00");
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    expect((await db("workflows").where({ id: draft.id }).first()).version).toBe(2);
+    await page.getByRole("button", { name: "Actions for Office lead handoff", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Pause", exact: true }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Pause workflow", exact: true }).click();
+    await page.getByRole("button", { name: "Actions for Office lead handoff", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
+    dialog = page.getByRole("dialog", { name: "Edit Office lead handoff", exact: true });
+    await expect(dialog.getByText(/This workflow will stay paused/)).toBeVisible();
+    await dialog.getByLabel("Send at", { exact: true }).fill("09:45");
+    await dialog.getByRole("button", { name: "Save changes", exact: true }).click(); await expect(dialog).toHaveCount(0);
+    expect((await db("workflows").where({ id: draft.id }).first()).status).toBe("paused");
+    expect((await db("workflowSteps").where({ id: step.id }).first()).status).toBe("held");
+    await page.getByRole("button", { name: "Actions for Office lead handoff", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
+    dialog = page.getByRole("dialog", { name: "Edit Office lead handoff", exact: true }); await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue("Office lead handoff");
+    const concurrent = await owner.post(`/api/workflows/edit?workspace=${workspaceId}`, { headers, data: { workspaceId, id: draft.id, version: 4, requestId: randomUUID(),
+      values: { name: "Changed elsewhere", localTime: "09:45", businessDays: 2, recipientId: otherId, notifications: { inApp: true, email: false } } } });
+    expect(concurrent.status()).toBe(200);
+    await dialog.getByLabel("Delay (business days)", { exact: true }).fill("3");
+    await dialog.getByRole("button", { name: "Save changes", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toHaveText(/Couldn't save these changes/);
+    await expect(dialog.getByLabel("Delay (business days)", { exact: true })).toHaveValue("3");
+    expect((await db("workflows").where({ id: draft.id }).first()).definition.businessDays).toBe(2);
+  } finally { await context.close(); }
+});
+
+test("lead routing review publishes and edits source assignments without reminder controls", async ({ browser }) => {
+  await db("workspaceMemberships").insert({ workspaceId, userId: otherId, role: "field" }).onConflict(["workspaceId", "userId"]).merge({ role: "field" });
+  const sourceId = randomUUID(), threadId = randomUUID(), turnId = randomUUID();
+  await db.transaction(async trx => {
+  await trx("captureSources").insert({ id: sourceId, workspaceId, name: "Routing browser source", type: "gmail", status: "paused", version: 1, approvedVersion: 1 });
+  await trx("captureSourceVersions").insert({ id: randomUUID(), workspaceId, sourceId, sourceType: "gmail", configurationVersion: 1, definitionVersion: 1, workflowVersion: 1,
+    configuration: JSON.stringify({ schemaVersion: 1, type: "gmail", contactRequired: true, fields: [{ id: "name", key: "name", label: "Name", type: "short_text", required: true, options: [] }],
+      workflow: { assignment: { kind: "default" }, stage: "new", tags: [], notifyAssigned: false } }), approvedBy: ownerId, approvedAt: new Date() });
+  });
+  await db("chatThreads").insert({ id: threadId, workspaceId, userId: ownerId });
+  await db("chatTurns").insert({ id: turnId, threadId, workspaceId, userId: ownerId, clientTurnId: randomUUID(), requestHash: "routing-browser",
+    surfaceKey: "workflows.list", state: "completed", leaseUntil: new Date(), proposalFamilies: JSON.stringify(["workflow"]) });
+  const draft = await withWorkspaceAuthorization(db, { workspaceId, userId: ownerId }, permissionIds, true, (trx, authority) => prepareWorkflowInTransaction(trx, authority,
+    { threadId, turnId }, { kind: "lead_routing", name: "Browser source routing", source: "Routing browser source", businessDays: null, localTime: null, recipient: "me" }));
+  const publish = await owner.post("/api/chat/workflows/proposals", { headers, data: { workspaceId, id: draft.id, inputHash: draft.inputHash, decision: "confirm" } });
+  expect(publish.status()).toBe(200);
+  const context = await browser.newContext({ storageState: await owner.storageState() });
+  try {
+    const page = await context.newPage(); page.setDefaultTimeout(10000);
+    await page.goto(`${origin}/workflows?workspace=${workspaceId}`);
+    await page.getByRole("button", { name: "Actions for Browser source routing", exact: true }).click();
+    await expect(page.getByRole("menuitem", { name: "Run now", exact: true })).toHaveCount(0);
+    await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Edit Browser source routing", exact: true });
+    await expect(dialog.getByRole("combobox", { name: "Source", exact: true })).toHaveValue(sourceId);
+    await expect(dialog.getByLabel("Send at", { exact: true })).toHaveCount(0);
+    await expect(dialog.getByLabel("Delay (business days)", { exact: true })).toHaveCount(0);
+    await dialog.getByRole("combobox", { name: "Assign to", exact: true }).selectOption(otherId);
+    await dialog.getByRole("checkbox", { name: "In-app", exact: true }).uncheck();
+    await dialog.getByRole("checkbox", { name: "Email", exact: true }).uncheck();
+    await expect(dialog.getByRole("alert")).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Save changes", exact: true }).click(); await expect(dialog).toHaveCount(0);
+    const saved = await db("workflows").where({ id: draft.id }).first();
+    expect(saved.definition.recipientId).toBe(otherId); expect(saved.definition.notifications).toEqual({ inApp: false, email: false });
+    expect(saved.definition.localTime).toBeUndefined(); expect(saved.definition.businessDays).toBeUndefined();
+    await page.getByRole("button", { name: "Actions for Browser source routing", exact: true }).click();
+    await page.getByRole("menuitem", { name: "View workflow", exact: true }).click();
+    await expect(page.getByRole("dialog").getByText(/Applies to future assignments/)).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("alert")).toHaveCount(0);
+  } finally { await context.close(); }
 });

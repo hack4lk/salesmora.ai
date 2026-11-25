@@ -46,7 +46,7 @@ async function turn(threadId = randomUUID(), evidence: string[] = []) {
   return { id, threadId };
 }
 async function fixture() {
-  const jobId = (await createJob(runtime, identity, enabled, {
+  const jobId = (await createJob(runtime, identity, enabled, {postalCode:'10001',
     workspaceId: identity.workspaceId, customerId, submissionId: randomUUID(), title: 'Calendar proposal fixture',
     primaryOwnerId: identity.userId, scheduledDate: '2026-11-01', arrivalWindow: '09:00-11:00',
   })).jobId;

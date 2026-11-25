@@ -7,11 +7,18 @@ import type {Meta,StoryObj} from '@storybook/nextjs-vite';
 import {JobCreateDialog} from './job-create-dialog';
 import * as f from '../job-preview.data';
 
-const meta={title:'Jobs/JobCreateDialog',component:JobCreateDialog,args:{open:true,members:f.jobMembers,customers:f.jobFixtures.map(j=>({id:j.customerId!,name:j.customerName})),onClose:fn(),onConfirm:fn()},parameters:{layout:'fullscreen'},
+const meta={render:args=><JobCreateDialog {...args} initialValues={{postalCode:'10001',...args.initialValues}}/>,title:'Jobs/JobCreateDialog',component:JobCreateDialog,args:{open:true,members:f.jobMembers,customers:f.jobFixtures.map(j=>({id:j.customerId!,name:j.customerName})),onClose:fn(),onConfirm:fn()},parameters:{layout:'fullscreen'},
 decorators:[Story=><main className="min-h-screen bg-canvas p-4 sm:p-8"><h1 className="mb-6 mt-0 text-xl font-semibold text-ink">{f.jobPreviewData.workspace}</h1><Story/></main>],
 } satisfies Meta<typeof JobCreateDialog>;
 export default meta;type Story=StoryObj<typeof meta>;
 export const Default:Story={};
+export const RequiredZip: Story = { args: { initialValues: { postalCode: '', customerId: f.jobFixtures[0].customerId!, title: 'Roof repair', primaryOwnerId: 'sam' } }, play: async ({ canvasElement }) => {
+ const b = within(canvasElement.ownerDocument.body);
+ await expect(b.getByRole('button', { name: 'Review job' })).toBeDisabled();
+ await userEvent.type(b.getByLabelText('Job ZIP code'), '00501-1234');
+ await userEvent.click(b.getByRole('button', { name: 'Review job' }));
+ await expect(b.getByText('00501', { exact: true })).toBeVisible();
+} };
 export const Review:Story={args:{initialCustomer:f.jobFixtures[0].customerId!,initialReview:true,initialValues:{title:f.jobFixtures[0].title,primaryOwnerId:f.jobFixtures[0].primaryOwnerId}}};
 export const Saving:Story={args:{initialCustomer:f.jobFixtures[0].customerId!,initialReview:true,initialValues:{title:f.jobFixtures[0].title,primaryOwnerId:f.jobFixtures[0].primaryOwnerId},pending:true}};
 export const Error:Story={args:{error:f.jobStoryData.failure}};
@@ -46,7 +53,7 @@ export const WorkspaceDeadlineOnly: Story = { args: { deadlineContext: { ...dead
 function ChangedDeadlinePreview(args: ComponentProps<typeof JobCreateDialog>) {
   const [context, setContext] = useState(args.deadlineContext!);
   useEffect(() => { const change = () => setContext(previous => ({ ...previous, context: { ...previous.context, revision: 'deadline-v2' } })); window.addEventListener('job-create-deadline-change', change); return () => window.removeEventListener('job-create-deadline-change', change); }, []);
-  return <JobCreateDialog {...args} deadlineContext={context}/>;
+  return <JobCreateDialog {...args} initialValues={{postalCode:'10001',...args.initialValues}} deadlineContext={context}/>;
 }
 export const DefaultChangedDuringReview: Story = { args: { deadlineContext, initialValues: validDraft }, render: args => <ChangedDeadlinePreview {...args}/>, play: async ({ canvasElement, args }) => {
   const b = await deadlineBody(canvasElement); await userEvent.click(b.getByRole('button', { name: copy.review })); canvasElement.ownerDocument.defaultView?.dispatchEvent(new Event('job-create-deadline-change'));
@@ -55,3 +62,10 @@ export const DefaultChangedDuringReview: Story = { args: { deadlineContext, init
 } };
 export const DeadlineSaveFailure: Story = { args: { deadlineContext, initialValues: validDraft, initialReview: true, onConfirm: fn(async () => { throw new globalThis.Error(); }) }, play: async ({ canvasElement, args }) => { const b = await deadlineBody(canvasElement); await userEvent.click(b.getByRole('button', { name: copy.confirm })); await expect(b.getByRole('dialog')).toBeVisible(); await expect(b.getByText(copy.defaultChoice)).toBeVisible(); await expect(args.onClose).not.toHaveBeenCalled(); } };
 export const DeadlinePendingReview: Story = { args: { deadlineContext, initialValues: validDraft, initialReview: true, pending: true } };
+
+export const WorkspaceService:Story={args:{services:[{id:'4273d622-e7c4-45ec-9f75-67f3d0581035',key:'repairs',name:'Repairs',status:'active'}],initialValues:validDraft},play:async({canvasElement,args})=>{
+ const b=within(canvasElement.ownerDocument.body);await userEvent.click(b.getByText(copy.optional,{exact:true}));
+ await userEvent.type(b.getByRole('combobox',{name:'Service type'}),'rep');await userEvent.click(await b.findByRole('option',{name:'Repairs'}));
+ await userEvent.click(b.getByRole('button',{name:'Review job'}));await expect(b.getByText('Repairs',{exact:true})).toBeVisible();
+ await userEvent.click(b.getByRole('button',{name:'Confirm and create'}));await expect(args.onConfirm).toHaveBeenCalledWith(expect.objectContaining({service:'4273d622-e7c4-45ec-9f75-67f3d0581035'}));
+}};

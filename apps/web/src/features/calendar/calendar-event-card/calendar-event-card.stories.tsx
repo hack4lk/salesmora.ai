@@ -19,7 +19,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   play: async ({ canvasElement, args }) => {
-    const c = within(canvasElement), toggle = c.getByRole('button', { name: copy.toggleVisit(args.visit.title) });
+    const c = within(canvasElement), toggle = c.getByRole('button', { name: new RegExp(copy.toggleVisit(args.visit.title)) });
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await expect(c.getByText(`${copy.stories.sam}, ${copy.stories.alex}`)).toBeVisible();
     await expect(c.queryByText(args.visit.customerName)).toBeNull();
@@ -85,7 +85,7 @@ export const ExpandedLongContent: Story = { args: { ...LongContent.args, initial
 export const Keyboard: Story = {
   play: async ({ canvasElement, args }) => {
     const user = userEvent.setup({ document: canvasElement.ownerDocument }), c = within(canvasElement);
-    const toggle = c.getByRole('button', { name: copy.toggleVisit(args.visit.title) });
+    const toggle = c.getByRole('button', { name: new RegExp(copy.toggleVisit(args.visit.title)) });
     toggle.focus();
     await user.keyboard('{Enter}');
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
@@ -94,4 +94,23 @@ export const Keyboard: Story = {
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await expect(toggle).toHaveFocus();
   },
+};
+
+export const PlannedWork: Story = {
+ args: { initiallyExpanded: true, visit: { ...fixtures.job, arrivalWindow: null, workTime: { startTime: '08:00', durationMinutes: 60 }, workTimezone: 'America/New_York' } },
+ play: async ({ canvasElement }) => {
+  const c = within(canvasElement);
+  await expect(c.getByText('Planned work')).toBeVisible();
+  await expect(c.getByText('8:00 AM–9:00 AM')).toBeVisible();
+  await expect(c.getByText('1 hour · America/New_York')).toBeVisible();
+  await expect(c.queryByText(copy.noWindow)).not.toBeInTheDocument();
+ },
+};
+export const PlannedWorkAndArrival: Story = {
+ args: { initiallyExpanded: true, visit: { ...fixtures.job, workTime: { startTime: '09:00', durationMinutes: 90 } } },
+ play: async ({ canvasElement }) => {
+  const c = within(canvasElement);
+  await expect(c.getByText('9:00 AM–10:30 AM')).toBeVisible();
+  await expect(c.getByText('9 AM – 11 AM')).toBeVisible();
+ },
 };

@@ -1,3 +1,4 @@
+import {serviceDisplaySql} from '../services/store';
 import type { Knex } from 'knex';
 import {
   jobLifecycleQuerySchema,
@@ -96,7 +97,7 @@ async function readLifecycle(
       'j.customerName',
       'j.status',
       'j.primaryOwnerId as ownerId',
-      'j.service',
+      trx.raw(`${serviceDisplaySql('j')} AS service`),
       trx.raw('to_char(j."createdAt" AT TIME ZONE ?, \'YYYY-MM-DD\') AS "reportDate"', [auth.timezone]),
     );
   } else {
@@ -112,7 +113,7 @@ async function readLifecycle(
       'j.customerName',
       'j.status',
       'j.primaryOwnerId as ownerId',
-      'j.service',
+      trx.raw(`${serviceDisplaySql('j')} AS service`),
       'selectedEvent.reportDate',
     );
   }

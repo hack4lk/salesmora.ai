@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en" data-text-colors="seafoam">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f8fc">
+  <title>SalesMora.ai · Public homepage prototype</title>
+  <style>
+    @font-face{font-family:"Source Sans 3";src:url("../apps/web/public/fonts/source-sans-3/source-sans-3-variable.woff2") format("woff2");font-style:normal;font-weight:400 700;font-display:swap}
+    :root{font-family:"Source Sans 3","Segoe UI",Arial,sans-serif;color:#23384d;background:#fff;--ink:#23384d;--muted:#52677b;--blue:#3b6fa5;--line:#e2eaf1;--canvas:#f4f8fc;--mint:#d4f3e9;--hero-heading:#23384d;--section-heading:#23384d;--card-heading:#23384d;--eyebrow:#315c8a}
+    :root[data-text-colors="blue"]{--hero-heading:#315c8a;--section-heading:#315c8a;--card-heading:#23384d;--eyebrow:#3b6fa5;--muted:#52677b}
+    :root[data-text-colors="seafoam"]{--hero-heading:#3b6fa5;--hero-copy:#276c68;--section-heading:#276c68;--card-heading:#315c8a;--eyebrow:#276c68;--muted:#52677b}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0}a{color:inherit}a:focus-visible,summary:focus-visible,select:focus-visible{outline:3px solid #3b6fa5;outline-offset:4px}p{line-height:1.6}img{max-width:100%}.wrap{width:min(1120px,calc(100% - 48px));margin:auto}.skip{position:absolute;top:-100px;left:16px;z-index:5;padding:12px;background:white}.skip:focus{top:12px}
+    .review-bar{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px 20px;padding:10px 24px;background:#e7eff7;border-bottom:1px solid #c6d8e8;color:#23384d;font-size:14px;text-align:center}.review-bar strong{font-weight:700}.review-bar label{font-weight:600}.review-bar select{min-height:36px;margin-left:6px;padding:5px 8px;border:1px solid #9db5c9;border-radius:8px;background:#fff;color:#23384d;font:inherit}
+    .site-header{border-bottom:1px solid var(--line);background:var(--canvas)}.header-inner{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:24px;min-height:78px}.logo{display:block;width:190px;height:auto}.nav,.account-nav{display:flex;align-items:center;gap:28px}.account-nav{justify-content:flex-end}.nav a,.account-nav a{text-decoration:none;font-weight:600}.nav a:hover,.account-nav a:not(.button):hover,.footer a:hover{color:var(--blue);text-decoration:underline;text-underline-offset:4px}
+    .button{position:relative;isolation:isolate;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:11px 20px;border:1px solid #4c6b89;border-radius:12px;background:linear-gradient(to right,#23384d,#274c75,#285e6e);color:#fff;text-decoration:none;font-weight:600;text-align:center}.button:after{content:"";position:absolute;pointer-events:none;top:-62px;right:-30px;width:110px;height:110px;border:1px solid #fff3;border-radius:50%;box-shadow:0 0 0 9px rgb(255 255 255 / .08),0 0 0 20px rgb(255 255 255 / .05)}.button:hover{filter:brightness(1.1)}.button.secondary{color:var(--blue);border-color:var(--blue);background:#fff}.button.secondary:after{display:none}.button.secondary:hover{background:#edf4fa;filter:none}
+    .hero{position:relative;isolation:isolate;background:var(--canvas);overflow:hidden}.hero:before{content:"";position:absolute;z-index:-1;pointer-events:none;top:-220px;left:-200px;width:520px;height:520px;border:1px solid #3b6fa51c;border-radius:50%;box-shadow:0 0 0 30px rgb(59 111 165 / .035),0 0 0 65px rgb(59 111 165 / .025)}.hero-grid{position:relative;z-index:1;display:flex;align-items:center;min-height:590px;padding-top:64px;padding-bottom:80px;pointer-events:none}.hero-content{width:44%;pointer-events:auto}.eyebrow{margin:0 0 16px;color:#315c8a;font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+    .hero h1{max-width:600px;margin:0;color:var(--hero-heading);font-size:clamp(42px,5vw,62px);font-weight:600;line-height:1.08;letter-spacing:-.035em}.hero-copy{max-width:550px;margin:24px 0 0;color:var(--hero-copy,var(--muted));font-size:20px}.actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:30px}.hero-note{margin:14px 0 0;color:var(--muted);font-size:14px}
+    .hero-visual{position:absolute;inset:0 0 0 auto;width:55%}.hero-photo{display:block;width:100%;height:100%;object-fit:cover;object-position:center;mask-image:linear-gradient(to right,transparent 0%,#000 20%)}.assistant-preview{position:absolute;right:6%;bottom:14%;max-width:300px;padding:18px;border:1px solid #cfe0eb;border-radius:16px;background:#fff;box-shadow:0 16px 40px #23384d24;animation:float 5s ease-in-out infinite}.assistant-preview strong,.assistant-preview span{display:block}.assistant-preview strong{font-size:15px}.assistant-preview span{margin-top:6px;color:var(--muted);font-size:14px;line-height:1.4}.photo-caption{position:absolute;right:0;bottom:0;margin:0;padding:5px 10px;background:#23384dcc;color:#fff;font-size:12px}.feature-icon{display:grid;place-items:center;width:76px;height:76px;border-radius:22px;background:#e4f4f0}.feature-icon svg{width:64px;height:64px}.card:nth-child(2) .feature-icon{background:#e8f1fb}.card:nth-child(3) .feature-icon{background:#ebf7f4}@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+    section.content{padding:88px 0;scroll-margin-top:24px}.section-heading{max-width:660px;margin-bottom:36px}.section-heading h2,.cta h2{margin:0;color:var(--section-heading);font-size:clamp(30px,3vw,40px);font-weight:600;line-height:1.18;letter-spacing:-.025em}.section-heading p{margin:14px 0 0;color:var(--muted);font-size:18px}.eyebrow,.section-heading .eyebrow{color:var(--eyebrow)}.section-heading .eyebrow{margin:0 0 16px;font-size:13px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.card{padding:28px;border:1px solid var(--line);border-radius:16px;background:#fff}.card h3{margin:18px 0 8px;color:var(--card-heading);font-size:21px;font-weight:600}.card p{margin:0;color:var(--muted)}.features .card{text-align:center}.features .feature-icon{margin:0 auto}.soft{background:var(--canvas)}.steps .card{background:transparent;border:0;border-radius:0;padding:0}.steps .card h3{margin:10px 0 20px}.step-label{color:var(--eyebrow);font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+    .step-art{position:relative;display:flex;align-items:center;justify-content:center;min-height:170px;margin-top:16px;padding:20px;border-radius:16px;background:linear-gradient(135deg,#d7eaf8,#c9efe2)}.step-art:before{content:"";position:absolute;top:-16px;left:0;right:0;border-top:2px solid #b2d8d0}.step-art-card{width:100%;max-width:240px;padding:16px;border:1px solid #d8e6ee;border-radius:12px;background:#fff;box-shadow:0 8px 24px #23384d12;font-size:14px;line-height:1.4}.step-art-card strong,.step-art-card span{display:block}.step-art-card span{margin-top:8px;color:var(--muted)}.step-art-card em{display:inline-block;margin-top:10px;padding:4px 9px;border-radius:12px;background:#d4f3e9;color:#23384d;font-size:12px;font-style:normal;font-weight:700}
+    .plan-card{display:flex;flex-direction:column;padding:24px;border-radius:12px}.plan-card:nth-child(2){border:2px solid #3b6fa5;background:#f4f8fc}.plan-heading{display:flex;align-items:flex-start;gap:14px}.plan-icon{display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:50%;background:#e2f5ef;color:#237861}.plan-card:nth-child(2) .plan-icon{background:#dceefc;color:#315c8a}.plan-card:nth-child(3) .plan-icon{background:#e4f0f9;color:#3b6fa5}.plan-icon svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.plan-card h3{margin:0 0 4px;font-size:24px}.plan-card ul{display:grid;gap:10px;margin:24px 0;padding:0;list-style:none;color:var(--muted)}.plan-card li{padding-left:24px;position:relative}.plan-card li:before{content:"";position:absolute;left:3px;top:6px;width:7px;height:12px;border:solid #238b78;border-width:0 2px 2px 0;transform:rotate(45deg)}.plan-card a.plan-action{width:100%;margin-top:auto}.disclosure{margin:20px 0 0;color:var(--muted);font-size:14px}.faq{max-width:780px}.faq details{border-top:1px solid var(--line);padding:20px 0}.faq details:last-child{border-bottom:1px solid var(--line)}.faq summary{cursor:pointer;font-size:18px;font-weight:600}.faq details p{margin:12px 0 0;color:var(--muted)}
+    .plan-card .plan-price{margin:20px 0 0;color:var(--ink)}.plan-price strong{font-size:30px;font-weight:600}.plan-price span{color:var(--muted);font-size:14px}
+    .cta{position:relative;isolation:isolate;overflow:hidden;padding:72px 0;background:#e7f4f1}.cta:after{content:"";position:absolute;z-index:-1;right:-80px;top:-150px;width:380px;height:380px;border:1px solid #3b6fa526;border-radius:50%;box-shadow:0 0 0 30px rgb(59 111 165 / .05),0 0 0 65px rgb(59 111 165 / .035)}.cta p{max-width:620px;margin:12px 0 0;color:var(--muted);font-size:18px}.cta .eyebrow{margin:0 0 16px;color:var(--eyebrow);font-size:13px}.cta .actions{margin-top:24px}
+    .footer{padding:56px 0 28px;background:#23384d;color:#eef5fa}.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:36px}.footer-brand{max-width:300px}.footer-brand img{width:190px;padding:8px;border-radius:8px;background:#fff}.footer-brand p{color:#d2e0eb;font-size:15px}.footer h2{margin:0 0 16px;font-size:15px;font-weight:700}.footer ul{display:grid;gap:12px;list-style:none;padding:0;margin:0}.footer a{color:#eef5fa;text-decoration:none;font-size:15px}.footer a:hover{color:#fff}.footer-bottom{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-top:52px;padding-top:22px;border-top:1px solid #536a7e;color:#d2e0eb;font-size:14px}.footer-bottom p{margin:0}.review-note{margin:24px 0 0;padding:16px;border:1px dashed #7c9aaf;border-radius:10px;color:#e0eaf2;font-size:14px}.review-note p{margin:0}
+    @media(max-width:850px){.header-inner{grid-template-columns:1fr auto;gap:16px;padding:16px 0}.nav{grid-row:2;grid-column:1/-1}.hero-grid{min-height:0;padding-top:64px;padding-bottom:48px}.hero-content{width:100%}.hero-visual{position:relative;width:100%;height:420px}.hero-photo{mask-image:linear-gradient(to bottom,transparent 0%,#000 12%)}.grid{grid-template-columns:1fr 1fr}.footer-grid{grid-template-columns:1fr 1fr}.footer-brand{max-width:none}}
+    @media(max-width:600px){.wrap{width:calc(100% - 32px)}.header-inner{gap:16px 8px}.logo{width:145px}.nav,.account-nav{gap:12px}.nav{gap:20px}.account-nav .button{min-height:44px;padding:8px 10px}.hero-grid{padding-top:48px;padding-bottom:32px}.hero-visual{height:330px}.hero h1{font-size:40px}.hero-copy{font-size:18px}section.content{padding:64px 0}.grid{grid-template-columns:1fr}.steps .card{padding-bottom:8px}.cta{padding:56px 0}.footer-grid{gap:28px}.footer-brand{grid-column:1/-1}.footer-bottom{margin-top:32px}}
+    @media(max-width:400px){.header-inner{grid-template-columns:1fr}.logo{width:168px}.account-nav{grid-row:2;justify-content:flex-start}.nav{grid-row:3;grid-column:auto}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.assistant-preview{animation:none}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="review-bar">
+    <span><strong>Static design prototype</strong> · Fictional examples and draft copy · No accounts or payments are created here</span>
+    <label for="text-colors">Text colors
+      <select id="text-colors">
+        <option value="navy">1 · Navy &amp; blue</option>
+        <option value="blue">2 · Confident blue</option>
+        <option value="seafoam" selected>3 · Blue &amp; deep seafoam</option>
+      </select>
+    </label>
+  </div>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a href="#top" aria-label="SalesMora.ai homepage"><img class="logo" src="../branding/assets/salesmora-logo.svg" alt="SalesMora.ai"></a>
+      <nav class="nav" aria-label="Main navigation">
+        <a href="#product">Product</a>
+        <a href="#plans">Plans</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <nav class="account-nav" aria-label="Account navigation">
+        <a href="prototype-screen-01.html">Sign in</a>
+        <a class="button" href="prototype-screen-01-register.html">Create account</a>
+      </nav>
+    </div>
+  </header>
+  <main id="main">
+    <div class="hero" id="top">
+      <div class="wrap hero-grid">
+        <div class="hero-content">
+          <h1>Less busywork. More room to do great work.</h1>
+          <p class="hero-copy">SalesMora brings your customer work together and helps you build workflows that handle the repetitive details. Your AI sidekick is there to help you stay on top of what matters.</p>
+          <div class="actions">
+            <a class="button" href="prototype-screen-01-register.html">Create account</a>
+            <a class="button secondary" href="#product">Explore the product</a>
+          </div>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <img class="hero-photo" src="public-home-team-concept.png" alt="Illustrative, AI-generated image of a home-service team reviewing work together">
+        <div class="assistant-preview"><strong>Your sidekick is on it</strong><span>Draft a reminder when an approved estimate still needs scheduling.</span></div>
+      </div>
+    </div>
+    <section class="content" id="product">
+      <div class="wrap">
+        <div class="section-heading"><p class="eyebrow">AI that works alongside you</p><h2>A little less chasing. A lot more clarity.</h2><p>Bring leads, estimates, and jobs together with an assistant that helps you find information and set up supported workflows.</p></div>
+        <div class="grid features">
+          <article class="card"><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 64 64"><rect x="10" y="13" width="36" height="31" rx="10" fill="#3b6fa5"/><path d="M20 43l-3 7 11-7" fill="#3b6fa5"/><rect x="17" y="21" width="9" height="9" rx="2" fill="#b2e9db"/><rect x="29" y="21" width="9" height="9" rx="2" fill="#f4f8fc"/><rect x="17" y="33" width="9" height="6" rx="2" fill="#7ccbb7"/><rect x="29" y="33" width="9" height="6" rx="2" fill="#8db5d5"/><circle cx="49" cy="18" r="7" fill="#7ccbb7"/><path d="M49 14v8m-4-4h8" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></span><h3>Ask your sidekick</h3><p>Get help finding information and preparing supported actions in the context of your work.</p></article>
+          <article class="card"><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M17 25h13c8 0 8 15 16 15" fill="none" stroke="#3b6fa5" stroke-width="4" stroke-linecap="round"/><rect x="7" y="15" width="18" height="18" rx="5" fill="#7ccbb7"/><rect x="39" y="31" width="18" height="18" rx="5" fill="#3b6fa5"/><rect x="12" y="20" width="8" height="8" rx="2" fill="#f4f8fc"/><path d="M44 40l3 3 6-7" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="38" cy="17" r="5" fill="#b2e9db"/></svg></span><h3>Make busywork a workflow</h3><p>Describe a supported workflow in everyday language. Review it before publishing, then let it handle the reminders.</p></article>
+          <article class="card"><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 64 64"><rect x="9" y="12" width="27" height="33" rx="6" fill="#8db5d5"/><rect x="17" y="19" width="27" height="33" rx="6" fill="#3b6fa5"/><rect x="25" y="26" width="27" height="27" rx="6" fill="#7ccbb7"/><path d="M31 34h15M31 40h11M31 46h8" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><circle cx="49" cy="16" r="6" fill="#b2e9db"/></svg></span><h3>Keep work connected</h3><p>Bring leads, estimates, and jobs together so your team can see what needs attention.</p></article>
+        </div>
+      </div>
+    </section>
+    <section class="content soft" id="how-it-works">
+      <div class="wrap">
+        <div class="section-heading"><p class="eyebrow">From idea to action</p><h2>Tell your sidekick what you need.</h2><p>Set up a supported workflow in plain language, with a review step before it goes live.</p></div>
+        <div class="grid steps">
+          <article class="card"><span class="step-label">Step 01</span><h3>Describe the task</h3><div class="step-art"><div class="step-art-card"><strong>Ask your sidekick</strong><span>Remind me when an approved estimate needs a visit.</span><em>Describe</em></div></div></article>
+          <article class="card"><span class="step-label">Step 02</span><h3>Review the plan</h3><div class="step-art"><div class="step-art-card"><strong>Review workflow</strong><span>Approved estimate without a visit</span><em>Review before publishing</em></div></div></article>
+          <article class="card"><span class="step-label">Step 03</span><h3>Let the workflow run</h3><div class="step-art"><div class="step-art-card"><strong>Reminder</strong><span>An approved estimate still needs a visit.</span><em>Needs attention</em></div></div></article>
+        </div>
+      </div>
+    </section>
+    <section class="content" id="plans">
+      <div class="wrap">
+        <div class="section-heading"><p class="eyebrow">Plans</p><h2>A workspace that can grow with you.</h2><p>Explore the plan options for your business when you create an account.</p></div>
+        <div class="grid">
+          <article class="card plan-card"><div class="plan-heading"><span class="plan-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 19c0-7 4-12 14-14 1 9-3 15-10 15-2 0-4-1-4-1Zm0 0c3-4 6-7 10-9"/></svg></span><div><h3>Free</h3><p>For getting started.</p></div></div><p class="plan-price"><strong>$0</strong> <span>/ month</span></p><ul><li>1 user, including owner</li><li>100 new leads per month</li><li>1 million AI tokens per month</li><li>2 AI-assisted workflows <small>(limit planned)</small></li><li>1 published capture source <small>(planned)</small></li><li>1 GB storage <small>(planned)</small></li></ul><a class="button secondary plan-action" href="prototype-public-auth.html?view=plans&amp;plan=free">Create an account</a></article>
+          <article class="card plan-card"><div class="plan-heading"><span class="plan-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7M5 10v10h14V10M9 20v-6h6v6"/></svg></span><div><h3>Standard</h3><p>For a small team.</p></div></div><p class="plan-price"><strong>$29</strong> <span>/ month</span></p><ul><li>5 users, including owner</li><li>1,000 new leads per month</li><li>5 million AI tokens per month</li><li>10 AI-assisted workflows <small>(limit planned)</small></li><li>5 published capture sources <small>(planned)</small></li><li>10 GB storage <small>(planned)</small></li></ul><a class="button plan-action" href="prototype-public-auth.html?view=plans&amp;plan=standard">Create an account</a></article>
+          <article class="card plan-card"><div class="plan-heading"><span class="plan-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/></svg></span><div><h3>Premium</h3><p>For a growing business.</p></div></div><p class="plan-price"><strong>$49</strong> <span>/ month</span></p><ul><li>20 users, including owner</li><li>5,000 new leads per month</li><li>20 million AI tokens per month</li><li>25 AI-assisted workflows <small>(limit planned)</small></li><li>Unlimited published capture sources <small>(planned)</small></li><li>25 GB storage <small>(planned)</small></li></ul><a class="button secondary plan-action" href="prototype-public-auth.html?view=plans&amp;plan=premium">Create an account</a></article>
+        </div>
+        <p class="disclosure">Draft monthly prices in USD; final pricing is not yet approved. Workflow limits are planned and not enforced. They are intended to count all saved workflows, including drafts and paused workflows.</p>
+      </div>
+    </section>
+    <section class="content soft" id="faq">
+      <div class="wrap">
+        <div class="section-heading"><p class="eyebrow">Questions</p><h2>Getting to know SalesMora.</h2></div>
+        <div class="faq">
+          <details><summary>Who is SalesMora for?</summary><p>SalesMora is designed for small and midsize service businesses, including home-service teams such as contractors, plumbers, HVAC technicians, and electricians.</p></details>
+          <details><summary>How does the AI sidekick help?</summary><p>The assistant can help you find information and draft supported workflows, such as a reminder for an approved estimate that still needs a visit. You review a workflow before publishing it. Availability and plan details will be confirmed for launch.</p></details>
+          <details><summary>How do I get started?</summary><p>Create an account and follow the steps to set up your business workspace. This prototype simulates registration and does not create an account.</p></details>
+          <details><summary>Which plan should I choose?</summary><p>Free, Standard, and Premium are intended for different stages of business growth. The prices shown are draft and will be confirmed for launch.</p></details>
+        </div>
+      </div>
+    </section>
+    <section class="cta" aria-labelledby="join-heading">
+      <div class="wrap"><p class="eyebrow">Ready to get started?</p><h2 id="join-heading">Make room for the work that matters.</h2><p>Bring your customer work together with SalesMora.</p><div class="actions"><a class="button" href="prototype-screen-01-register.html">Create account</a><a class="button secondary" href="#plans">Explore plans</a></div></div>
+    </section>
+  </main>
+  <footer class="footer">
+    <div class="wrap">
+      <div class="footer-grid">
+        <div class="footer-brand"><img src="../branding/assets/salesmora-logo.svg" alt="SalesMora.ai"><p>Customer work, together in one place.</p><p>SalesMora is a product of Karpuk Creative, LLC.</p></div>
+        <nav aria-label="Product footer"><h2>Product</h2><ul><li><a href="#how-it-works">How it works</a></li><li><a href="#faq">FAQ</a></li></ul></nav>
+        <nav aria-label="Account footer"><h2>Account</h2><ul><li><a href="prototype-screen-01-register.html">Create account</a></li><li><a href="prototype-screen-01.html">Sign in</a></li></ul></nav>
+        <nav aria-label="Legal and support footer"><h2>Legal &amp; support</h2><ul><li><a href="prototype-public-terms.html">Terms of Service</a></li><li><a href="prototype-public-privacy.html">Privacy Policy</a></li><li><a href="mailto:info@salesmora.ai">Contact &amp; support</a></li></ul></nav>
+      </div>
+      <div class="footer-bottom"><p>© 2026 Karpuk Creative, LLC · Prototype preview</p><p>Made for service businesses.</p></div>
+      <div class="review-note" id="legal-preview"><p><strong>Prototype note:</strong> Legal pages are drafts or placeholders for review. Final legal text requires counsel approval before launch.</p></div>
+    </div>
+  </footer>
+  <script>
+    document.getElementById('text-colors').addEventListener('change', function () {
+      document.documentElement.dataset.textColors = this.value;
+    });
+  </script>
+</body>
+</html>

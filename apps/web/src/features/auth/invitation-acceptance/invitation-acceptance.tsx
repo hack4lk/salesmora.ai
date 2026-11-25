@@ -72,11 +72,8 @@ function InvitationAcceptanceContent(props: InvitationAcceptanceProps) {
     {accepted ? <><div ref={feedback} tabIndex={-1} className={feedbackClass}><FormFeedback kind="success" title={copy.successTitle} message={copy.success} /></div><button type="button" disabled={blocked} onClick={onContinue} className={secondaryClass}>{copy.continue}</button></> : <>
       <p className="m-0 text-sm leading-6 text-muted">{copy.purpose}</p>
       {!currentEmail ? <><p className="m-0 text-sm leading-6 text-muted">{copy.signedOut}</p>
-        <RegistrationForm initialEmail={invitation.email} emailDisabled onSubmit={onCreateAccount} submitLabel={copy.createAccount} pendingLabel={copy.creatingAccount} successMessage={copy.accountReady} termsHref={registrationCopy.termsHref} privacyHref={registrationCopy.privacyHref} />
-        <div className="grid gap-3 text-sm leading-6 text-muted">
-          <details id="terms-preview" className="rounded-xl border border-line p-3"><summary className="cursor-pointer text-primary focus-visible:focus-ring">{registrationCopy.legal.termsTitle}</summary><p className="mt-2">{registrationCopy.legal.unavailable}</p></details>
-          <details id="privacy-preview" className="rounded-xl border border-line p-3"><summary className="cursor-pointer text-primary focus-visible:focus-ring">{registrationCopy.legal.privacyTitle}</summary><p className="mt-2">{registrationCopy.legal.unavailable}</p></details>
-        </div>
+        <p className="m-0 text-sm leading-6 text-muted">{registrationCopy.legal.notice}</p>
+        <RegistrationForm initialEmail={invitation.email} emailDisabled onSubmit={onCreateAccount} submitLabel={copy.createAccount} pendingLabel={copy.creatingAccount} successMessage={copy.accountReady} termsHref={registrationCopy.termsHref} privacyHref={registrationCopy.privacyHref} openDocumentsInNewTab />
         <button type="button" disabled={blocked} onClick={onSignIn} className={secondaryClass}>{copy.signIn}</button></> : <>
         <p className="m-0 text-sm leading-6 text-muted">{copy.signedIn} <span className="font-semibold text-ink wrap-anywhere">{currentEmail}</span></p>
         {mismatch ? <><div ref={feedback} tabIndex={-1} className={feedbackClass}><FormFeedback kind="error" title={copy.wrongAccountTitle} message={copy.wrongAccount} /></div><button type="button" disabled={blocked} onClick={onSwitchAccount} className={secondaryClass}>{copy.switchAccount}</button></> : <form aria-labelledby={`${id}-title`} aria-busy={pending} onSubmit={accept} className="grid min-w-0 gap-4">

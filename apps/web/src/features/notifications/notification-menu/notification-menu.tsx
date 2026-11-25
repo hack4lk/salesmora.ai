@@ -38,8 +38,9 @@ const buttonClass = 'inline-flex min-h-11 cursor-pointer items-center justify-ce
 const dateFormatter = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
 
 /** Presentation only: caller must scope all counts/items and recheck read authority on navigation. */
-export function NotificationMenu({ workspaceName, unreadCount, items, state, preferencesHref, pendingId, actionError = false, hasMore = false, loadingMore = false, onOpen, onRetry, onMarkRead, onLoadMore }: NotificationMenuProps) {
+export function NotificationMenu({ unreadCount, items, state, preferencesHref, pendingId, actionError = false, hasMore = false, loadingMore = false, onOpen, onRetry, onMarkRead, onLoadMore }: NotificationMenuProps) {
   const id = useId();
+  const unreadItems = items.filter(item => !item.read);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const count = unreadCount !== null && Number.isSafeInteger(unreadCount) && unreadCount >= 0 ? unreadCount : null;
   return <>
@@ -50,15 +51,15 @@ export function NotificationMenu({ workspaceName, unreadCount, items, state, pre
       {count !== null && count > 0 && <span aria-hidden="true" className="rounded-full bg-primary px-2 py-1 text-xs font-bold text-paper">{count > 99 ? copy.cappedCount : count}</span>}
     </button>
     <Popover anchorEl={anchor} open={!!anchor} onClose={() => setAnchor(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-      slotProps={{ paper: { id: `${id}-panel`, role: 'dialog', 'aria-modal': true, 'aria-labelledby': `${id}-title`, 'aria-describedby': `${id}-workspace`, className: 'w-full rounded-2xl border border-line bg-paper text-ink sm:w-112' } }}>
+      slotProps={{ paper: { id: `${id}-panel`, role: 'dialog', 'aria-modal': true, 'aria-labelledby': `${id}-title`, className: 'w-full rounded-2xl border border-line bg-paper text-ink sm:w-112' } }}>
       <header className="flex items-start justify-between gap-4 border-b border-line p-4 sm:p-6">
-        <div className="min-w-0"><h2 id={`${id}-title`} className="m-0 text-xl font-semibold text-ink">{copy.title}</h2><p id={`${id}-workspace`} className="mb-0 mt-2 text-sm text-muted wrap-anywhere">{workspaceName}</p></div>
+        <h2 id={`${id}-title`} className="m-0 min-w-0 text-xl font-semibold text-ink">{copy.title}</h2>
         <button type="button" autoFocus onClick={() => setAnchor(null)} className={buttonClass}>{copy.close}</button>
       </header>
       <div className="max-h-96 overflow-y-auto overscroll-contain p-4 sm:p-6" aria-busy={state === 'loading'}>
         {state === 'loading' ? <p role="status" className="m-0 text-sm leading-6 text-muted">{copy.loading}</p> : state === 'error' ? <div className="grid gap-4"><FormFeedback kind="error" title={copy.loadErrorTitle} message={copy.loadError}/><button type="button" className={buttonClass} onClick={onRetry}>{copy.retry}</button></div> : <div className="grid min-w-0 gap-4">
           {actionError && <FormFeedback kind="error" title={copy.actionErrorTitle} message={copy.actionError}/>}
-          {!items.length ? <div><h3 className="m-0 text-base font-semibold text-ink">{copy.emptyTitle}</h3><p className="mb-0 mt-2 text-sm leading-6 text-muted">{copy.empty}</p></div> : <ul className="m-0 grid min-w-0 list-none gap-3 p-0">{items.map(item => {
+          {!unreadItems.length ? <div><h3 className="m-0 text-base font-semibold text-ink">{copy.emptyTitle}</h3><p className="mb-0 mt-2 text-sm leading-6 text-muted">{copy.empty}</p></div> : <ul className="m-0 grid min-w-0 list-none gap-3 p-0">{unreadItems.map(item => {
             const date = new Date(item.createdAt);
             const validDate = Number.isFinite(date.getTime());
             return <li key={item.id} className={`min-w-0 rounded-xl border p-4 ${item.read ? 'border-line bg-paper' : 'border-primary/30 bg-canvas'}`}>

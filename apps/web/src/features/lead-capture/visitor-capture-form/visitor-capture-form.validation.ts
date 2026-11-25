@@ -1,3 +1,4 @@
+import {usPostalCodeSchema} from '@salesmora/contracts';
 import { leadSchema } from '@salesmora/contracts';
 import { validateCaptureFormFields, type CaptureFormFieldEditorValue, type CaptureFormField } from '../capture-form-field-editor/capture-form-field-editor.validation';
 import { visitorCaptureFormData as copy } from './visitor-capture-form.data';

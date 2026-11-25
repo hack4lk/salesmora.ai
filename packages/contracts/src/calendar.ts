@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { calendarWorkTimeSchema } from "./calendar-work-time";
 import { arrivalWindows, jobDateSchema } from "./job";
 
 /** Explicit identity only: matching dates, customers or assignees never establish a shared visit. */
@@ -9,10 +10,14 @@ export const calendarRecordRefSchema = z.discriminatedUnion("type", [
 export type CalendarRecordRef = z.infer<typeof calendarRecordRefSchema>;
 export const calendarScheduleSchema = z.object({
   scheduledDate: jobDateSchema.nullable(), arrivalWindow: z.enum(arrivalWindows).nullable(),
+  workTime: calendarWorkTimeSchema.nullable().optional(),
 }).strict().refine(value => !value.arrivalWindow || !!value.scheduledDate, {
   message: "An arrival window requires a scheduled visit date.", path: ["arrivalWindow"],
-});
+}).refine(value => !value.workTime || !!value.scheduledDate, { message: "Planned work requires a scheduled date.", path: ["workTime"] });
 export type CalendarSchedule = z.infer<typeof calendarScheduleSchema>;
+/** Server snapshot metadata is separate from client-authored scheduling intent. */
+export const calendarScheduleSnapshotSchema = calendarScheduleSchema.safeExtend({ workTimezone: z.string().min(1).max(100).nullable().optional() });
+export type CalendarScheduleSnapshot = z.infer<typeof calendarScheduleSnapshotSchema>;
 /** Server must compare the full active membership, versions and permissions under one transaction lock. */
 export const calendarScheduleCommandSchema = z.object({
   workspaceId: z.uuid(), visitId: z.uuid(), submissionId: z.uuid(), expectedVisitVersion: z.number().int().positive(),
@@ -53,6 +58,7 @@ export function calendarQueryFromURL(workspaceId: string, params: URLSearchParam
     queuePage: params.has('queuePage') ? Number(params.get('queuePage')) : undefined });
 }
 export type CalendarVisit = CalendarSchedule & {
+  workTimezone?: string | null; workStartsAt?: string | null; workEndsAt?: string | null;
   id: string; title: string; customerName: string; timezone: string; location: string | null; nextStep: string | null;
   records: ({ id: string; number: string; title: string } & ({ type: 'job'; status: import('./job').JobStatus } | { type: 'work_order'; status: import('./work-order').WorkOrderStatus }))[];
   crew: { id: string; name: string }[]; completionDeadline: { date: string; overdue: boolean } | null;
@@ -66,6 +72,8 @@ export type CalendarResult = {
 };
 export const calendarAdvisorySchema = z.object({ workspaceId: z.uuid(), visitId: z.uuid(), revision: z.string().min(1).max(200), schedule: calendarScheduleSchema }).strict();
 export const calendarVisitSchema = z.object({
+  workTime: calendarWorkTimeSchema.nullable().optional(), workTimezone: z.string().nullable().optional(),
+  workStartsAt: z.iso.datetime().nullable().optional(), workEndsAt: z.iso.datetime().nullable().optional(),
   scheduledDate: jobDateSchema.nullable(), arrivalWindow: z.enum(arrivalWindows).nullable(),
   id: z.uuid(), title: z.string(), customerName: z.string(), timezone: z.string(), location: z.string().nullable(), nextStep: z.string().nullable(),
   records: z.array(z.discriminatedUnion("type", [

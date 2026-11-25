@@ -2,7 +2,7 @@ import { captureSetupSampleApproved } from './setup-samples';
 import { bindSavedGmailSample } from './gmail-sample-approval';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
-import { captureBeginRevisionSchema, captureCreateDraftSchema, captureDetailViewSchema, captureDraftSavedSchema, captureDraftStartContextSchema, captureListViewSchema, captureOperationResultSchema, captureSaveDraftSchema, captureSourceDetailQuerySchema, captureSourceDetailSchema, captureSourceListQuerySchema, captureSourceSummarySchema, serviceCatalog, type AuthorizationContext, type CaptureBusinessContext, type CaptureDraftConfiguration, type PermissionId } from '@salesmora/contracts';
+import { captureBeginRevisionSchema, captureCreateDraftSchema, captureDetailViewSchema, captureDraftSavedSchema, captureDraftStartContextSchema, captureListViewSchema, captureOperationResultSchema, captureSaveDraftSchema, captureSourceDetailQuerySchema, captureSourceDetailSchema, captureSourceListQuerySchema, captureSourceSummarySchema, type AuthorizationContext, type CaptureBusinessContext, type CaptureDraftConfiguration, type PermissionId } from '@salesmora/contracts';
 import { authorize, resolveAuthorizedCollectionScope } from '@salesmora/domain';
 import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIdentity } from '../authorization/store';
 import { unavailableCaptureDelivery, type CaptureDeliveryAuthority, capturePublicationReviewInTransaction } from './publication';
@@ -36,10 +36,10 @@ async function loadSource(trx: Knex.Transaction, workspaceId: string, sourceId: 
 }
 async function business(trx: Knex.Transaction, context: AuthorizationContext): Promise<CaptureBusinessContext> {
   const workspace = await trx('workspaces').where({ id: context.workspaceId }).first('businessName', 'businessPhone', 'serviceRange', 'postalCode', 'timezone');
-  const services = await trx('workspaceServices').where({ workspaceId: context.workspaceId }).select('service').orderBy('service');
+  const services = await trx('workspaceServices').where({ workspaceId: context.workspaceId }).whereNull('archivedAt').select('name').orderBy('name');
   const teammates = await trx('workspaceMemberships as m').join('users as u', 'u.id', 'm.userId').where('m.workspaceId', context.workspaceId).whereNull('u.deletionRequestedAt').whereNull('u.suspendedAt').select('u.id', 'u.name').orderBy('u.name').orderBy('u.id').limit(1000);
   const entitlement = await workspaceEntitlements(trx, context.workspaceId);
-  return { businessName: workspace.businessName, businessEmail: '', businessPhone: workspace.businessPhone ?? '', services: services.map(row => serviceCatalog.find(service => service.value === row.service)?.label ?? row.service), serviceArea: [workspace.postalCode, workspace.serviceRange].filter(Boolean).join(' · '), timezone: workspace.timezone, gmailAccess: entitlement.plan.id === 'free' ? 'upgrade-required' : 'available', teammates };
+  return { businessName: workspace.businessName, businessEmail: '', businessPhone: workspace.businessPhone ?? '', services: services.map(row => row.name), serviceArea: [workspace.postalCode, workspace.serviceRange].filter(Boolean).join(' · '), timezone: workspace.timezone, gmailAccess: entitlement.plan.id === 'free' ? 'upgrade-required' : 'available', teammates };
 }
 async function metrics(trx: Knex.Transaction, workspaceId: string, ids: readonly string[]) {
   const result = new Map(ids.map(id => [id, { captured: 0, awaitingReview: 0, approved: 0, lastActivityAt: null as Date | null }]));

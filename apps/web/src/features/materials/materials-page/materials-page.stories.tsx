@@ -49,7 +49,7 @@ export const Catalog: Story = {
   play: async ({ canvasElement }) => {
     const c = within(canvasElement);
     await userEvent.type(c.getByLabelText('Search materials'), 'copper');
-    await expect(await c.findByText('2 items in this view', {}, { timeout: 4000 })).toBeVisible();
+    await expect(await c.findByText('Showing 1–2 of 2', {}, { timeout: 4000 })).toBeVisible();
     await expect(c.getAllByText(/\$39.00/)[0]).toBeInTheDocument();
   },
 };
@@ -84,7 +84,7 @@ export const Proposals: Story = {
     await userEvent.click(c.getAllByRole('button', { name: 'Reject' })[0]);
     await userEvent.type(await within(document.body).findByLabelText('Reason'), 'Duplicate');
     await userEvent.click(within(document.body).getByRole('button', { name: 'Reject proposal' }));
-    await waitFor(() => expect(c.getByText('1 item in this view')).toBeVisible());
+    await waitFor(() => expect(c.getByText('Showing 1–1 of 1')).toBeVisible());
   },
 };
 export const OfficeProposer: Story = { args: base, ...render({ canManage: false, canViewCosts: false, canViewPrices: false, initialStatus: 'proposed', data: materialFixtures.map(row => (row.status === 'proposed' ? { ...row, costCents: null, priceCents: null, marginPercent: null } : row)) }) };

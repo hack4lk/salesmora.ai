@@ -956,7 +956,7 @@ test('Calendar navigation and proposal history reuse one authority transaction a
     type: 'person', companyName: '', email: '', phone: '', location: '', internalNotes: '' });
   let jobId: string | undefined;
   try {
-    const job = await createJob(db, { userId: ownerId, workspaceId }, permissionIds, {
+    const job = await createJob(db, { userId: ownerId, workspaceId }, permissionIds, {postalCode:'10001',
       workspaceId, submissionId: randomUUID(), customerId, title: 'Fictional navigation Job',
       primaryOwnerId: ownerId, scheduledDate: '2026-11-09',
     });
@@ -1300,7 +1300,7 @@ test('canonical Calendar review and saved receipt survive browser reload', async
   const customerId = randomUUID();
   await db('customers').insert({ id: customerId, workspaceId, name: 'Fictional Calendar browser Customer',
     type: 'person', companyName: '', email: '', phone: '', location: '', internalNotes: '' });
-  const created = await createJob(db, { userId: ownerId, workspaceId }, permissionIds, {
+  const created = await createJob(db, { userId: ownerId, workspaceId }, permissionIds, {postalCode:'10001',
     workspaceId, submissionId: randomUUID(), customerId, title: 'Fictional Calendar browser Job',
     primaryOwnerId: ownerId, scheduledDate: '2026-11-09',
   });

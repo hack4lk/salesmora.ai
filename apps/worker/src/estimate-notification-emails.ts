@@ -5,8 +5,8 @@ import { renderEstimateNotificationEmail } from "@salesmora/data/email/estimate-
 import { sendEmail } from "@salesmora/data/email/transport";
 
 export async function startEstimateNotificationEmails(db: Knex) {
-  if (!await db.schema.hasTable("estimateNotifications")) {
-    throw new Error("Apply Estimate notification migrations before starting the worker.");
+  if (!await db.schema.hasTable("leadWorkflowNotifications")) {
+    throw new Error("Apply workflow notification migrations before starting the worker.");
   }
   const baseURL = process.env.BETTER_AUTH_URL ?? "";
   if (!baseURL) throw new Error("Configure the app origin for Estimate notification emails.");
@@ -28,7 +28,7 @@ export async function startEstimateNotificationEmails(db: Knex) {
           contentDisposition: "inline",
         }],
       }, baseURL);
-    }).then(result => {
+    }, 10, { nonWorkflowOnly: true }).then(result => {
       if (result.failed || result.retryPending) {
         console.error(JSON.stringify({
           event: "worker.estimate_notification_email_status",

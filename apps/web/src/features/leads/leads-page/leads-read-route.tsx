@@ -1,4 +1,5 @@
 'use client';
+import {WorkspaceServiceField} from '../../services/service-picker/workspace-service-field';
 import { RelatedCustomerContact } from '../../customers/customer-contact-card/customer-contact-card';
 import { RelatedEstimates } from '../../estimates/related-estimates-card/related-estimates';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -346,10 +347,11 @@ function LeadsReadContent({ workspaceId, viewerId, initial, initialDetail, initi
       return { ok: false, error: { kind: 'error', message: error instanceof ApiRequestError && error.status === 422 ? error.message : copy.editUnconfirmed } };
     }
     setDetail(next); activityPage.current = 1; notesPage.current = 1; editAttempt.current = undefined;
+    if (request.ownerId !== undefined) window.dispatchEvent(new Event('salesmora:notifications-refresh'));
     try { await invalidateLeadQueries(client, workspaceId); }
     catch { setFeedback(copy.editSavedReload); }
-    const { id, version, canEdit, origin, name, email, phone, service, address, details, notes, source } = next.lead;
-    return { ok: true, lead: { id, version, canEdit, origin, values: { name, email, phone, service, address, details, notes, source } } };
+    const { id, version, canEdit, origin, name, email, phone, service, address, details, notes, source, owner } = next.lead;
+    return { ok: true, lead: { id, version, canEdit, origin, values: { name, email, phone, service, address, postalCode:next.lead.postalCode??'', details, notes, source, ownerId: owner?.id ?? null } } };
   };
   async function reloadEdit(leadId: string) {
     await client.invalidateQueries({ queryKey: leadDetailOptions(scope, leadId).queryKey, refetchType: 'none' });
@@ -369,7 +371,7 @@ function LeadsReadContent({ workspaceId, viewerId, initial, initialDetail, initi
   return <>
     {(feedback || (quickId && quickQuery.error)) && <div className="mb-6"><FormFeedback kind="error" message={feedback ?? copy.unavailable}/></div>}
     {(recordLoading || columnsBusy.length > 0 || activityBusy) && <p role="status" className="mb-4 text-sm text-muted">{recordLoading ? copy.loadingRecord : copy.loadingMore}</p>}
-    <LeadsPage relatedCustomer={detail?.relatedCustomer ? <RelatedCustomerContact customer={detail.relatedCustomer} onOpenProfile={detail.relatedCustomer.customerId ? () => router.push(`/customers/${detail.relatedCustomer!.customerId}?workspace=${encodeURIComponent(workspaceId)}`) : undefined}/> : undefined} rows={result.rows.map(lead => pageRecord(lead))} columns={result.columns.map(column => ({ ...column, leads: column.leads.map(lead => pageRecord(lead)), loading: columnsBusy.includes(column.stage) }))}
+    <LeadsPage serviceControl={props=><WorkspaceServiceField {...props} workspaceId={workspaceId} required allowRetainedValue/>} relatedCustomer={detail?.relatedCustomer ? <RelatedCustomerContact customer={detail.relatedCustomer} onOpenProfile={detail.relatedCustomer.customerId ? () => router.push(`/customers/${detail.relatedCustomer!.customerId}?workspace=${encodeURIComponent(workspaceId)}`) : undefined}/> : undefined} rows={result.rows.map(lead => pageRecord(lead))} columns={result.columns.map(column => ({ ...column, leads: column.leads.map(lead => pageRecord(lead)), loading: columnsBusy.includes(column.stage) }))}
       relatedEstimates={detail && !recordLoading && state === 'ready' && <RelatedEstimates key={`${workspaceId}:${detail.lead.id}:${detail.lead.version}`} workspaceId={workspaceId} recordType="lead" recordId={detail.lead.id} onCanCreateChange={onEstimateCreation} />}
       onCreateEstimate={canCreateEstimate && detail ? () => router.push(`/estimates/new?${new URLSearchParams({ workspace: workspaceId, leadId: detail.lead.id })}`) : undefined}
       record={record} assistantStatus={assistant?.status ?? 'unavailable'} prepareButtonRef={prepareRef} onPrepareFollowUp={assistant && detail ? () => assistant.prepare(copy.followUpPrompt(detail.lead), prepareRef.current) : undefined} activityTotal={detail?.activityTotal} onLoadMoreActivity={detail && detail.activity.length < detail.activityTotal && !activityBusy ? () => { void loadActivity(); } : undefined}

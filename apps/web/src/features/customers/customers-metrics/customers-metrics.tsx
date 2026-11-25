@@ -43,7 +43,7 @@ export function CustomersMetrics({
   return (
     <section
       aria-labelledby={`${id}-title`}
-      className="grid min-w-0 gap-4"
+      className="@container grid min-w-0 gap-4"
     >
       <h2 id={`${id}-title`} className="sr-only">
         {copy.title}
@@ -66,20 +66,23 @@ export function CustomersMetrics({
           )}
         </div>
       )}
-      <div className="grid min-w-0 gap-4 sm:grid-cols-3">
+      <div className="grid min-w-0 gap-3 @2xl:grid-cols-3">
         <MetricCard
+          labelPosition="left"
           label={copy.customers.label}
           description={copy.customers.description}
           value={valid ? totals.customers : undefined}
           state={cardState}
         />
         <MetricCard
+          labelPosition="left"
           label={copy.leads.label}
           description={copy.leads.description}
           value={valid ? totals.withOpenLeads : undefined}
           state={cardState}
         />
         <MetricCard
+          labelPosition="left"
           label={copy.jobs.label}
           description={
             jobsAvailable ? copy.jobs.description : copy.jobs.unavailable

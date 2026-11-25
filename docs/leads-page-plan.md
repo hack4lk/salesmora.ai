@@ -1410,3 +1410,13 @@ All 116 shared AssistantPanel/LeadActivityCard desktop/mobile interaction, keybo
 ## Approved staging release — October 17, 2026
 
 Released the approved Leads and shared assistant batch to salesmora/staging. Web 89571d90-9361-46cb-b680-68ce61f1c993 and worker 18542444-da48-402a-8657-ffa2eabd416d reached SUCCESS; migrations through 202610170004 ran before worker rollout. Configured worker email/origin references from existing staging web variables. HTTPS readiness, authenticated manual page/API reads, live-model details/team notes/stage review and explicit confirmation, restored card navigation and stale/origin/workspace denial passed using isolated fictional fixtures. Their deletion requests were accepted and sessions revoked. Production and infrastructure services unchanged. See railway-staging.md for full release evidence and verification limits.
+
+The Contact details card includes an Edit action at its top right for readers with current edit permission. It opens the same lead edit dialog as Lead actions, reuses its save/discard handling, and is disabled while a lead update is pending.
+
+### Lead ownership in the edit flyout — November 19
+
+The manual Edit lead flyout now includes the canonical LeadOwnerSelect in Contact details. Current members and workload counts reuse the existing lead read response. Users with current assignment permission can choose a teammate or Unassigned; other editors see the current owner as read-only. Selection remains a draft until Save changes and participates in dirty/discard, pending and conflict handling.
+
+The existing PATCH accepts an optional top-level ownerId, separately from the protected ordinary fields. A single authorized workspace write transaction saves details and delegates the owner change to the existing assignment use case. It preserves its member validation, assignment activity and notification/email behavior; failure rolls back both changes. Combined detail/assignment actions retain their separate activity entries and version increments inside that atomic commit. Owner-only and combined retries use the existing submission ID without duplicate notifications. The assistant's ordinary-field review boundary continues to exclude ownership; its separate assignment review remains unchanged.
+
+Verification covers atomic rollback for invalid teammates, assignment permission denial, owner-only and combined replay, shared form/page stories, and the real browser save/unassign flow alongside existing field editing, conflict, source and API checks.

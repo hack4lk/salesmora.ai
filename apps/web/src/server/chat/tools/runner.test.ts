@@ -41,6 +41,7 @@ function admittedTurn(): StoredTurn {
 }
 const nullable = (keys: string) => Object.fromEntries(keys.split(' ').map(key => [key, null]));
 const fixtures = {
+  workflows_prepare: { name: "Reminder", businessDays: 1, recipient: "me" },
   reports_query: { request: { mode: 'current_report' } },
   leads_query: { request: { operation: 'pipeline_summary', input: {} } },
   leads_propose_action: { request: { operation: 'delete', input: { leadRef: '' } } },
@@ -108,7 +109,7 @@ describe('common tool execution lifecycle', () => {
             : family === 'workOrder' || family === 'material' ? { workOrderResult: { kind: 'proposal' as const, title: 'Fixture', records: [],
               draft: { id, inputHash: 'a'.repeat(64), expiresAt: new Date().toISOString(), state: 'pending' as const,
                 action: family === 'material' ? 'material-create' as const : 'create' as const, workOrder: { number: 'New', title: 'Fixture' }, changes: [] } } }
-              : { [family === 'calendar' ? 'calendarProposal' : family]: { fixture: true } }),
+              : { [family === 'workflow' ? 'workflowDraft' : family === 'calendar' ? 'calendarProposal' : family]: { fixture: true } }),
         }),
       });
       expect(savedTurn.proposalFamilies).toEqual([family]);
@@ -170,6 +171,7 @@ describe('common tool execution lifecycle', () => {
   });
   it.each(Object.keys(fixtures).filter((name): name is ImplementedToolId => name in toolRegistry))(
     'executes %s through the same held transaction/session/evidence boundary', async name => {
+      if (name === 'workflows_prepare') request = { ...request, surface: 'workflows.list' };
       const execute = vi.fn<ChatToolHandler>(async context => {
         expect(open).toBe(1);
         expect(context.db.isTransaction).toBe(true);

@@ -1,3 +1,4 @@
+import {serviceDisplaySql} from '../services/store';
 import { createHash, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { PassThrough, Readable } from 'node:stream';
@@ -97,7 +98,7 @@ export async function createLeadCSVExport(db: Knex, identity: WorkspaceIdentity,
     await gate?.beforeRead(trx, context);
     const { query, scope } = await exportQuery(trx, context, identity, input);
     const selection = query.leftJoin('users as u', 'u.id', 'l.ownerId').orderBy('l.id')
-      .select('l.id', 'l.leadNumber', 'l.name', 'l.email', 'l.phone', 'l.service', 'l.address', 'l.details', 'l.notes', 'l.source', 'l.stage', 'l.ownerId', 'l.createdAt', 'l.updatedAt', 'l.archivedAt', trx.raw('CASE WHEN l."ownerId" IS NULL THEN NULL ELSE coalesce(u.name,l."ownerName") END as "ownerName"'), trx.raw('count(*) OVER ()::int as "__exportCount"')).toSQL();
+      .select('l.id', 'l.leadNumber', 'l.name', 'l.email', 'l.phone', trx.raw(`${serviceDisplaySql('l')} AS service`), 'l.address', 'l.details', 'l.notes', 'l.source', 'l.stage', 'l.ownerId', 'l.createdAt', 'l.updatedAt', 'l.archivedAt', trx.raw('CASE WHEN l."ownerId" IS NULL THEN NULL ELSE coalesce(u.name,l."ownerName") END as "ownerName"'), trx.raw('count(*) OVER ()::int as "__exportCount"')).toSQL();
     // The cursor fixes one SELECT snapshot without freezing authorization before
     // acquiring the workspace lock. All user values remain parameter bindings.
     await trx.raw('DECLARE lead_export_cursor NO SCROLL CURSOR FOR ' + selection.sql, [...selection.bindings]);

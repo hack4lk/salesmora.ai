@@ -1,3 +1,4 @@
+import {serviceDisplaySql} from '../services/store';
 import { createHash, randomUUID } from "node:crypto";
 import type { Knex } from "knex";
 import {
@@ -325,7 +326,7 @@ async function readJobParent(
       "j.workspaceId",
       "j.jobNumber",
       "j.title",
-      "j.service",
+      trx.raw(`${serviceDisplaySql('j')} AS service`),
       "j.location",
       "j.status",
       "j.customerId",
@@ -382,7 +383,7 @@ async function readLeadParent(
       "l.id",
       "l.leadNumber",
       "l.name",
-      "l.service",
+      trx.raw(`${serviceDisplaySql('l')} AS service`),
       "l.email",
       "l.address",
       "l.stage",

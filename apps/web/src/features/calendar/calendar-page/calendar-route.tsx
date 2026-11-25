@@ -13,6 +13,7 @@ import { calendarResultSchema, calendarVisitSchema, calendarAdvisoryResultSchema
 import { isApiAccessError } from '../../api/api-query';
 import { FormFeedback } from '@salesmora/ui';
 import { calendarQueryFromURL, calendarScheduleSchema, type CalendarResult, type CalendarVisit, type CalendarQueryValue } from '@salesmora/contracts';
+import { ConnectedCalendarAvailability } from '../connected-calendar-availability/connected-calendar-availability';
 import { CalendarPage } from './calendar-page';
 import type { CalendarFiltersValue } from '../calendar-filters/calendar-filters';
 import type { CalendarScheduleDraft } from '../calendar-schedule-dialog/calendar-schedule-dialog';
@@ -31,6 +32,7 @@ export function CalendarRoute(props: CalendarRouteProps) {
 function CalendarContent({ initial, initialVisit, initialUpdatedAt }: CalendarRouteProps) {
   const router = useRouter(), search = useSearchParams(), workspaceId = initial.query.workspaceId;
   const client = useQueryClient(), scope = { viewerId: initial.viewerId, workspaceId };
+  const [availabilityPerson, setAvailabilityPerson] = useState<string>();
   const [reviewLoading, setReviewLoading] = useState(false), [blocked, setBlocked] = useState(false);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [pending, setPending] = useState(false), [conflict, setConflict] = useState(false);
   const [overlay, setOverlay] = useState<{ kind: 'schedule'; visitId?: string; date?: string } | undefined>();
@@ -115,8 +117,8 @@ function CalendarContent({ initial, initialVisit, initialUpdatedAt }: CalendarRo
   const onDraftChange = useCallback((next: CalendarScheduleDraft) => setDraft(old => JSON.stringify(old) === JSON.stringify(next) ? old : next), [setDraft]);
   useEffect(() => {
     const controller = new AbortController();
-    if (!draft || overlay?.kind !== 'schedule' || !calendarScheduleSchema.safeParse({ scheduledDate: draft.scheduledDate, arrivalWindow: draft.arrivalWindow }).success) return () => controller.abort();
-    const body = { workspaceId, visitId: draft.visitId, revision: draft.revision, schedule: { scheduledDate: draft.scheduledDate, arrivalWindow: draft.arrivalWindow } };
+    if (!draft || overlay?.kind !== 'schedule' || !calendarScheduleSchema.safeParse({ scheduledDate: draft.scheduledDate, arrivalWindow: draft.arrivalWindow, workTime: draft.workTime }).success) return () => controller.abort();
+    const body = { workspaceId, visitId: draft.visitId, revision: draft.revision, schedule: { scheduledDate: draft.scheduledDate, arrivalWindow: draft.arrivalWindow, workTime: draft.workTime } };
     const timer = setTimeout(() => { void client.fetchQuery({
       queryKey: apiReadOptions({ viewerId: initial.viewerId, workspaceId }, 'calendar-advisories', body, '', raw => calendarAdvisoryResultSchema.parse(raw), copy.warningsUnavailable).queryKey,
       queryFn: ({ signal }) => apiRequest('/api/calendar/advisories', { method: 'POST', signal, body, parse: raw => calendarAdvisoryResultSchema.parse(raw), failureMessage: copy.warningsUnavailable }),
@@ -158,7 +160,7 @@ function CalendarContent({ initial, initialVisit, initialUpdatedAt }: CalendarRo
     if (flight.current) throw new Error(copy.unavailable);
     const target = targets.find(v => v.id === value.visitId && v.revision === value.revision);
     if (!target?.canReschedule || !target.review) throw new Error(copy.unavailable);
-    const payload = JSON.stringify({ workspaceId, visitId: target.id, ...target.review, schedule: { scheduledDate: value.scheduledDate, arrivalWindow: value.arrivalWindow } });
+    const payload = JSON.stringify({ workspaceId, visitId: target.id, ...target.review, schedule: { scheduledDate: value.scheduledDate, arrivalWindow: value.arrivalWindow, workTime: value.workTime } });
     if (receipt.current?.payload !== payload) receipt.current = { payload, id: crypto.randomUUID() };
     flight.current = true; setPending(true); setError(''); let saved = false;
     try {
@@ -178,6 +180,7 @@ function CalendarContent({ initial, initialVisit, initialUpdatedAt }: CalendarRo
     <CalendarPage weekDate={list.weekDate} today={list.today} timezone={list.timezone} filters={filters} members={list.members} viewerId={list.viewerId} scope={list.scope}
       entries={list.entries} unscheduled={list.unscheduled} unscheduledTotal={list.unscheduledTotal} workload={list.entries} canSchedule={list.canSchedule} state={state === 'error' ? 'error' : loadedKey !== queryKey ? 'loading' : state} notice={notice}
       onNavigate={date => { close(); navigate({ ...query, date }); }} onFilters={value => navigate({ ...query, ...value, queuePage: 1 }, value.customerQuery !== query.customerQuery)}
+      onAvailability={id => { if (!list.members.some(member => member.id === id) || state !== 'ready') return; close(); setAvailabilityPerson(id); }}
       onOpenVisit={id => navigate(query, false, id)} onSchedule={value => { void openSchedule(value); }} onRetry={() => void retry()}
       queuePagination={{ page: list.query.queuePage, total: list.unscheduledTotal, onPage: queuePage => navigate({ ...query, queuePage }) }}
       peek={visitId ? { open: true, visit: detail?.id === visitId ? detail : null, state: detail?.id === visitId ? peekState : peekState === 'error' ? 'error' : 'loading', onClose: close,
@@ -189,7 +192,9 @@ function CalendarContent({ initial, initialVisit, initialUpdatedAt }: CalendarRo
           close();workspaceAssistant.prepare('',assistantReturnFocus.current);
         } : undefined,
         onOpenRecord: record => router.push(`/${record.type === 'job' ? 'jobs' : 'work-orders'}/${record.id}?workspace=${encodeURIComponent(workspaceId)}`) } : undefined}
-      schedule={overlay?.kind === 'schedule' ? { open: true, targets, initialVisitId: overlay.visitId, initialDate: overlay.date, today: list.today,
+      schedule={overlay?.kind === 'schedule' ? { open: true, targets, initialVisitId: overlay.visitId, initialDate: overlay.date, today: list.today, workTimeEnabled: true,
         pending, error, conflict, onClose: close, onReload: () => void reloadReview(), onDraftChange, advisories, onConfirm: confirm } : undefined}/>
+    {availabilityPerson && <ConnectedCalendarAvailability key={availabilityPerson} personId={availabilityPerson} workspaceId={workspaceId} viewerId={initial.viewerId}
+      onClose={() => setAvailabilityPerson(undefined)} onSaved={() => { setAvailabilityPerson(undefined); setNotice('Availability saved.'); }}/>}
   </div>;
 }

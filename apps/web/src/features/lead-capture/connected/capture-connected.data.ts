@@ -10,7 +10,7 @@ export const captureConnectedData = {
   reviewUnavailable: 'Reload the saved setup to check its current publication readiness.',
   refreshReview: 'Refresh readiness',
   capacityUsage: (used: number, limit: number | null) => limit === null ? `${used} published sources · unlimited capacity` : `${used} of ${limit} published-source slots used`,
-  readiness: {
+  readiness: { routing_zip:'Keep a required US ZIP field for active lead routing, or pause that workflow before removing it.',
     configuration: 'Complete the required saved configuration.', fields: 'Complete the required lead and contact fields.',
     workflow: 'Choose an available teammate or a valid business-default assignment rule.',
     access: 'This source is not included in the current or committed target plan.', capacity: 'Archive excess published sources before launching on this plan.',

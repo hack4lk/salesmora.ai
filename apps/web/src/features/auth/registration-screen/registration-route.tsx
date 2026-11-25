@@ -1,6 +1,6 @@
 'use client';
 
-import type { WorkspacePlanId } from '@salesmora/contracts';
+import { workspacePlanIdSchema, type WorkspacePlanId } from '@salesmora/contracts';
 import { RegistrationPlanScreen } from '../registration-plan-screen/registration-plan-screen';
 import { RegistrationScreen } from './registration-screen';
 import { registrationScreenData as copy } from './registration-screen.data';
@@ -19,7 +19,10 @@ async function register(values: RegistrationSubmission, plan?: WorkspacePlanId):
   return { ok: true };
 }
 
-export function RegistrationRoute({ billingEnabled = false }: { billingEnabled?: boolean }) {
-  if (billingEnabled) return <RegistrationPlanScreen onSubmit={register} notice={copy.sandboxNotice} />;
-  return <RegistrationScreen onSubmit={register} notice={copy.localNotice} />;
+export function RegistrationRoute({ billingEnabled = false, initialPlanQuery }: { billingEnabled?: boolean; initialPlanQuery?: string | string[] }) {
+  if (billingEnabled) {
+    const parsed = workspacePlanIdSchema.safeParse(initialPlanQuery);
+    return <RegistrationPlanScreen layoutVariant="public" onSubmit={register} notice={copy.sandboxNotice} initialPlan={parsed.success ? parsed.data : undefined} initialStage={parsed.success ? 'account' : 'plan'} invalidInitialPlan={initialPlanQuery !== undefined && !parsed.success} />;
+  }
+  return <RegistrationScreen layoutVariant="public" onSubmit={register} notice={copy.localNotice} />;
 }

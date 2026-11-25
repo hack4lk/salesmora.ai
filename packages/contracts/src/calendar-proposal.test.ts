@@ -33,6 +33,9 @@ describe('Calendar proposal boundaries',()=>{
   for(const patch of [{intent:undefined},{intent:'schedule'},{from:{scheduledDate:null,arrivalWindow:null}},{to:{scheduledDate:null,arrivalWindow:'09:00-11:00'}},{warnings:['irrelevant advisory']}])expect(calendarProposalDraftSchema.safeParse({...clearDraft,...patch}).success).toBe(false);
   const stored={draft,command:{workspaceId:id,visitId:id,submissionId:id,expectedVisitVersion:1,records:context.records,schedule:draft.to},stamp:hash,authority:hash,receipt:null,resultStamp:null};
   expect(calendarProposalStoredSchema.safeParse(stored).success).toBe(true);
+  const timed = { ...stored, draft: { ...draft, to: { ...draft.to, workTime: { startTime: '09:00', durationMinutes: 60 } } } };
+  expect(calendarProposalStoredSchema.safeParse(timed).success).toBe(false);
+  expect(calendarProposalStoredSchema.safeParse({ ...timed, command: { ...stored.command, schedule: timed.draft.to } }).success).toBe(true);
   const clearStored={...stored,draft:clearDraft,command:{...stored.command,schedule:clearDraft.to}};
   expect(calendarProposalStoredSchema.safeParse(clearStored).success).toBe(true);
   expect(calendarProposalStoredSchema.safeParse({...clearStored,command:stored.command}).success).toBe(false);

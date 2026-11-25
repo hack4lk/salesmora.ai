@@ -74,6 +74,7 @@ export type LeadPageRecord = LeadCardRecord & {
   email: string;
   phone: string;
   address: string;
+  postalCode?: string;
   details: string;
   notes: string;
   nextStep: { title: string; body: string } | null;
@@ -139,6 +140,7 @@ export type LeadsPageProps = {
   onDelete: (request: DeleteLeadRequest) => Promise<void>;
   onExport: (request: ExportLeadsRequest) => Promise<void>;
   onReloadEdit?: (leadId: string) => Promise<LeadPageRecord>;
+  serviceControl?:LeadEditFormProps["serviceControl"];
   onEdit: LeadEditFormProps["onSubmit"];
   onNote: LeadNotesProps["onAdd"];
   filterLabels: readonly string[];
@@ -184,9 +186,11 @@ const editValues = (lead: LeadPageRecord): LeadEditValues => ({
   phone: lead.phone,
   service: lead.service,
   address: lead.address,
+  postalCode: lead.postalCode??'',
   details: lead.details,
   notes: lead.notes,
   source: lead.source,
+  ownerId: lead.owner?.id ?? null,
 });
 
 export function LeadsPage(props: LeadsPageProps) {
@@ -395,36 +399,6 @@ export function LeadsPage(props: LeadsPageProps) {
       viaAssistant: !!event.viaAssistant,
     })),
   };
-  const controls = record &&
-    ((record.canMove && !record.archived) ||
-      (access.canAssign && (record.canAssign ?? !record.archived))) && (
-      <section
-        className="grid gap-4 rounded-2xl border border-line bg-paper p-6"
-        aria-label={copy.management}
-      >
-        <h2 className="m-0 text-lg font-semibold text-ink">
-          {copy.management}
-        </h2>
-        {record.canMove && !record.archived && (
-          <button
-            type="button"
-            className={button}
-            onClick={() => request("move", record)}
-          >
-            {copy.move}
-          </button>
-        )}
-        {access.canAssign && (record.canAssign ?? !record.archived) && (
-          <button
-            type="button"
-            className={button}
-            onClick={() => request("assign", record)}
-          >
-            {copy.assign}
-          </button>
-        )}
-      </section>
-    );
   return (
     <div className="grid min-w-0 gap-6" onClick={navigate}>
       {record ? (
@@ -450,10 +424,13 @@ export function LeadsPage(props: LeadsPageProps) {
             onRequestArchive={() => request("archive", record)}
             onRequestRestore={() => request("restore", record)}
             onRequestDelete={() => request("delete", record)}
+            onRequestMove={record.canMove && !record.archived ? () => request("move", record) : undefined}
+            onRequestAssignment={access.canAssign && (record.canAssign ?? !record.archived) ? () => request("assign", record) : undefined}
           />
           <div className="grid min-w-0 gap-6 lg:grid-cols-3">
             <div className="grid min-w-0 content-start gap-6 lg:col-span-2">
-              <LeadContactCard contact={record} viewerId={props.viewerId} />
+              <LeadContactCard contact={record} viewerId={props.viewerId} pending={pending}
+                onEdit={(record.canEdit ?? access.canEdit) ? () => request("edit", record) : undefined} />
               {props.relatedCustomer}
               <LeadServiceCard
                 service={record.service}
@@ -492,7 +469,6 @@ export function LeadsPage(props: LeadsPageProps) {
                 assistantStatus={props.assistantStatus}
               />
               {props.relatedEstimates}
-              {controls}
             </aside>
           </div>
         </>
@@ -564,9 +540,6 @@ export function LeadsPage(props: LeadsPageProps) {
             />
           ) : (
             <>
-              <p role="status" className="m-0 text-sm text-muted">
-                {copy.results(props.total)}
-              </p>
               {values.view === "pipeline" ? (
                 <LeadPipelineBoard
                   columns={props.columns}
@@ -633,7 +606,7 @@ export function LeadsPage(props: LeadsPageProps) {
         />
       )}
       {workflow?.kind === "create" && (
-        <AddLeadDrawer
+        <AddLeadDrawer serviceControl={props.serviceControl}
           open
           canCreate={access.canCreate}
           canAssign={access.canAssign}
@@ -793,7 +766,11 @@ export function LeadsPage(props: LeadsPageProps) {
             else close();
           }}
         >
-          <LeadEditForm
+          <LeadEditForm serviceControl={props.serviceControl}
+            canAssign={access.canAssign && (lead.canAssign ?? !lead.archived)}
+            members={access.canAssign ? props.members : []}
+            viewerId={props.viewerId}
+            currentOwner={lead.owner}
             lead={{
               id: lead.id,
               version: lead.version,

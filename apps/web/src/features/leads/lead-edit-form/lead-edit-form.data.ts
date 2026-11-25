@@ -1,5 +1,6 @@
 import { createLeadFormData } from '../create-lead-form/create-lead-form.data';
 export const leadEditFormData = {
+  owner: 'Lead owner', ownerUnavailable: 'Choose a current teammate or leave this lead unassigned. Ownership changes require assignment permission.',
   optional: createLeadFormData.optional,
   title: 'Edit lead', formLabel: 'Edit lead details', labels: createLeadFormData.labels, sources: createLeadFormData.sources,
   sections: createLeadFormData.sections, save: 'Save changes', pending: 'Saving changes…', cancel: 'Cancel',
@@ -12,7 +13,7 @@ export const leadEditFormData = {
   invalid: 'Review this field.', tooLong: (label: string, max: number) => `Keep ${label.toLowerCase()} within ${max} characters.`,
   errors: createLeadFormData.errors,
   stories: {
-    title: 'Lead detail editor', description: 'Local preview with mocked saves and reloads. Stage and ownership use separate controls.',
+    title: 'Lead detail editor', description: 'Local preview with mocked saves and reloads. Ownership can be changed here with assignment permission. Stage uses its separate control.',
     edit: 'Edit lead', saved: 'Changes saved (preview only).', canceled: 'Editing canceled (preview only).',
     conflict: 'Another teammate changed the service and notes. Copy your edits before reloading and applying them again.',
     changedService: 'Repair the furnace and inspect the thermostat.', changedNotes: 'Customer is available on Friday.', invalidEmail: createLeadFormData.stories.invalidEmail,

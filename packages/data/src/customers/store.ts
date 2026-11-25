@@ -22,6 +22,7 @@ import {
   type WorkspaceIdentity,
 } from "../authorization/store";
 import { csvLine } from "../leads/csv";
+import { scopedJobQuery } from "../jobs/query";
 export class CustomerConflictError extends Error {
   constructor(
     message = "This record changed. Reload its latest details before trying again.",
@@ -273,13 +274,30 @@ export async function readCustomers(
             .first()
         )?.n ?? 0,
       );
+      const totals: CustomerListResult["totals"] = { customers, withOpenLeads };
+      const jobAccess = resolveAuthorizedCollectionScope(context, "jobs.read");
+      if (
+        jobAccess.allowed &&
+        (jobAccess.scope === "workspace" || jobAccess.scope === "assigned")
+      ) {
+        const activeJobs = scopedJobQuery(trx, context).query
+          .whereNotIn("j.status", ["completed", "canceled"])
+          .whereRaw("?? = ??", ["j.customerId", "c.id"])
+          .select("j.id");
+        const count = await all
+          .clone()
+          .whereExists(activeJobs)
+          .count({ n: "c.id" })
+          .first();
+        totals.withActiveJobs = Number(count?.n ?? 0);
+      }
       return {
         rows: rows.map(dto),
         total,
         page,
         members: await members(trx, context),
         capabilities: customerCapabilities(context),
-        totals: { customers, withOpenLeads },
+        totals,
         policyRevision: context.policy.revision,
         now: new Date().toISOString(),
       };

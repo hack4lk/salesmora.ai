@@ -30,6 +30,9 @@ export const Default: Story = {
     await expect(canvas.getByRole('heading', { name: copy.title, level: 1 })).toBeVisible();
     await expect(canvas.getByRole('img', { name: 'SalesMora.ai' })).toBeVisible();
     await expect(canvas.getByText(copy.previewNotice)).toBeVisible();
+    await expect(canvas.getByText(copy.legal.notice)).toBeVisible();
+    await expect(canvas.getByRole('link', { name: /Terms of Service.*opens in a new tab/ })).toHaveAttribute('href', copy.termsHref);
+    await expect(canvas.getByRole('link', { name: /Privacy Policy.*opens in a new tab/ })).toHaveAttribute('href', copy.privacyHref);
     await expect(canvas.getByRole('link', { name: copy.signIn })).toHaveAttribute('href', copy.loginHref);
   },
 };

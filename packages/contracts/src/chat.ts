@@ -1,6 +1,7 @@
 import { captureAssistantProposalTicketSchema } from './lead-capture/assistant';
 import { captureSetupContextSchema } from './lead-capture/assistant-setup';
 import { captureAssistantContextSchema, captureChatTicketSchema } from './lead-capture';
+import { workflowDraftSchema } from "./workflows";
 import { calendarProposalTicketSchema, calendarProposalEvidenceSchema } from './calendar-proposal';
 import { calendarVisitReferenceSchema, calendarChatContextSchema, calendarChatResultSchema } from './calendar-chat';
 import { customerChatResultSchema } from "./customer-chat";
@@ -42,6 +43,7 @@ export const chatSurfaceKeys = [
   "customer.detail",
   "work_order.list",
   "work_order.detail",
+  "workflows.list",
   "materials.list",
   "estimates.list",
   "estimate.editor",
@@ -68,6 +70,7 @@ export const chatToolIds = [
   "customers_propose_action",
   "work_orders_query",
   "work_orders_propose_action",
+  "workflows_prepare",
   "materials_query",
   "materials_propose_action",
   ...leadToolNames,
@@ -274,6 +277,7 @@ export const chatStreamEventSchema = z.discriminatedUnion("type", [
       result: workOrderChatResultSchema,
     })
     .strict(),
+  z.object({ ...envelope, type: z.literal("workflow.draft"), messageId: z.uuid(), result: workflowDraftSchema }).strict(),
   z.object({ ...envelope, type: z.literal("calendar.proposal"), messageId:z.uuid(),result:calendarProposalTicketSchema }).strict(),
   z.object({ ...envelope, type: z.literal("capture.source"), messageId: z.uuid(), result: captureAssistantProposalTicketSchema }).strict(),
   z.object({ ...envelope, type: z.literal("capture.setup"), messageId: z.uuid(), result: captureAssistantProposalTicketSchema }).strict(),
@@ -432,6 +436,7 @@ export const chatHistoryResponseSchema = z
             captureSetup: captureAssistantProposalTicketSchema.optional(),
             captureSetupEvidence: z.array(z.uuid()).max(7).optional(),
             captureStamp: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+            workflowDraft: workflowDraftSchema.optional(),
             calendarProposal: calendarProposalTicketSchema.optional(),
             calendarProposalEvidence: calendarProposalEvidenceSchema.optional(),
             calendarStamp: z.string().regex(/^[a-f0-9]{64}$/).optional(),

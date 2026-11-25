@@ -30,11 +30,13 @@ export function EstimateRevisionsPanel({
     <p role="status" className="m-0 text-sm leading-6 text-muted">{c.unavailable}</p>
   </section>;
   const ordered = orderEstimateRevisions(revisions);
-  return <section aria-labelledby={`${id}-title`} aria-busy={loading} className={`${estimatePanel} grid gap-5 print:hidden`}>
-    <div className="grid min-w-0 gap-2">
-      <h2 id={`${id}-title`} className="m-0 text-lg font-semibold">{c.title}</h2>
-      <p className="m-0 text-sm font-semibold wrap-anywhere">{number}</p>
-      <p className="m-0 text-sm leading-6 text-muted">{c.description}</p>
+  return <section aria-labelledby={`${id}-title`} aria-busy={loading} className={`${estimatePanel} grid gap-3 print:hidden`}>
+    <div className="grid min-w-0 gap-1">
+      <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h2 id={`${id}-title`} className="m-0 text-lg font-semibold">{c.title}</h2>
+        <p className="m-0 text-xs font-semibold text-muted wrap-anywhere">{number}</p>
+      </div>
+      <p className="m-0 text-sm leading-5 text-muted">{c.description}</p>
     </div>
     {error ? <div className="grid justify-items-start gap-3">
       <FormFeedback kind="error" message={error} />
@@ -42,29 +44,28 @@ export function EstimateRevisionsPanel({
         onClick={() => { if (!loading) onRetry(); }}>{c.retry}</button>}
     </div> : ordered.length > 0 ? <>
       {ordered.some(row => row.status === "draft" && row.revision > 1) &&
-        <p role="note" className="m-0 rounded-xl bg-canvas p-4 text-sm leading-6 text-muted">{c.pendingHint}</p>}
-      <ol aria-label={c.title} role="list" className="m-0 grid min-w-0 list-none gap-3 p-0">
+        <p role="note" className="m-0 rounded-lg bg-canvas px-3 py-2 text-xs leading-5 text-muted">{c.pendingHint}</p>}
+      <ol aria-label={c.title} role="list" className="m-0 min-w-0 list-none divide-y divide-line rounded-xl border border-line p-0">
         {ordered.map(row => {
           const current = row.id === currentEstimateId;
           return <li key={row.id} aria-current={current ? "page" : undefined}
-            className="grid min-w-0 gap-3 rounded-xl border border-line p-4">
-            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-              <h3 className="m-0 text-base font-semibold">{c.revision(row.revision)}</h3>
-              {current && <span className="rounded-lg bg-canvas px-2 py-1 text-xs font-semibold">{c.viewing}</span>}
+            className="grid min-w-0 gap-1 px-3 py-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+              <h3 className="m-0 text-sm font-semibold">{c.revision(row.revision)}</h3>
+              <EstimateStatusBadge status={row.status} archived={row.archived} />
+              {current && <span className="rounded bg-canvas px-2 py-1 text-xs font-semibold">{c.viewing}</span>}
+              <dl className="m-0 ml-auto flex min-w-0 flex-wrap items-baseline gap-x-2 text-sm">
+                <dt className="text-xs text-muted">{c.total}</dt>
+                <dd className="m-0 max-w-full font-semibold wrap-anywhere">
+                  {row.totalCents === null ? c.totalUnavailable : <MoneyText cents={row.totalCents} />}
+                </dd>
+              </dl>
+              {!current && row.href && <Link href={row.href}
+                className="inline-flex min-h-11 cursor-pointer items-center rounded-lg px-2 text-sm font-semibold text-primary hover:underline focus-visible:focus-ring"
+                aria-label={c.openLabel(number, row.revision)}>{c.open}</Link>}
             </div>
-            <EstimateStatusBadge status={row.status} archived={row.archived} />
-            {row.status === "draft" && row.revision > 1 &&
-              <p className="m-0 text-sm leading-6 text-muted">{c.pending}</p>}
-            <dl className="m-0 flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm">
-              <dt className="text-muted">{c.total}</dt>
-              <dd className="m-0 max-w-full font-semibold wrap-anywhere">
-                {row.totalCents === null ? c.totalUnavailable : <MoneyText cents={row.totalCents} />}
-              </dd>
-            </dl>
-            {!current && (row.href
-              ? <Link href={row.href} className={`${estimateButton} inline-flex items-center justify-center justify-self-start`}
-                aria-label={c.openLabel(number, row.revision)}>{c.open}</Link>
-              : <p className="m-0 text-sm leading-6 text-muted">{c.cannotOpen}</p>)}
+            {row.status === "draft" && row.revision > 1 && <p className="m-0 text-xs leading-5 text-muted">{c.pending}</p>}
+            {!current && !row.href && <p className="m-0 text-xs leading-5 text-muted">{c.cannotOpen}</p>}
           </li>;
         })}
       </ol>

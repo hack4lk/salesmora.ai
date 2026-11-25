@@ -1,3 +1,4 @@
+import type {WorkspaceServiceChoice} from '@salesmora/contracts';
 import { createJobSchema, jobIdSchema, type JobMember } from "@salesmora/contracts";
 import { getEstimateStatusActions } from "../estimate-actions";
 import type { EstimateCapabilities, EstimateRow } from "../estimate-preview.types";
@@ -10,7 +11,7 @@ export type EstimateConversionRecord = Pick<EstimateRow, "id" | "number" | "revi
   snapshotHash: string; totalCents: number | null; customerId: string | null;
   sourceLeadVersion: number | null; sourceLeadArchived: boolean; customerVersion: number | null;
   convertedJobExists: boolean; sourceLeadHasJob: boolean;
-  service: string; scope: string; serviceAddress: string;
+  postalCode?: string; service: string; scope: string; serviceAddress: string;
   convertedJob: EstimateConversionJobRef | null;
 };
 export type EstimateConversionCustomer =
@@ -29,12 +30,13 @@ export type EstimateConversionInput = {
   canScheduleCreation: boolean;
   customer: EstimateConversionCustomer;
   review: EstimateConversionReview;
+  services?:WorkspaceServiceChoice[];
   members: JobMember[];
 };
 export type EstimateConversionRequest = {
   estimateId: string; expectedVersion: number; expectedLeadVersion: number;
   expectedCustomerVersion: number; snapshotHash: string; sourceLeadId: string;
-  job: Pick<JobCreateValues, "customerId" | "title" | "service" | "location" | "description" | "primaryOwnerId" | "teamUserIds" | "scheduledDate" | "arrivalWindow" | "completionDeadline">;
+  job: import("@salesmora/contracts").EstimateConversionCommand["job"];
 };
 
 export function initialEstimateConversionReview(
@@ -47,7 +49,7 @@ export function initialEstimateConversionReview(
     snapshotHash: estimate.snapshotHash, sourceLeadId: estimate.parentId,
     job: {
       customerId: customer.state === "ready" ? customer.id : "", customerName: customer.state === "ready" ? customer.name : "",
-      title: estimate.name, service: estimate.service, location: estimate.serviceAddress, description: estimate.scope,
+      title: estimate.name, service: estimate.service, location: estimate.serviceAddress, postalCode:estimate.postalCode??'', description: estimate.scope,
       primaryOwnerId: null, teamUserIds: [], scheduledDate: null, arrivalWindow: null, completionDeadline: null,
     },
   };
@@ -101,6 +103,7 @@ export function reviewEstimateConversion(input: EstimateConversionInput, job: Jo
   if (!shape.title.safeParse(job.title).success) issues.push(c.errors.title);
   if (!shape.service.safeParse(job.service).success) issues.push(c.errors.service);
   if (!shape.location.safeParse(job.location).success) issues.push(c.errors.location);
+  if (!shape.postalCode.safeParse(job.postalCode).success) issues.push('Enter a valid US Job ZIP code.');
   if (!shape.description.safeParse(job.description).success) issues.push(c.errors.description);
   if (!shape.primaryOwnerId.safeParse(job.primaryOwnerId).success || !shape.teamUserIds.safeParse(job.teamUserIds).success
     || (job.primaryOwnerId !== null && !input.members.some((member) => member.id === job.primaryOwnerId))
@@ -122,9 +125,9 @@ export function reviewEstimateConversion(input: EstimateConversionInput, job: Jo
       snapshotHash: input.review.snapshotHash,
       sourceLeadId: input.review.sourceLeadId,
       job: {
-        customerId: job.customerId, title: job.title.trim(), service: job.service.trim(), location: job.location.trim(),
+        customerId: job.customerId, title: job.title.trim(), service: job.service.trim(), location: job.location.trim(), postalCode: shape.postalCode.parse(job.postalCode), countryCode: 'US',
         description: job.description.trim(), primaryOwnerId: job.primaryOwnerId, teamUserIds: [...job.teamUserIds],
-        scheduledDate: job.scheduledDate, arrivalWindow: job.arrivalWindow, completionDeadline: job.completionDeadline,
+        scheduledDate: job.scheduledDate, arrivalWindow: shape.arrivalWindow.parse(job.arrivalWindow), completionDeadline: job.completionDeadline,
       },
     },
   };

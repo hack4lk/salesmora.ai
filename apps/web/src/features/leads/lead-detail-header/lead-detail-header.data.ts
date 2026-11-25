@@ -1,10 +1,10 @@
 import { leadCardData } from '../lead-card/lead-card.data';
 export const leadDetailHeaderData = {
   stages: leadCardData.stages, sources: leadCardData.sources, back: 'Back to leads', record: 'Lead record', edit: 'Edit lead',
+  actions: 'Lead actions', move: 'Move to another stage', assign: 'Change owner',
   estimate: 'Create estimate', job: 'Start a job', comingSoon: 'Coming soon', archive: 'Archive', restore: 'Restore', remove: 'Delete',
   wonDelete: 'Won leads can only be archived. They cannot be permanently deleted.',
   archived: 'Archived', attention: 'Needs attention', updating: 'Updating lead…',
-  unavailable: (label: string, reason: string) => `${label}: ${reason}`,
   today: leadCardData.today, yesterday: leadCardData.yesterday, daysAgo: leadCardData.daysAgo, dateUnavailable: leadCardData.dateUnavailable,
   created: (relative: string) => `Created ${relative === leadCardData.today || relative === leadCardData.yesterday ? relative.toLowerCase() : relative}`, exactDate: (exact: string) => `Created ${exact}`,
   stories: { description: 'Lead record header preview. Actions request workflows only; no records are changed.',

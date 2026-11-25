@@ -143,6 +143,6 @@ test('supports skip navigation, the recovery page, and links between registratio
   await expect(page).toHaveURL(/\/login$/);
   await page.getByRole('link', { name: screen.register, exact: true }).click();
   await expect(page).toHaveURL(/\/register$/);
-  await page.getByRole('link', { name: form.submit, exact: true }).click();
+  await page.getByRole('main').getByRole('link', { name: form.submit, exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);
 });

@@ -1,9 +1,10 @@
-import { calendarScheduleSchema, workOrderIdSchema, type CalendarSchedule } from '@salesmora/contracts';
+import { calendarWorkTimeSummary } from '@salesmora/domain';
+import { calendarScheduleSnapshotSchema, workOrderIdSchema, type CalendarScheduleSnapshot } from '@salesmora/contracts';
 import { emailBrandData as brand } from './email-brand.data';
 import { visitChangedEmailData as copy } from './visit-changed.data';
 export type VisitChangedEmailInput = {
   baseURL: string; workspaceId: string; workspaceName: string; actorName: string;
-  event: keyof typeof copy.headings; before: CalendarSchedule; after: CalendarSchedule; timezone: string;
+  event: keyof typeof copy.headings; before: CalendarScheduleSnapshot; after: CalendarScheduleSnapshot; timezone: string;
   /** Recipient-authorized projection only. The renderer does not choose recipients or grant access. */
   records: readonly { type: 'job' | 'work_order'; id: string; number: string; title: string }[];
 };
@@ -19,7 +20,7 @@ export function renderVisitChangedEmail(input: VisitChangedEmailInput, logoSrc: 
   if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password) throw new Error('Visit links require an HTTP or HTTPS app origin.');
   if (!Object.hasOwn(copy.headings, input.event) || input.records.length < 1 || input.records.length > 100) throw new Error('Invalid visit notification.');
   new Intl.DateTimeFormat('en-US', { timeZone: input.timezone }).format();
-  const before = calendarScheduleSchema.parse(input.before), after = calendarScheduleSchema.parse(input.after);
+  const before = calendarScheduleSnapshotSchema.parse(input.before), after = calendarScheduleSnapshotSchema.parse(input.after);
   if ((input.event === 'cleared' && after.scheduledDate) || (['scheduled', 'rescheduled', 'joined'].includes(input.event) && !after.scheduledDate)) throw new Error('Invalid visit event schedule.');
   const seen = new Set<string>();
   for (const record of input.records) {
@@ -34,8 +35,9 @@ export function renderVisitChangedEmail(input: VisitChangedEmailInput, logoSrc: 
   const heading = copy.headings[input.event], explanation = copy.explanations[input.event];
   const subject = copy.subject(input.workspaceName, heading).replace(/[\r\n]+/g, ' ');
   const introduction = copy.introduction(input.actorName, input.workspaceName), action = primary.type === 'job' ? copy.viewJob : copy.viewWorkOrder;
-  const schedule = (value: CalendarSchedule) => value.scheduledDate ? `${date(value.scheduledDate)} · ${value.arrivalWindow ? windowLabel(value.arrivalWindow) : copy.noWindow}` : copy.noDate;
-  const fields = [[copy.before, schedule(before)], [copy.after, schedule(after)], [copy.timezone, input.timezone]];
+  const schedule = (value: CalendarScheduleSnapshot) => value.scheduledDate ? `${date(value.scheduledDate)} · ${value.arrivalWindow ? windowLabel(value.arrivalWindow) : copy.noWindow}` : copy.noDate;
+  const workBefore = calendarWorkTimeSummary(before.workTime), workAfter = calendarWorkTimeSummary(after.workTime);
+  const fields = [[copy.before, schedule(before)], [copy.after, schedule(after)], [copy.timezone, input.timezone], ...(workBefore || workAfter ? [['Previous planned work', workBefore ? `${workBefore.range} · ${workBefore.duration}${before.workTimezone && before.workTimezone !== input.timezone ? ` · ${before.workTimezone}` : ''}` : 'Not recorded'], ['Planned work', workAfter ? `${workAfter.range} · ${workAfter.duration}${after.workTimezone && after.workTimezone !== input.timezone ? ` · ${after.workTimezone}` : ''}` : 'Not recorded']] : [])];
   const records = input.records.map(record => `${record.number} · ${record.title}`), link = escapeHtml(url.href);
   return {
     subject,

@@ -201,6 +201,7 @@ const ordinaryLeadFields = new Set([
   "phone",
   "service",
   "address",
+  "postalCode",
   "details",
   "notes",
   "source",

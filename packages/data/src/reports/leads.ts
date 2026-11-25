@@ -16,8 +16,8 @@ import { AuthorizationAccessError } from '../authorization/store';
 import { scopedLeadQuery } from '../leads/query';
 import { resolveLeadReportExportScope } from './lead-export-access';
 
-const openStages = ['new', 'contacted', 'estimate-sent'] as const;
-const inactivePredicate = `l."lastActivityAt" < CURRENT_TIMESTAMP - INTERVAL '7 days'`;
+export const openLeadReportStages = ['new', 'contacted', 'estimate-sent'] as const;
+export const leadInactivityPredicate = `l."lastActivityAt" < CURRENT_TIMESTAMP - INTERVAL '7 days'`;
 const ageBands = ['0-7', '8-14', '15-30', '31+'] as const;
 const outcomeCoverage = 'Only surviving recorded stage transitions are counted. Historical stage changes were not backfilled.';
 
@@ -277,7 +277,7 @@ function applyHistoricalArchive(
 }
 
 function applyCurrentOpen(query: Knex.QueryBuilder) {
-  return query.whereNull('l.archivedAt').whereIn('l.stage', openStages);
+  return query.whereNull('l.archivedAt').whereIn('l.stage', openLeadReportStages);
 }
 
 async function readIntake(
@@ -383,7 +383,7 @@ export async function readLeadOverviewInTransaction(
   const created = await countQuery(intakeCohort(trx, context, period, auth, filters, []));
   const base = applyCurrentOpen(auth.scoped.clone());
   const { stages } = await pipelineCounts(trx, base, auth.asOf);
-  const inactive = await countQuery(base.clone().whereRaw(inactivePredicate));
+  const inactive = await countQuery(base.clone().whereRaw(leadInactivityPredicate));
   return { ...resultContext(auth), created, stages, inactive };
 }
 
@@ -564,7 +564,7 @@ async function readAttention(
   const base = applyCurrentOpen(applyFilters(
     trx, auth.scoped.clone(), filters, owners, auth.scope, context.userId,
   ));
-  const inactive = base.clone().whereRaw(inactivePredicate);
+  const inactive = base.clone().whereRaw(leadInactivityPredicate);
   const unowned = base.clone().where(function () {
     this.whereNull('l.ownerId').orWhereNotExists(function () {
       this.select(trx.raw('1')).from('workspaceMemberships as ownerMembership')
@@ -573,7 +573,7 @@ async function readAttention(
     });
   });
   const combined = base.clone().where(function () {
-    this.whereRaw(inactivePredicate)
+    this.whereRaw(leadInactivityPredicate)
       .orWhereNull('l.ownerId')
       .orWhereNotExists(function () {
         this.select(trx.raw('1')).from('workspaceMemberships as ownerMembership')
@@ -593,7 +593,7 @@ async function readAttention(
   const page = effectivePage(evidenceTotal, query.page, query.pageSize);
   const selection = attachLeadLabels(selected)
     .select(trx.raw(
-      `CASE WHEN ${inactivePredicate}
+      `CASE WHEN ${leadInactivityPredicate}
         THEN 'inactive' ELSE '' END AS "inactiveReason",
        CASE WHEN l."ownerId" IS NULL OR "reportMembership"."userId" IS NULL
         THEN 'unowned' ELSE '' END AS "unownedReason"`,

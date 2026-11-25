@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { InvitationAcceptance, type InvitationAcceptanceProps, type InvitationSummary } from './invitation-acceptance';
 import { registrationFormData as registrationCopy } from '../registration-form/registration-form.data';
+import { registrationScreenData as legal } from '../registration-screen/registration-screen.data';
 import { invitationAcceptanceData as copy } from './invitation-acceptance.data';
 const invitation = { id: 'fictional-invitation', workspaceName: copy.stories.workspace, inviterName: copy.stories.inviter, email: copy.stories.email, role: 'office' as const, expiresAt: copy.stories.expiry };
 // Storybook controls use flat args; the actual component retains its discriminated contract.
@@ -34,6 +35,9 @@ export const SignedOut: Story = { args: { currentEmail: undefined }, play: async
   await expect(c.getByRole('textbox', { name: registrationCopy.labels.email })).toHaveValue(copy.stories.email);
   await expect(c.getByRole('textbox', { name: registrationCopy.labels.email })).toBeDisabled();
   await expect(c.getByRole('button', {name:copy.createAccount})).toBeVisible();
+  await expect(c.getByText(legal.legal.notice)).toBeVisible();
+  await expect(c.getByRole('link', { name: /Terms of Service.*opens in a new tab/ })).toHaveAttribute('href', legal.termsHref);
+  await expect(c.getByRole('link', { name: /Privacy Policy.*opens in a new tab/ })).toHaveAttribute('href', legal.privacyHref);
   await expect(args.onSignIn).toHaveBeenCalledTimes(1);
   await expect(args.onAccept).not.toHaveBeenCalled();
 } };

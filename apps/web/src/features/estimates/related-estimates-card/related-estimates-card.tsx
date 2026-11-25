@@ -57,16 +57,15 @@ export function RelatedEstimatesCard({
         {onRetry && <button type="button" className={estimateButton} disabled={pending}
           onClick={() => { if (!pending) onRetry(); }}>{c.retry}</button>}
       </div> : <>
-        <p className="m-0 text-sm leading-6 text-muted">{c.description[recordType]}</p>
+        {recordType !== "lead" && <p className="m-0 text-sm leading-6 text-muted">{c.description[recordType]}</p>}
         {onIncludeHiddenChange && <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-semibold">
           <input role="switch" type="checkbox" checked={includeHidden} disabled={pending}
             className="size-5 cursor-pointer accent-primary focus-visible:focus-ring"
             onChange={(event) => onIncludeHiddenChange(event.target.checked)} />
           {c.includeHidden}
         </label>}
-        {canCreate && <p className="m-0 text-sm leading-6 text-muted">
-          {onCreate ? c.createHint[recordType] : c.createUnavailable}
-        </p>}
+        {canCreate && !onCreate && <p className="m-0 text-sm leading-6 text-muted">{c.createUnavailable}</p>}
+        {canCreate && onCreate && recordType !== "lead" && <p className="m-0 text-sm leading-6 text-muted">{c.createHint[recordType]}</p>}
         {estimates.length ? <ul aria-label={c.title} role="list" className="m-0 grid min-w-0 list-none gap-3 p-0">
           {estimates.map(estimate => <li key={estimate.id} className="grid min-w-0 gap-3 rounded-xl border border-line p-4">
             <div className="grid min-w-0 gap-1">

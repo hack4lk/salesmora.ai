@@ -33,6 +33,6 @@ export function LoginRoute({
   accountDeletionRequested?: boolean;
   returnTo?: string;
 }) {
-  return <LoginScreen accountDeletionRequested={accountDeletionRequested}
+  return <LoginScreen layoutVariant="public" accountDeletionRequested={accountDeletionRequested}
     onSubmit={values => signIn(values, returnTo)} notice={copy.localNotice} />;
 }

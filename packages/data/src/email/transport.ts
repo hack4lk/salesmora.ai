@@ -128,3 +128,5 @@ export async function sendLocalEstimateEmail(message: EmailMessage, baseURL: str
     throw new Error('Local estimate email delivery is temporarily unavailable.');
   }
 }
+/** Public sender metadata only; provider credentials never leave this module. */
+export function configuredEmailSender(baseURL:string){try{return emailConfiguration(baseURL).from;}catch{return null;}}

@@ -12,14 +12,14 @@ const config: NextConfig = {
   distDir: process.env.SALESMORA_TEST_SERVER === '1' ? (process.env.SALESMORA_E2E_DIST_DIR?.match(/^\.next-e2e(?:-[a-z0-9-]+)?$/)?.[0] ?? '.next-e2e') : '.next',
   experimental: { turbopackFileSystemCacheForDev: process.env.SALESMORA_TEST_SERVER !== '1' },
   serverExternalPackages: ['knex', 'pg'],
-  transpilePackages: ['@salesmora/ui', '@salesmora/contracts', '@salesmora/data'],
-  logging: { incomingRequests: { ignore: [/\/api\/lead-capture\/gmail\/oauth\/callback(?:\/|\?|$)/, /\/customers(?:\/|\?|$)/, /\/reset-password/, /\/verify-email/, /\/accept-invitation/, /\/e(?:\/|\?|$)/, /\/api\/public\/estimates(?:\/|\?|$)/, /\/f(?:\/|\?|$)/, /\/embed(?:\/|\?|$)/] } },
+  transpilePackages: ['@salesmora/ui', '@salesmora/contracts', '@salesmora/domain', '@salesmora/data', '@salesmora/agent'],
+  logging: { incomingRequests: { ignore: [/\/schedule-change-emails\/unsubscribe/, /\/api\/schedule-change-emails\/unsubscribe/, /\/thank-you-emails\/unsubscribe/, /\/api\/thank-you-emails\/unsubscribe/, /\/visit-reminders\/unsubscribe/, /\/api\/visit-reminders\/unsubscribe/, /\/service-reminders\/unsubscribe/, /\/api\/service-reminders\/unsubscribe/, /\/api\/lead-capture\/gmail\/oauth\/callback(?:\/|\?|$)/, /\/customers(?:\/|\?|$)/, /\/reset-password/, /\/verify-email/, /\/accept-invitation/, /\/e(?:\/|\?|$)/, /\/api\/public\/estimates(?:\/|\?|$)/, /\/f(?:\/|\?|$)/, /\/embed(?:\/|\?|$)/] } },
   async headers() {
     const privateRoutes = ['/api/lead-capture/gmail/:path*', '/jobs', '/jobs/:path*', '/api/jobs/:path*', '/customers', '/customers/:path*', '/api/customers/:path*', '/reset-password', '/api/auth/reset-password/:path*', '/verify-email', '/api/auth/verify-email', '/accept-invitation', '/api/invitations/:path*', '/login', '/register', '/setup', '/setup/:path*'].map((source) => ({
       source,
       headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }, { key: 'Cache-Control', value: 'no-store' }],
     }));
-    const publicEstimates = ['/e/:path*', '/api/public/estimates/:path*'].map(source => ({
+    const publicEstimates = ['/visit-reminders/unsubscribe', '/thank-you-emails/unsubscribe', '/schedule-change-emails/unsubscribe', '/api/visit-reminders/unsubscribe', '/api/thank-you-emails/unsubscribe', '/api/schedule-change-emails/unsubscribe', '/service-reminders/unsubscribe', '/api/service-reminders/unsubscribe', '/e/:path*', '/api/public/estimates/:path*'].map(source => ({
       source,
       headers: [
         { key: 'Referrer-Policy', value: 'no-referrer' },

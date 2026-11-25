@@ -50,7 +50,7 @@ try {
         }));
     const jobs: string[] = [], visitIds: string[] = [];
     for (const arrivalWindow of ['08:00-10:00', '09:00-11:00', '12:00-14:00', null] as const) {
-      const job = await createJob(trx, identity, enabled, {
+      const job = await createJob(trx, identity, enabled, {postalCode:'10001',
         workspaceId, submissionId: randomUUID(), customerId, title: 'Identical review visit',
         primaryOwnerId: field, teamUserIds: [teammate], scheduledDate: clock.yesterday, arrivalWindow,
       });
@@ -73,7 +73,7 @@ try {
     };
     const orderOne = await joinOrder(jobs[0], field, true), orderTwo = await joinOrder(jobs[1], field, true);
     const draft = await joinOrder(jobs[0], teammate, false);
-    await createJob(trx, identity, enabled, {
+    await createJob(trx, identity, enabled, {postalCode:'10001',
       workspaceId, submissionId: randomUUID(), customerId, title: 'Unscheduled not review', primaryOwnerId: field,
     });
     await check('unordered canonical pairs count once per person despite duplicate linked records; past visits remain distinct', async () => {
@@ -128,7 +128,7 @@ try {
     });
     await check('own and assigned-report scope redact other people, Drafts and records; empty own roster retains self', async () => {
       const parentOnly = await joinOrder(jobs[0], teammate, true);
-      const unassigned = await createJob(trx, identity, enabled, {
+      const unassigned = await createJob(trx, identity, enabled, {postalCode:'10001',
         workspaceId, submissionId: randomUUID(), customerId, title: 'Unassigned past visit',
         primaryOwnerId: null, scheduledDate: clock.yesterday, arrivalWindow: '09:00-11:00',
       });
@@ -185,7 +185,7 @@ try {
       await assert.rejects(read(owner, { workspaceId: randomUUID() }), AuthorizationAccessError);
     });
     await check('strict business-local past dates exclude today/future; inclusive multi-week ranges do not pair across dates', async () => {
-      for (const scheduledDate of [clock.today, clock.tomorrow, clock.weekBefore]) await createJob(trx, identity, enabled, {
+      for (const scheduledDate of [clock.today, clock.tomorrow, clock.weekBefore]) await createJob(trx, identity, enabled, {postalCode:'10001',
         workspaceId, submissionId: randomUUID(), customerId, title: 'Range boundary', primaryOwnerId: field,
         scheduledDate, arrivalWindow: '09:00-11:00',
       });
@@ -209,7 +209,7 @@ try {
       await trx('workspaces').where({ id: workspaceId }).update({ timezone: 'America/New_York' });
     });
     await check('known person-pair and past evidence pages are stable, clamped and complete beyond the first 25 rows', async () => {
-      for (let i = 0; i < 8; i++) await createJob(trx, identity, enabled, {
+      for (let i = 0; i < 8; i++) await createJob(trx, identity, enabled, {postalCode:'10001',
         workspaceId, submissionId: randomUUID(), customerId, title: 'Paged pair visit',
         primaryOwnerId: field, teamUserIds: [teammate], scheduledDate: clock.yesterday, arrivalWindow: '09:00-11:00',
       });
@@ -235,7 +235,7 @@ try {
       assert.equal(filtered.page, 2);
       if (filtered.evidence.kind === 'overlaps') assert.equal(filtered.evidence.rows.length, 20);
       assert(!JSON.stringify(filtered).includes(teammate));
-      for (let i = 0; i < 17; i++) await createJob(trx, identity, enabled, {
+      for (let i = 0; i < 17; i++) await createJob(trx, identity, enabled, {postalCode:'10001',
         workspaceId, submissionId: randomUUID(), customerId, title: 'Paged unknown past',
         primaryOwnerId: field, scheduledDate: clock.yesterday,
       });

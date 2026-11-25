@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {randomUUID} from "node:crypto";
 import {existsSync} from "node:fs";
 import {fileURLToPath} from "node:url";
-import {permissionIds,type CreateJobInput,type JobLifecycleQuery,type JobCompletionQuery} from "@salesmora/contracts";
+import {customerQuerySchema,permissionIds,type CreateJobInput,type JobLifecycleQuery,type JobCompletionQuery} from "@salesmora/contracts";
 import {createDatabase} from "../database";
 import {initializeWorkspacePolicy,AuthorizationAccessError,withWorkspaceAuthorization} from "../authorization/store";
 import {createJob,readJobs,readJob,mutateJob,JobConflictError,JobValidationError} from "./store";
@@ -23,7 +23,7 @@ import {readEstimateDecisionsReportInTransaction} from "../reports/estimate-deci
 import {readEstimateCurrentReportInTransaction} from "../reports/estimate-current";
 import {readCalendarScheduledReportInTransaction} from "../reports/calendar-scheduled";
 import {addCalendarDays} from "@salesmora/domain";
-import {mutateCustomer,CustomerValidationError} from "../customers/store";
+import {readCustomers,mutateCustomer,CustomerValidationError} from "../customers/store";
 import {migrateFreshBaseline} from "../baseline-runner";
 import {down as rollbackBaseline} from "../baseline-migrations/202611150001_fresh_baseline";
 const env=fileURLToPath(new URL("../../../../.env.local",import.meta.url));
@@ -92,14 +92,14 @@ try{
     await trx("workspaceMemberships").insert(["admin","office","field","teammate"].map(role=>({workspaceId,userId:users[role],role:role==="teammate"?"field":role})));
     await trx("customers").insert({id:customerId,workspaceId,name:"Fictional Job Customer",type:"person",companyName:"",email:"",phone:"",location:"",internalNotes:""});
   });
-  const input:CreateJobInput={workspaceId,submissionId:randomUUID(),customerId,title:"Fictional plumbing repair",primaryOwnerId:users.field,teamUserIds:[users.teammate]};
+  const input:CreateJobInput={postalCode:'10001',workspaceId,submissionId:randomUUID(),customerId,title:"Fictional plumbing repair",primaryOwnerId:users.field,teamUserIds:[users.teammate]};
   await check("creation, stable job numbers, explicit assignment and actor-bound retries",async()=>{
     const first=await createJob(db,identity(),enabled,input);jobId=first.jobId;
     assert.deepEqual(await createJob(db,identity(),enabled,input),first);
     assert.equal((await current()).number,"J-0001");
-    await assert.rejects(createJob(db,identity(),enabled,{...input,title:"Changed replay"}),JobConflictError);
-    await assert.rejects(createJob(db,identity("field"),enabled,{...input,submissionId:randomUUID()}),AuthorizationAccessError);
-    await assert.rejects(createJob(db,identity(),enabled,{...input,submissionId:randomUUID(),primaryOwnerId:users.other}),JobValidationError);
+    await assert.rejects(createJob(db,identity(),enabled,{...input,title:"Changed replay",postalCode:'10001'}),JobConflictError);
+    await assert.rejects(createJob(db,identity("field"),enabled,{...input,submissionId:randomUUID(),postalCode:'10001'}),AuthorizationAccessError);
+    await assert.rejects(createJob(db,identity(),enabled,{...input,submissionId:randomUUID(),primaryOwnerId:users.other,postalCode:'10001'}),JobValidationError);
   });
   await check("SQL-scoped role reads and counts; team assignment; cross-workspace denial",async()=>{
     for(const role of ["owner","admin","office","field","teammate"])assert.equal((await readJobs(db,identity(role),enabled,{workspaceId})).total,1);
@@ -107,6 +107,13 @@ try{
     await assert.rejects(readJob(db,identity("other"),enabled,jobId),AuthorizationAccessError);
     await assert.rejects(readJobs(db,identity(),enabled,{workspaceId:otherWorkspace}),AuthorizationAccessError);
     assert.equal((await readJobs(db,identity(),enabled,{workspaceId,q:"%_"})).total,0);
+  });
+  await check("customer overview counts active customers independently of search and respects Jobs access",async()=>{
+    const result=await readCustomers(db,identity(),enabled,customerQuerySchema.parse({workspaceId,q:"No matching customers"}));
+    assert.equal(result.total,0);
+    assert.equal(result.totals.withActiveJobs,1);
+    const withoutJobs=await readCustomers(db,identity(),enabled.filter(permission=>permission!=="jobs.read"),customerQuerySchema.parse({workspaceId}));
+    assert.equal(withoutJobs.totals.withActiveJobs,undefined);
   });
   await check("workspace-local schedule/deadline, transitions and exact date strings across DST",async()=>{
     await change({action:"deadline",completionDeadline:"2026-11-02"});
@@ -146,6 +153,7 @@ try{
     await mutateJob(db,identity("field"),enabled,complete);await mutateJob(db,identity("field"),enabled,complete);
     assert.equal((await readJobs(db,identity(),enabled,{workspaceId})).total,0);
     assert.equal((await readJobs(db,identity(),enabled,{workspaceId,closed:true})).total,1);
+    assert.equal((await readCustomers(db,identity(),enabled,customerQuerySchema.parse({workspaceId}))).totals.withActiveJobs,0);
     await assert.rejects(change({action:"note",body:"closed"},"field"),JobValidationError);
     await assert.rejects(change({action:"status",to:"in-progress",confirmed:true,reopenDeadline:null},"field"),AuthorizationAccessError);
     await assert.rejects(change({action:"status",to:"in-progress",confirmed:true}));
@@ -173,11 +181,11 @@ try{
   await check("tenant-safe source links, once-per-lead creation and retained source snapshots",async()=>{
     const customer=randomUUID(),foreignCustomer=randomUUID(),leadId=randomUUID();
     await db("customers").insert([{id:customer,workspaceId,name:"Source fixture",type:"person",companyName:"",email:"",phone:"",location:"",internalNotes:""},{id:foreignCustomer,workspaceId:otherWorkspace,name:"Other workspace fixture",type:"person",companyName:"",email:"",phone:"",location:"",internalNotes:""}]);
-    await assert.rejects(createJob(db,identity(),enabled,{...input,submissionId:randomUUID(),customerId:foreignCustomer}),AuthorizationAccessError);
+    await assert.rejects(createJob(db,identity(),enabled,{...input,submissionId:randomUUID(),customerId:foreignCustomer,postalCode:'10001'}),AuthorizationAccessError);
     await db("leads").insert({id:leadId,workspaceId,customerId:customer,createdBy:users.owner,submissionId:randomUUID(),submissionHash:"fixture",name:"Source fixture",service:"Repair",email:"",phone:"",address:"",details:"",notes:"",source:"other",stage:"won"});
     const source={...input,submissionId:randomUUID(),customerId:customer,sourceLeadId:leadId};
     const created=await createJob(db,identity(),enabled,source);
-    await assert.rejects(createJob(db,identity(),enabled,{...source,submissionId:randomUUID()}),JobConflictError);
+    await assert.rejects(createJob(db,identity(),enabled,{...source,submissionId:randomUUID(),postalCode:'10001'}),JobConflictError);
     await assert.rejects(db.transaction(async trx=>{await trx("jobs").where({id:created.jobId}).update({customerId:foreignCustomer});}));
     await db("leads").where({id:leadId,workspaceId}).delete();
     const retained=await db("jobs").where({id:created.jobId}).first();assert.equal(retained.sourceLeadId,null);assert.match(retained.sourceLeadNumber,/^LD-/);
@@ -931,6 +939,19 @@ try{
       assert.equal(result.authority.reportScope,"assigned");
       if(result.authority.calendar?.kind==="own")assert.equal(result.authority.calendar.viewerId,result.viewerId);
     });
+  });
+  await check("structured ZIP is required on new Jobs and edits; legacy jobs remain readable",async()=>{
+    const postalCustomer=randomUUID();await db("customers").insert({id:postalCustomer,workspaceId,name:"Postal customer",type:"person",companyName:"",email:"",phone:"",location:"",internalNotes:""});
+    const base={...input,customerId:postalCustomer,submissionId:randomUUID(),title:"Postal fixture",primaryOwnerId:null,teamUserIds:[],location:"Address containing 99999",postalCode:"00501-1234"};
+    const created=await createJob(db,identity(),enabled,base), detail=await readJob(db,identity(),enabled,created.jobId);
+    assert.equal(detail.job.postalCode,"00501"); assert.equal(detail.job.countryCode,"US");
+    await assert.rejects(createJob(db,identity(),enabled,{...base,submissionId:randomUUID(),postalCode:""}));
+    await assert.rejects(createJob(db,identity(),enabled,{...base,submissionId:randomUUID(),postalCode:undefined} as unknown as CreateJobInput));
+    await db("jobs").where({id:created.jobId,workspaceId}).update({postalCode:null,countryCode:null});
+    const legacy=await readJob(db,identity(),enabled,created.jobId); assert.equal(legacy.job.postalCode,null);
+    const command={workspaceId,jobId:created.jobId,submissionId:randomUUID(),expectedVersion:legacy.job.version,action:"edit",title:legacy.job.title,service:"",location:legacy.job.location,description:"",postalCode:"10002"};
+    await assert.rejects(mutateJob(db,identity(),enabled,{...command,postalCode:"Manhattan"}));
+    await mutateJob(db,identity(),enabled,command); assert.equal((await readJob(db,identity(),enabled,created.jobId)).job.postalCode,"10002");
   });
   console.log(`PASS ${passed} Jobs foundation database journeys`);
 }finally{

@@ -11,7 +11,7 @@ describe("Jobs foundation contracts and lifecycle",()=>{
     for(const date of ["2026-02-29","2026-04-31","2026-01-01T00:00:00Z","tomorrow"])expect(jobDateSchema.safeParse(date).success).toBe(false);
   });
   it("requires explicit customer, title and owner choice; rejects forged state/audit/tenant claims",()=>{
-    const input={workspaceId:randomUUID(),submissionId:randomUUID(),customerId:randomUUID(),title:"Repair sink",primaryOwnerId:null};
+    const input={postalCode:'10001',workspaceId:randomUUID(),submissionId:randomUUID(),customerId:randomUUID(),title:"Repair sink",primaryOwnerId:null};
     expect(createJobSchema.parse(input).scheduledDate).toBeNull();
     for(const extra of [{status:"completed"},{createdBy:"another-user"},{version:2},{sql:"SELECT 1"}])expect(createJobSchema.safeParse({...input,...extra}).success).toBe(false);
     expect(createJobSchema.safeParse({...input,primaryOwnerId:undefined}).success).toBe(false);

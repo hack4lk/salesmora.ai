@@ -22,10 +22,11 @@ export type CalendarPageProps = {
   onNavigate: (date: string) => void; onFilters: (filters: CalendarFiltersValue) => void;
   onOpenVisit: (id: string) => void; onSchedule: (request: { visitId?: string; date?: string }) => void;
   queuePagination?: { page: number; total: number; onPage: (page: number) => void };
+  onAvailability?: (personId: string) => void;
   onViewAll?: () => void; onRetry?: () => void;
 };
 /** Controlled composition. The route supplies authorized projections, URL state and live commands. */
-export function CalendarPage({ weekDate, today, timezone, filters, members, viewerId, scope, canSchedule, entries, unscheduled, unscheduledTotal, workload, state = 'ready', notice, peek, schedule, onNavigate, onFilters, onOpenVisit, onSchedule, onViewAll, onRetry, queuePagination }: CalendarPageProps) {
+export function CalendarPage({ weekDate, today, timezone, filters, members, viewerId, scope, canSchedule, entries, unscheduled, unscheduledTotal, workload, state = 'ready', notice, peek, schedule, onNavigate, onFilters, onOpenVisit, onSchedule, onViewAll, onRetry, queuePagination, onAvailability }: CalendarPageProps) {
   const id = useId(), root = useRef<HTMLElement>(null), available = canSchedule && state === 'ready';
   function close(callback: () => void) {
     callback();
@@ -41,7 +42,7 @@ export function CalendarPage({ weekDate, today, timezone, filters, members, view
     <CalendarWeekGrid weekDate={weekDate} today={today} entries={entries} scopeLabel={scope === 'own' ? copy.mine : undefined} state={state} canSchedule={available} onOpenVisit={onOpenVisit} onSchedule={date => onSchedule({ date })} onRetry={onRetry}/>
     <div className="grid min-w-0 items-start gap-6 lg:grid-cols-2">
       <div className="grid min-w-0 gap-4"><CalendarUnscheduledList entries={unscheduled} total={unscheduledTotal} scopeLabel={scope === 'own' ? copy.myQueue : undefined} filtered={filtered} state={state} onOpenVisit={onOpenVisit} onSchedule={available ? visitId => onSchedule({ visitId }) : undefined} onViewAll={onViewAll} onRetry={onRetry}/>{state === 'ready' && queuePagination && queuePagination.total > 10 && <Pagination label={copy.queuePagination} page={queuePagination.page} total={queuePagination.total} pageSize={10} pageSizeOptions={[10]} onPageChange={queuePagination.onPage} onPageSizeChange={() => {}}/>}</div>
-      <CalendarTeamWorkload weekDate={weekDate} visits={workload} members={members} viewerId={viewerId} scope={scope} selectedPerson={filters.person} state={state} disabled={state === 'loading'} onSelect={(person: CalendarPersonFilter) => onFilters({ ...filters, person })} onRetry={onRetry}/>
+      <CalendarTeamWorkload weekDate={weekDate} visits={workload} members={members} viewerId={viewerId} scope={scope} selectedPerson={filters.person} state={state} disabled={state === 'loading'} onAvailability={state === 'ready' ? onAvailability : undefined} onSelect={(person: CalendarPersonFilter) => onFilters({ ...filters, person })} onRetry={onRetry}/>
     </div>
     {peek && <CalendarVisitPeekDrawer {...peek} onClose={() => close(peek.onClose)} onSchedule={available ? visitId => onSchedule({ visitId }) : undefined}/>}
     {schedule && <CalendarScheduleDialog {...schedule} targets={available ? schedule.targets : schedule.targets.map(target => ({ ...target, canReschedule: false }))}

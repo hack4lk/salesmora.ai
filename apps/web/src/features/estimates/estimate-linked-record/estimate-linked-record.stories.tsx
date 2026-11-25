@@ -26,7 +26,9 @@ export const Lead: Story = {
     const c = within(canvasElement);
     await expect(c.getByRole("link", { name: copy.openLabel(copy.open.lead, copy.stories.lead.number) }))
       .toHaveAttribute("href", copy.stories.lead.href);
-    await expect(c.getByText(copy.stories.lead.customer.name)).toBeVisible();
+    const customer = c.getByText(copy.stories.lead.customer.name), label = c.getByText(copy.customer, { exact: true });
+    await expect(customer).toBeVisible();
+    await expect(Math.abs(customer.getBoundingClientRect().top - label.getBoundingClientRect().top)).toBeLessThanOrEqual(1);
     await expect(c.queryByRole("button", { name: copy.chooseJob })).not.toBeInTheDocument();
   },
 };
@@ -44,8 +46,9 @@ export const NoCustomerYet: Story = {
   play: async ({ canvasElement }) => {
     const c = within(canvasElement);
     await expect(c.getByText(copy.noCustomer)).toBeVisible();
-    await expect(c.getByText(copy.stories.lead.contactName)).toBeVisible();
-    await expect(c.getByText(copy.noCustomerHint)).toBeVisible();
+    await expect(c.queryByText("Lead contact", { exact: true })).not.toBeInTheDocument();
+    await expect(c.queryByText(copy.stories.lead.contactName)).not.toBeInTheDocument();
+    await expect(c.queryByText(/Customer linking or creation is handled during conversion/)).not.toBeInTheDocument();
   },
 };
 export const NewEstimate: Story = {

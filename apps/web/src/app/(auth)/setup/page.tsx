@@ -5,12 +5,13 @@ import { database } from '../../../server/workspaces/store';
 import { invitationReturnPath } from '../../../server/invitations/context';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
-import { AccountLayout, SubmitButton } from '@salesmora/ui';
+import { SubmitButton } from '@salesmora/ui';
 import { auth } from '../../../server/auth/auth';
 import { getSession } from '../../../server/auth/session';
 import { findWorkspace } from '../../../server/workspaces/store';
 import { OnboardingRoute } from '../../../features/onboarding/onboarding-flow/onboarding-route';
 import { onboardingFlowData as copy } from '../../../features/onboarding/onboarding-flow/onboarding-flow.data';
+import { ProtectedAccountLayout } from '../../../features/workspace/protected-account-layout/protected-account-layout';
 export const metadata = { title: copy.documentTitle };
 async function signOut() {
   'use server';
@@ -31,9 +32,9 @@ export default async function SetupPage() {
     }
     redirect('/home');
   }
-  return <AccountLayout title={copy.title} description={copy.description}>
+  return <ProtectedAccountLayout title={copy.title} description={copy.description}>
     <p className="mb-6 text-sm text-muted">{copy.signedIn} <span className="font-semibold text-ink">{session.user.email}</span></p>
     <OnboardingRoute teammateLimit={billingEnabled ? getWorkspacePlan(workspacePlanIdSchema.parse(session.user.registrationPlan)).limits.teammates : undefined} ownerEmail={session.user.email} nextHref={billingEnabled && session.user.registrationPlan !== 'free' ? '/setup' : '/home'} />
     <form action={signOut} className="mt-6"><SubmitButton label={copy.signOut} /></form>
-  </AccountLayout>;
+  </ProtectedAccountLayout>;
 }

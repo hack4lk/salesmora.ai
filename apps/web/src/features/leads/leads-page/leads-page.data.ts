@@ -1,7 +1,6 @@
 import { leadsToolbarData } from '../leads-toolbar/leads-toolbar.data';
 export const leadsPageData = {
   title: 'Leads', description: 'Keep new opportunities moving and make sure every enquiry has an owner.',
-  results: (count: number) => `${count.toLocaleString('en-US')} matching ${count === 1 ? 'lead' : 'leads'}`,
   loading: 'Loading leads…', loadError: 'Leads could not be loaded. Your filters have been preserved.', retry: 'Retry',
   management: 'Lead management', move: 'Move to another stage', assign: 'Change owner', assignDescription: 'Review who will own this lead. They will be responsible for its next steps.',
   assignConfirm: 'Assign owner', restore: 'Restore lead?', restoreDescription: 'This lead will return to the default leads list and pipeline when it matches the current filters.', restoreConfirm: 'Restore lead',

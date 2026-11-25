@@ -2,12 +2,13 @@ import { createHash } from 'node:crypto';
 import type { Knex } from 'knex';
 import { calendarQuerySchema, calendarAdvisorySchema, type CalendarQuery, type CalendarVisit, type CalendarResult,
   type CalendarQueryValue, type CalendarExportOutputScopes, type AuthorizationContext, type PermissionId, type AuthorizationResource, type JobStatus, type WorkOrderStatus, type arrivalWindows } from '@salesmora/contracts';
-import { addCalendarDays, calendarWeekStart, authorize, resolveAuthorizedCollectionScope, CalendarRevisionError } from '@salesmora/domain';
+import { addCalendarDays, calendarWeekStart, calendarAvailabilityWarnings, authorize, resolveAuthorizedCollectionScope, CalendarRevisionError } from '@salesmora/domain';
 import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIdentity } from '../authorization/store';
 
 type Row = {
   visitId: string; visitVersion: number; workspaceId: string; id: string; type: 'job' | 'work_order'; number: number; title: string; status: JobStatus | WorkOrderStatus; version: number;
   customerName: string; location: string; scheduledDate: string | null; arrivalWindow: typeof arrivalWindows[number] | null; deadline: string | null;
+  workTime: CalendarVisit["workTime"]; workTimezone: string | null; workStartsAt: Date | null; workEndsAt: Date | null; bookingGapMinutes: number | null;
   primaryId: string | null; people: string[]; jobId: string; jobOwnerId: string | null; jobTeam: string[]; activeCount: number;
 };
 const peopleSQL = (primary: string, table: string, alias: string, foreign: string, row: string) =>
@@ -56,7 +57,7 @@ export function scopedCalendarRecordsQuery(
         [context.userId, jobAllowed, context.userId]);
     }
   }
-  const common = `v.id AS "visitId", v.version AS "visitVersion", v."workspaceId", to_char(v."scheduledDate",'YYYY-MM-DD') AS "scheduledDate", v."arrivalWindow",
+  const common = `v.id AS "visitId", v.version AS "visitVersion", v."workspaceId", to_char(v."scheduledDate",'YYYY-MM-DD') AS "scheduledDate", v."arrivalWindow", v."workTime", v."workTimezone",v."workStartsAt",v."workEndsAt",v."bookingGapMinutes",
     (SELECT count(*)::int FROM "calendarVisitRecords" allr WHERE allr."workspaceId"=v."workspaceId" AND allr."visitId"=v.id AND allr."endedAt" IS NULL) AS "activeCount"`;
   jobs.select(trx.raw(`${common}, j.id, 'job' AS type, j."jobNumber" AS number, j.title, j.status, j.version, j."customerName", j.location,
     to_char(j."completionDeadline",'YYYY-MM-DD') AS deadline, j."primaryOwnerId" AS "primaryId", ${jobPeople} AS people, j.id AS "jobId", j."primaryOwnerId" AS "jobOwnerId", ${jobTeamSQL} AS "jobTeam"`));
@@ -106,6 +107,7 @@ async function project(trx: Knex.Transaction, context: AuthorizationContext, row
     const refs = records.map(r => ({ type: r.type, id: r.id, expectedVersion: r.version }));
     return { id: row.visitId, title: row.title, customerName: row.customerName, location: row.location || null, nextStep: null,
       scheduledDate: row.scheduledDate, arrivalWindow: row.arrivalWindow, timezone: meta.timezone,
+      workTime: row.workTime ?? null, workTimezone: row.workTimezone, workStartsAt: row.workStartsAt?.toISOString() ?? null, workEndsAt: row.workEndsAt?.toISOString() ?? null,
       records: records.map(r => r.type === 'job' ? { type: 'job' as const, id: r.id, number: `J-${String(r.number).padStart(4, '0')}`, title: r.title, status: r.status as JobStatus }
         : { type: 'work_order' as const, id: r.id, number: `WO-${String(r.number).padStart(4, '0')}`, title: r.title, status: r.status as WorkOrderStatus }),
       crew: people.map(id => ({ id, name: name.get(id) ?? 'Former teammate' })),
@@ -115,10 +117,24 @@ async function project(trx: Knex.Transaction, context: AuthorizationContext, row
       review: allowed ? { expectedVisitVersion: row.visitVersion, records: refs } : null };
   });
 }
+/** One shared member visibility constraint for Calendar and availability. */
+export async function calendarMembersQuery(trx: Knex.Transaction, context: AuthorizationContext, personId?: string): Promise<{ id: string; name: string }[]> {
+  const memberScope = calendarScope(context);
+  const scope = scopes(context), wide = memberScope === 'workspace' && [scope.job, scope.work_order].some(s => s.allowed && s.scope === 'workspace');
+    const scopedPeople: { id: string }[] = !wide && memberScope === 'workspace'
+      ? await trx.with('visible',scopedCalendarRecordsQuery(trx,context)).from('visible').select(trx.raw('DISTINCT unnest(people) AS id')) : [];
+  return trx('workspaceMemberships as m').join('users as u', 'u.id', 'm.userId').where('m.workspaceId', context.workspaceId).whereNull('u.deletionRequestedAt').whereNull('u.suspendedAt')
+      .modify(q => { if (!wide) q.whereIn('u.id', memberScope === 'own' ? [context.userId] : [...new Set([context.userId, ...scopedPeople.map(p => p.id)])]); })
+      .modify(q => { if (personId) q.where('u.id', personId); }).select('u.id', 'u.name').orderBy('u.name').orderBy('u.id');
+}
 export async function readCalendar(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], raw: CalendarQuery): Promise<CalendarResult> {
   const input = calendarQuerySchema.parse(raw);
   if (input.workspaceId !== identity.workspaceId) throw new AuthorizationAccessError();
   return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
+    return readCalendarInTransaction(trx, context, input);
+  });
+}
+async function readCalendarInTransaction(trx: Knex.Transaction, context: AuthorizationContext, input: CalendarQueryValue): Promise<CalendarResult> {
     const meta = await metadata(trx, context), weekDate = calendarWeekStart(input.date ?? meta.today);
     const query = { ...input, date: weekDate, person: meta.scope === 'own' ? 'me' : input.person };
     const base = () => trx.with('visible', scopedCalendarRecordsQuery(trx, context,{ from:weekDate,to:addCalendarDays(weekDate,6) }));
@@ -130,12 +146,7 @@ export async function readCalendar(db: Knex, identity: WorkspaceIdentity, enable
       .orderByRaw("min(deadline) ASC NULLS LAST, min(CASE WHEN type='job' THEN '0:' ELSE '1:' END || lpad(number::text,12,'0')) ASC").orderBy('visitId').limit(10).offset((query.queuePage - 1) * 10);
     const rows: Row[] = await base().from('visible').select('*').where(q => q.whereBetween('scheduledDate', [weekDate, addCalendarDays(weekDate, 6)]).whereIn('visitId', matching()).orWhereIn('visitId', queue));
     const visits = await project(trx, context, rows, meta);
-    const scope = scopes(context), wide = meta.scope === 'workspace' && [scope.job, scope.work_order].some(s => s.allowed && s.scope === 'workspace');
-    const scopedPeople: { id: string }[] = !wide && meta.scope === 'workspace'
-      ? await trx.with('visible',scopedCalendarRecordsQuery(trx,context)).from('visible').select(trx.raw('DISTINCT unnest(people) AS id')) : [];
-    const members = await trx('workspaceMemberships as m').join('users as u', 'u.id', 'm.userId').where('m.workspaceId', context.workspaceId).whereNull('u.deletionRequestedAt')
-      .modify(q => { if (!wide) q.whereIn('u.id', meta.scope === 'own' ? [context.userId] : [...new Set([context.userId, ...scopedPeople.map(p => p.id)])]); })
-      .select('u.id', 'u.name').orderBy('u.name').orderBy('u.id');
+    const members = await calendarMembersQuery(trx, context);
     const entries = visits.filter((v): v is CalendarVisit & { scheduledDate: string } => v.scheduledDate !== null);
     const unscheduled = visits.filter(v => v.scheduledDate === null).sort((a, b) => (a.completionDeadline?.date ?? '9999').localeCompare(b.completionDeadline?.date ?? '9999') || a.records[0].number.localeCompare(b.records[0].number, 'en', { numeric: true }) || a.id.localeCompare(b.id));
     // Launcher availability only; each selected visit has its own complete-record capability check.
@@ -143,7 +154,6 @@ export async function readCalendar(db: Knex, identity: WorkspaceIdentity, enable
     const canPlan = authorize(context, { permission: 'jobs.schedule.update', resource: ownJob }).allowed || authorize(context, { permission: 'workorders.schedule.update', resource: { kind: 'work_order', id: context.workspaceId, workspaceId: context.workspaceId, primaryAssigneeId: context.userId, assigneeIds: [context.userId], job: ownJob } }).allowed;
     return { query, weekDate, today: meta.today, timezone: meta.timezone, scope: meta.scope, viewerId: context.userId, members,
       canSchedule: canPlan, entries, unscheduled, unscheduledTotal, queuePages };
-  });
 }
 /** Bounded Home projection: count explicit authorized visit identities, then project only five. */
 export async function readHomeScheduleInTransaction(trx: Knex.Transaction, context: AuthorizationContext, today: string) {
@@ -174,17 +184,40 @@ export async function readCalendarVisitInTransaction(trx: Knex.Transaction, cont
 export async function readCalendarAdvisories(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], raw: unknown) {
   const input = calendarAdvisorySchema.parse(raw);
   if (input.workspaceId !== identity.workspaceId) throw new AuthorizationAccessError();
-  return withWorkspaceAuthorization(db, identity, enabled, false, async trx => {
-    const target = await readCalendarVisit(trx, identity, enabled, input.visitId);
+  return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
+    const target = await readCalendarVisitInTransaction(trx, context, input.visitId);
     if (!target.canReschedule) throw new AuthorizationAccessError();
     if (target.revision !== input.revision) throw new CalendarRevisionError();
     if (!input.schedule.scheduledDate) return { messages: [] as string[] };
-    const result = await readCalendar(trx, identity, enabled, { workspaceId: identity.workspaceId, date: input.schedule.scheduledDate });
+    const result = await readCalendarInTransaction(trx, context, calendarQuerySchema.parse({ workspaceId: identity.workspaceId, date: input.schedule.scheduledDate }));
     const others = result.entries.filter(v => v.id !== target.id && v.scheduledDate === input.schedule.scheduledDate);
     const messages: string[] = [];
+    const workTime = input.schedule.workTime === undefined ? target.workTime : input.schedule.workTime;
+    let planned: { start: Date; finish: Date } | undefined;
+    if (workTime) {
+      const zone = JSON.stringify(workTime) === JSON.stringify(target.workTime) ? target.workTimezone ?? target.timezone : target.timezone;
+      const { rows: [interval] } = await trx.raw(`SELECT calendar_local_work_at(?::date + ?::time,?) AS start,
+        calendar_local_work_at(?::date + ?::time + make_interval(mins => ?::int),?) AS finish`,
+      [input.schedule.scheduledDate,workTime.startTime,zone,input.schedule.scheduledDate,workTime.startTime,workTime.durationMinutes,zone]);
+      if (!interval.start || !interval.finish || interval.finish.getTime() - interval.start.getTime() !== workTime.durationMinutes * 60000)
+        messages.push('Choose planned work times outside a daylight-saving clock change.');
+      else planned = interval;
+    }
     const span = (window: string) => window.split('-').map(t => Number(t.slice(0, 2)) * 60 + Number(t.slice(3)));
+    // One indexed batch for the already-authorized people, independent of visible card limits.
+    const availabilityRows = await trx('calendarPersonAvailability as a')
+      .join('workspaceMemberships as m', q => q.on('m.workspaceId', 'a.workspaceId').andOn('m.userId', 'a.personId'))
+      .join('users as u', 'u.id', 'a.personId').where('a.workspaceId', identity.workspaceId).whereIn('a.personId', target.crew.map(person => person.id))
+      .whereNull('u.deletionRequestedAt').whereNull('u.suspendedAt').select('a.personId', 'a.availability', 'a.timezone');
+    const availability = new Map(availabilityRows.map(row => [row.personId, row]));
     for (const person of target.crew) {
+      const rules = availability.get(person.id);
+      messages.push(...calendarAvailabilityWarnings({ personName: person.name, availability: rules?.availability ?? null,
+        timezone: rules?.timezone ?? target.timezone, scheduleTimezone: target.timezone, scheduledDate: input.schedule.scheduledDate, planned }));
       const work = others.filter(v => v.crew.some(p => p.id === person.id));
+      if (planned && work.some(v => v.workStartsAt && v.workEndsAt && planned!.start.getTime() < Date.parse(v.workEndsAt) && Date.parse(v.workStartsAt) < planned!.finish.getTime()))
+        messages.push(`${person.name} has overlapping planned work in the schedule you can access.`);
+      if (workTime && work.some(v => !v.workTime)) messages.push(`${person.name} has visits without recorded work time; availability is not fully checked.`);
       if (work.length + 1 >= 4) messages.push(`${person.name} would have ${work.length + 1} visits on this date in the schedule you can access.`);
       if (input.schedule.arrivalWindow && work.some(v => { if (!v.arrivalWindow) return false;
         const [a, b] = span(input.schedule.arrivalWindow!), [c, d] = span(v.arrivalWindow); return a < d && c < b; })) {

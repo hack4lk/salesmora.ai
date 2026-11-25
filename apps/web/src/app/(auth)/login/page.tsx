@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getSession } from '../../../server/auth/session';
 import { LoginRoute } from '../../../features/auth/login-screen/login-route';
 import { loginScreenData } from '../../../features/auth/login-screen/login-screen.data';
+import { PublicAuthPage } from '../../../features/public-site/public-auth-page/public-auth-page';
 
 export const metadata = { title: loginScreenData.documentTitle };
 
@@ -16,5 +17,5 @@ export default async function LoginPage({
   const params = await searchParams;
   const returnTo = params.returnTo && workspaceExportReturnPath.test(params.returnTo) ? params.returnTo : undefined;
   if (await getSession()) redirect(await invitationReturnPath() ?? returnTo ?? '/setup');
-  return <LoginRoute accountDeletionRequested={params.accountDeletion === 'requested'} returnTo={returnTo} />;
+  return <PublicAuthPage><LoginRoute accountDeletionRequested={params.accountDeletion === 'requested'} returnTo={returnTo} /></PublicAuthPage>;
 }

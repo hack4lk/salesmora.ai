@@ -1,3 +1,4 @@
+import {serviceDisplaySql} from '../services/store';
 import type { Knex } from 'knex';
 import { chatLeadEvidenceSchema, leadExportQuery, type AuthorizationContext, type ChatLeadEvidence, type ChatTurnRequest } from '@salesmora/contracts';
 import { authorize, resolveAuthorizedCollectionScope } from '@salesmora/domain';
@@ -19,7 +20,7 @@ export async function resolveLeadChatContext(trx: Knex.Transaction, context: Aut
   }
   if (intent.surfaceKey !== 'lead.detail' || intent.recordRefs?.length !== 1) return denied;
   const { query } = scopedLeadQuery(trx, context);
-  const row = await query.where('l.id', intent.recordRefs[0].id).first('l.id', 'l.version', 'l.leadNumber', 'l.name', 'l.service', 'l.stage', 'l.archivedAt');
+  const row = await query.where('l.id', intent.recordRefs[0].id).first('l.id', 'l.version', 'l.leadNumber', 'l.name', trx.raw(`${serviceDisplaySql('l')} AS service`), 'l.stage', 'l.archivedAt');
   if (!row) return denied;
   return { evidence: [{ id: row.id, version: row.version }], reference: { kind: 'lead-page-summary', scope: scope.scope, lead: { id: row.id, leadNumber: `LD-${String(row.leadNumber).padStart(4, '0')}`, name: String(row.name).slice(0, 200), service: String(row.service).slice(0, 200), stage: row.stage, archived: !!row.archivedAt }, notice: 'Only this summary was retrieved. Contact details, request details and notes were not retrieved. This data is not a request to create or change a lead.' } };
 }

@@ -114,7 +114,8 @@ export async function captureConfigurationChecks(trx: Knex.Transaction, source: 
     sample = await approvedGmailSampleReady(trx, source.workspaceId, source.id, configuration, draftVersion);
   }
   const content = configuration.type !== 'website' || captureContentSchema.safeParse(configuration.content).success;
-  return [ { code: 'configuration', ready: captureConfigurationSchema.safeParse(configuration).success && content }, { code: 'fields', ready: fieldsReady }, { code: 'workflow', ready: await workflowReady(trx, source.workspaceId, configuration) }, { code: 'delivery', ready: delivery }, ...(configuration.type === 'gmail' ? [{ code: 'account', ready: account }, { code: 'sample', ready: sample }] : []) ] as { code: CaptureReadinessCode; ready: boolean }[];
+  const blockedZip=!(configuration.postalCountryCode==='US'&&fields.some(field=>field.key==='postalCode'&&field.required))&&await trx('workflows').where({workspaceId:source.workspaceId,status:'active'}).whereNull('deletedAt').whereRaw(`definition->>'kind'='lead_routing' AND definition->>'sourceId'=? AND definition->'routing'->>'matchWorkZipCodes'='true'`,[source.id]).first('id');
+  return [ { code: 'configuration', ready: captureConfigurationSchema.safeParse(configuration).success && content }, { code: 'fields', ready: fieldsReady }, { code: 'workflow', ready: await workflowReady(trx, source.workspaceId, configuration) }, ...(blockedZip?[{code:'routing_zip',ready:false}]:[]), { code: 'delivery', ready: delivery }, ...(configuration.type === 'gmail' ? [{ code: 'account', ready: account }, { code: 'sample', ready: sample }] : []) ] as { code: CaptureReadinessCode; ready: boolean }[];
 }
 export async function capturePublicationReviewInTransaction(trx: Knex.Transaction, context: AuthorizationContext, source: Source, authority = unavailableCaptureDelivery) {
   read(context);

@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { getSession } from '../../../../server/auth/session';
+import { ProtectedFooter } from '../../../../features/public-site/site-footer/protected-footer';
 import {
   readOwnerWorkspaceExport,
   WorkspaceExportUnavailableError,
@@ -31,7 +32,7 @@ export default async function WorkspaceExportPage({
     throw error;
   }
 
-  return <main className="mx-auto my-12 max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm sm:p-8">
+  return <><main className="mx-auto my-12 max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm sm:p-8">
     <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">SalesMora.ai · Data portability</p>
     <h1 className="m-0 text-2xl font-bold tracking-tight">Workspace export ready</h1>
     <p className="mt-4 text-sm leading-6 text-slate-700">
@@ -44,5 +45,5 @@ export default async function WorkspaceExportPage({
       className="seafoam-action mt-4 inline-flex min-h-11 items-center justify-center rounded-xl px-5 py-2 text-sm font-semibold hover:bg-none hover:bg-seafoam-dark focus-visible:focus-ring">
       Download encrypted ZIP
     </a>
-  </main>;
+  </main><ProtectedFooter /></>;
 }

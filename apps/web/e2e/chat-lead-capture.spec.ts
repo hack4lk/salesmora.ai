@@ -129,25 +129,27 @@ test('mobile wizard applies an exact reviewed suggestion without saving; normal 
     const current = await db('captureSources').where({ id: sourceId }).first(), before = await db('captureSourceDrafts').where({ id: current.draftId }).first();
     const { initialCaptureSetupConfiguration } = await import('@salesmora/contracts');
     const config = initialCaptureSetupConfiguration('website', { businessName: 'Fictional', businessEmail: '', businessPhone: '' });
-    const input = { ...setupInput, operation: 'suggest_website_fields', fields: config.fields!.map(field => field.key === 'details' ? { ...field, label: 'Describe the repair' } : field), contactRequired: true };
+    const input = { ...setupInput, operation: 'suggest_website_fields', fields: config.fields!.map(field => field.key === 'details' ? { ...field, label: 'Tell us about your roofing work' } : field), contactRequired: true };
     await page.goto(`/lead-capture/${sourceId}/setup?workspace=${workspaceId}&step=intake&panel=brief`);
-    await page.getByRole('textbox', { name: 'What work do you want more of?' }).fill('Repair requests for taps.');
+    await page.getByRole('textbox', { name: 'What work do you want more of?' }).fill('These are leads to get more roofing work.');
     await page.getByRole('button', { name: 'Suggest fields', exact: true }).click();
-    const composer = page.getByRole('textbox', { name: 'Ask the SalesMora assistant' }); await expect(composer).toBeVisible();
+    const composer = page.getByRole('textbox', { name: 'Ask the SalesMora assistant' }); await expect(composer).toHaveValue('Suggest website fields for my current brief. Prepare a review to apply to this unsaved draft.');
     await composer.fill(`fixture:capture-setup:${JSON.stringify(input)}`); await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
     const log = page.getByRole('log', { name: 'Conversation with the SalesMora assistant' });
     await log.getByRole('button', { name: 'Review proposed change' }).last().click({ timeout: 60000 });
+    const suggestionTurn = await db('chatTurns').where({ workspaceId }).whereRaw("\"pageContext\"->'captureSetup'->'configuration'->>'brief' = ?", ['These are leads to get more roofing work.']).orderBy('createdAt', 'desc').first();
+    expect(suggestionTurn).toBeTruthy();
     await log.getByRole('button', { name: 'Apply suggested fields' }).click();
     await expect(log.getByText('Suggestions applied to the unsaved setup. Save separately to keep them.')).toBeVisible({ timeout: 60000 });
     expect((await db('captureSourceDrafts').where({ id: before.id }).first()).version).toBe(before.version);
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Form fields', exact: true }).click();
-    await expect(page.locator('input[value="Describe the repair"]')).toBeVisible();
+    await expect(page.locator('input[value="Tell us about your roofing work"]')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
     await page.screenshot({ path: fileURLToPath(new URL('../../../.local/releases/capture-assistant-read-20261102/confirmed-setup-320.png', import.meta.url)), fullPage: false });
     await page.getByRole('button', { name: 'Save draft', exact: true }).click();
     await expect.poll(async () => (await db('captureSourceDrafts').where({ id: before.id }).first()).version, { timeout: 60000 }).toBe(before.version + 1);
-    expect((await db('captureSourceDrafts').where({ id: before.id }).first()).configuration.fields.some((field: { label: string }) => field.label === 'Describe the repair')).toBe(true);
+    expect((await db('captureSourceDrafts').where({ id: before.id }).first()).configuration.fields.some((field: { label: string }) => field.label === 'Tell us about your roofing work')).toBe(true);
   } finally { await context.close(); }
 });
 

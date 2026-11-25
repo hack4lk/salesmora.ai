@@ -1,4 +1,5 @@
 export const leadContactCardData = {
+  edit: 'Edit',
   title: 'Contact details', name: 'Name', owner: 'Lead owner', email: 'Email', phone: 'Phone',
   missing: 'Not provided', unassigned: 'Unassigned', former: 'Former member', assignedMe: 'Assigned to you',
   stories: { title: 'Lead contact card', description: 'Read-only contact details for the lead record. Email and phone links open the user’s chosen mail or calling app.',

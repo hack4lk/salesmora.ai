@@ -66,28 +66,31 @@ for (const width of [1440, 320]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await expect(page.locator('fieldset').first()).toHaveCSS('border-width', '1px');
     await expect(page.locator('input[name=password]')).toHaveAttribute('autocomplete', 'new-password');
-    await expect(page.getByRole('link', { name: screen.signIn })).toHaveAttribute('href', screen.loginHref);
+    await expect(page.getByRole('main').getByRole('link', { name: screen.signIn })).toHaveAttribute('href', screen.loginHref);
     const logo = page.locator('header img');
     await expect(logo).toHaveAttribute('src', '/branding/salesmora-logo.svg');
     expect(await logo.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
   });
 }
 
-test('supports skip-link focus and local document previews without accepting terms', async ({ page }) => {
+test('supports skip-link focus and draft document links without accepting terms', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/register');
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('link', { name: 'Skip to account content' })).toBeFocused();
+  await expect(page.getByRole('link', { name: 'Skip to content' })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('main')).toBeFocused();
-  await page.getByRole('link', { name: 'Terms of Service', exact: true }).click();
-  await expect(page).toHaveURL(/#terms-preview$/);
-  await page.locator('#terms-preview summary').click();
-  await expect(page.locator('#terms-preview p')).toBeVisible();
-  await page.getByRole('link', { name: 'Privacy Policy', exact: true }).click();
-  await expect(page).toHaveURL(/#privacy-preview$/);
-  await page.locator('#privacy-preview summary').click();
-  await expect(page.locator('#privacy-preview p')).toBeVisible();
+  await expect(page.getByText(screen.legal.notice)).toBeVisible();
+  for (const [name, path] of [['Terms of Service', '/terms'], ['Privacy Policy', '/privacy']]) {
+    const link = page.getByRole('link', { name: `${name} (opens in a new tab)` });
+    await expect(link).toHaveAttribute('href', path);
+    const opened = page.waitForEvent('popup');
+    await link.click();
+    const document = await opened;
+    await expect(document).toHaveURL(new RegExp(`${path}$`));
+    await expect(document.getByText(/Draft for legal.*review — not effective/)).toBeVisible();
+    await document.close();
+  }
   await expect(page.getByRole('checkbox')).not.toBeChecked();
 });
 

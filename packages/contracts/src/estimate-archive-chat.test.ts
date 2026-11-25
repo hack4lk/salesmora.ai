@@ -63,11 +63,11 @@ describe("Estimate assistant Archive/Restore foundation contracts", () => {
       }
     }
   });
-  it.each(["draft", "sent", "published", "accepted"])("rejects Archive source status %s", status => {
+  it.each(["draft", "sent", "published"])("rejects Archive source status %s", status => {
     const { ticket } = fixture();
     expect(estimateArchiveChatTicketSchema.safeParse({ ...ticket, estimate: { ...ticket.estimate, status } }).success).toBe(false);
   });
-  it.each(["declined", "expired", "superseded", "void"])("accepts only unarchived %s for Archive", status => {
+  it.each(["accepted", "declined", "expired", "superseded", "void"])("accepts only unarchived %s for Archive", status => {
     const { ticket } = fixture();
     expect(estimateArchiveChatTicketSchema.safeParse({ ...ticket, estimate: { ...ticket.estimate, status } }).success).toBe(true);
     expect(estimateArchiveChatTicketSchema.safeParse({ ...ticket, estimate: { ...ticket.estimate, status, archived: true } }).success).toBe(false);

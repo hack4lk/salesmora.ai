@@ -30,13 +30,13 @@ test.beforeAll(async () => {
   await db('workspaces').where({ id: workspaceId }).update({ timezone: 'America/New_York' });
   customerId = randomUUID();
   await db('customers').insert({ id: customerId, workspaceId, name: 'Calendar Customer', type: 'person', companyName: '', email: 'PRIVATE_CONTACT@example.test', phone: '', location: '', internalNotes: 'PRIVATE_CUSTOMER' });
-  ownJob = (await createJob(db, identity(), permissionIds, { workspaceId, submissionId: randomUUID(), customerId, title: 'Visible shared Calendar visit', primaryOwnerId: users.field, description: 'PRIVATE_JOB' })).jobId;
-  hiddenJob = (await createJob(db, identity(), permissionIds, { workspaceId, submissionId: randomUUID(), customerId, title: 'PRIVATE_OTHER_VISIT', primaryOwnerId: users.owner })).jobId;
+  ownJob = (await createJob(db, identity(), permissionIds, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: 'Visible shared Calendar visit', primaryOwnerId: users.field, description: 'PRIVATE_JOB' })).jobId;
+  hiddenJob = (await createJob(db, identity(), permissionIds, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: 'PRIVATE_OTHER_VISIT', primaryOwnerId: users.owner })).jobId;
   for (const jobId of [ownJob, hiddenJob]) await mutateJob(db, identity(), permissionIds, { workspaceId, jobId, expectedVersion: 1, submissionId: randomUUID(), action: 'schedule', scheduledDate: '2026-10-20', arrivalWindow: '09:00-11:00' });
   const preview = await readWorkOrderCreationVisit(db, identity(), permissionIds, ownJob); if (!preview) throw Error('Missing visit');
   const order = await createWorkOrder(db, identity(), permissionIds, { workspaceId, jobId: ownJob, submissionId: randomUUID(), title: 'Visible shared Work Order', assigneeId: users.field, visit: { kind: 'job', visitId: preview.id, revision: preview.revision } });
   await mutateWorkOrder(db, identity(), permissionIds, { workspaceId, workOrderId: order.workOrderId, expectedVersion: order.version, submissionId: randomUUID(), action: 'status', to: 'issued', confirmed: true });
-  await createJob(db, identity(), permissionIds, { workspaceId, submissionId: randomUUID(), customerId, title: 'Visible unscheduled Calendar visit', primaryOwnerId: users.field });
+  await createJob(db, identity(), permissionIds, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: 'Visible unscheduled Calendar visit', primaryOwnerId: users.field });
 });
 // Independent journeys should not consume each other's ten-turn/minute allowance.
 // This only ages completed fixtures in this suite's isolated local workspace.
@@ -128,7 +128,7 @@ for (const operation of ['schedule','availability'] as const) test(`permission r
 test('Calendar reads cap rows while retaining authorized visit totals', async () => {
   const ids: string[] = [];
   try {
-    for (let i = 0; i < 27; i++) ids.push((await createJob(db, identity(), permissionIds, { workspaceId, customerId, submissionId: randomUUID(), title: `Bounded visit ${i}`, primaryOwnerId: users.owner, scheduledDate: '2026-10-21' })).jobId);
+    for (let i = 0; i < 27; i++) ids.push((await createJob(db, identity(), permissionIds, {postalCode:'10001', workspaceId, customerId, submissionId: randomUUID(), title: `Bounded visit ${i}`, primaryOwnerId: users.owner, scheduledDate: '2026-10-21' })).jobId);
     const events = await turn(); const card = events.find(e => e.type === 'calendar.result'); if (card?.type !== 'calendar.result' || card.result.mode === 'availability') throw Error(JSON.stringify(events));
     expect(card.result.total).toBe(29); expect(card.result.visits).toHaveLength(25);
     expect(JSON.stringify(card).length).toBeLessThan(64000);

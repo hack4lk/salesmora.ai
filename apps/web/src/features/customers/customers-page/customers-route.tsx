@@ -506,7 +506,7 @@ function CustomersContent({
               <h1 className="m-0 text-heading font-semibold text-ink">
                 {c.title}
               </h1>
-              <p className="mb-0 mt-3 max-w-reading text-base leading-6 text-muted">
+              <p className="mb-0 mt-3 text-base leading-6 text-muted">
                 {c.description}
               </p>
             </div>
@@ -550,6 +550,7 @@ function CustomersContent({
             <>
               <CustomersMetrics
                 totals={list.totals}
+                jobsAvailable={list.totals.withActiveJobs !== undefined}
                 state={
                   state === "ready"
                     ? "ready"
@@ -562,7 +563,6 @@ function CustomersContent({
               <CustomersToolbar
                 value={filters}
                 members={list.members}
-                count={list.total}
                 canArchive={caps.archive}
                 disabled={state !== "ready"}
                 onChange={setFilters}

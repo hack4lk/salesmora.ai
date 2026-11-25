@@ -25,7 +25,7 @@ export const captureFormFieldEditorData = {
     duplicateOption: 'Choice labels must be distinct, ignoring capitalization and surrounding spaces.',
     optionIdentity: 'Each choice needs a unique identity. Reload the draft before continuing.',
   },
-  standards: { name: 'Name', email: 'Email', phone: 'Phone', service: 'Service requested', details: 'Project details', address: 'Service address' },
+  standards: { name: 'Name', email: 'Email', phone: 'Phone', service: 'Service requested', details: 'Project details', address: 'Service address', postalCode:'ZIP code (United States)' },
   types: { short_text: 'Short text', long_text: 'Long text', dropdown: 'Dropdown', checkboxes: 'Checkboxes', date: 'Date', email: 'Email', phone: 'Phone', address: 'Address' },
   newField: (type: string) => `New ${type.toLowerCase()} field`,
   stories: { title: 'Form field editor', description: 'Field settings update local draft state only. Nothing is saved or published.', customLabel: 'Preferred appointment date', optionA: 'Morning', optionB: 'Afternoon', duplicate: ' morning ', longLabel: 'Preferred service details and customer contact information', },

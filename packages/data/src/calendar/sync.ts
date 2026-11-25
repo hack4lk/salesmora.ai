@@ -1,10 +1,15 @@
 import { randomUUID } from "node:crypto";
+import type { CalendarSchedule } from "@salesmora/contracts";
 import type { Knex } from "knex";
 
 export type CalendarRecordType = "job" | "work_order";
 export class CalendarSharedReviewRequiredError extends Error {
   constructor() { super("This record shares a visit. Review the entire visit before changing its schedule."); }
 }
+export function calendarVisitScheduleValues(schedule: CalendarSchedule) {
+  return { scheduledDate: schedule.scheduledDate, arrivalWindow: schedule.arrivalWindow, ...(schedule.workTime === undefined ? {} : { workTime: schedule.workTime === null ? null : JSON.stringify(schedule.workTime) }) };
+}
+
 export const calendarRecordColumn = (type: CalendarRecordType) => type === "job" ? "jobId" : "workOrderId";
 export const calendarRecordTable = (type: CalendarRecordType) => type === "job" ? "jobs" : "workOrders";
 
@@ -48,8 +53,10 @@ export async function assertIndependentCalendarSchedule(trx: Knex.Transaction, w
 }
 export async function snapshotCalendarRecord(trx: Knex.Transaction, workspaceId: string, visitId: string, type: CalendarRecordType,
   row: { id: string; version: number; status: string; scheduledDate: string | null; arrivalWindow: string | null }, reason: string) {
-  await trx("calendarScheduleSnapshots").insert({ id: randomUUID(), workspaceId, visitId, [calendarRecordColumn(type)]: row.id,
-    recordVersion: row.version, recordStatus: row.status, scheduledDate: row.scheduledDate, arrivalWindow: row.arrivalWindow, reason });
+  await trx.raw(`INSERT INTO "calendarScheduleSnapshots" (id,"workspaceId","visitId",??,"recordVersion","recordStatus","scheduledDate","arrivalWindow",reason,"workTime","workTimezone","workStartsAt","workEndsAt","bookingGapMinutes")
+    SELECT ?::uuid,?::uuid,?::uuid,?::uuid,?::int,?::text,?::date,?::text,?::text,v."workTime",v."workTimezone",v."workStartsAt",v."workEndsAt",v."bookingGapMinutes"
+    FROM "calendarVisits" v WHERE v."workspaceId" = ? AND v.id = ?`,
+  [calendarRecordColumn(type),randomUUID(),workspaceId,visitId,row.id,row.version,row.status,row.scheduledDate,row.arrivalWindow,reason,workspaceId,visitId]);
 }
 export async function removeEmptyCalendarVisits(trx: Knex.Transaction, workspaceId: string) {
   await trx("calendarVisits as v").where("v.workspaceId", workspaceId).whereNotExists(

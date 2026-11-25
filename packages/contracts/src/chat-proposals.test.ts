@@ -43,9 +43,9 @@ describe('Canonical proposal contracts', () => {
     };
     expect(chatProposalSchema.parse({ ...row, state: 'confirmed', payload: receipt }).inputHash).toBe(hash);
   });
-  it('defines all fifteen directional families without a universal pending-thread policy', () => {
+  it('defines all sixteen directional families without a universal pending-thread policy', () => {
     expect(Object.keys(proposalSupersession)).toEqual(expect.arrayContaining([...chatProposalFamilies]));
-    expect(Object.keys(proposalSupersession)).toHaveLength(15);
+    expect(Object.keys(proposalSupersession)).toHaveLength(16);
     expect(proposalSupersession.action).toEqual(['action']);
     expect(proposalSupersession.customer).toEqual(['customer', 'action']);
     for (const family of ['workOrder', 'material'] as const)

@@ -1,4 +1,5 @@
 'use client';
+import {WorkspaceServiceField} from '../../services/service-picker/workspace-service-field';
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -41,7 +42,7 @@ function CreateLeadContent({ workspaceId, owners }: CreateLeadRouteProps) {
     } catch (error) { return { ok: false as const, message: error instanceof ApiRequestError ? error.message : createLeadFormData.errors.submission }; }
   }
   return <div className="grid gap-6">
-    <CreateLeadForm key={version} owners={owners} onSubmit={submit} onCancel={() => router.push(homeHref)} successMessage={copy.success} />
+    <CreateLeadForm serviceControl={props=><WorkspaceServiceField {...props} workspaceId={workspaceId} required/>} key={version} owners={owners} onSubmit={submit} onCancel={() => router.push(homeHref)} successMessage={copy.success} />
     {refreshError && <p role="alert" className="text-sm text-muted">{copy.savedReload}</p>}
     {saved && <div className="flex flex-wrap gap-6">
       <Link href={homeHref} className="rounded-xl text-primary underline focus-visible:focus-ring">{copy.back}</Link>

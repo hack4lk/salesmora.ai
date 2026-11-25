@@ -39,7 +39,6 @@ export const estimateItemsEditorData = {
   subtotal: "Items subtotal",
   unavailable: "Complete or correct the line items to calculate the subtotal.",
   subtotalHint: "Before discount and tax.",
-  limits: "Maximum $1,000,000 per unit and $10,000,000 per line and subtotal.",
   subtotalLimit: "The items subtotal exceeds $10,000,000. Reduce quantities or prices.",
   tooMany: "An estimate can contain at most 100 line items. Remove the extra lines.",
   added: (position: number) => `Line item ${position} added. Enter its description and price.`,

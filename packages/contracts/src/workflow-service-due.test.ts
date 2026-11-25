@@ -1,0 +1,9 @@
+import {it,expect} from 'vitest';
+import {workflowPrepareSchema} from './workflows';
+import {serviceDueCommandSchema,serviceEmailTextSchema,serviceDueFilterSchema} from './workflow-service-due';
+const request={kind:'service_due',name:'Repeat maintenance',service:'Maintenance',serviceDueRules:{intervalMonths:6,includeExisting:false},recipient:'me',businessDays:null,localTime:'08:00'};
+it('supports explicit calendar intervals and reminder times with both internal channels on',()=>{expect(workflowPrepareSchema.parse(request)).toMatchObject({notifications:{inApp:true,email:true}});for(const patch of [{businessDays:2},{serviceDueRules:{intervalMonths:5,includeExisting:false}},{serviceDueRules:null},{localTime:'25:00'}])expect(workflowPrepareSchema.safeParse({...request,...patch}).success).toBe(false);});
+it('blocks email headers, unsupported writes and empty review selections',()=>{expect(serviceEmailTextSchema.safeParse({subject:'Hi\nBcc: other@example.test',body:'Hello'}).success).toBe(false);expect(serviceDueCommandSchema.safeParse({action:'send',reviewId:crypto.randomUUID(),revision:'1',automatic:true}).success).toBe(false);expect(serviceDueCommandSchema.safeParse({action:'prepare',cycles:[],templateId:crypto.randomUUID(),templateVersion:1}).success).toBe(false);});
+it('allows drafting from blank wording while requiring saved email text',()=>{expect(serviceDueCommandSchema.safeParse({action:'generate',serviceId:crypto.randomUUID(),templateVersion:1,request:'Draft a reminder',current:{subject:'',body:''}}).success).toBe(true);expect(serviceEmailTextSchema.safeParse({subject:'',body:''}).success).toBe(false);});
+
+it('accepts only active and contacted reminder filters',()=>{expect(serviceDueFilterSchema.parse('active')).toBe('active');expect(serviceDueFilterSchema.parse('contacted')).toBe('contacted');expect(serviceDueFilterSchema.safeParse('all').success).toBe(false);});

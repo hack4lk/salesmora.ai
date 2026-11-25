@@ -9,6 +9,7 @@ export interface TermsAcceptanceProps {
   onChange: (checked: boolean) => void;
   termsHref: string;
   privacyHref: string;
+  openDocumentsInNewTab?: boolean;
   id?: string;
   name?: string;
   disabled?: boolean;
@@ -20,7 +21,7 @@ export interface TermsAcceptanceProps {
 
 /** The form owns acceptance state, validation, and the legal document URLs. */
 export function TermsAcceptance({
-  checked, onChange, termsHref, privacyHref, id, name = 'terms', disabled = false,
+  checked, onChange, termsHref, privacyHref, openDocumentsInNewTab = false, id, name = 'terms', disabled = false,
   error = false, helperText, onTermsClick, onPrivacyClick,
 }: TermsAcceptanceProps) {
   const generatedId = useId();
@@ -47,9 +48,9 @@ export function TermsAcceptance({
         />
         <label htmlFor={inputId} className={`min-w-0 flex-1 py-2.5 text-sm leading-6 wrap-anywhere ${disabled ? 'text-muted' : 'text-ink'}`}>
           {copy.agreement}{' '}
-          <a href={termsHref} onClick={onTermsClick} className="text-primary underline underline-offset-2 hover:text-primary-dark focus-visible:focus-ring">{copy.terms}</a>{' '}
+          <a href={termsHref} onClick={onTermsClick} target={openDocumentsInNewTab ? '_blank' : undefined} rel={openDocumentsInNewTab ? 'noopener noreferrer' : undefined} className="text-primary underline underline-offset-2 hover:text-primary-dark focus-visible:focus-ring">{copy.terms}{openDocumentsInNewTab && <span className="sr-only"> {copy.newTab}</span>}</a>{' '}
           {copy.conjunction}{' '}
-          <a href={privacyHref} onClick={onPrivacyClick} className="text-primary underline underline-offset-2 hover:text-primary-dark focus-visible:focus-ring">{copy.privacy}</a>
+          <a href={privacyHref} onClick={onPrivacyClick} target={openDocumentsInNewTab ? '_blank' : undefined} rel={openDocumentsInNewTab ? 'noopener noreferrer' : undefined} className="text-primary underline underline-offset-2 hover:text-primary-dark focus-visible:focus-ring">{copy.privacy}{openDocumentsInNewTab && <span className="sr-only"> {copy.newTab}</span>}</a>
           {copy.punctuation}
         </label>
       </div>

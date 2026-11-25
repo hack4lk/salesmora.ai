@@ -14,8 +14,9 @@ export function jobNotificationQuery(trx: Knex.Transaction, context: Authorizati
     .where(q => q.whereExists(readableNotificationJobs(trx, context).select(trx.raw('1')).whereRaw('j.id=n."jobId"'))
       .orWhere({ 'n.event': 'assignment', 'n.assignmentChange': 'removed' }));
 }
-export async function readJobNotifications(trx: Knex.Transaction, context: AuthorizationContext, take: number) {
+export async function readJobNotifications(trx: Knex.Transaction, context: AuthorizationContext, take: number, unreadOnly = false) {
   const query = jobNotificationQuery(trx, context);
+  if (unreadOnly) query.whereNull('n.readAt');
   const unread = Number((await query.clone().whereNull('n.readAt').count({ count: 'n.id' }).first())?.count ?? 0);
   const rows = await query.select('n.*', trx.raw(deadlineDates)).orderBy('n.createdAt', 'desc').orderBy('n.id', 'desc').limit(take);
   const items = await Promise.all(rows.map(async (row): Promise<JobNotificationRecord | JobAssignmentRemovalRecord> => {

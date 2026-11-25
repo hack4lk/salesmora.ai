@@ -45,7 +45,7 @@ test.beforeEach(async () => {
   await db('chatTurns').where({ workspaceId }).whereNotIn('state',['accepted','running']).update({ createdAt:new Date(Date.now() - 120000) });
 });
 test.beforeEach(async()=>{
- ownJob=(await createJob(db,identity(),permissionIds,{ workspaceId,submissionId:randomUUID(),customerId,title:'Calendar proposal Job',primaryOwnerId:users.field,scheduledDate:'2026-10-20',arrivalWindow:'09:00-11:00' })).jobId;
+ ownJob=(await createJob(db,identity(),permissionIds,{postalCode:'10001', workspaceId,submissionId:randomUUID(),customerId,title:'Calendar proposal Job',primaryOwnerId:users.field,scheduledDate:'2026-10-20',arrivalWindow:'09:00-11:00' })).jobId;
  const job=await db('jobs').where({id:ownJob}).first();ref=`J-${String(job.jobNumber).padStart(4,'0')}`;
  const visit=await readWorkOrderCreationVisit(db,identity(),permissionIds,ownJob);if (!visit) throw Error();
  const order=await createWorkOrder(db,identity(),permissionIds,{ workspaceId,jobId:ownJob,submissionId:randomUUID(),title:'Calendar proposal Work Order',assigneeId:users.field,visit:{kind:'job',visitId:visit.id,revision:visit.revision} });
@@ -132,7 +132,7 @@ test('an outer rollback removes the shared mutation, operation receipt and confi
  for(const [table,id] of [['jobs',ownJob],['workOrders',orderId]])expect((await db(table).where({id}).first()).scheduledDate.toISOString().slice(0,10)).toBe('2026-10-20');
 });
 test('advisories use complete active visits beyond card limits and do not block the review',async()=>{
- for(let i=0;i<27;i++)await createJob(db,identity(),permissionIds,{workspaceId,submissionId:randomUUID(),customerId,title:`Other visit ${i}`,primaryOwnerId:users.field,scheduledDate:'2026-11-02',arrivalWindow:i===0?'12:00-14:00':null});
+ for(let i=0;i<27;i++)await createJob(db,identity(),permissionIds,{postalCode:'10001',workspaceId,submissionId:randomUUID(),customerId,title:`Other visit ${i}`,primaryOwnerId:users.field,scheduledDate:'2026-11-02',arrivalWindow:i===0?'12:00-14:00':null});
  const {ticket}=await propose();const response=await get(ticket);expect(response.status()).toBe(200);const view=calendarProposalViewSchema.parse((await response.json()).view);
  expect(view.draft.warnings.some(w=>w.includes('28 visits'))).toBe(true);expect(view.draft.warnings.some(w=>w.includes('overlapping'))).toBe(true);expect(view.draft.warnings.some(w=>w.includes('no arrival window'))).toBe(true);
  expect((await decide(ticket,'cancel')).status()).toBe(200);

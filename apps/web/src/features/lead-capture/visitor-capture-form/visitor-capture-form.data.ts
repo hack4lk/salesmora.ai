@@ -27,7 +27,7 @@ export const visitorCaptureFormData = {
     businessEmail: 'hello@example.com', businessPhone: '+1 (212) 555-0100',
     privacy: 'Privacy policy', privacyHref: 'https://example.com/privacy',
     consent: 'I agree that Northstar Plumbing may contact me about this request.',
-    names: { name: 'Name', email: 'Email', phone: 'Phone', service: 'Service requested', details: 'Project details', address: 'Service address', window: 'Preferred visit window', interests: 'Services of interest', date: 'Preferred visit date' },
+    names: { name: 'Name', email: 'Email', phone: 'Phone', service: 'Service requested', details: 'Project details', address: 'Service address', postalCode:'ZIP code', window: 'Preferred visit window', interests: 'Services of interest', date: 'Preferred visit date' },
     name: 'Jordan Lee', email: 'jordan@example.com', phone: '+1 212 555 0123', service: 'Kitchen sink repair',
     choices: ['Morning', 'Afternoon'], interests: ['Plumbing', 'Water heaters'], invalidEmail: 'not-an-email',
     fieldError: 'Please provide a more specific service request.', longTitle: 'Request residential plumbing, maintenance or whole-home improvement services',

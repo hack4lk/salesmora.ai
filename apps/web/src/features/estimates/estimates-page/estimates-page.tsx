@@ -146,7 +146,7 @@ export function EstimatesPagePreview({
           <header className="flex flex-wrap items-end justify-between gap-5">
             <div className="min-w-0">
               <h1 className="m-0 text-heading font-semibold text-ink sm:text-heading-lg">{c.title}</h1>
-              <p className="mb-0 mt-3 max-w-reading text-base leading-6 text-muted">{field ? c.fieldDescription : c.description}</p>
+              <p className="mb-0 mt-3 text-base leading-6 text-muted">{field ? c.fieldDescription : c.description}</p>
             </div>
             {state !== "forbidden" && (
               <div className="flex flex-wrap gap-3">
@@ -174,8 +174,6 @@ export function EstimatesPagePreview({
                 value={filters}
                 members={preview.members}
                 currentMemberId={currentMember.id}
-                shownCount={ready ? filtered.length : undefined}
-                totalCount={ready ? scoped.length : undefined}
                 disabled={!ready}
                 onChange={changeFilters}
               />

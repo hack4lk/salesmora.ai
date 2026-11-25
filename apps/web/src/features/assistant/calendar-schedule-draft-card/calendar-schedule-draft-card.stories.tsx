@@ -9,6 +9,7 @@ const draft = calendarScheduleProposalFixture(), context = calendarScheduleConte
 function Preview(args: CalendarScheduleDraftCardProps) {
   const [current,setCurrent] = useState(args.draft);
   return <main className="mx-auto w-full max-w-2xl p-4 sm:p-8"><h1 className="m-0 text-heading font-semibold text-ink">{copy.stories.heading}</h1><p className="mb-4 mt-2 text-sm leading-6 text-muted">{copy.stories.notice}</p>
+    <h2 className="sr-only">Assistant conversation</h2>
     <CalendarScheduleDraftCard {...args} draft={current} onDecide={args.onDecide ? async request => {
       const result = await args.onDecide!(request);
       if (result.ok) setCurrent(value => ({ ...value,state:request.decision === 'confirm' ? 'confirmed' : 'cancelled',
@@ -140,4 +141,9 @@ export const ClearAwaitingAuthoritativeState: Story = { ...AwaitingAuthoritative
   const canvas = within(canvasElement); await userEvent.dblClick(canvas.getByRole('button',{ name:copy.clear.confirm }));
   await expect(args.onDecide).toHaveBeenCalledTimes(1); await expect(canvas.getByRole('status')).toHaveTextContent(copy.awaiting);
   await expect(canvas.getByRole('button',{ name:copy.clear.confirm })).toBeDisabled(); await expect(canvas.queryByText(copy.clear.confirmed)).not.toBeInTheDocument();
+} };
+
+export const RecordedWorkTime: Story = { args: { draft: { ...draft, from: { ...draft.from, workTime: { startTime: '09:00', durationMinutes: 60 } },
+  to: { ...draft.to, workTime: { startTime: '09:00', durationMinutes: 60 } } } }, play: async ({ canvasElement }) => {
+  await expect(within(canvasElement).getAllByText('Planned work: 9:00 AM–10:00 AM · 1 hour')).toHaveLength(2);
 } };

@@ -4,9 +4,8 @@ import { useEffect, useId, useRef, useState, type RefObject, type ReactNode } fr
 import { LeadSearchResultsCard, type LeadSearchResultSet } from '../lead-search-results-card/lead-search-results-card';
 import { LeadActivityCard, type LeadActivityResult } from '../lead-activity-card/lead-activity-card';
 import { LeadDetailsCard, type LeadDetailsResult } from '../lead-details-card/lead-details-card';
-import { ChatBubbleOutlined } from "../../icons";
+import { ArrowUpwardOutlined, ChatBubbleOutlined } from "../../icons";
 import { FormFeedback } from "../../forms/form-feedback/form-feedback";
-import { SubmitButton } from "../../forms/submit-button/submit-button";
 import { LeadDeleteDraftCard, type LeadDeleteProposal } from '../lead-delete-draft-card/lead-delete-draft-card';
 import { LeadExportDraftCard, type LeadExportProposal } from '../lead-export-draft-card/lead-export-draft-card';
 import { LeadArchiveDraftCard, type LeadArchiveProposal } from '../lead-archive-draft-card/lead-archive-draft-card';
@@ -32,6 +31,7 @@ export interface AssistantMessage {
 }
 
 export interface AssistantPanelProps {
+  renderBody?: (body: ReactNode) => ReactNode;
   /** Host-owned presentation slot. Never executes tool calls or interprets model markup. */
   renderMessageSupplement?: (message: AssistantMessage) => ReactNode;
   /** Optional host controls for opening the existing modal from another surface. */
@@ -42,6 +42,7 @@ export interface AssistantPanelProps {
   returnFocusRef?: RefObject<HTMLElement | null>;
   title?: string;
   description?: string;
+  composerPlaceholder?: string;
   /** Optional selected-record label; ordinary page context stays in the app adapter. */
   contextLabel?: string;
   /** The parent owns context selection; clearing must not silently widen access. */
@@ -71,11 +72,13 @@ export function AssistantPanel({
   open, onOpenChange, draft: controlledDraft, onDraftChange, returnFocusRef,
   title = copy.title,
   description = copy.description,
+  composerPlaceholder = copy.placeholder,
   contextLabel,
   onClearContext,
   badge,
   onNewConversation,
   onAction,
+  renderBody,
   renderMessageSupplement,
   onOpenSearchResult,
   onOpenDetailsResult,
@@ -179,84 +182,8 @@ export function AssistantPanel({
     }
   }
 
-  return (
-    <>
-    <button
-      ref={launcher}
-      type="button"
-      aria-haspopup="dialog"
-      aria-expanded={expanded}
-      aria-controls={`${id}-dialog`}
-      onClick={() => { openedFromLauncher.current = true; setExpanded(true); }}
-      className="fixed bottom-4 right-4 z-40 flex min-h-14 max-w-full cursor-pointer items-center gap-3 rounded-2xl border border-assistant-border bg-assistant-header px-5 py-3 text-left text-assistant-foreground shadow-xl hover:bg-assistant-surface focus-visible:focus-ring sm:bottom-6 sm:right-6"
-    >
-      <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-assistant-accent text-assistant-surface"><ChatBubbleOutlined /></span>
-      <span><span className="block text-base font-semibold">{copy.launcher}</span>{" "}<span className="block text-sm text-assistant-muted">{copy.launcherHint}</span></span>
-    </button>
-    <dialog
-      ref={panel}
-      id={`${id}-dialog`}
-      aria-modal={expanded || undefined}
-      aria-labelledby={`${id}-title`}
-      aria-describedby={`${id}-description`}
-      onScroll={event => {
-        const dialog = event.currentTarget;
-        followLatest.current = dialog.scrollHeight - dialog.scrollTop - dialog.clientHeight < 80;
-      }}
-      onCancel={(event) => { event.preventDefault(); collapse(); }}
-      onKeyDown={(event) => {
-        if (!expanded || event.key !== "Tab") return;
-        if (event.target instanceof Element && event.target.closest('[role="alertdialog"]')) return;
-        const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), textarea:not(:disabled), a[href]"));
-        const first = controls[0];
-        const last = controls[controls.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault(); last?.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault(); first?.focus();
-        }
-      }}
-      onClick={(event) => {
-        if (!expanded || event.target !== event.currentTarget) return;
-        const bounds = event.currentTarget.getBoundingClientRect();
-        if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) collapse();
-      }}
-      className="fixed inset-0 m-auto max-h-full w-full min-w-0 max-w-5xl overflow-y-auto rounded-2xl border border-assistant-border bg-assistant-surface p-0 text-assistant-foreground shadow-2xl backdrop:bg-ink/40 backdrop:backdrop-blur-sm"
-    >
-      <header className="grid gap-4 bg-assistant-header p-6 text-assistant-foreground sm:flex sm:flex-wrap sm:items-start sm:p-8">
-        <span
-          aria-hidden="true"
-          className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-assistant-accent text-xl text-assistant-surface"
-        >
-          <ChatBubbleOutlined />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2
-            id={`${id}-title`}
-            className="m-0 text-lg font-semibold text-assistant-foreground wrap-anywhere"
-          >
-            {title}
-          </h2>
-          <p
-            id={`${id}-description`}
-            className="mb-0 mt-2 text-sm leading-6 text-assistant-muted"
-          >
-            {description}
-          </p>
-        </div>
-        {badge && (
-          <span className="w-fit rounded-full border border-assistant-border bg-assistant-surface/60 px-3 py-2 text-xs font-semibold text-assistant-foreground">
-            {badge}
-          </span>
-        )}
-      </header>
-      <div className="grid min-w-0 gap-6 p-6 sm:p-8">
-      {expanded && <div className="flex flex-wrap justify-end gap-3">
-        {onNewConversation && <button type="button" disabled={locked} onClick={onNewConversation} className="min-h-11 cursor-pointer rounded-xl border border-assistant-border px-4 py-2 text-sm font-semibold text-assistant-accent focus-visible:focus-ring disabled:opacity-50">{copy.newConversation}</button>}
-        <button type="button" onClick={collapse} className="min-h-11 rounded-xl border border-assistant-border bg-assistant-surface px-4 py-2 text-sm font-semibold text-assistant-accent focus-visible:focus-ring focus-visible:outline-assistant-accent">
-          {copy.collapse}
-        </button>
-      </div>}
+  const body = (
+    <div className="grid min-w-0 gap-6 p-6 sm:p-8">
       {contextLabel && <div className="min-w-0"><ContextChip label={contextLabel} disabled={locked} onClear={onClearContext ? () => { onClearContext(); composer.current?.focus(); } : undefined}/></div>}
       {expanded && messages.length === 0 && !active && <p className="m-0 min-h-40 text-sm leading-6 text-assistant-muted sm:min-h-64">{copy.emptyConversation}</p>}
       {messages.length > 0 && (
@@ -264,17 +191,17 @@ export function AssistantPanel({
           role="log"
           aria-label={copy.conversation}
           aria-live="off"
-          className={`grid min-w-0 content-start gap-4 ${expanded ? "min-h-40 sm:min-h-64" : ""}`}
+          className={`grid min-w-0 content-start gap-5 ${expanded ? "min-h-40 sm:min-h-64" : ""}`}
         >
           {messages.map((message) => (
             <div
               key={message.id}
-              className={`min-w-0 rounded-xl border border-assistant-border p-4 ${message.role === "user" ? "bg-assistant-header" : "bg-assistant-message"}`}
+              className={`min-w-0 ${message.role === "user" ? "rounded-md border-l-[3px] border-assistant-user-accent bg-assistant-user px-4 py-3" : "py-1 pl-[19px]"}`}
             >
-              <p className="m-0 text-sm font-semibold text-assistant-foreground">
+              <p className="m-0 text-xs font-semibold text-assistant-muted">
                 {message.role === "user" ? copy.user : copy.assistant}
               </p>
-              <p className="mb-0 mt-2 whitespace-pre-wrap text-sm leading-6 text-assistant-foreground wrap-anywhere">
+              <p className="mb-0 mt-1 whitespace-pre-wrap text-sm leading-6 text-assistant-foreground wrap-anywhere">
                 {message.text}
               </p>
               {message.sources && message.sources.length > 0 && <nav aria-label={copy.sources} className="mt-3">
@@ -321,6 +248,7 @@ export function AssistantPanel({
         }}
         className="grid min-w-0 gap-4"
       >
+        <div className="flex min-w-0 items-end gap-3 rounded-xl border border-assistant-border bg-assistant-user p-3 focus-within:focus-ring focus-within:outline-assistant-accent">
         <textarea
           ref={composer}
           id={`${id}-message`}
@@ -330,29 +258,29 @@ export function AssistantPanel({
           aria-label={copy.composer}
           aria-describedby={`${id}-hint${visibleError ? ` ${id}-error` : ""}`}
           aria-invalid={!!visibleError}
-          placeholder={copy.placeholder}
+          placeholder={composerPlaceholder}
           onChange={(event) => {
             setDraft(event.target.value);
             setError(undefined);
           }}
-          className="block min-h-28 w-full min-w-0 resize-y rounded-xl border border-assistant-border bg-assistant-surface p-4 text-base leading-6 text-assistant-foreground placeholder:text-assistant-muted focus-visible:focus-ring focus-visible:outline-assistant-accent disabled:bg-assistant-message"
+          className="block min-h-20 w-full min-w-0 flex-1 resize-y border-0 bg-transparent p-1 text-base leading-6 text-assistant-foreground placeholder:text-assistant-muted focus:outline-none"
         />
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <button
+          type="submit"
+          aria-label={active ? (runStatus === 'streaming' ? copy.pending : copy.thinking) : copy.submit}
+          aria-busy={active}
+          disabled={locked || sendDisabled || !draft.trim()}
+          className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-seafoam text-assistant-surface hover:bg-seafoam-dark focus-visible:focus-ring focus-visible:outline-assistant-accent disabled:cursor-not-allowed disabled:bg-assistant-border disabled:text-assistant-muted"
+        >
+          {active ? <span aria-hidden="true" className="size-5 animate-spin rounded-full border-2 border-current border-r-transparent motion-reduce:animate-none" /> : <ArrowUpwardOutlined aria-hidden="true" />}
+        </button>
+        </div>
           <p
             id={`${id}-hint`}
             className="m-0 max-w-xl text-sm leading-6 text-assistant-muted"
           >
             {copy.hint}
           </p>
-          <SubmitButton
-            label={copy.submit}
-            pendingLabel={runStatus === 'streaming' ? copy.pending : copy.thinking}
-            pending={active}
-            disabled={disabled || sendDisabled || !draft.trim()}
-            fullWidth={false}
-            className="bg-assistant-accent! text-assistant-surface! hover:bg-assistant-accent/90! disabled:bg-assistant-border! disabled:text-assistant-foreground! focus-visible:outline-assistant-accent!"
-          />
-        </div>
         {visibleError && (
           <div id={`${id}-error`}>
             <FormFeedback
@@ -364,6 +292,90 @@ export function AssistantPanel({
         )}
       </form>
       </div>
+  );
+
+  return (
+    <>
+    <button
+      ref={launcher}
+      type="button"
+      aria-haspopup="dialog"
+      aria-expanded={expanded}
+      aria-controls={`${id}-dialog`}
+      onClick={() => { openedFromLauncher.current = true; setExpanded(true); }}
+      className="fixed bottom-4 right-4 isolate z-40 flex min-h-14 max-w-[calc(100vw-2rem)] cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border border-assistant-border bg-linear-to-r from-ink via-assistant-header to-[#285e6e] px-5 py-3 text-left text-assistant-foreground shadow-xl transition-[filter,box-shadow] hover:brightness-110 hover:shadow-2xl focus-visible:focus-ring sm:bottom-6 sm:right-6"
+    >
+      <span aria-hidden="true" className="pointer-events-none absolute -top-24 -right-12 -z-10 size-44 rounded-full border border-white/20 shadow-[0_0_0_14px_rgb(255_255_255/0.08),0_0_0_30px_rgb(255_255_255/0.05)]" />
+      <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-seafoam-pale text-ink"><ChatBubbleOutlined /></span>
+      <span className="min-w-0"><span className="block text-base font-semibold">{copy.launcher}</span>{" "}<span className="block text-sm text-assistant-foreground">{copy.launcherHint}</span></span>
+    </button>
+    <dialog
+      ref={panel}
+      id={`${id}-dialog`}
+      aria-modal={expanded || undefined}
+      aria-labelledby={`${id}-title`}
+      aria-describedby={`${id}-description`}
+      onScroll={event => {
+        const dialog = event.currentTarget;
+        followLatest.current = dialog.scrollHeight - dialog.scrollTop - dialog.clientHeight < 80;
+      }}
+      onCancel={(event) => { event.preventDefault(); collapse(); }}
+      onKeyDown={(event) => {
+        if (!expanded || event.key !== "Tab") return;
+        if (event.target instanceof Element && event.target.closest('[role="alertdialog"]')) return;
+        const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), textarea:not(:disabled), a[href]")).filter(element => element.getClientRects().length > 0);
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault(); last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault(); first?.focus();
+        }
+      }}
+      onClick={(event) => {
+        if (!expanded || event.target !== event.currentTarget) return;
+        const bounds = event.currentTarget.getBoundingClientRect();
+        if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) collapse();
+      }}
+      className="fixed inset-0 m-auto max-h-full w-full min-w-0 max-w-5xl overflow-y-auto rounded-2xl border border-assistant-border bg-assistant-surface p-0 text-assistant-foreground shadow-2xl backdrop:bg-ink/40 backdrop:backdrop-blur-sm"
+    >
+      <header className="relative isolate grid gap-4 overflow-hidden bg-linear-to-r from-ink via-assistant-header to-[#285e6e] p-6 text-assistant-foreground sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:p-8">
+        <div aria-hidden="true" className="pointer-events-none absolute -top-44 -right-24 -z-10 size-80 rounded-full border border-white/20 shadow-[0_0_0_24px_rgb(255_255_255/0.08),0_0_0_52px_rgb(255_255_255/0.05)]" />
+      {expanded && <div className="flex flex-wrap justify-end gap-3 sm:col-start-2 sm:row-start-1">
+        {onNewConversation && <button type="button" disabled={locked} onClick={onNewConversation} className="min-h-11 cursor-pointer rounded-xl border border-seafoam-pale bg-seafoam-pale px-4 py-2 text-sm font-semibold text-ink hover:bg-seafoam-light focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-60">{copy.newConversation}</button>}
+        <button type="button" onClick={collapse} className="min-h-11 cursor-pointer rounded-xl border border-assistant-border bg-assistant-surface px-4 py-2 text-sm font-semibold text-assistant-accent focus-visible:focus-ring focus-visible:outline-assistant-accent">
+          {copy.collapse}
+        </button>
+      </div>}
+        <div className="flex min-w-0 items-start gap-4 sm:col-start-1 sm:row-start-1">
+        <span
+          aria-hidden="true"
+          className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-seafoam-pale text-xl text-ink"
+        >
+          <ChatBubbleOutlined />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2
+            id={`${id}-title`}
+            className="m-0 text-lg font-semibold text-assistant-foreground wrap-anywhere"
+          >
+            {title}
+          </h2>
+          <p
+            id={`${id}-description`}
+            className="mb-0 mt-2 text-sm leading-6 text-assistant-foreground"
+          >
+            {description}
+          </p>
+        </div>
+        {badge && (
+          <span className="w-fit rounded-full border border-assistant-border bg-assistant-surface/60 px-3 py-2 text-xs font-semibold text-assistant-foreground">
+            {badge}
+          </span>
+        )}
+        </div>
+      </header>
+      {renderBody ? renderBody(body) : body}
     </dialog>
     </>
   );

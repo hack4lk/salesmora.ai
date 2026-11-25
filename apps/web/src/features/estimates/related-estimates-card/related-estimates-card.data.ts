@@ -3,14 +3,12 @@ import type { RelatedEstimate } from "./related-estimates-card";
 export const relatedEstimatesCardData = {
   title: "Estimates",
   description: {
-    lead: "Estimates linked to this lead.",
     job: "Estimates linked to this job. Job status does not change historical estimates.",
     customer: "Estimates linked through this customer's leads and jobs.",
   },
   create: "Create estimate",
   includeHidden: "Include archived and older revisions",
   createHint: {
-    lead: "Start an estimate for this lead. A Draft is created only when you save.",
     job: "Start an estimate for this job. A Draft is created only when you save.",
     customer: "Choose a related lead or job before starting an estimate. An estimate cannot belong only to a customer.",
   },

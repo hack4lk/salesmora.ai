@@ -34,7 +34,7 @@ export const permissionsPageData = {
     { id: 'administration', label: 'Settings and administration', prefixes: ['settings.', 'integrations.', 'team.', 'permissions.', 'billing.', 'ownership.', 'workspace.'] },
   ],
   labels: {
-    'home.access': 'Open Home', 'assistant.use': 'Open the assistant',
+    'customers.email.send':'Draft and send customer service emails', 'workflows.publish': 'Create and publish workflows', 'workflows.read': 'View workflows', 'workflows.manage': 'Pause, resume, and delete workflows', 'home.access': 'Open Home', 'assistant.use': 'Open the assistant',
     'leads.read': 'View leads', 'leads.create': 'Create leads', 'leads.update': 'Edit lead details', 'leads.stage.update': 'Update lead stages', 'leads.assign': 'Assign leads', 'leads.archive': 'Archive leads', 'leads.delete': 'Delete leads', 'leads.export': 'Export leads',
     'customers.read': 'View customers', 'customers.related.read': 'View customer details for assigned work', 'customers.create': 'Create customers', 'customers.update': 'Edit customers', 'customers.archive': 'Archive customers', 'customers.delete': 'Delete customers', 'customers.export': 'Export customers',
     'jobs.read': 'View jobs', 'jobs.create': 'Create jobs', 'jobs.update': 'Edit job details', 'jobs.schedule.update': 'Change job schedules', 'jobs.assign': 'Assign jobs', 'jobs.status.update': 'Update active job status', 'jobs.progress.create': 'Add progress notes', 'jobs.complete': 'Complete jobs', 'jobs.cancel': 'Cancel jobs', 'jobs.reopen': 'Reopen completed or cancelled jobs', 'jobs.archive': 'Archive jobs', 'jobs.delete': 'Delete jobs', 'jobs.export': 'Export jobs',

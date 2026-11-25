@@ -11,12 +11,12 @@ export const notificationFixture: NotificationResult = {
     leadName: 'Jordan Lee', service: 'Kitchen sink repair', assignerName: 'Alex Rivera',
     createdAt: '2026-10-15T14:30:00Z', read: false,
   }],
-  unreadCount: 1, hasMore: true, page: 1,
+  unreadCount: 2, hasMore: true, page: 1,
 };
 export const olderNotificationFixture: NotificationResult = {
   items: [{
     ...notificationFixture.items[0], id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
-    createdAt: '2026-10-14T09:00:00Z', read: true,
+    createdAt: '2026-10-14T09:00:00Z', read: false,
   }],
-  unreadCount: 1, hasMore: false, page: 2,
+  unreadCount: 2, hasMore: false, page: 2,
 };

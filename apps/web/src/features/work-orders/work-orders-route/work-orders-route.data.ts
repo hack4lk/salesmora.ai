@@ -1,4 +1,5 @@
 export const workOrdersRouteData = {
+  title: 'Work orders',
   visitLoadError: 'Visit controls could not be loaded. Reload to try again.',
   reloadVisits: 'Reload visits',
   error: 'Work orders could not be loaded. Try again.',

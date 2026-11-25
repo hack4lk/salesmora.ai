@@ -19,9 +19,9 @@ describe("Archive/restore eligibility", () => {
     expect(initialEstimateArchiveReview(estimate, "archive")).toEqual({ estimateId: estimate.id, expectedVersion: estimate.version, mode: "archive" });
     expect(initialEstimateArchiveReview(estimate, "restore").mode).toBe("restore");
   });
-  it.each(estimateStatuses)("archives only the agreed inactive statuses, not %s", (status) => {
+  it.each(estimateStatuses)("archives supported saved statuses including %s", (status) => {
     expect(reviewEstimateArchive({ ...input, estimate: { ...estimate, status } }).request !== null)
-      .toBe(["declined", "expired", "superseded", "void"].includes(status));
+      .toBe(["accepted", "declined", "expired", "superseded", "void"].includes(status));
   });
   it.each(estimateStatuses)("does not re-archive or implicitly restore archived %s", (status) => {
     const result = reviewEstimateArchive({ ...input, estimate: { ...estimate, status, archived: true } });

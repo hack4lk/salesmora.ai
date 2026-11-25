@@ -14,8 +14,14 @@ export async function runDemoReset(env, actions) {
     const credentials = await actions.prepareCredentials();
     phase = 'connection check';
     await actions.assertNoConnections(target);
+    phase = 'workflow snapshot';
+    const snapshot = await actions.captureWorkflows(target);
+    phase = 'workflow restoration rehearsal';
+    await actions.rehearseWorkflows(target, credentials, snapshot);
+    phase = 'connection check';
+    await actions.assertNoConnections(target);
     phase = 'drop';
-    await actions.dropDatabase(target);
+    await actions.dropDatabase(target, snapshot);
     state = 'dropped';
     phase = 'create';
     await actions.createDatabase(target);
@@ -26,10 +32,10 @@ export async function runDemoReset(env, actions) {
     phase = 'runtime access';
     await actions.provisionRoles(target);
     phase = 'seed';
-    await actions.seed(target, credentials);
+    await actions.seed(target, credentials, snapshot);
     state = 'seeded';
     phase = 'verification';
-    await actions.verify(target, credentials);
+    await actions.verify(target, credentials, snapshot);
     return { status: 'complete', state, target };
   } catch (error) {
     throw new Error(`Demo reset failed during ${phase}; last confirmed state: ${state}. Inspect the database before retrying.`, { cause: error });

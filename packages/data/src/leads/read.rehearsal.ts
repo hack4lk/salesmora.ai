@@ -23,7 +23,7 @@ import { AuthorizationAccessError } from '../authorization/store';
 import { readLeads, readLead } from './read';
 import { moveLeadStage, LeadStageConflictError } from './stage';
 import { addLeadNote, LeadNoteConflictError } from './notes';
-import { updateLead, LeadEditConflictError, LeadSourceLockedError } from './update';
+import { updateLead, updateLeadInTransaction, LeadEditConflictError, LeadSourceLockedError } from './update';
 process.loadEnvFile(fileURLToPath(new URL('../../../../.env.local', import.meta.url)));
 const connection = process.env.TEST_DATABASE_URL;
 if (!connection || !new URL(connection).pathname.endsWith('_test') || connection === process.env.DATABASE_URL ||
@@ -227,6 +227,32 @@ try {
     const row = await db('leads').where({ id }).first();
     return updateLead(db, { userId, workspaceId: a }, enabled, { workspaceId: a, leadId: id, submissionId: randomUUID(), expectedVersion: row.version, values: { ...valuesFor(row), ...patch }, ...extra });
   };
+  await check('edit saves ownership atomically with details and reuses assignment notifications and replay protection', async () => {
+    const id = randomUUID();
+    await db('leads').insert({ ...base, id, workspaceId: a, submissionId: randomUUID(), stage: 'new', ownerId: 'field' });
+    const row = await db('leads').where({ id }).first();
+    const request = { workspaceId: a, leadId: id, expectedVersion: row.version, submissionId: randomUUID(),
+      ownerId: 'office', values: { ...valuesFor(row), name: 'Details and owner together' } };
+    await assert.rejects(updateLead(db, { userId: 'field', workspaceId: a }, enabled, request), AuthorizationAccessError);
+    await assert.rejects(withWorkspaceAuthorization(db, { userId: 'owner', workspaceId: a }, enabled, true,
+      (trx, context) => updateLeadInTransaction(trx, context, request, 'assistant-confirmed', ['name'])), AuthorizationAccessError);
+    await assert.rejects(updateLead(db, { userId: 'owner', workspaceId: a }, enabled, { ...request, ownerId: 'other-owner' }), LeadAssignmentConflictError);
+    const rolledBack = await db('leads').where({ id }).first();
+    assert.equal(rolledBack.name, row.name); assert.equal(rolledBack.version, row.version); assert.equal(rolledBack.ownerId, 'field');
+    await updateLead(db, { userId: 'owner', workspaceId: a }, enabled, request);
+    await updateLead(db, { userId: 'owner', workspaceId: a }, enabled, request);
+    const saved = await db('leads').where({ id }).first();
+    assert.equal(saved.name, request.values.name); assert.equal(saved.ownerId, 'office'); assert.equal(saved.version, row.version + 2);
+    assert.equal(Number((await db('assignmentNotifications').where({ workspaceId: a, leadId: id, userId: 'office' }).count('* as n').first())?.n), 1);
+    const unassign = { ...request, expectedVersion: saved.version, submissionId: randomUUID(), ownerId: null, values: valuesFor(saved) };
+    await updateLead(db, { userId: 'owner', workspaceId: a }, enabled, unassign);
+    await updateLead(db, { userId: 'owner', workspaceId: a }, enabled, unassign);
+    const cleared = await db('leads').where({ id }).first();
+    assert.equal(cleared.ownerId, null); assert.equal(cleared.version, saved.version + 1);
+    await assert.rejects(updateLead(db, { userId: 'owner', workspaceId: a }, enabled, { ...unassign, ownerId: 'field' }), LeadEditConflictError);
+    // Remove this fixture so later count and notification assertions retain their original scope.
+    await db('leads').where({ id }).delete();
+  });
   await check('edits save normalized fields and one before/after event; replay and no-op do not duplicate', async () => {
     const before = await db('leads').where({ id: ids[18] }).first(), submissionId = randomUUID();
     const request = { workspaceId: a, leadId: ids[18], expectedVersion: 1, submissionId, values: { ...valuesFor(before), name: '  Updated customer  ', email: 'NEW@EXAMPLE.TEST', notes: 'Updated internal note.' } };
@@ -309,7 +335,7 @@ try {
     const n=(await readNotifications(db,fieldIdentity,enabled)).items[0];assert(n);
     await assert.rejects(markNotificationRead(db,{userId:'office',workspaceId:a},enabled,n.id),AuthorizationAccessError);
     await markNotificationRead(db,fieldIdentity,enabled,n.id);await markNotificationRead(db,fieldIdentity,enabled,n.id);
-    assert((await readNotifications(db,fieldIdentity,enabled)).items.find(x=>x.id===n.id)?.read);
+    assert.equal((await readNotifications(db,fieldIdentity,enabled)).items.find(x=>x.id===n.id), undefined);
     await saveNotificationPreferences(db,fieldIdentity,enabled,{leadAssignedEmail:true});
   });
   await check('delivery skips stale assignments and unverified or opted-out recipients, retries without blocking writes',async()=>{

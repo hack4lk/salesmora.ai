@@ -1,6 +1,7 @@
 import { startConfiguredGmailCapture } from './gmail-runtime.js';
 import { startCapturePublications } from "./capture-publication.js";
 import { startJobEmails } from "./job-emails.js";
+import { startWorkflowReminders } from "./workflow-reminders.js";
 import { startDeadlineReminders } from "./deadline-reminders.js";
 import { startVisitEmails } from "./visit-emails.js";
 import { startEstimateEmails } from "./estimate-emails.js";
@@ -35,6 +36,7 @@ async function main() {
   let knowledge: Worker | undefined;
   let stopCapturePublications: (() => Promise<void>) | undefined;
   let stopJobEmails: (() => Promise<void>) | undefined;
+  let stopWorkflowReminders: (() => Promise<void>) | undefined;
   let stopDeadlines: (() => Promise<void>) | undefined;
   let stopVisits: (() => Promise<void>) | undefined;
   let stopEstimates: (() => Promise<void>) | undefined;
@@ -55,6 +57,7 @@ async function main() {
       stopGmail?.(),
       stopCapturePublications?.(),
       stopJobEmails?.(),
+      stopWorkflowReminders?.(),
       stopDeadlines?.(),
       stopEstimateExpiry?.(),
       stopEstimateNotifications?.(),
@@ -143,6 +146,7 @@ async function main() {
       stopOwnershipNotices = await startOwnershipNotices(db);
       stopPlanOverrideExpiry = await startPlanOverrideExpiry(db);
       stopVisits = await startVisitEmails(db);
+      stopWorkflowReminders = await startWorkflowReminders(db, config);
       stopDeadlines = await startDeadlineReminders(db);
       stopJobEmails = await startJobEmails(db);
       stopEstimates = await startEstimateEmails(db);

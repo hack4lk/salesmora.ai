@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { usPostalCodeSchema } from './postal-code';
+import { calendarWorkTimeSchema, type CalendarWorkTime } from "./calendar-work-time";
+import {workspaceServiceChoiceSchema,type WorkspaceServiceChoice} from "./services";
 import { defaultDeadlineRuleSchema } from "./job-notification-settings";
 
 export const jobStatuses = ["needs-scheduling", "scheduled", "in-progress", "waiting", "completed", "canceled"] as const;
@@ -24,13 +27,14 @@ export const jobDeadlineIntentSchema = z.discriminatedUnion("mode", [
 export const jobDeadlinePreviewSchema = z.object({ revision: z.string().regex(/^(0|[1-9]\d{0,8})$/), createdDate: jobDateSchema, resolvedDate: jobDateSchema.nullable(), timezone: z.string().min(1).max(100) }).strict();
 export const jobCreationDeadlineContextSchema = z.object({
   context: z.object({ rule: defaultDeadlineRuleSchema, revision: z.string(), projectedDate: jobDateSchema.nullable(), createdDate: jobDateSchema, timezone: z.string() }).strict(),
+  services: z.array(workspaceServiceChoiceSchema).optional(),
   canOverride: z.boolean(),
 }).strict();
 export type JobCreationDeadlineContext = z.infer<typeof jobCreationDeadlineContextSchema>;
 export const createJobSchema = z.object({
   workspaceId: z.uuid(), submissionId: z.uuid(), customerId: z.uuid(), sourceLeadId: z.uuid().nullable().default(null),
   title: z.string().trim().min(1).max(200), service: z.string().trim().max(200).default(""),
-  location: z.string().trim().max(500).default(""), description: text.default(""),
+  location: z.string().trim().max(500).default(""), postalCode: usPostalCodeSchema, countryCode: z.literal('US').default('US'), description: text.default(""),
   primaryOwnerId: userId.nullable(), teamUserIds: z.array(userId).max(100).refine(ids => new Set(ids).size === ids.length).default([]),
   scheduledDate: jobDateSchema.nullable().default(null), arrivalWindow: z.enum(arrivalWindows).nullable().default(null),
   completionDeadline: jobDateSchema.nullable().default(null),
@@ -49,7 +53,7 @@ export const jobMutationSchema = z.discriminatedUnion("action", [
   z.object({ ...expected, action: z.literal("deadline"), completionDeadline: jobDateSchema.nullable() }).strict(),
   z.object({ ...expected, action: z.literal("assign"), primaryOwnerId: userId.nullable(), teamUserIds: z.array(userId).max(100).refine(ids => new Set(ids).size === ids.length) }).strict(),
   z.object({ ...expected, action: z.literal("note"), body: text.min(1) }).strict(),
-  z.object({ ...expected, action: z.literal("edit"), title: z.string().trim().min(1).max(200), service: z.string().trim().max(200), location: z.string().trim().max(500), description: text }).strict(),
+  z.object({ ...expected, action: z.literal("edit"), title: z.string().trim().min(1).max(200), service: z.string().trim().max(200), location: z.string().trim().max(500), postalCode: usPostalCodeSchema, countryCode: z.literal('US').default('US'), description: text }).strict(),
   z.object({ ...expected, action: z.literal("status"), to: jobStatusSchema,
     waitingReason: z.enum(jobWaitingReasons).optional(), cancellationReason: z.enum(jobCancellationReasons).optional(),
     note: text.default(""), confirmed: z.boolean().default(false),
@@ -71,7 +75,7 @@ export const jobQuerySchema = z.object({
 export type JobQuery = z.input<typeof jobQuerySchema>;
 export type JobRecord = {
   id: string; number: string; customerId: string | null; customerName: string; sourceLeadId: string | null;
-  title: string; service: string; location: string; description: string; status: JobStatus;
+  title: string; service: string; serviceId?: string | null; location: string; postalCode?: string | null; countryCode?: 'US' | null; description: string; status: JobStatus;
   primaryOwnerId: string | null; teamUserIds: string[]; scheduledDate: string | null;
   arrivalWindow: typeof arrivalWindows[number] | null; completionDeadline: string | null;
   waitingReason: typeof jobWaitingReasons[number] | null; version: number; createdAt: string; updatedAt: string;
@@ -79,31 +83,32 @@ export type JobRecord = {
 
 export type JobCapabilities = { status: boolean; complete: boolean; cancel: boolean; reopen: boolean; schedule: boolean; assign: boolean; note: boolean; edit: boolean; files: boolean; removeFiles: boolean };
 export type JobMember = { id: string; name: string; role: "owner" | "admin" | "office" | "field" };
-export type JobView = JobRecord & { ownerName: string; teamNames: string[]; nextStep: string; capabilities: JobCapabilities };
+export type JobView = JobRecord & { workTime?: CalendarWorkTime | null; workTimezone?: string | null; ownerName: string; teamNames: string[]; nextStep: string; capabilities: JobCapabilities };
 export type JobActivityRecord = { id: string; actorName: string; source: string; type: string; changes: Record<string, unknown>; createdAt: string };
 export type JobListResult = { rows: JobView[]; total: number; page: number; pageSize: number; timezone: string; today: string;
   metrics: { active: number; overdue: number; waiting: number; unassigned: number };
-  options: { members: JobMember[]; customers: { id: string; name: string }[]; customerNames: string[]; services: string[] };
+  options: { members: JobMember[]; customers: { id: string; name: string }[]; customerNames: string[]; services: string[]; serviceChoices?: WorkspaceServiceChoice[] };
   canCreate: boolean; canScheduleCreation: boolean;
 };
-export type JobDetailResult = { job: JobView; activity: JobActivityRecord[]; activityTotal: number; activityPage: number; canOpenCustomer: boolean; canOpenLead: boolean };
+export type JobDetailResult = { serviceChoices?: WorkspaceServiceChoice[]; job: JobView; activity: JobActivityRecord[]; activityTotal: number; activityPage: number; canOpenCustomer: boolean; canOpenLead: boolean };
 export const jobViewSchema = z.object({
   id: z.uuid(), number: z.string(), customerId: z.uuid().nullable(), customerName: z.string(), sourceLeadId: z.uuid().nullable(),
-  title: z.string(), service: z.string(), location: z.string(), description: z.string(), status: jobStatusSchema,
+  title: z.string(), service: z.string(), serviceId: z.uuid().nullable().optional(), location: z.string(), postalCode: z.string().regex(/^\d{5}$/).nullable().optional(), countryCode: z.literal('US').nullable().optional(), description: z.string(), status: jobStatusSchema,
   primaryOwnerId: z.string().nullable(), teamUserIds: z.array(z.string()), scheduledDate: jobDateSchema.nullable(),
   arrivalWindow: z.enum(arrivalWindows).nullable(), completionDeadline: jobDateSchema.nullable(), waitingReason: z.enum(jobWaitingReasons).nullable(),
   version: z.number().int().positive(), createdAt: z.string(), updatedAt: z.string(),
+  workTime: calendarWorkTimeSchema.nullable().optional(), workTimezone: z.string().nullable().optional(),
   ownerName: z.string(), teamNames: z.array(z.string()), nextStep: z.string(),
   capabilities: z.object({ status: z.boolean(), complete: z.boolean(), cancel: z.boolean(), reopen: z.boolean(), schedule: z.boolean(), assign: z.boolean(), note: z.boolean(), edit: z.boolean(), files: z.boolean(), removeFiles: z.boolean() }),
 }) satisfies z.ZodType<JobView>;
 export const jobListResultSchema = z.object({
   rows: z.array(jobViewSchema), total: z.number().int().nonnegative(), page: z.number().int().positive(), pageSize: z.number().int().positive(),
   timezone: z.string(), today: jobDateSchema, metrics: z.object({ active: z.number().nonnegative(), overdue: z.number().nonnegative(), waiting: z.number().nonnegative(), unassigned: z.number().nonnegative() }),
-  options: z.object({ members: z.array(z.object({ id: z.string(), name: z.string(), role: z.enum(["owner", "admin", "office", "field"]) })), customers: z.array(z.object({ id: z.uuid(), name: z.string() })), customerNames: z.array(z.string()), services: z.array(z.string()) }),
+  options: z.object({ members: z.array(z.object({ id: z.string(), name: z.string(), role: z.enum(["owner", "admin", "office", "field"]) })), customers: z.array(z.object({ id: z.uuid(), name: z.string() })), customerNames: z.array(z.string()), services: z.array(z.string()), serviceChoices:z.array(workspaceServiceChoiceSchema).optional() }),
   canCreate: z.boolean(), canScheduleCreation: z.boolean(),
 }) satisfies z.ZodType<JobListResult>;
 export const jobDetailResultSchema = z.object({
-  job: jobViewSchema, activity: z.array(z.object({ id: z.string(), actorName: z.string(), source: z.string(), type: z.string(), changes: z.record(z.string(), z.unknown()), createdAt: z.string() })),
+  serviceChoices:z.array(workspaceServiceChoiceSchema).optional(), job: jobViewSchema, activity: z.array(z.object({ id: z.string(), actorName: z.string(), source: z.string(), type: z.string(), changes: z.record(z.string(), z.unknown()), createdAt: z.string() })),
   activityTotal: z.number().int().nonnegative(), activityPage: z.number().int().positive(), canOpenCustomer: z.boolean(), canOpenLead: z.boolean(),
 }) satisfies z.ZodType<JobDetailResult>;
 export const jobSavedResultSchema = z.object({ jobId: z.uuid() });

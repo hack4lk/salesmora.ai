@@ -11,9 +11,9 @@ const meta = {
   title: 'Estimates/EstimateEditorRoute', component: EstimateEditorRoute, parameters: { layout: 'fullscreen' },
   decorators: [Story => <StrictMode><main className="p-4 sm:p-8"><Story/></main></StrictMode>],
   args: { workspaceId: workflowScope.workspaceId, currentUserId: workflowScope.viewerId, seed: estimateSeedFixture },
-  beforeEach: () => {
+  beforeEach: ({ args }) => {
     writes.mockClear(); writeStatus = 200; sharingStatus = 200;
-    let record = structuredClone(estimateSeedFixture.estimate!);
+    let record = structuredClone(args.seed.estimate!);
     const original = globalThis.fetch;
     globalThis.fetch = async (input, init) => {
       const url = new URL(String(input), 'http://localhost'), method = init?.method ?? 'GET';
@@ -25,7 +25,18 @@ const meta = {
         record = { ...record, values: command.values, version: record.version + 1 };
         return Response.json({ id: record.id, number: record.number, revision: record.revision, version: record.version, updatedAt: record.updatedAt });
       }
-      if (url.pathname.endsWith('/sharing')) return Response.json(sharingStatus === 200 ? { ...estimateSharingFixture, estimate: record } : { error: 'Sharing access withdrawn.' }, { status: sharingStatus });
+      if (url.pathname.endsWith('/sharing')) return Response.json(sharingStatus === 200 ? { ...estimateSharingFixture, estimate: record,
+        ...(record.status === 'accepted' ? { draftPaper: null, draft: null, paper: {
+          ...estimateSharingFixture.draftPaper!, estimateId: record.id,
+          content: { ...estimateSharingFixture.draftPaper!.content, business: { ...estimateSharingFixture.draftPaper!.content.business, logoPath: `/api/estimates/${record.id}/logo` } },
+        }, delivery: { email: { state: 'not-sent' }, link: { state: 'active', expiresAt: '2026-11-21T22:00:00Z', firstViewedAt: null } } } : {}),
+      } : { error: 'Sharing access withdrawn.' }, { status: sharingStatus });
+      if (url.pathname.endsWith('/decision')) return Response.json({
+        estimate: { id: record.id, number: record.number, revision: record.revision, version: record.version, name: record.values.details.name,
+          recipientName: record.values.details.recipientName, totalCents: 10000, status: record.status, archived: false, decision: null },
+        snapshotHash: 'a'.repeat(64), today: estimateSeedFixture.today, timezone: estimateSeedFixture.timezone,
+        canDecide: false, canCorrectDecision: false, canConvertToJob: false, convertedJob: null,
+      });
       if (url.pathname.endsWith('/lifecycle')) return Response.json({ events: [], total: 0, nextCursor: null, timezone: estimateSeedFixture.timezone });
       if (url.pathname.endsWith('/revisions')) return Response.json({ number: record.number, currentEstimateId: record.id, version: record.version, snapshotHash: null, canRevise: false, revisions: [], total: 0, nextBeforeRevision: null });
       throw new Error(`Unmocked estimate operation: ${method} ${url.pathname}`);
@@ -59,5 +70,16 @@ export const SharingAccessDenied: Story = {
   play: async ({ canvasElement }) => {
     await expect(await within(canvasElement).findByText('Sharing access withdrawn.')).toBeVisible();
     await expect(writes).not.toHaveBeenCalled();
+  },
+};
+export const AcceptedWithLogo: Story = {
+  args: { seed: { ...estimateSeedFixture, estimate: { ...estimateSeedFixture.estimate!, status: 'accepted', version: 2 } } },
+  play: async ({ canvasElement, args }) => {
+    const card = within(await within(canvasElement).findByRole('region', { name: 'Delivery and customer link' }));
+    await expect(await card.findByText('Active', { exact: true })).toBeVisible();
+    await expect(card.queryByRole('alert')).not.toBeInTheDocument();
+    await expect(writes).not.toHaveBeenCalled();
+    await userEvent.click(within(canvasElement).getByRole('button', { name: `Actions for ${args.seed.estimate!.values.details.name}` }));
+    await expect(await within(canvasElement.ownerDocument.body).findByRole('menuitem', { name: 'Archive estimate' })).toBeVisible();
   },
 };

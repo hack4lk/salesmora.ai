@@ -55,7 +55,7 @@ try {
     await trx("customers").insert({ id: customerId, workspaceId, name: "Calendar fixture customer", type: "person", companyName: "", email: "", phone: "", location: "", internalNotes: "" });
   });
   await check("creation synchronizes independent visit identities and baseline snapshots", async () => {
-    jobId = (await createJob(db, identity(), enabled, { workspaceId, submissionId: randomUUID(), customerId, title: "Calendar fixture job", primaryOwnerId: users.field, teamUserIds: [users.crew],
+    jobId = (await createJob(db, identity(), enabled, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: "Calendar fixture job", primaryOwnerId: users.field, teamUserIds: [users.crew],
       scheduledDate: "2026-11-01", arrivalWindow: "09:00-11:00" })).jobId;
     orderId = (await createWorkOrder(db, identity(), enabled, { workspaceId, submissionId: randomUUID(), jobId, title: "Calendar fixture order", assigneeId: users.field, source: { kind: "blank" } })).workOrderId;
     await orderChange({ action: "status", to: "issued", confirmed: true });
@@ -64,7 +64,7 @@ try {
     assert.equal((await db("calendarScheduleSnapshots").where({ workspaceId })).length, 2);
   });
   await check("creation visit choice is atomic, revision-bound, permission-checked and retry-safe", async () => {
-    const ownJob = (await createJob(db, identity(), enabled, { workspaceId, submissionId: randomUUID(), customerId, title: "Creation choice fixture", primaryOwnerId: users.owner, scheduledDate: "2026-11-05", arrivalWindow: "09:00-11:00" })).jobId;
+    const ownJob = (await createJob(db, identity(), enabled, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: "Creation choice fixture", primaryOwnerId: users.owner, scheduledDate: "2026-11-05", arrivalWindow: "09:00-11:00" })).jobId;
     try {
       const preview = await readWorkOrderCreationVisit(db, identity(), enabled, ownJob);
       assert.ok(preview?.canJoin);
@@ -203,7 +203,7 @@ try {
     assert.equal((await source("workOrders", orderId)).scheduledDate, "2026-11-07");
   });
   await check("a primary Work Order assignee may schedule their order without gaining parent Job access", async () => {
-    const parent = await createJob(db, identity(), enabled, { workspaceId, submissionId: randomUUID(), customerId, title: "Separate parent", primaryOwnerId: users.owner });
+    const parent = await createJob(db, identity(), enabled, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: "Separate parent", primaryOwnerId: users.owner });
     const order = await createWorkOrder(db, identity(), enabled, { workspaceId, submissionId: randomUUID(), jobId: parent.jobId, title: "Direct assignment", assigneeId: users.crew, source: { kind: "blank" } });
     await mutateWorkOrder(db, identity(), enabled, { workspaceId, workOrderId: order.workOrderId, submissionId: randomUUID(), expectedVersion: order.version, action: "status", to: "issued", confirmed: true });
     const before = await source("jobs", parent.jobId);
@@ -222,7 +222,7 @@ try {
     assert.equal(visit.date, "2026-11-08");
   });
   await check("SQL Calendar ranges, own scope and queue pagination apply permissions before counts", async () => {
-    for (let index = 0; index < 23; index++) await createJob(db, identity(), enabled, { workspaceId, submissionId: randomUUID(), customerId,
+    for (let index = 0; index < 23; index++) await createJob(db, identity(), enabled, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId,
       title: `Queue fixture ${index}`, primaryOwnerId: users.owner });
     const result = await readCalendar(db, identity(), enabled, { workspaceId, date: "2026-11-08" });
     assert.equal(result.weekDate, "2026-11-02"); assert.equal(result.entries.length, 2);
@@ -234,8 +234,8 @@ try {
     const field = await readCalendar(db, identity("field"), enabled, { workspaceId, date: "2026-11-08", person: `member:${users.owner}` });
     assert.equal(field.scope, "own"); assert.equal(field.query.person, "me"); assert.equal(field.unscheduledTotal, 0);
     assert.deepEqual(field.members.map(p => p.id), [users.field]);
-    const future = await createJob(db, identity(), enabled, { workspaceId,submissionId:randomUUID(),customerId,title:'Far future range fixture',primaryOwnerId:users.field,scheduledDate:'2030-01-01' });
-    const queued = await createJob(db, identity(), enabled, { workspaceId,submissionId:randomUUID(),customerId,title:'All-week queue fixture',primaryOwnerId:users.field });
+    const future = await createJob(db, identity(), enabled, {postalCode:'10001', workspaceId,submissionId:randomUUID(),customerId,title:'Far future range fixture',primaryOwnerId:users.field,scheduledDate:'2030-01-01' });
+    const queued = await createJob(db, identity(), enabled, {postalCode:'10001', workspaceId,submissionId:randomUUID(),customerId,title:'All-week queue fixture',primaryOwnerId:users.field });
     for (const date of ['2026-11-08','2027-01-04']) {
       const scoped = await readCalendar(db,identity('field'),enabled,{ workspaceId,date });
       assert.equal(scoped.unscheduledTotal,1);assert(scoped.unscheduled.some(v=>v.records.some(r=>r.id===queued.jobId)));
@@ -248,7 +248,7 @@ try {
     await assert.rejects(readCalendar(db, identity(), enabled.filter(p => p !== "calendar.read"), { workspaceId }), AuthorizationAccessError);
   });
   await check("hidden linked records never enter projections or grant shared scheduling authority", async () => {
-    const parent = await createJob(db, identity(), enabled, { workspaceId, submissionId: randomUUID(), customerId, title: "Restricted parent title", primaryOwnerId: users.owner,
+    const parent = await createJob(db, identity(), enabled, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: "Restricted parent title", primaryOwnerId: users.owner,
       scheduledDate: "2026-11-09", completionDeadline: "2026-11-20", arrivalWindow: "09:00-11:00" });
     const order = await createWorkOrder(db, identity(), enabled, { workspaceId, submissionId: randomUUID(), jobId: parent.jobId, title: "Visible direct work", assigneeId: users.crew, source: { kind: "blank" } });
     await mutateWorkOrder(db, identity(), enabled, { workspaceId, workOrderId: order.workOrderId, submissionId: randomUUID(), expectedVersion: order.version, action: "status", to: "issued", confirmed: true });
@@ -269,7 +269,7 @@ try {
   await check("advisories exclude the edited visit, warn for intersections and allow adjacent windows", async () => {
     const id = await active("jobId", jobId);
     const target = await readCalendarVisit(db, identity(), enabled, id);
-    for (const arrivalWindow of ["08:00-10:00", "10:00-12:00", "12:00-14:00"] as const) await createJob(db, identity(), enabled, { workspaceId, submissionId: randomUUID(), customerId,
+    for (const arrivalWindow of ["08:00-10:00", "10:00-12:00", "12:00-14:00"] as const) await createJob(db, identity(), enabled, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId,
       title: "Warning fixture", primaryOwnerId: users.field, scheduledDate: "2026-11-10", arrivalWindow });
     const overlap = await readCalendarAdvisories(db, identity(), enabled, { workspaceId, visitId: id, revision: target.revision, schedule: { scheduledDate: "2026-11-10", arrivalWindow: "09:00-11:00" } });
     assert(overlap.messages.some(m => m.includes("overlapping"))); assert(overlap.messages.some(m => m.includes("4 visits")));
@@ -277,10 +277,10 @@ try {
     assert(!adjacent.messages.some(m => m.includes("overlapping")));
     await assert.rejects(readCalendarAdvisories(db, identity(), enabled, { workspaceId, visitId: id, revision: "stale", schedule: { scheduledDate: null, arrivalWindow: null } }), CalendarRevisionError);
     const current = await readCalendarAdvisories(db, identity(), enabled, { workspaceId, visitId: id, revision: target.revision, schedule: { scheduledDate: target.scheduledDate, arrivalWindow: target.arrivalWindow } });
-    assert.equal(current.messages.length, 0);
+    assert(current.messages.every(message => message.includes("availability is unknown")));
   });
   await check("managed join/separate previews and commands enforce complete authority and actor-bound retry", async () => {
-    const j = (await createJob(db, identity(), enabled, { workspaceId, submissionId: randomUUID(), customerId, title: "Managed visit fixture", primaryOwnerId: users.field,
+    const j = (await createJob(db, identity(), enabled, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: "Managed visit fixture", primaryOwnerId: users.field,
       scheduledDate: "2026-11-12", arrivalWindow: "09:00-11:00" })).jobId;
     const w = (await createWorkOrder(db, identity(), enabled, { workspaceId, submissionId: randomUUID(), jobId: j, title: "Managed work order", assigneeId: users.field })).workOrderId;
     try {
@@ -323,7 +323,7 @@ try {
     // Isolate the delivery scenario from earlier journeys in this fixture workspace.
     await db("visitNotifications").where({ workspaceId }).delete();
     await db("users").whereIn("id", Object.values(users)).update({ emailVerified: true });
-    const j = (await createJob(db, identity(), enabled, { workspaceId, submissionId: randomUUID(), customerId, title: "Notice fixture", primaryOwnerId: users.field, teamUserIds: [users.crew], scheduledDate: "2026-11-12", arrivalWindow: "09:00-11:00" })).jobId;
+    const j = (await createJob(db, identity(), enabled, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: "Notice fixture", primaryOwnerId: users.field, teamUserIds: [users.crew], scheduledDate: "2026-11-12", arrivalWindow: "09:00-11:00" })).jobId;
     const w = (await createWorkOrder(db, identity(), enabled, { workspaceId, submissionId: randomUUID(), jobId: j, title: "Notice order", assigneeId: users.field })).workOrderId;
     try {
       // Draft joins do not notify the crew; issued records participate in the combined event.
@@ -345,7 +345,8 @@ try {
       assert.equal(hidden.unreadCount, 0); assert.equal(hidden.items.length, 0);
       await assert.rejects(markNotificationRead(db, identity("admin"), enabled, notices[0].id), AuthorizationAccessError);
       await markNotificationRead(db, identity("field"), enabled, notices[0].id);
-      assert((await readNotifications(db, identity("field"), enabled)).items.find(n => n.id === notices[0].id)?.read);
+      assert(!(await readNotifications(db, identity("field"), enabled)).items.some(n => n.id === notices[0].id));
+      assert((await db("visitNotifications").where({ id: notices[0].id }).first()).readAt);
       await saveNotificationPreferences(db, identity("crew"), enabled, { leadAssignedEmail: true, visitChangedEmail: false });
       // Old callers must not silently turn visit emails back on when updating lead emails.
       await saveNotificationPreferences(db, identity("crew"), enabled, { leadAssignedEmail: false });

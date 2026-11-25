@@ -10,6 +10,7 @@ import { emptyLead, normalizeCreateLead, validateCreateLead, type CreateLeadValu
 
 export type { CreateLeadValues } from './create-lead-form.validation';
 export interface CreateLeadFormProps {
+  serviceControl?: (props:{value:string;disabled:boolean;onChange:(value:string)=>void})=>ReactNode;
   variant?: 'full' | 'quick';
   blocked?: boolean;
   notice?: ReactNode;
@@ -21,7 +22,7 @@ export interface CreateLeadFormProps {
   successMessage?: string;
 }
 
-export function CreateLeadForm({ variant = 'full', blocked = false, notice, ownerControl, owners, initialValues, onSubmit, onCancel, successMessage = copy.success }: CreateLeadFormProps) {
+export function CreateLeadForm({ serviceControl, variant = 'full', blocked = false, notice, ownerControl, owners, initialValues, onSubmit, onCancel, successMessage = copy.success }: CreateLeadFormProps) {
   const id = useId();
   const ready = useFormReady();
   const [values, setValues] = useState<CreateLeadValues>(() => ({ ...emptyLead, ...initialValues }));
@@ -66,6 +67,7 @@ export function CreateLeadForm({ variant = 'full', blocked = false, notice, owne
   }
   function text(key: 'name' | 'email' | 'service' | 'address', required = false, fullRow = false) {
     const error = key === 'address' ? undefined : errors[key];
+    if(key==='service'&&serviceControl)return serviceControl({value:values.service,disabled,onChange:value=>change('service',value)});
     return <TextField id={`${id}-${key}`} name={key} label={copy.labels[key]} placeholder={copy.placeholders[key]} type={key === 'email' ? 'email' : 'text'} autoComplete={key === 'name' ? 'name' : key === 'email' ? 'email' : key === 'address' ? 'street-address' : 'off'} required={required} disabled={disabled} value={values[key]} onChange={(event) => change(key, event.target.value)} error={!!error} helperText={error} className={fullRow ? 'sm:col-span-2' : undefined} />;
   }
   function textarea(key: 'details' | 'notes') {
@@ -87,7 +89,7 @@ export function CreateLeadForm({ variant = 'full', blocked = false, notice, owne
       {ownerControl ? ownerControl({ value: values.ownerId, disabled, onChange: value => change('ownerId', value) }) : select('ownerId', [{ value: '', label: copy.unassigned }, ...owners.map(owner => ({ value: owner.id, label: owner.name }))])}
     </div> : <div className="grid gap-8 [&>section:not(:first-child)]:border-t [&>section:not(:first-child)]:border-line [&>section:not(:first-child)]:pt-8">
       {section('contact', <>{text('name', true, true)}{text('email')}<MuiTextField id={`${id}-phone`} name="phone" type="tel" autoComplete="tel" label={copy.optional(copy.labels.phone)} placeholder={copy.placeholders.phone} fullWidth size="small" disabled={disabled} value={values.phone} onChange={(event) => change('phone', event.target.value)} className={fieldClasses} /></>)}
-      {section('service', <>{text('service', true)}{text('address')}{textarea('details')}</>)}
+      {section('service', <>{text('service', true)}{text('address')}<TextField label="ZIP code (optional)" value={values.postalCode??''} disabled={disabled} error={!!errors.postalCode} helperText={errors.postalCode??'United States'} onChange={event=>change('postalCode',event.target.value)}/>{textarea('details')}</>)}
       {section('management', <>{select('source', copy.sources)}{select('stage', copy.stages)}{ownerControl ? <div className="sm:col-span-2">{ownerControl({ value: values.ownerId, disabled, onChange: value => change('ownerId', value) })}</div> : select('ownerId', [{ value: '', label: copy.unassigned }, ...owners.map((owner) => ({ value: owner.id, label: owner.name }))])}</>)}
       {section('notes', textarea('notes'))}
     </div>}

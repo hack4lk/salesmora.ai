@@ -1,20 +1,39 @@
 'use client';
+import { useId, type ReactNode } from 'react';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import type { MaterialStatus } from '@salesmora/contracts';
-import { woButton, woPrimary } from '../../work-orders/work-order-ui';
 import { copy } from './material-status-tabs.data';
 
-export type MaterialStatusTabsProps = { status: MaterialStatus; pendingProposals: number; canManage: boolean; disabled?: boolean; onChange: (status: MaterialStatus) => void };
+export type MaterialStatusTabsProps = { status: MaterialStatus; pendingProposals: number; disabled?: boolean; onChange: (status: MaterialStatus) => void; children?: ReactNode };
 
-/** Managers see the proposal queue; proposers also see their rejected items. */
-export function MaterialStatusTabs({ status, pendingProposals, canManage, disabled = false, onChange }: MaterialStatusTabsProps) {
-  const tabs = (['active', 'proposed', 'rejected'] as const).filter(tab => tab !== 'rejected' || !canManage);
+const tabs = ['active', 'proposed'] as const;
+
+export function MaterialStatusTabs({ status, pendingProposals, disabled = false, onChange, children }: MaterialStatusTabsProps) {
+  const id = useId();
+  const selected = status === 'active' ? 'active' : 'proposed';
   return (
-    <div role="group" aria-label={copy.label} className="flex flex-wrap gap-2">
-      {tabs.map(tab => (
-        <button key={tab} type="button" disabled={disabled} aria-pressed={status === tab} className={status === tab ? woPrimary : woButton} onClick={() => onChange(tab)}>
-          {copy[tab]}{tab === 'proposed' && pendingProposals > 0 && ` · ${copy.pending(pendingProposals)}`}
-        </button>
-      ))}
+    <div className="min-w-0">
+      <Tabs
+        value={selected}
+        onChange={(_, next: (typeof tabs)[number]) => onChange(next)}
+        aria-label={copy.label}
+        className="border-b border-line"
+      >
+        {tabs.map(tab => (
+          <Tab
+            key={tab}
+            id={`${id}-${tab}`}
+            value={tab}
+            disabled={disabled}
+            aria-controls={`${id}-panel`}
+            label={tab === 'proposed' && pendingProposals > 0 ? `${copy[tab]} · ${copy.pending(pendingProposals)}` : copy[tab]}
+          />
+        ))}
+      </Tabs>
+      <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-${selected}`} tabIndex={0} className="mt-6 min-w-0 focus-visible:focus-ring">
+        {children}
+      </div>
     </div>
   );
 }

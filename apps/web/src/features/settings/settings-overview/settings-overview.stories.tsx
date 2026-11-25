@@ -34,6 +34,7 @@ export const LongContent: Story = { args: { workspaceName: copy.stories.longWork
 export const Mobile: Story = { globals: { viewport: { value: 'phone', isRotated: false } } };
 export const Leads: Story = { args: { leadsSettingsHref: '/settings/leads?workspace=fictional-workspace' }, play: async ({ canvasElement }) => { await expect(within(canvasElement).getByRole('link', { name: copy.viewLeads })).toHaveAttribute('href', '/settings/leads?workspace=fictional-workspace'); } };
 export const JobNotifications: Story = { args: { jobNotificationsHref: '/settings/job-notifications?workspace=fictional-workspace' }, play: async ({ canvasElement }) => { await expect(within(canvasElement).getByRole('link', { name: copy.viewJobNotifications })).toHaveAttribute('href', '/settings/job-notifications?workspace=fictional-workspace'); } };
+export const Services: Story = { args: { servicesSettingsHref: '/settings/services?workspace=fictional-workspace' }, play: async ({ canvasElement }) => { await expect(within(canvasElement).getByRole('link', { name: copy.viewServices })).toHaveAttribute('href', '/settings/services?workspace=fictional-workspace'); } };
 
 function EstimatesPreview(args: SettingsOverviewProps) {
   const [requested, setRequested] = useState(false);

@@ -99,8 +99,8 @@ describe('Financial report explicit opt-in', () => {
 });
 
 describe('code-owned catalog and policy validation', () => {
-  it('has 85 unique actions, legal defaults, known dependencies and a consistent default template', () => {
-    expect(permissionIds).toHaveLength(85);
+  it('has 88 unique actions, legal defaults, known dependencies and a consistent default template', () => {
+    expect(permissionIds).toHaveLength(88);
     expect(new Set(permissionIds).size).toBe(permissionIds.length);
     expect(validateWorkspacePolicy(defaultPolicy()).ok).toBe(true);
     for (const id of permissionIds) {

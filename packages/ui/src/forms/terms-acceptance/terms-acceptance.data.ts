@@ -3,6 +3,7 @@ export const termsAcceptanceData = {
   terms: 'Terms of Service',
   conjunction: 'and',
   privacy: 'Privacy Policy',
+  newTab: '(opens in a new tab)',
   punctuation: '.',
   error: 'Accept the terms to continue.',
   stories: {

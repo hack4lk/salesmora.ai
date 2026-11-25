@@ -15,7 +15,6 @@ import {
 } from "../authorization/permissions";
 import { findWorkspace } from "../workspaces/store";
 import { WorkspaceShell } from "../../features/workspace/workspace-shell/workspace-shell";
-import { estimatesPageData as copy } from "../../features/estimates/estimates-page/estimates-page.data";
 import { EstimatesReadRoute } from "../../features/estimates/estimates-page/estimates-read-route";
 import { workspaceChatAvailable } from "../chat/config";
 
@@ -79,12 +78,6 @@ export async function renderEstimatesPage(params: EstimateSearchParams) {
         email: session.user.email,
         role: context.membership.role,
       }}
-      title={copy.title}
-      description={
-        context.membership.role === "field"
-          ? copy.fieldDescription
-          : copy.description
-      }
       authorizedPages={workspaceNavigationPages(context)}
       assistantAvailable={capabilities.assistant}
       chatEnabled={await workspaceChatAvailable(workspace.id)}
@@ -101,6 +94,7 @@ export async function renderEstimatesPage(params: EstimateSearchParams) {
         workspaceId={workspace.id}
         viewerId={session.user.id}
         initialQuery={query}
+        field={context.membership.role === "field"}
         canReadLeads={capabilities.readLeads}
         canReadJobs={capabilities.readJobs}
       />

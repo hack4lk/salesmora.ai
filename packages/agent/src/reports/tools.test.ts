@@ -12,7 +12,7 @@ const context: AuthorizationContext = {
 describe('registered report tool activation boundary', () => {
   it('is read-only and available to authorized callers on every registered surface through the live registry', () => {
     expect(readToolRegistry.reports_query.kind).toBe('read');
-    for (const surface of chatSurfaceKeys) {
+    for (const surface of chatSurfaceKeys.filter(surface => surface !== 'workflows.list')) {
       expect(authorizeChatTool(context, surface, 'reports_query', implementedTools).allowed).toBe(true);
       expect(availableChatTools(context, surface, liveChatTools)).toContain('reports_query');
       expect(authorizeChatTool(context, surface, 'reports_query', liveChatTools).allowed).toBe(true);

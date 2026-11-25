@@ -54,7 +54,7 @@ try {
       companyName: '', email: 'private@example.test', phone: '', location: '', internalNotes: 'PRIVATE_NOTES' });
     today = (await trx.raw(`SELECT to_char(CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Warsaw', 'YYYY-MM-DD') AS today`)).rows[0].today;
   });
-  const seed = (title: string) => db.transaction(trx => createJob(trx, identity, enabled, {
+  const seed = (title: string) => db.transaction(trx => createJob(trx, identity, enabled, {postalCode:'10001',
     workspaceId, submissionId: randomUUID(), customerId, title, primaryOwnerId: owner,
     scheduledDate: today, arrivalWindow: '09:00-11:00',
   }));

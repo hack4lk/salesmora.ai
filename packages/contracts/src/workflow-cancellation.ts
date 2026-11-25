@@ -1,0 +1,11 @@
+import { z } from 'zod';
+import { calendarWorkTimeSchema } from './calendar-work-time';
+import { workflowChannelChoicesSchema } from './workflow-channels';
+export const cancellationRulesSchema = z.object({durationMinutes:z.number().int().min(15).max(480),gapMinutes:z.number().int().min(0).max(120)}).strict();
+export const cancellationValuesSchema=z.object({name:z.string().trim().min(1).max(120),service:z.string().min(1).max(200),rules:cancellationRulesSchema,recipientId:z.string().min(1).max(200),notifications:workflowChannelChoicesSchema}).strict();
+const person=z.object({id:z.string(),name:z.string()}).strict();
+export const cancellationSuggestionSchema=z.object({jobId:z.uuid(),jobVersion:z.number().int().positive(),number:z.string(),title:z.string(),customerName:z.string(),workTime:calendarWorkTimeSchema,people:z.array(person).min(1).max(100),assignment:z.enum(['preserved','qualified'])}).strict();
+export const cancellationOpeningSchema=z.object({id:z.uuid(),revision:z.string(),date:z.string(),timezone:z.string(),workTime:calendarWorkTimeSchema,service:z.string(),crew:z.array(person),expiresAt:z.iso.datetime()}).strict();
+export const cancellationOpeningResultSchema=z.object({opening:cancellationOpeningSchema,suggestions:z.array(cancellationSuggestionSchema).max(5),state:z.enum(['open','filled','expired','paused']),canRead:z.literal(true),canBook:z.boolean(),limited:z.boolean()}).strict();
+export const cancellationBookingSchema=z.object({workspaceId:z.uuid(),requestId:z.uuid(),openingId:z.uuid(),openingRevision:z.string(),jobId:z.uuid(),jobVersion:z.number().int().positive(),date:z.string(),timezone:z.string(),workTime:calendarWorkTimeSchema,personIds:z.array(z.string()).min(1).max(100)}).strict();
+export type CancellationOpeningResult=z.infer<typeof cancellationOpeningResultSchema>;

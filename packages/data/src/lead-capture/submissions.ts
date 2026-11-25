@@ -1,3 +1,4 @@
+import { resolveLeadRouting, recordLeadRouting } from "../workflows/routing";
 import { createHash, randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
 import { captureConfigurationSchema, captureAnswerIssues, captureEvidenceSchema, leadSchema, type CapturePublicSubmission, type CaptureSubmissionContext, type CaptureConfiguration } from '@salesmora/contracts';
@@ -110,9 +111,9 @@ export async function commitCaptureSubmission(db: Knex, input: Input, tokenHash?
       if (!verified) return { state: 'challenge-required' };
     }
     const configuration = active.configuration, answers = input.submission.answers;
-    const issues = captureAnswerIssues(configuration.fields, answers), assignment = await resolveCaptureAssignment(trx, pub.workspaceId, configuration.workflow.assignment);
+    const issues = captureAnswerIssues(configuration.fields, answers); let assignment = await resolveLeadRouting(trx, pub.workspaceId, pub.sourceId, await resolveCaptureAssignment(trx, pub.workspaceId, configuration.workflow.assignment));
     const text = (key: string) => { const field = configuration.fields.find(field => field.key === key); if (!field) return ''; const value = answers[field.id]; if (typeof value !== 'string') return ''; return field.type === 'dropdown' ? field.options.find(option => option.id === value.trim())?.label ?? '' : value.trim(); };
-    const lead = leadSchema.safeParse({ name: text('name'), email: text('email'), phone: text('phone'), service: text('service'), address: text('address'), details: text('details'), notes: '', source: 'website', stage: configuration.workflow.stage, ownerId: assignment.assigneeId ?? '' });
+    const lead = leadSchema.safeParse({ name: text('name'), email: text('email'), phone: text('phone'), service: text('service'), address: text('address'), ...(configuration.postalCountryCode==='US'?{postalCode:text('postalCode'),countryCode:'US' as const}:{}), details: text('details'), notes: '', source: 'website', stage: configuration.workflow.stage, ownerId: assignment.assigneeId ?? '' });
     const flags = new Set<'missing' | 'uncertain' | 'duplicate' | 'capacity'>(); if (issues.length || !lead.success) flags.add('missing'); if (!assignment.ready) flags.add('uncertain');
     const email = text('email').toLowerCase(), phone = text('phone').replace(/[^0-9]/g, '');
     if (email || phone) { const duplicate = await trx('leads').where({ workspaceId: pub.workspaceId }).andWhere(builder => { if (email) builder.orWhereRaw('lower(btrim(email)) = ?', [email]); if (phone) builder.orWhereRaw("regexp_replace(phone,'[^0-9]','','g') = ?", [phone]); }).first('id'); if (duplicate) flags.add('duplicate'); }
@@ -122,7 +123,7 @@ export async function commitCaptureSubmission(db: Knex, input: Input, tokenHash?
     await trx('captureInputUsage').insert({ workspaceId: pub.workspaceId }).onConflict('workspaceId').ignore(); const usage = await trx('captureInputUsage').where({ workspaceId: pub.workspaceId }).first('retainedBytes');
     if (BigInt(usage.retainedBytes) + BigInt(bytes) > BigInt(input.limits.maxRetainedBytes)) return { state: 'unavailable' };
     let leadId: string | undefined;
-    if (!flags.size && lead.success) { try { leadId = await insertAdmittedLead(trx, lead.data, { workspaceId: pub.workspaceId, createdBy: null, submissionId: input.submission.requestId, submissionHash: attempt.inputHash }, assignment.assigneeId); if (!leadId) throw Error('Lead admission did not return an identity.'); } catch (error) { if (!(error instanceof PlanCapacityError)) throw error; flags.add('capacity'); } }
+    if (!flags.size && lead.success) { try { assignment=await resolveLeadRouting(trx,pub.workspaceId,pub.sourceId,assignment,undefined,{commit:true,postalCode:lead.data.postalCode,countryCode:lead.data.countryCode}); leadId = await insertAdmittedLead(trx, lead.data, { workspaceId: pub.workspaceId, createdBy: null, submissionId: input.submission.requestId, submissionHash: attempt.inputHash }, assignment.assigneeId); if (!leadId) throw Error('Lead admission did not return an identity.'); } catch (error) { if (!(error instanceof PlanCapacityError)) throw error; flags.add('capacity'); } }
     if (!leadId) { const pending = await trx('intakeItems').where({ workspaceId: pub.workspaceId, status: 'awaiting' }).count('* as count').first(); if (Number(pending?.count ?? 0) >= input.limits.maxPendingItems) return { state: 'unavailable' }; }
     const receiptId = randomUUID();
     await trx('captureReceipts').insert({ id: receiptId, workspaceId: pub.workspaceId, sourceId: pub.sourceId, sourceType: 'website', configurationVersion: pub.configurationVersion, definitionVersion: pub.configurationVersion, workflowVersion: pub.configurationVersion, dedupeKey: input.submission.requestId, inputHash: attempt.inputHash, publicationId: pub.id, admission: leadId ? 'automatic' : 'review', evidence: JSON.stringify(evidence), originalAnswers: JSON.stringify(answers), receivedAt: now });
@@ -131,7 +132,8 @@ export async function commitCaptureSubmission(db: Knex, input: Input, tokenHash?
       await trx('leadCaptureData').insert({ id: randomUUID(), workspaceId: pub.workspaceId, sourceId: pub.sourceId, configurationVersion: pub.configurationVersion, receiptId, leadId, resultingLeadId: leadId, definitionVersion: pub.configurationVersion, answers: JSON.stringify(answers) });
       await trx('leadActivity').where({ id: leadId, workspaceId: pub.workspaceId }).update({ actorType: 'system', actorName: 'Lead Capture', changes: JSON.stringify({ source: 'website', origin: 'lead_capture', receiptId, configurationVersion: pub.configurationVersion }) });
       if (configuration.workflow.tags.length) await trx('leadTags').insert(configuration.workflow.tags.map(tag => ({ workspaceId: pub.workspaceId, leadId, tag })));
-      if (assignment.assigneeId && configuration.workflow.notifyAssigned) {
+      await recordLeadRouting(trx, pub.workspaceId, leadId, assignment);
+      if (!assignment.routing && assignment.assigneeId && configuration.workflow.notifyAssigned) {
         const id = randomUUID(), user = await trx('users').where({ id: assignment.assigneeId }).first('name');
         await trx('leadActivity').insert({ id, workspaceId: pub.workspaceId, leadId, actorType: 'system', actorName: 'Lead Capture', type: 'assigned', changes: JSON.stringify({ from: null, to: user.name, ownerId: assignment.assigneeId, toVersion: 1 }), createdAt: now });
         await trx('assignmentNotifications').insert({ id, workspaceId: pub.workspaceId, leadId, userId: assignment.assigneeId, createdAt: now }); await trx('assignmentEmailOutbox').insert({ id });

@@ -21,15 +21,16 @@ describe('notification queries', () => {
     expect(fetch).toHaveBeenCalledTimes(3);
     client.clear();
   });
-  it('loads older pages, deduplicates items, and refetches every loaded page after marking read', async () => {
+  it('removes a confirmed read notice and refills pages from the unread feed', async () => {
     let marked = false;
     const fetch = vi.fn(async (path: string) => {
       if (path === '/api/notifications/read') {
         marked = true;
         return Response.json({ ok: true });
       }
-      const fixture = path.endsWith('page=2') ? older : first;
-      return Response.json({ ...fixture, unreadCount: marked ? 0 : 1, items: fixture.items.map(item => ({ ...item, read: marked || item.read })) });
+      const page = path.endsWith('page=2') ? 2 : 1;
+      const items = marked ? older.items : [...first.items, ...older.items];
+      return Response.json({ items: items.slice(page - 1, page), unreadCount: items.length, page, hasMore: page < items.length });
     });
     vi.stubGlobal('fetch', fetch);
     const client = createApiQueryClient({ testing: true });
@@ -47,10 +48,9 @@ describe('notification queries', () => {
       `/api/notifications?workspace=${scope.workspaceId}&page=2`,
       '/api/notifications/read',
       `/api/notifications?workspace=${scope.workspaceId}&page=1`,
-      `/api/notifications?workspace=${scope.workspaceId}&page=2`,
     ]);
-    expect(observer.getCurrentResult().data!.pages[0].unreadCount).toBe(0);
-    expect(notificationItems(observer.getCurrentResult().data!.pages).every(item => item.read)).toBe(true);
+    expect(observer.getCurrentResult().data!.pages[0].unreadCount).toBe(1);
+    expect(notificationItems(observer.getCurrentResult().data!.pages)).toEqual(older.items);
     unsubscribe(); client.clear();
   });
   it.each([{}, { ...first, page: 2 }])('does not cache malformed or mismatched response pages', async raw => {
@@ -106,4 +106,8 @@ describe('notification queries', () => {
     expect(options.refetchOnWindowFocus).toBe('always');
     expect(options.getNextPageParam!({ ...first, page: 50 }, [], 50, [])).toBeUndefined();
   });
+});
+
+it('filters already-read cached notices out of the displayed items', () => {
+  expect(notificationItems([{ ...first, items: first.items.map(item => ({ ...item, read: true })) }])).toEqual([]);
 });

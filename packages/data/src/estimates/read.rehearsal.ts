@@ -232,6 +232,7 @@ async function decisionFixture() {
 }
 
 async function acceptedLeadConversionFixture(withCustomer = true) {
+  await db("workspaceServices").insert({workspaceId,id:randomUUID(),service:"Fixture repair",name:"Fixture repair"}).onConflict(["workspaceId","service"]).ignore();
   const sourceLeadId = randomUUID();
   await db("leads").insert({
     id: sourceLeadId, workspaceId, createdBy: users.owner, submissionId: randomUUID(),
@@ -270,7 +271,7 @@ function conversionCommand(fixture: Awaited<ReturnType<typeof acceptedLeadConver
     sourceLeadId: fixture.sourceLeadId,
     job: {
       customerId: review.job.customerId, title: review.job.title, service: review.job.service,
-      location: review.job.location, description: review.job.description,
+      location: review.job.location, postalCode:review.job.postalCode||'10001', countryCode:'US', description: review.job.description,
       primaryOwnerId: review.job.primaryOwnerId, teamUserIds: review.job.teamUserIds,
       scheduledDate: review.job.scheduledDate, arrivalWindow: review.job.arrivalWindow,
       completionDeadline: review.job.completionDeadline,
@@ -1785,7 +1786,7 @@ try {
     assert.equal(fieldNotice.status, "sent");
     await markNotificationRead(db, identity("field"), enabled, fieldNotice.id);
     assert.equal((await readNotifications(db, identity("field"), enabled)).items
-      .find(item => item.kind === "estimate" && item.id === fieldNotice.id)?.read, true);
+      .find(item => item.kind === "estimate" && item.id === fieldNotice.id), undefined);
     await assert.rejects(markNotificationRead(db, identity("office"), enabled, fieldNotice.id), AuthorizationAccessError);
 
     await db("users").where({ id: users.field }).update({ emailVerified: true });
@@ -2312,8 +2313,26 @@ try {
     assert.equal(history.events.find(event => event.kind === "archived")?.source.type, "ui");
     assert.ok(!JSON.stringify(history).includes("STAFF_ONLY_SHARING_FIXTURE"));
   });
+  await check("accepted estimates can be archived and restored without removing their approval or creating a Job", async () => {
+    const fixture = await acceptedLeadConversionFixture();
+    const before = await db("estimates").where({ id: fixture.estimateId }).first();
+    const snapshots = await db("estimate_snapshots").where({ estimateId: fixture.estimateId });
+    const decisions = await db("estimate_decisions").where({ estimateId: fixture.estimateId });
+    const jobs = await db("jobs").where({ workspaceId }).orderBy("id");
+    const archived = await setEstimateArchived(db, identity(), enabled, { workspaceId, estimateId: fixture.estimateId,
+      expectedVersion: before.version, submissionId: randomUUID(), mode: "archive" });
+    const hidden = await db("estimates").where({ id: fixture.estimateId }).first();
+    assert.equal(hidden.status, "accepted"); assert.ok(hidden.archivedAt);
+    assert.deepEqual(await db("estimate_snapshots").where({ estimateId: fixture.estimateId }), snapshots);
+    assert.deepEqual(await db("estimate_decisions").where({ estimateId: fixture.estimateId }), decisions);
+    assert.deepEqual(await db("jobs").where({ workspaceId }).orderBy("id"), jobs);
+    await setEstimateArchived(db, identity(), enabled, { workspaceId, estimateId: fixture.estimateId,
+      expectedVersion: archived.version, submissionId: randomUUID(), mode: "restore" });
+    const restored = await db("estimates").where({ id: fixture.estimateId }).first();
+    assert.equal(restored.status, "accepted"); assert.equal(restored.archivedAt, null);
+  });
   await check("archive eligibility accepts closed states and workspace-effective expiry but never persists a fabricated status", async () => {
-    for (const status of ["declined", "expired", "superseded", "void"]) {
+    for (const status of ["accepted", "declined", "expired", "superseded", "void"]) {
       const source = await revisionFixture();
       await db("estimates").where({ id: source.estimateId }).update({ status });
       const receipt = await setEstimateArchived(db, identity(), enabled, {
@@ -2339,7 +2358,7 @@ try {
   });
   await check("archive rejects active states, stale confirmations and redundant archive/restore without side effects", async () => {
     const command = await archiveFixture();
-    for (const status of ["draft", "sent", "published", "accepted"]) {
+    for (const status of ["draft", "sent", "published"]) {
       await db("estimates").where({ id: command.estimateId }).update({ status, validUntil: localDate(5) });
       const before = await db("estimates").where({ id: command.estimateId }).first();
       await assert.rejects(setEstimateArchived(db, identity(), enabled, command), EstimateDraftValidationError);
@@ -3097,7 +3116,7 @@ try {
     assert.equal((await db("jobs").where({ workspaceId, sourceLeadId: stale.sourceLeadId })).length, 0);
 
     const existing = await acceptedLeadConversionFixture();
-    await createJob(db, identity(), enabled, {
+    await createJob(db, identity(), enabled, {postalCode:'10001',
       workspaceId, submissionId: randomUUID(), customerId,
       sourceLeadId: existing.sourceLeadId, title: "Existing lead Job",
       service: "Fixture repair", location: "2 Fixture Avenue", description: "",
@@ -4680,7 +4699,7 @@ try {
     assert.deepEqual(restored, { ...initial, version: initial.version + 2, updatedAt: restored.updatedAt });
   });
   await check("assistant Archive accepts effective closed states without rewriting status or requiring frozen paper", async () => {
-    for (const status of ["declined", "expired", "superseded", "void", "read-time-expired"]) {
+    for (const status of ["accepted", "declined", "expired", "superseded", "void", "read-time-expired"]) {
       const source = await sharingDraft();
       await db("estimates").where({ id: source.id }).update(status === "read-time-expired"
         ? { status: "published", validUntil: localDate(-1) } : { status });
@@ -4695,7 +4714,7 @@ try {
     const source = await archiveFixture(), run = await archiveAssistant("archive", source.estimateId);
     const active = await sharingDraft();
     const before = await draftActionBusinessSnapshot();
-    for (const status of ["draft", "sent", "published", "accepted"]) {
+    for (const status of ["draft", "sent", "published"]) {
       await db("estimates").where({ id: active.id }).update({ status, validUntil: localDate(5) });
       await assert.rejects(archiveAssistant("archive", active.id, "owner", run), EstimateDraftValidationError);
     }
@@ -4826,7 +4845,7 @@ try {
       assert.equal((await operateEstimateChatArchive(db, identity(), enabled, run.binding, "confirm")).view.ticket.state, "confirmed");
     }
   });
-  await check("assistant Archive and a concurrent manual correction cannot produce an archived Accepted Estimate", async () => {
+  await check("assistant Archive and a concurrent manual correction serialize against the reviewed version", async () => {
     const source = await archiveFixture(), run = await archiveAssistant("archive", source.estimateId);
     const review = await readEstimateDecisionReview(db, identity(), enabled, source.estimateId);
     const correction = {

@@ -7,10 +7,10 @@ import { leadListQuerySchema, leadEditableFields, leadNoteActivitySchema, leadSt
 import { authorize } from '@salesmora/domain';
 import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIdentity } from '../authorization/store';
 type Row = Omit<LeadReadRecord, 'canMove' | 'canEdit' | 'canAssign' | 'canArchive' | 'canRestore' | 'canDelete' | 'origin' | 'leadNumber' | 'owner' | 'archived' | 'createdAt' | 'updatedAt' | 'lastActivityAt'> & {
-  creationChanges: unknown; leadNumber: number; ownerId: string | null; ownerName: string | null; memberId: string | null; archivedAt: Date | null;
+  serviceName?:string; creationChanges: unknown; leadNumber: number; ownerId: string | null; ownerName: string | null; memberId: string | null; archivedAt: Date | null;
   createdAt: Date; updatedAt: Date; lastActivityAt: Date;
 };
-const fields = ['id', 'leadNumber', 'version', 'name', 'service', 'email', 'phone', 'address', 'details', 'notes', 'stage', 'source', 'ownerId', 'createdAt', 'updatedAt', 'lastActivityAt', 'archivedAt'].map(field => `l.${field}`);
+const fields = ['id', 'leadNumber', 'version', 'name', 'service', 'email', 'phone', 'address', 'postalCode', 'countryCode', 'details', 'notes', 'stage', 'source', 'ownerId', 'createdAt', 'updatedAt', 'lastActivityAt', 'archivedAt'].map(field => `l.${field}`);
 // These record permissions have workspace-only scope. This projects the grant for read UI/roster
 // availability, not permission to mutate any particular lead (writes must load that lead again).
 function workspaceGrant(context: AuthorizationContext, permission: 'leads.archive' | 'leads.assign' | 'leads.delete') {
@@ -19,10 +19,10 @@ function workspaceGrant(context: AuthorizationContext, permission: 'leads.archiv
 function canArchive(context: AuthorizationContext) { return workspaceGrant(context, 'leads.archive'); }
 function select(query: Knex.QueryBuilder, trx: Knex.Transaction) {
   return query.leftJoin('leadActivity as c', function () { this.on('c.id', 'l.id').andOn('c.workspaceId', 'l.workspaceId'); }).leftJoin('users as u', 'u.id', 'l.ownerId').leftJoin('workspaceMemberships as m', function () { this.on('m.userId', 'l.ownerId').andOn('m.workspaceId', 'l.workspaceId'); })
-    .select(...fields, 'c.changes as creationChanges', trx.raw('coalesce(u.name,l."ownerName") as "ownerName"'), 'm.userId as memberId', trx.raw(`((l."ownerId" IS NULL OR m."userId" IS NULL) OR l."lastActivityAt" < CURRENT_TIMESTAMP - INTERVAL '7 days') as "needsAttention"`));
+    .select(...fields, trx.raw(`(SELECT name FROM "workspaceServices" s WHERE s."workspaceId"=l."workspaceId" AND s.id=l."serviceId") AS "serviceName"`), 'c.changes as creationChanges', trx.raw('coalesce(u.name,l."ownerName") as "ownerName"'), 'm.userId as memberId', trx.raw(`((l."ownerId" IS NULL OR m."userId" IS NULL) OR l."lastActivityAt" < CURRENT_TIMESTAMP - INTERVAL '7 days') as "needsAttention"`));
 }
 function dto(row: Row, context: AuthorizationContext): LeadReadRecord {
-  return { id: row.id, leadNumber: `LD-${String(row.leadNumber).padStart(4, '0')}`, version: row.version, name: row.name, service: row.service, email: row.email, phone: row.phone, address: row.address, details: row.details, notes: row.notes,
+  return { id: row.id, leadNumber: `LD-${String(row.leadNumber).padStart(4, '0')}`, version: row.version, name: row.name, service: row.serviceName??row.service, email: row.email, phone: row.phone, address: row.address, postalCode: row.postalCode??'', countryCode: row.countryCode??'US', details: row.details, notes: row.notes,
     canDelete: workspaceGrant(context, 'leads.delete'), canArchive: !row.archivedAt && canArchive(context), canRestore: !!row.archivedAt && canArchive(context), canAssign: !row.archivedAt && workspaceGrant(context, 'leads.assign'), origin: leadOrigin(row.creationChanges), canEdit: !row.archivedAt && authorize(context, { permission: 'leads.update', fields: [...leadEditableFields], resource: { kind: 'lead', id: row.id, workspaceId: context.workspaceId, ownerId: row.ownerId } }).allowed, stage: row.stage, source: row.source, owner: row.ownerId ? { id: row.ownerId, name: row.ownerName ?? '', former: !row.memberId } : null,
     createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), lastActivityAt: row.lastActivityAt.toISOString(), archived: !!row.archivedAt, needsAttention: row.needsAttention, canMove: !row.archivedAt && authorize(context, { permission: 'leads.stage.update', resource: { kind: 'lead', id: row.id, workspaceId: context.workspaceId, ownerId: row.ownerId } }).allowed };
 }

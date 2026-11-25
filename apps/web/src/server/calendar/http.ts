@@ -1,8 +1,9 @@
 import 'server-only';
+import { calendarWorkTimeErrorMessage } from './work-time-error';
 import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../http/suspension';
 import { NextResponse } from 'next/server';
 import { CalendarContractError, jobIdSchema } from '@salesmora/contracts';
-import { AuthorizationAccessError } from '@salesmora/data';
+import { AuthorizationAccessError,WorkflowConflictError,WorkflowDraftError } from '@salesmora/data';
 import { CalendarRevisionError, JobLifecycleError, WorkOrderLifecycleError } from '@salesmora/domain';
 import { getSession } from '../auth/session';
 export const calendarHeaders = { 'Cache-Control': 'private, no-store', Vary: 'Cookie' };
@@ -24,7 +25,9 @@ export async function calendarRequest(request: Request, run: (identity: { worksp
     return await run({ workspaceId: workspaceId!, userId: session.user.id }, body);
   } catch (error) {
     if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
-    const status = error instanceof AuthorizationAccessError ? 404 : error instanceof CalendarRevisionError ? 409 : error instanceof CalendarContractError || error instanceof JobLifecycleError || error instanceof WorkOrderLifecycleError ? 422 : 500;
-    return NextResponse.json({ error: status === 404 ? 'This Calendar or visit is unavailable.' : status === 409 ? 'The visit changed. Reload and review its current schedule.' : status === 422 ? 'Check the Calendar details and try again.' : 'The Calendar could not be loaded or saved. Try again.', ...(status === 409 ? { code: 'conflict' } : {}) }, { status, headers: calendarHeaders });
+    const workTimeMessage = calendarWorkTimeErrorMessage(error);
+    if (workTimeMessage) return NextResponse.json({ error: workTimeMessage }, { status: 422, headers: calendarHeaders });
+    const status = error instanceof AuthorizationAccessError ? 404 : error instanceof CalendarRevisionError || error instanceof WorkflowConflictError ? 409 : error instanceof WorkflowDraftError || error instanceof CalendarContractError || error instanceof JobLifecycleError || error instanceof WorkOrderLifecycleError ? 422 : 500;
+    return NextResponse.json({ error: status === 404 ? 'This Calendar or visit is unavailable.' : status === 409 ? 'The visit changed. Reload and review its current schedule.' : status === 422 ? error instanceof WorkflowDraftError?error.message:'Check the Calendar details and try again.' : 'The Calendar could not be loaded or saved. Try again.', ...(status === 409 ? { code: 'conflict' } : {}) }, { status, headers: calendarHeaders });
   }
 }

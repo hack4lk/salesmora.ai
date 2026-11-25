@@ -477,3 +477,18 @@ export const ThreeStepReview: Story = {
     await expect(args.creation?.onContinue).toHaveBeenCalledOnce();
   },
 };
+
+export const CompactReviewHistories: Story = {
+  args: {
+    ...ThreeStepReview.args,
+    revisions: <EstimateRevisionsPanel number="EST-2048" currentEstimateId="revision-2" revisions={estimateRevisionFixtures} total={3} canRead />,
+    history: <EstimateHistoryTimeline events={estimateHistoryFixtures} total={estimateHistoryFixtures.length} timezone={seed.timezone} canRead />,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("heading", { name: "Review and confirm" })).toBeVisible();
+    await expect(canvas.getByRole("list", { name: "Revision history" })).toBeVisible();
+    await expect(canvas.getByRole("list", { name: "Estimate history" })).toBeVisible();
+  },
+};
+export const CompactReviewMobile: Story = { ...CompactReviewHistories, globals: { viewport: { value: "phone", isRotated: false } } };

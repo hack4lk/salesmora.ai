@@ -19,6 +19,14 @@ export function MaterialsFilters({ filters, options, canManage, disabled = false
         <label className={woLabel} htmlFor={id}>{copy.search}<input id={id} type="search" maxLength={200} className={woInput} placeholder={copy.placeholder} value={filters.q} onChange={event => patch({ q: event.target.value })} /></label>
         {select('category', copy.category, options.categories)}
         {select('supplier', copy.supplier, options.suppliers)}
+        {!canManage && filters.status !== 'active' && (
+          <label className={woLabel}>{copy.proposalStatus}
+            <select className={woInput} value={filters.status} onChange={event => patch({ status: event.target.value === 'rejected' ? 'rejected' : 'proposed' })}>
+              <option value="proposed">{copy.pending}</option>
+              <option value="rejected">{copy.rejected}</option>
+            </select>
+          </label>
+        )}
         {canManage && filters.status === 'active' && <label className="flex min-h-11 cursor-pointer items-center gap-2 self-end text-sm font-semibold"><input role="switch" type="checkbox" checked={filters.archived} onChange={event => patch({ archived: event.target.checked })} className="size-5 accent-primary focus-visible:focus-ring" />{copy.archived}</label>}
       </div>
     </FilterBar>

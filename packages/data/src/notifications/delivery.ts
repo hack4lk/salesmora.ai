@@ -8,10 +8,10 @@ export type AssignmentDelivery = { id: string; to: string; workspaceId: string; 
 /** Workspace then outbox lock order matches mutations. Skip-locked claims support multiple workers.
  * A bounded provider call holds a shared workspace lock to serialize access revocation with delivery.
  */
-export async function processAssignmentEmails(db: Knex, enabled: readonly PermissionId[], send: (mail: AssignmentDelivery) => Promise<void>, limit = 10) {
+export async function processAssignmentEmails(db: Knex, enabled: readonly PermissionId[], send: (mail: AssignmentDelivery) => Promise<void>, limit = 10, target?: { id: string; workspaceId: string }) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new RangeError('Invalid delivery batch size');
   const summary = { sent: 0, skipped: 0, retryPending: 0, failed: 0 };
-  const candidates = await withoutSuspendedWorkspaces(db('assignmentEmailOutbox as o'), 'n.workspaceId').join('assignmentNotifications as n','n.id','o.id').where('o.status','queued').where('o.nextAttemptAt','<=',db.fn.now()).orderBy('o.nextAttemptAt').orderBy('o.id').limit(limit).select('o.id','n.workspaceId','n.userId','n.createdAt');
+  const candidates = await withoutSuspendedWorkspaces(db('assignmentEmailOutbox as o'), 'n.workspaceId').join('assignmentNotifications as n','n.id','o.id').where('o.status','queued').modify(query => { if (target) query.where({ 'o.id': target.id, 'n.workspaceId': target.workspaceId, 'o.workflowRouting': true }); else query.where('o.workflowRouting', false); }).where('o.nextAttemptAt','<=',db.fn.now()).orderBy('o.nextAttemptAt').orderBy('o.id').limit(limit).select('o.id','n.workspaceId','n.userId','n.createdAt');
   for (const candidate of candidates) {
     try {
       await withWorkspaceAuthorization(db,{ workspaceId: candidate.workspaceId, userId: candidate.userId },enabled,false,async (trx,context) => {

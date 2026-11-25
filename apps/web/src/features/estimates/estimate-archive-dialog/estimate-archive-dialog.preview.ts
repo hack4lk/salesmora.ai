@@ -38,7 +38,7 @@ export function reviewEstimateArchive(input: EstimateArchiveReviewInput): {
   if (!capabilities.archive) issues.push(c.errors.permission);
   if (mode === "archive") {
     if (estimate.archived) issues.push(c.errors.archived);
-    if (!["declined", "expired", "superseded", "void"].includes(estimate.status)) issues.push(c.errors.status);
+    if (!["accepted", "declined", "expired", "superseded", "void"].includes(estimate.status)) issues.push(c.errors.status);
   } else if (!estimate.archived) issues.push(c.errors.notArchived);
   if (!estimate.id.trim() || !estimate.number.trim() || !estimate.name.trim() || estimate.name.length > 120
     || !estimate.recipientName.trim() || !Number.isSafeInteger(estimate.revision) || estimate.revision < 1

@@ -11,7 +11,7 @@ process.loadEnvFile(fileURLToPath(new URL('../../../../.env.local', import.meta.
 const connection = process.env.TEST_DATABASE_URL;
 if (!connection || !new URL(connection).pathname.endsWith('_test') || connection === process.env.DATABASE_URL || !['localhost', '127.0.0.1'].includes(new URL(connection).hostname)) throw Error('Use the isolated local test database.');
 const db = createDatabase(connection), workspaceId = randomUUID(), customerId = randomUUID(), users = { owner: randomUUID(), office: randomUUID(), field: randomUUID() }, enabled = [...permissionIds];
-const identity = (role: keyof typeof users = 'owner') => ({ workspaceId, userId: users[role] });
+const identity = (role: keyof typeof users = 'owner') => ({ postalCode:'10001', workspaceId, userId: users[role] });
 let revision = '0', passed = 0;
 const check = async (label: string, run: () => Promise<void>) => { await run(); console.log('PASS ' + label); passed++; };
 async function setting(values: { mode: 'unset' } | { mode: 'relative'; days: number; count: 'business' | 'calendar' }) {
@@ -20,7 +20,7 @@ async function setting(values: { mode: 'unset' } | { mode: 'relative'; days: num
 async function reviewed(mode: 'workspace' | 'date' | 'unset' = 'workspace'): Promise<CreateJobInput> {
   const { context } = await readJobCreationDeadline(db, identity(), enabled);
   const date = mode === 'workspace' ? context.projectedDate : mode === 'date' ? '2027-05-01' : null;
-  return { workspaceId, submissionId: randomUUID(), customerId, title: 'Deadline fixture', primaryOwnerId: users.owner, completionDeadline: date,
+  return { postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: 'Deadline fixture', primaryOwnerId: users.owner, completionDeadline: date,
     deadlineIntent: mode === 'workspace' ? { mode, revision: context.revision } : mode === 'date' ? { mode, date: date! } : { mode },
     deadlinePreview: { revision: context.revision, createdDate: context.createdDate, resolvedDate: date, timezone: context.timezone } };
 }
@@ -28,7 +28,7 @@ try {
   await db.transaction(async trx => {
     await trx('users').insert(Object.entries(users).map(([role, id]) => ({ id, name: `Deadline ${role}`, email: `${id}@example.test`, createdAt: new Date(), updatedAt: new Date(), termsVersion: 'fixture', termsAcceptedAt: new Date() })));
     await trx('workspaces').insert({ id: workspaceId, ownerId: users.owner, businessName: 'Deadline fixture', businessType: 'plumbing', postalCode: '', serviceRange: '', timezone: 'America/New_York' });
-    await trx('workspaceMemberships').insert(Object.entries(users).map(([role, userId]) => ({ workspaceId, userId, role }))); await initializeWorkspacePolicy(trx, identity());
+    await trx('workspaceMemberships').insert(Object.entries(users).map(([role, userId]) => ({ postalCode:'10001', workspaceId, userId, role }))); await initializeWorkspacePolicy(trx, identity());
     await trx('customers').insert({ id: customerId, workspaceId, name: 'Deadline customer', type: 'person', companyName: '', email: '', phone: '', location: '', internalNotes: '' });
   });
   await check('creation preview is scoped to current creators and excludes administrative policy', async () => {
@@ -56,9 +56,9 @@ try {
   await check('stale rules, timezone, workspace-local day and forged projections reject without side effects', async () => {
     const valid = await reviewed(), count = (await db('jobs').where({ workspaceId })).length;
     for (const preview of [{ ...valid.deadlinePreview!, revision: '0' }, { ...valid.deadlinePreview!, timezone: 'Pacific/Auckland' }, { ...valid.deadlinePreview!, createdDate: '2026-01-01' }]) {
-      await assert.rejects(createJob(db, identity(), enabled, { ...valid, submissionId: randomUUID(), deadlineIntent: { mode: 'workspace', revision: preview.revision }, deadlinePreview: preview }), JobDeadlineReviewConflict);
+      await assert.rejects(createJob(db, identity(), enabled, {...valid, submissionId: randomUUID(), deadlineIntent: { mode: 'workspace', revision: preview.revision }, deadlinePreview: preview ,postalCode:'10001'}), JobDeadlineReviewConflict);
     }
-    const forged = '2027-12-01'; await assert.rejects(createJob(db, identity(), enabled, { ...valid, submissionId: randomUUID(), completionDeadline: forged, deadlinePreview: { ...valid.deadlinePreview!, resolvedDate: forged } }), JobDeadlineReviewConflict);
+    const forged = '2027-12-01'; await assert.rejects(createJob(db, identity(), enabled, {...valid, submissionId: randomUUID(), completionDeadline: forged, deadlinePreview: { ...valid.deadlinePreview!, resolvedDate: forged } ,postalCode:'10001'}), JobDeadlineReviewConflict);
     assert.equal((await db('jobs').where({ workspaceId })).length, count);
   });
   await check('custom and explicitly unset choices override the default only with scheduling permission', async () => {
@@ -69,16 +69,16 @@ try {
     await db('workspaceRolePolicies').where({ workspaceId, role: 'office', permission: 'jobs.schedule.update' }).delete();
     const context = await readJobCreationDeadline(db, identity('office'), enabled); assert.equal(context.canOverride, false);
     await assert.rejects(createJob(db, identity('office'), enabled, await reviewed('unset')), AuthorizationAccessError);
-    await assert.rejects(createJob(db, identity('office'), enabled, { workspaceId, submissionId: randomUUID(), customerId, title: 'Legacy bypass denied', primaryOwnerId: users.owner, completionDeadline: null }), AuthorizationAccessError);
+    await assert.rejects(createJob(db, identity('office'), enabled, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: 'Legacy bypass denied', primaryOwnerId: users.owner, completionDeadline: null }), AuthorizationAccessError);
     const result = await createJob(db, identity('office'), enabled, await reviewed()); assert.ok(result.jobId);
   });
   await check('unset defaults and legacy explicitly reviewed dates/null remain unchanged', async () => {
     await setting({ mode: 'unset' }); const input = await reviewed(), result = await createJob(db, identity(), enabled, input);
     assert.equal((await readJob(db, identity(), enabled, result.jobId)).job.completionDeadline, null);
-    assert.ok((await createJob(db, identity('office'), enabled, { workspaceId, submissionId: randomUUID(), customerId, title: 'Legacy unset default', primaryOwnerId: users.owner, completionDeadline: null })).jobId);
+    assert.ok((await createJob(db, identity('office'), enabled, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: 'Legacy unset default', primaryOwnerId: users.owner, completionDeadline: null })).jobId);
     await setting({ mode: 'relative', days: 20, count: 'calendar' });
     for (const completionDeadline of [null, '2027-01-01']) {
-      const result = await createJob(db, identity(), enabled, { workspaceId, submissionId: randomUUID(), customerId, title: 'Legacy reviewed deadline', primaryOwnerId: users.owner, completionDeadline });
+      const result = await createJob(db, identity(), enabled, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: 'Legacy reviewed deadline', primaryOwnerId: users.owner, completionDeadline });
       assert.equal((await readJob(db, identity(), enabled, result.jobId)).job.completionDeadline, completionDeadline);
     }
   });

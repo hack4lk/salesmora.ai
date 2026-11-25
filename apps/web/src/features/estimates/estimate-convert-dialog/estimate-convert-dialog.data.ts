@@ -75,7 +75,7 @@ export const estimateConvertDialogData = {
   },
 } as const;
 
-export const estimateConversionFixture: EstimateConversionRecord = {
+export const estimateConversionFixture: EstimateConversionRecord = { postalCode:'10001',
   id: "estimate-conversion-sample", number: "EST-2048", revision: 1, version: 6,
   name: estimateConvertDialogData.stories.name, status: "accepted", archived: false,
   parentType: "lead", parentId: "44444444-4444-4444-8444-444444444444", parentNumber: "L-1024",

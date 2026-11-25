@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { usPostalCodeSchema } from './postal-code';
+import {workspaceServiceChoiceSchema} from "./services";
 import { estimateStatusSchema } from "./estimate";
 import { arrivalWindows, jobDateSchema } from "./job";
 
@@ -13,6 +15,8 @@ const conversionJobFields = {
   title: z.string().trim().min(1).max(200),
   service: z.string().trim().max(200),
   location: z.string().trim().max(500),
+  postalCode: usPostalCodeSchema,
+  countryCode: z.literal('US').default('US'),
   description: z.string().trim().max(4000),
   primaryOwnerId: z.string().trim().min(1).max(200).nullable(),
   teamUserIds: z.array(z.string().trim().min(1).max(200)).max(100)
@@ -64,6 +68,7 @@ const estimateConversionRecordSchema = z.object({
   service: z.string().max(200),
   scope: z.string().max(4000),
   serviceAddress: z.string().max(500),
+  postalCode: z.string().optional(),
   convertedJob: estimateJobReferenceSchema.nullable(),
 }).strict();
 
@@ -93,6 +98,7 @@ export const estimateConversionReviewSchema = z.object({
       title: z.string(),
       service: z.string(),
       location: z.string(),
+      postalCode: z.string().optional(),
       description: z.string(),
       primaryOwnerId: z.string().nullable(),
       teamUserIds: z.array(z.string()),
@@ -101,6 +107,7 @@ export const estimateConversionReviewSchema = z.object({
       completionDeadline: jobDateSchema.nullable(),
     }).strict(),
   }).strict(),
+  services:z.array(workspaceServiceChoiceSchema).optional(),
   members: z.array(z.object({
     id: z.string(),
     name: z.string(),

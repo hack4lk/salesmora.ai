@@ -55,6 +55,7 @@ export function parseChatProposal(raw: unknown): ChatProposal {
         ? proposal.payload.payload.input.workspaceId : proposal.payload.payload.input.query.workspaceId;
       break;
     case 'estimateDraft': binding = proposal.payload.view.draft; break;
+    case 'workflow': binding = proposal.payload.draft; workspaceId = proposal.payload.draft.workspaceId; break;
     case 'calendar':
       binding = proposal.payload.draft;
       workspaceId = proposal.payload.command.workspaceId;

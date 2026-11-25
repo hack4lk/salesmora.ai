@@ -31,7 +31,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const ServerSnapshot: Story = { play: async ({ canvasElement }) => {
-  await expect(within(canvasElement).getByRole('heading', { name: 'Work orders' })).toBeVisible();
+  await expect(within(canvasElement).getByRole('heading', { level: 1, name: /^Work orders$/ })).toBeVisible();
   await expect(reads).not.toHaveBeenCalled();
 } };
 export const FilterCacheReuse: Story = { play: async ({ canvasElement }) => {

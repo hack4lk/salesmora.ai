@@ -1,3 +1,4 @@
+import { calendarWorkTimeSchema } from './calendar-work-time';
 import { z } from 'zod';
 import { arrivalWindows, jobDateSchema } from './job';
 import { calendarChatVisitSchema } from './calendar-chat';
@@ -17,13 +18,13 @@ const records = z.array(z.discriminatedUnion('type',[
 ])).min(1);
 const proposalDraftBase = z.object({
   id:z.uuid(),inputHash:hash,visitId:z.uuid(),revision:hash,createdAt:z.iso.datetime(),expiresAt:z.iso.datetime(),state:states,
-  timezone:z.string().min(1).max(100),from:calendarScheduleSchema,
+  timezone:z.string().min(1).max(100),workTimezone:z.string().min(1).max(100).nullable().optional(),from:calendarScheduleSchema,
   records,crew:calendarChatVisitSchema.shape.crew,warnings:z.array(z.string().min(1).max(1000)),
 }).strict();
-const datedSchedule = z.object({ scheduledDate:jobDateSchema,arrivalWindow:z.enum(arrivalWindows).nullable() }).strict();
+const datedSchedule = z.object({ scheduledDate:jobDateSchema,arrivalWindow:z.enum(arrivalWindows).nullable(),workTime:calendarWorkTimeSchema.nullable().optional() }).strict();
 export const calendarProposalDraftSchema = z.discriminatedUnion('intent',[
   proposalDraftBase.extend({ intent:z.literal('schedule').optional(),to:datedSchedule }),
-  proposalDraftBase.extend({ intent:z.literal('clear'),from:datedSchedule,to:z.object({ scheduledDate:z.null(),arrivalWindow:z.null() }).strict(),warnings:z.array(z.string()).max(0) }),
+  proposalDraftBase.extend({ intent:z.literal('clear'),from:datedSchedule,to:z.object({ scheduledDate:z.null(),arrivalWindow:z.null(),workTime:z.null().optional() }).strict(),warnings:z.array(z.string()).max(0) }),
 ]).superRefine((v,ctx) => {
   const duration = Date.parse(v.expiresAt) - Date.parse(v.createdAt);
   if (duration <= 0 || duration > 900000 || v.records.some(r => ['completed','canceled'].includes(r.status)) || new Set(v.records.map(r => `${r.type}:${r.id}`)).size !== v.records.length) ctx.addIssue({ code:'custom',message:'Invalid complete Calendar review.' });
@@ -41,7 +42,7 @@ export const calendarProposalStoredSchema = z.object({
   receipt:z.object({ visitId:z.uuid(),version:z.number().int().positive(),records:z.array(calendarRecordRefSchema).min(1),revision:hash }).strict().nullable(),resultStamp:hash.nullable(),
 }).strict().superRefine((v,ctx) => {
   const expected = v.draft.records.map(r => `${r.type}:${r.id}:${r.expectedVersion}`).sort(),actual = v.command.records.map(r => `${r.type}:${r.id}:${r.expectedVersion}`).sort();
-  if (v.command.submissionId !== v.draft.id || v.command.visitId !== v.draft.visitId || v.command.schedule.scheduledDate !== v.draft.to.scheduledDate || v.command.schedule.arrivalWindow !== v.draft.to.arrivalWindow || expected.length !== actual.length || expected.some((key,i) => key !== actual[i]) || (v.draft.state === 'confirmed') !== !!v.receipt || !!v.receipt !== !!v.resultStamp || (v.receipt && (v.receipt.visitId !== v.draft.visitId || v.receipt.version !== v.command.expectedVisitVersion + 1 || v.receipt.records.length !== v.command.records.length || new Set(v.receipt.records.map(r => `${r.type}:${r.id}`)).size !== v.receipt.records.length || v.receipt.records.some(r => !v.command.records.some(old => old.type === r.type && old.id === r.id && old.expectedVersion + 1 === r.expectedVersion))))) ctx.addIssue({ code:'custom',message:'Invalid Calendar schedule receipt or command.' });
+  if (v.command.submissionId !== v.draft.id || v.command.visitId !== v.draft.visitId || v.command.schedule.scheduledDate !== v.draft.to.scheduledDate || v.command.schedule.arrivalWindow !== v.draft.to.arrivalWindow || JSON.stringify(v.command.schedule.workTime ?? null) !== JSON.stringify(v.draft.to.workTime ?? null) || expected.length !== actual.length || expected.some((key,i) => key !== actual[i]) || (v.draft.state === 'confirmed') !== !!v.receipt || !!v.receipt !== !!v.resultStamp || (v.receipt && (v.receipt.visitId !== v.draft.visitId || v.receipt.version !== v.command.expectedVisitVersion + 1 || v.receipt.records.length !== v.command.records.length || new Set(v.receipt.records.map(r => `${r.type}:${r.id}`)).size !== v.receipt.records.length || v.receipt.records.some(r => !v.command.records.some(old => old.type === r.type && old.id === r.id && old.expectedVersion + 1 === r.expectedVersion))))) ctx.addIssue({ code:'custom',message:'Invalid Calendar schedule receipt or command.' });
 });
 export type CalendarProposalTicket = z.infer<typeof calendarProposalTicketSchema>;
 export type CalendarProposalView = z.infer<typeof calendarProposalViewSchema>;

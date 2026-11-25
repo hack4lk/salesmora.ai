@@ -2,6 +2,7 @@ import type { captureProposeOperations } from '@salesmora/contracts';
 import { textBatches } from './text-batches';
 type CaptureProposalOperation = typeof captureProposeOperations[number];
 import type {
+  WorkflowDefinition,
   CustomerOperationId,
   CustomerChatResult,
 } from "@salesmora/contracts";
@@ -37,6 +38,8 @@ export interface ConversationModel {
     operations?: readonly LeadOperationId[],
     customerOperations?: readonly CustomerOperationId[],
     captureOperations?: readonly CaptureProposalOperation[],
+    workflowRecipes?: readonly WorkflowDefinition["kind"][],
+    workflowEditing?: boolean,
   ): Promise<RuntimeCall[]>;
   answer(
     messages: RuntimeMessage[],
@@ -47,6 +50,8 @@ export interface ConversationModel {
     customerOperations?: readonly CustomerOperationId[],
     captureOperations?: readonly CaptureProposalOperation[],
     executedTools?: readonly ImplementedToolId[],
+    workflowRecipes?: readonly WorkflowDefinition["kind"][],
+    workflowEditing?: boolean,
   ): AsyncIterable<string>;
 }
 export interface RuntimeCapabilities {
@@ -54,6 +59,8 @@ export interface RuntimeCapabilities {
   leadOperations: readonly LeadOperationId[];
   customerOperations: readonly CustomerOperationId[];
   captureOperations: readonly CaptureProposalOperation[];
+  workflowRecipes?: readonly WorkflowDefinition["kind"][];
+  workflowEditing?: boolean;
 }
 export interface RuntimeDependencies {
   model: ConversationModel;
@@ -96,6 +103,7 @@ export async function runConversation(
 ) {
   let reportResult: import("@salesmora/contracts").ReportAssistantTicket | undefined;
   let customerResult: CustomerChatResult | undefined;
+  let workflowDraft: import("@salesmora/contracts").WorkflowDraft | undefined;
   let calendarProposal: import("@salesmora/contracts").CalendarProposalTicket | undefined;
   let captureSource: import("@salesmora/contracts").CaptureAssistantProposalTicket | undefined;
   let captureSetup: import("@salesmora/contracts").CaptureAssistantProposalTicket | undefined;
@@ -152,6 +160,8 @@ export async function runConversation(
           capabilities.leadOperations,
           capabilities.customerOperations,
           capabilities.captureOperations,
+          capabilities.workflowRecipes,
+          capabilities.workflowEditing,
         );
         if (
           calls.length > 2 ||
@@ -205,6 +215,11 @@ export async function runConversation(
           if (call.name === 'lead_capture_propose_action' &&
             !capabilities.captureOperations.some(operation => 'operation' in args && operation === args.operation))
             throw Error('Access denied.');
+          if (call.name === "workflows_prepare" && "operation" in args && args.operation === "edit" && capabilities.workflowEditing === false)
+            throw Error("Access denied.");
+          if (call.name === "workflows_prepare" && !("operation" in args && args.operation === "edit") && capabilities.workflowRecipes &&
+            "kind" in args && args.kind != null && !capabilities.workflowRecipes.includes(args.kind as WorkflowDefinition["kind"]))
+            throw Error("Access denied.");
           if (definition.progress)
             await deps.emit({ type: "status", status: definition.progress });
           const result = await deps.executeTool(call.name, args);
@@ -215,6 +230,7 @@ export async function runConversation(
           }
           customerResult = result.customerResult ?? customerResult;
           workOrderResult = result.workOrderResult ?? workOrderResult;
+          workflowDraft = result.workflowDraft ?? workflowDraft;
           calendarProposal = result.calendarProposal ?? calendarProposal;
           calendarResult = result.calendarResult ?? calendarResult;
           captureSource = result.captureSource ?? captureSource;
@@ -244,6 +260,15 @@ export async function runConversation(
       safeNode(async () => {
         assertActive();
         const capabilities = await deps.capabilities();
+        if (workflowDraft && executedTools.length === 1 && executedTools[0] === "workflows_prepare") {
+          const text = workflowDraft.editing ? "Review the changes below, then save when you're ready." : "Review the workflow below, then publish when you're ready.";
+          if (deps.deliverText) await deps.deliverText(text);
+          else {
+            await deps.authorize();
+            await deps.emit({ type: "text", text });
+          }
+          return { phase: "answered" };
+        }
         let length = 0;
         for await (const text of textBatches(deps.model.answer(
           input.messages,
@@ -254,6 +279,8 @@ export async function runConversation(
           capabilities.customerOperations,
           capabilities.captureOperations,
           executedTools,
+          capabilities.workflowRecipes,
+          capabilities.workflowEditing,
         ), input.signal, streamMetrics)) {
           assertActive();
           length += text.length;
@@ -301,6 +328,7 @@ export async function runConversation(
     captureResult,
     captureSetup,
     captureSource,
+    workflowDraft,
     calendarProposal,
     estimateResult,
     estimateDraft,

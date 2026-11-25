@@ -9,11 +9,12 @@ export interface LoginScreenProps {
   notice?: string;
   successMessage?: string;
   accountDeletionRequested?: boolean;
+  layoutVariant?: 'standalone' | 'public';
 }
 
-export function LoginScreen({ onSubmit, notice = copy.previewNotice, successMessage = copy.successMessage, accountDeletionRequested = false }: LoginScreenProps) {
+export function LoginScreen({ onSubmit, notice = copy.previewNotice, successMessage = copy.successMessage, accountDeletionRequested = false, layoutVariant = 'standalone' }: LoginScreenProps) {
   return (
-    <AccountLayout title={copy.title} description={copy.description} footer={copy.footer}>
+    <AccountLayout title={copy.title} description={copy.description} footer={copy.footer} variant={layoutVariant}>
       {accountDeletionRequested && <div className="mb-6"><FormFeedback kind="success" title={copy.deletionTitle} message={copy.deletionMessage} /></div>}
       <p className="mb-6 rounded-xl border border-line bg-canvas p-4 text-sm leading-6 text-muted">{notice}</p>
       <LoginForm onSubmit={onSubmit} forgotPasswordHref={copy.recoveryHref} successMessage={successMessage} />

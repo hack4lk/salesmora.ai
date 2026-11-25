@@ -12,6 +12,12 @@ const fixture = {
 };
 
 describe("Estimate notification email", () => {
+  it("uses distinct wording for a staff follow-up reminder", () => {
+    const email = renderEstimateNotificationEmail({ ...fixture, event: "awaiting_decision" });
+    expect(email.subject).toBe("SalesMora.ai: An Estimate is awaiting a decision");
+    expect(email.text).toContain("Status: Sent");
+    expect(email.text).not.toContain("needs a visit");
+  });
   it("renders only minimal Estimate details and authorized staff links", () => {
     const email = renderEstimateNotificationEmail(fixture);
     expect(email.subject).toBe("SalesMora.ai: A customer viewed an Estimate");

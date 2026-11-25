@@ -229,7 +229,8 @@ try{
     const first=(await mine("field"))[0];
     await assert.rejects(markNotificationRead(db,identity("stranger"),enabled,first.id),AuthorizationAccessError);
     await markNotificationRead(db,identity("field"),enabled,first.id);
-    assert.ok((await mine("field")).find(n=>n.id===first.id)?.read);
+    assert.ok(!(await mine("field")).some(n=>n.id===first.id));
+    assert.ok((await db("workOrderNotifications").where({id:first.id}).first()).readAt);
     await change({action:"status",to:"canceled",reason:"Customer canceled"},"office",wid);
     assert.ok((await mine("owner")).some(n=>n.kind==="work_order"&&n.event==="canceled"));
     assert.ok((await mine("field")).some(n=>n.kind==="work_order"&&n.event==="canceled"));

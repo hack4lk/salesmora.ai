@@ -11,4 +11,4 @@ async function requestReset(values: PasswordRecoverySubmission): Promise<Passwor
     return { ok: response.ok };
   } catch { return { ok: false }; }
 }
-export function PasswordRecoveryRoute() { return <PasswordRecoveryScreen onSubmit={requestReset} />; }
+export function PasswordRecoveryRoute() { return <PasswordRecoveryScreen layoutVariant="public" onSubmit={requestReset} />; }

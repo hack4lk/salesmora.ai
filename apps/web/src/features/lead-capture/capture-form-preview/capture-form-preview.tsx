@@ -65,7 +65,7 @@ export function CaptureFormPreview({
   return (
     <section
       aria-labelledby={`${id}-title`}
-      className="grid min-w-0 gap-5 rounded-2xl border border-line bg-paper p-4 sm:p-6"
+      className="grid min-w-0 gap-5 rounded-2xl border border-4 bg-paper p-4 sm:p-6 border-[var(--color-seafoam)]"
     >
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="grid gap-1">

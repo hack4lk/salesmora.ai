@@ -10,7 +10,7 @@ export const leadActivityCardData = {
   open: 'Open lead record', openLabel: (number: string) => `Open lead record ${number}`,
   retrieved: 'Retrieved', time: (value: string) => `${value} UTC`, snapshot: 'This is a saved history snapshot.',
   events: { created: 'Lead created', edited: 'Lead details updated', stage: 'Stage changed', assigned: 'Lead owner changed', note: 'Team note added', archived: 'Lead archived', restored: 'Lead restored' },
-  fields: { name: 'Lead name', service: 'Service requested', email: 'Email address', phone: 'Phone number', address: 'Service address', details: 'Request details', notes: 'Internal notes', source: 'Source' },
+  fields: { name: 'Lead name', service: 'Service requested', email: 'Email address', phone: 'Phone number', address: 'Service address', postalCode:'ZIP code', details: 'Request details', notes: 'Internal notes', source: 'Source' },
   stages: { new: 'New', contacted: 'Contacted', 'estimate-sent': 'Estimate sent', won: 'Won', lost: 'Lost' },
   sources: { website: 'Website', referral: 'Referral', phone: 'Phone', gmail: 'Gmail', other: 'Other' },
   states: {

@@ -12,7 +12,7 @@ export async function assignLead(db: Knex, identity: WorkspaceIdentity, enabled:
   });
 }
 /** Caller holds the authorized workspace write transaction; chat and manual writes share notification semantics. */
-export async function assignLeadInTransaction(trx: Knex.Transaction, context: AuthorizationContext, raw: AssignLeadInput, actorType: 'user' | 'assistant-confirmed' = 'user') {
+export async function assignLeadInTransaction(trx: Knex.Transaction, context: AuthorizationContext, raw: AssignLeadInput, actorType: 'user' | 'assistant-confirmed' = 'user', editRequestHash?: string) {
   const input = assignLeadSchema.parse(raw);
   const identity = { userId: context.userId, workspaceId: context.workspaceId };
   if (input.workspaceId !== identity.workspaceId) throw new AuthorizationAccessError();
@@ -36,7 +36,7 @@ export async function assignLeadInTransaction(trx: Knex.Transaction, context: Au
   const actor = await trx('users').where({ id: identity.userId }).first('name');
   await trx('leads').where({ id: lead.id, workspaceId: identity.workspaceId, version: input.expectedVersion }).update({ ownerId: input.ownerId, ownerName: member?.name ?? null, version, updatedAt: now, lastActivityAt: now });
   const former = lead.ownerId ? await trx('users').where({ id: lead.ownerId }).first('name') : null;
-  await trx('leadActivity').insert({ id: input.submissionId, workspaceId: identity.workspaceId, leadId: lead.id, actorId: identity.userId, actorName: actor.name, actorType, type: 'assigned', changes: JSON.stringify({ from: former?.name ?? lead.ownerName ?? null, to: member?.name ?? null, ownerId: input.ownerId, toVersion: version, requestHash }), createdAt: now });
+  await trx('leadActivity').insert({ id: input.submissionId, workspaceId: identity.workspaceId, leadId: lead.id, actorId: identity.userId, actorName: actor.name, actorType, type: 'assigned', changes: JSON.stringify({ from: former?.name ?? lead.ownerName ?? null, to: member?.name ?? null, ownerId: input.ownerId, toVersion: version, requestHash, ...(editRequestHash ? { editRequestHash } : {}) }), createdAt: now });
   if (input.ownerId && input.ownerId !== identity.userId) {
     await trx('assignmentNotifications').insert({ id: input.submissionId, workspaceId: identity.workspaceId, leadId: lead.id, userId: input.ownerId, createdAt: now });
     await trx('assignmentEmailOutbox').insert({ id: input.submissionId });

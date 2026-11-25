@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chatSurfaceKeys, type AuthorizationContext, type WorkspaceRole } from '@salesmora/contracts';
+import { initialCaptureSetupConfiguration, chatSurfaceKeys, type AuthorizationContext, type WorkspaceRole } from '@salesmora/contracts';
 import { createDefaultWorkspacePolicy } from '@salesmora/domain';
 import { authorizeChatTool } from '../access';
 import { implementedTools } from '../tools/registry';
@@ -10,7 +10,7 @@ function context(role: WorkspaceRole): AuthorizationContext { const userId = `${
 describe('registered Lead Capture read tool', () => {
   for (const role of ['owner', 'admin', 'office'] as const) it(`${role}: offers reads globally only with both current permissions and an implemented handler`, () => {
     const c = context(role);
-    for (const surface of chatSurfaceKeys) expect(authorizeChatTool(c, surface, 'lead_capture_query', implementedTools).allowed).toBe(true);
+    for (const surface of chatSurfaceKeys.filter(surface => surface !== 'workflows.list')) expect(authorizeChatTool(c, surface, 'lead_capture_query', implementedTools).allowed).toBe(true);
     for (const permission of c.enabledPermissions) expect(authorizeChatTool({ ...c, enabledPermissions: c.enabledPermissions.filter(p => p !== permission) }, 'lead_capture.detail', 'lead_capture_query', implementedTools).allowed).toBe(false);
     expect(authorizeChatTool(c, 'home', 'lead_capture_query', []).allowed).toBe(false);
   });
@@ -30,6 +30,18 @@ describe('registered Lead Capture read tool', () => {
     const result = captureSetupProposeSchema.safeParse({ operation: 'extract_sample', sourceId: null, name: null, sourceType: null, fields: null, contactRequired: true, workflow: null, brief: null, content: null, rules: null, mappings: null, findings: null });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.issues.map(issue => issue.path.join('.'))).toEqual(['fields', 'findings', 'mappings']);
+  });
+  it('requires generated website fields and a contact method, while allowing brief-only user requests', () => {
+    const input = { operation: 'suggest_website_fields', sourceId: null, name: null, sourceType: null, fields: null, contactRequired: null, workflow: null, brief: null, content: null, rules: null, mappings: null, findings: null };
+    const invalid = captureSetupProposeSchema.safeParse(input);
+    expect(captureSetupTool.inputSchema.safeParse(input).success).toBe(true);
+    expect(invalid.success).toBe(false);
+    if (!invalid.success) expect(invalid.error.issues.map(issue => issue.path.join('.'))).toEqual(['fields', 'contactRequired']);
+    const configuration = initialCaptureSetupConfiguration('website', { businessName: 'Fictional roofer', businessEmail: '', businessPhone: '' });
+    const fields = configuration.fields!.map(field => field.key === 'details' ? { ...field, label: 'Tell us about your roofing work' } : field);
+    expect(captureSetupProposeSchema.safeParse({ ...input, fields, contactRequired: true }).success).toBe(true);
+    expect(captureSetupProposeSchema.safeParse({ ...input, fields, contactRequired: false }).success).toBe(false);
+    expect(captureSetupProposeSchema.safeParse({ ...input, fields, contactRequired: true, workflow: configuration.workflow }).success).toBe(false);
   });
   it('exposes only strict bounded read operations, never a confirmation or readiness override', () => {
     expect(captureQueryTool.modelDefinition.function.parameters.additionalProperties).toBe(false);

@@ -2,6 +2,9 @@ import { calendarVisitPeekFixtures } from '../calendar-visit-peek-drawer/calenda
 import type { CalendarScheduleTarget } from './calendar-schedule-dialog';
 export const calendarScheduleDialogData = {
   title: 'Schedule visit', edit: 'Reschedule visit', description: 'Choose a workspace-local date and arrival window, then review the affected records.',
+  workTimeDescription: 'Choose a date, arrival window and optional work time, then review the affected records.',
+  workTimeClearHelp: 'Active records below will lose their scheduled date, arrival window and planned work time. Jobs that are Scheduled return to Needs Scheduling. Other active statuses are preserved.',
+  workTime: 'Planned work', noWorkTime: 'Not recorded',
   visit: 'Visit', date: 'Scheduled date', window: 'Arrival window (optional)', none: 'No arrival window', timezone: 'Workspace timezone',
   review: 'Review changes', confirm: 'Confirm schedule', confirmClear: 'Confirm clear schedule', back: 'Back to editing',
   clear: 'Clear schedule', clearTitle: 'Clear this visit’s schedule?',

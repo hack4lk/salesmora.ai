@@ -25,6 +25,8 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+export const FloatingLauncher: Story = {};
+
 export const Default: Story = { play: async ({ canvasElement, args }) => {
   const canvas = within(canvasElement);
   await expect(canvas.queryByRole('dialog')).not.toBeInTheDocument();
@@ -51,6 +53,11 @@ export const Conversation: Story = { render: args => <ConversationPreview {...ar
   await expect(composer).toHaveValue('');
   await expect(composer).toHaveFocus();
 } };
+/** Approved compact transcript, rendered by the same panel used in the application. */
+export const CompactTranscript: Story = { args: { open: true, messages: [
+  { id: 'compact-user', role: 'user', text: copy.stories.question },
+  { id: 'compact-assistant', role: 'assistant', text: copy.stories.response },
+] } };
 export const Pending: Story = { args: { onSend: fn<AssistantPanelProps['onSend']>(() => new Promise(() => {})) }, play: async ({ canvasElement, args }) => {
   const canvas = within(canvasElement);
   await userEvent.click(canvas.getByRole('button', { name: copy.open }));

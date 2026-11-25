@@ -14,7 +14,6 @@ const meta = {
   args: {
     value: defaultCustomerFilters,
     members,
-    count: 7,
     canArchive: true,
     onChange: fn(),
   },
@@ -55,10 +54,8 @@ export const Filtered: Story = {
       type: "person",
       archived: true,
     },
-    count: 1,
   },
 };
-export const NoResults: Story = { args: { count: 0 } };
 export const Disabled: Story = { args: { disabled: true } };
 export const Office: Story = { args: { canArchive: false } };
 export const FutureJobs: Story = {

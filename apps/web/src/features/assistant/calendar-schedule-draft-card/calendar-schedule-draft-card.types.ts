@@ -3,7 +3,7 @@ type CalendarScheduleProposalBase = {
   id: string; inputHash: string; visitId: string; revision: string;
   createdAt: string; expiresAt: string;
   state: 'pending' | 'confirmed' | 'cancelled' | 'expired' | 'superseded' | 'conflict' | 'forbidden';
-  timezone: string;
+  timezone: string; workTimezone?: string | null;
   from: CalendarSchedule;
   records: readonly (CalendarVisit['records'][number] & { expectedVersion: number })[];
   crew: readonly { id: string; name: string }[];
@@ -13,7 +13,7 @@ type CalendarScheduleProposalBase = {
 /** Clear intent is explicit; a missing target date never implicitly means clearing. */
 export type CalendarScheduleProposal = CalendarScheduleProposalBase & (
   | { intent?: 'schedule'; to: CalendarSchedule & { scheduledDate: string } }
-  | { intent: 'clear'; to: { scheduledDate: null; arrivalWindow: null } }
+  | { intent: 'clear'; to: { scheduledDate: null; arrivalWindow: null; workTime?: null } }
 );
 /** Independently loaded by the host. Presentation metadata is never mutation authority. */
 export type CalendarScheduleReviewContext = {

@@ -4,8 +4,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
 [
   {
     "hashes": [
-      "8ea0f99ac63317f8ddd8c804e7fe77da7f07be9ef1ca6c73968d86af448e087d",
-      "4e119098f408ccaaf9216619b13aa00614fac65576cd91967ebb6f36685e6931",
+      "78cae0c4f1a25bc266bc8c4d16a6a4ad4cfe11ac1c578f473862b8bf0c4c2b8c",
+      "9bc76d626cb9a9dedb88c246a82341a9be21dbe6d198e3c13de4531d8d177e81",
     ],
     "tools": [
       "reports_query",
@@ -13,8 +13,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "b509db314765b5d0c37547c81fc330929c6261b31b0ba85201a50cb471f0ace6",
-      "eec6d5862e24c2e2cd7195ae437e824255dcc0e6746678d8866ee78b06939f81",
+      "b4cd6649c74ebd7b5878a19dadfc740498f0a4644597676d264c8a0548027d1d",
+      "4087650124cec31021d64cb200e1d2cbcddf3a0d77cb689c856f00c43a193b32",
     ],
     "tools": [
       "lead_capture_query",
@@ -22,8 +22,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "a8b446837b312db3d8b41dc5b7049c5505be13a63c1085638965e8ea32956560",
-      "52145f4edc442bc5ec86e9ffe3a43ce7da9642932b5d37d5f7071cbd91fe9bb2",
+      "7ce7b037f7c5444c7bee664d9a6addcc54614dd443a304356abc5a0861f99b22",
+      "e3b15caba5712f453b56cb3905efa038a3367a7d976877dfcacc9a6657e9503b",
     ],
     "tools": [
       "calendar_query",
@@ -31,8 +31,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "b123a85d36a9757ba358907299b0ed0171e9f9d398d6ddc7c4130c0fb9d3ab18",
-      "b8c8f22ec59f205bbb392b5a914da128bfa6849a95933ae548fd672a2ce7e36d",
+      "d4f1f2659a9da7fa6a28df665b1749341df64375d9ae09c39399c65f2a39e0cd",
+      "58cb39b4a98c3f94371969d583bd6597a61dfc91ebf63e75056ad95b9eefcec1",
     ],
     "tools": [
       "customers_query",
@@ -40,8 +40,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "5864ac54ecba6192a5cf23dad5f127611abdb63ecfbcaf2327a89c1095be5980",
-      "a876378a45fc99c4c318c81c19782f3338ce14902d9bb5d7751c0c9218b7a85b",
+      "09ce58bcce94396aae1fe3692a139ec3ab8e977a43e8774df8df4b98f8e89e2a",
+      "33e14e2a951d57b7b692bbf841534b58b2281561c560d7e3287343ba74c99c30",
     ],
     "tools": [
       "search_help",
@@ -49,8 +49,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "4929facc8c5b4cf8e976881dc8cb770ec55a6baa15f46d525e5f75d307126975",
-      "89be7745a16ece55bb576810b28569e07e150581b50ada227875763016b23423",
+      "ffcfdf5943cb692c36975106ecc4b08ee95ebbca0f046318672516f074936853",
+      "021acc682b4a1a0764bc3988145d7be53d0a1b2a715bb516620c0cb78b4b1c14",
     ],
     "tools": [
       "leads_query",
@@ -58,8 +58,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "7835bc4f84809a6f9ad16e0c0952b79642cbed1d19f2763b53c7e3e8ae70d57a",
-      "f99bdffcaf97a1049bdacd91ca878b74888b7babfdd4250980019f6f58bc972a",
+      "572035caaeec36ab7ff8f9bd5cac66d6f7298b94fb4a308114bb435a85352783",
+      "d0e3e59fd9a876420e3e9b61ca92173eec47e479a9cd59e1d7e386ce770b340f",
     ],
     "tools": [
       "work_orders_query",
@@ -67,8 +67,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "9fb21331b1536c9907d6cb23b047c1a5eeb40f697d3747e75851a06d8a0271aa",
-      "08bdaa7202cb0cc514f1d4b0171afd0fc8ef58c741be4853cded4158a784aaa3",
+      "e19cc0a66b565fc96af8832692917d2f6be2f5e6b1d71de250eef0ce13964eb4",
+      "315402901db09634180c3b4aa531a8f7373c2e119bddfb3b8bde5437491f1e88",
     ],
     "tools": [
       "materials_query",
@@ -76,8 +76,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "00f69b7f5bddda70e4f22bec2e245beebe00e08628456062a968a5d3478d0477",
-      "e0f99b2c8799c75eda47fadacb0d6b25c33fd70220f62f81c4ee58f90f519148",
+      "8a51f97dc444318483416e533543b9fb7820ebf6597c9894e420f1b4b84a67fe",
+      "223a984d11d0ae7f7929418fa94ed178b30fc32e2da551b6c1df368ff2ff99b9",
     ],
     "tools": [
       "estimates_query",
@@ -85,8 +85,17 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "ce08d57faf487a6dd9dbce29f1d9c884ec351701249c50d46048ffd9bd68c709",
-      "882877b9231b4554386e1370d7cce7ff6a26c7ee0000f97c553bd6516f7785f9",
+      "9bf13862f1b9a6555a40e5dda645f0e155f2aef94e86f941fdf23dec11f02c48",
+      "0075d6e6432586b646f36b336edc4ab2d8e91d4471675a9b2dd298f02d32bfe4",
+    ],
+    "tools": [
+      "workflows_prepare",
+    ],
+  },
+  {
+    "hashes": [
+      "f82f512bb5f37de7a41adc3f1b929b0056f4d81d941c8cc24fad3c7981bf01a6",
+      "732c3ca86b3f9e9d1f77dda16fc9977c42588ea41bbd3fae0daf308e34d13794",
     ],
     "tools": [
       "lead_capture_propose_action",
@@ -94,8 +103,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "33c826ab17ff3dce0a34e7d74a03d156e6b9684f443ba6ed3c7794fa59b819b9",
-      "6e3332404ae09ee8dd28fd57b67af62afedb82f86bcc3d95586cfcd3f2df81e2",
+      "962d5eb4d857399370e91a254da9028722c91c291e09e1eb2965c78fb76e29ea",
+      "55bc1ffc4738995afc9c2f89a87cf95a70918ecda619ed82606428da21b27acf",
     ],
     "tools": [
       "calendar_propose_action",
@@ -103,8 +112,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "031cfe3b9f50bb5cf03ca8feccdd2166665caf2684d51bd5bc177b3983462eef",
-      "e51ff7b06026cf1df3df0edce530b7a2285b82661da3a462b783f9139bc1ad54",
+      "8ecd6d688978796487a9efe4275fe4cd089efc8cbff15febd6e698ad8a87b1db",
+      "5bb72aeed8ba7cb18a62c767864ea08bf789e9293600477f9e1afc1aa52f3e97",
     ],
     "tools": [
       "estimates_propose_action",
@@ -112,8 +121,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "1ca18f82a685112ae26bbc471700d0581d5bc665d9b611faf0def7928a5a49ab",
-      "83eb61cb16f7fe2393048f64ea0bc2dd3767060d4f03572a058737289522576a",
+      "27c22f615ed8981a02fc9c2fd8fa712d640464f0786acbf86a3061e29df67471",
+      "2de7dd83aed0efd76de7af89141a5ff605125de9894b55e917627a1d099618e4",
     ],
     "tools": [
       "customers_propose_action",
@@ -121,8 +130,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "8462938ecd02aba0fd5dc9f3bb7bdeb3e043a6c88b376253548c120620c0f211",
-      "d1c745c2c5514ed02156a73f252db95483e2a9c1ed42f7e524003da224d01791",
+      "47f6f1738fb8be737c4741433aea3e938ebca5c6473d360a152a96c31f6245e6",
+      "6134b76de95115714621d3199134b5e43cecd0d22d115b14513c556722f2ae62",
     ],
     "tools": [
       "work_orders_propose_action",
@@ -130,8 +139,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "5b80d5873a2c3dd56391012dd34ff31cda3ff8980c53bc903995cec3ff5a8a2c",
-      "ca1bd0642cc1313e2dadf7651548832c73384d69f61409b653c389425c27fdcf",
+      "bc51ca4c8dae578de0258de0804f65aa25912b6641c965c4614cdf79c148de9f",
+      "0c1d32aff2efef28fc29213f94f7f499c40c027eed40e17a3b366cbfcf290a42",
     ],
     "tools": [
       "materials_propose_action",
@@ -139,8 +148,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "e67101bb0a28c0e3da7187ea21f22a0fc1a988d7476864d61510559e21db3697",
-      "9192e9ae30517fd385abc420848386609b2d06883b53aa91f023c1494f41ca61",
+      "67e60d418a76d3053dbf788b827897daf6c13aac39087f1c6766a2b64ab2cee5",
+      "a571a6d48fa3b34c52c6791e7295b06e397e4fff58fc9e00ec478d1f0c8c7e51",
     ],
     "tools": [
       "leads_propose_action",
@@ -148,8 +157,8 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
   },
   {
     "hashes": [
-      "1b6de1ca13f97949075f19ec7273fea09d2507a00f4f4665292dcb0e3772077e",
-      "562b0c3279af80875a94fe15e00e5e1c22c6282a6036c7cbb9c527787b067614",
+      "dfe8b006c85357b3769c1f1e8d9b30ee8d736019b747dfa3f8496ca91ee98b1c",
+      "60e0f131d03ae6ef6503ab2fabacf1c45251c5bc0150e3c91656cb57ac1e41a1",
     ],
     "tools": [
       "reports_query",
@@ -161,6 +170,7 @@ exports[`OpenAI Responses adapter contract > preserves exact system messages acr
       "work_orders_query",
       "materials_query",
       "estimates_query",
+      "workflows_prepare",
       "lead_capture_propose_action",
       "calendar_propose_action",
       "estimates_propose_action",

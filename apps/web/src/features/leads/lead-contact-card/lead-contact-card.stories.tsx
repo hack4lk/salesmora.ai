@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { expect, within } from 'storybook/test';
+import { expect, fn, userEvent, within } from 'storybook/test';
 import { LeadContactCard } from './lead-contact-card';
 import { leadContactCardData as copy } from './lead-contact-card.data';
 
@@ -10,6 +10,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 export const Default: Story = { play: async ({ canvasElement }) => {
   const c = within(canvasElement);
+  await expect(c.queryByRole('button', { name: copy.edit })).not.toBeInTheDocument();
   await expect(c.getByRole('link', { name: copy.stories.contact.email })).toHaveAttribute('href', 'mailto:jordan%40example.com');
   await expect(c.getByRole('link', { name: copy.stories.contact.phone })).toHaveAttribute('href', 'tel:+12125550134');
 } };
@@ -25,3 +26,11 @@ export const InvalidContactFormats: Story = { args: { contact: { ...copy.stories
 } };
 export const LongContent: Story = { args: { contact: { name: copy.stories.longName, email: copy.stories.longEmail, phone: copy.stories.contact.phone, owner: { id: 'taylor', name: copy.stories.longOwner } } } };
 export const Narrow: Story = { ...LongContent, parameters: { viewport: { value: 'phone' } } };
+
+export const Editable: Story = { args: { onEdit: fn() }, play: async ({ canvasElement, args }) => {
+  await userEvent.click(within(canvasElement).getByRole('button', { name: copy.edit }));
+  await expect(args.onEdit).toHaveBeenCalledOnce();
+} };
+export const EditPending: Story = { args: { onEdit: fn(), pending: true }, play: async ({ canvasElement }) => {
+  await expect(within(canvasElement).getByRole('button', { name: copy.edit })).toBeDisabled();
+} };

@@ -1,3 +1,4 @@
+import { calendarWorkTimeErrorMessage } from "../calendar/work-time-error";
 import "server-only";
 import { isWorkspaceSuspended, workspaceSuspendedResponse } from "../http/suspension";
 import { NextResponse } from "next/server";
@@ -26,6 +27,8 @@ export async function jobRequest(request: Request, run: (identity: { userId: str
     return await run({ userId: session.user.id, workspaceId: workspaceId! }, body);
   } catch (error) {
     if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
+    const workTimeMessage = calendarWorkTimeErrorMessage(error);
+    if (workTimeMessage) return NextResponse.json({ error: workTimeMessage }, { status: 422, headers: jobHeaders });
     const status = error instanceof AuthorizationAccessError ? 404 : (error instanceof JobDeadlineReviewConflict || error instanceof JobConflictError || error instanceof CalendarSharedReviewRequiredError) ? 409 : error instanceof JobContractError || error instanceof JobValidationError || error instanceof JobLifecycleError ? 422 : 500;
     const message = status === 404 ? "This job or workspace is unavailable." : error instanceof JobDeadlineReviewConflict || error instanceof JobConflictError || error instanceof CalendarSharedReviewRequiredError || error instanceof JobValidationError || error instanceof JobLifecycleError ? error.message : status === 422 ? "Check the job details and try again." : "Jobs could not be loaded or saved. Try again.";
     return NextResponse.json({ error: message, ...(status === 409 ? { code: error instanceof JobDeadlineReviewConflict ? "deadline-review-changed" : "conflict" } : {}) }, { status, headers: jobHeaders });

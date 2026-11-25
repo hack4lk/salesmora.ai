@@ -16,8 +16,9 @@ import {
   WorkspaceAssistantProvider,
   type AssistantPageContext,
 } from "../../assistant/workspace-assistant/workspace-assistant";
-import type { ChatSurfaceKey } from "@salesmora/contracts";
+import type { ChatSurfaceKey, WorkflowDefinition } from "@salesmora/contracts";
 import { workspaceShellData as copy } from "./workspace-shell.data";
+import { ProtectedFooter } from "../../public-site/site-footer/protected-footer";
 export interface WorkspaceShellProps {
   currentPage?: WorkspaceNavigationProps["currentPage"];
   currentSettingsPage?: WorkspaceNavigationProps["currentSettingsPage"];
@@ -36,6 +37,7 @@ export interface WorkspaceShellProps {
   assistantAvailable?: boolean;
   chatEnabled?: boolean;
   chatSurface?: ChatSurfaceKey;
+  workflowRecipes?: readonly WorkflowDefinition["kind"][];
   chatContext?: AssistantPageContext;
   printChromeHidden?: boolean;
   onSignOut: () => Promise<void>;
@@ -63,6 +65,7 @@ export function WorkspaceShell({
   assistantAvailable = false,
   chatEnabled = false,
   chatSurface = "home",
+  workflowRecipes = [],
   chatContext,
   printChromeHidden = false,
   beforeAssistant,
@@ -137,7 +140,10 @@ export function WorkspaceShell({
             homeHref={`/home?workspace=${encodeURIComponent(workspaceId)}`}
             calendarHref={`/calendar?workspace=${encodeURIComponent(workspaceId)}`}
             estimatesHref={`/estimates?workspace=${encodeURIComponent(workspaceId)}`}
+            workflowsHref={`/workflows?workspace=${encodeURIComponent(workspaceId)}`}
             reportsHref={`/reports?workspace=${encodeURIComponent(workspaceId)}`}
+            servicesSettingsHref={authorizedPages.includes("service-settings") ? `/settings/services?workspace=${encodeURIComponent(workspaceId)}` : undefined}
+            teamSettingsHref={authorizedPages.includes("team-settings") ? `/settings/team?workspace=${encodeURIComponent(workspaceId)}` : undefined}
             leadSettingsHref={
               authorizedPages.includes("lead-settings")
                 ? `/settings/leads?workspace=${encodeURIComponent(workspaceId)}`
@@ -165,6 +171,7 @@ export function WorkspaceShell({
               "jobs",
               "work-orders",
               "materials",
+              "workflows",
               "calendar",
               "estimates",
               "settings",
@@ -182,6 +189,7 @@ export function WorkspaceShell({
             onSignOut={signOut}
           />
         </div>
+        <div className="flex min-w-0 flex-1 flex-col">
         <main
           id={copy.contentId}
           tabIndex={-1}
@@ -207,6 +215,7 @@ export function WorkspaceShell({
                   key={workspaceId}
                   workspaceId={workspaceId}
                   surfaceKey={chatSurface}
+                  workflowRecipes={workflowRecipes}
                 />
               ) : (
                 <AssistantPanel
@@ -244,6 +253,8 @@ export function WorkspaceShell({
             {children}
           </div>
         </main>
+        <ProtectedFooter context="workspace" />
+        </div>
       </div>
     </WorkspaceAssistantProvider>
   );

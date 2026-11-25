@@ -24,6 +24,7 @@ export const workspaceNavigationData = {
     { id: 'calendar', label: 'Calendar', href: '/calendar', management: false },
     { id: 'work-orders', label: 'Work Orders', href: '/work-orders', management: false },
     { id: 'materials', label: 'Materials', href: '/materials', management: false },
+    { id: 'workflows', label: 'Workflows', href: '/workflows', management: true },
     { id: 'reports', label: 'Reports', href: '/reports', management: true },
     { id: 'campaigns', label: 'Lead Capture', href: '/lead-capture', management: true },
     { id: 'settings', label: 'Settings', href: '/settings', management: true },

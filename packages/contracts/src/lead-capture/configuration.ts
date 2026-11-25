@@ -1,10 +1,11 @@
 import { z } from 'zod';
+import { usPostalCodeSchema } from '../postal-code';
 import { leadSchema } from '../lead';
 import { captureIdSchema, captureKeySchema, captureVersionSchema } from './common';
 
-const keys = ['name', 'email', 'phone', 'service', 'details', 'address', 'custom'] as const;
+const keys = ['name', 'email', 'phone', 'service', 'details', 'address', 'postalCode', 'custom'] as const;
 const types = ['short_text', 'long_text', 'email', 'phone', 'address', 'dropdown', 'checkboxes', 'date'] as const;
-const allowed = { name: ['short_text', 'long_text'], email: ['email'], phone: ['phone'], service: ['short_text', 'dropdown'], details: ['long_text', 'short_text'], address: ['address', 'short_text', 'long_text'], custom: ['short_text', 'long_text', 'dropdown', 'checkboxes', 'date'] };
+const allowed = { name: ['short_text', 'long_text'], email: ['email'], phone: ['phone'], service: ['short_text', 'dropdown'], details: ['long_text', 'short_text'], address: ['address', 'short_text', 'long_text'], postalCode: ['short_text'], custom: ['short_text', 'long_text', 'dropdown', 'checkboxes', 'date'] };
 export const captureFieldSchema = z.object({ id: captureKeySchema, key: z.enum(keys), label: z.string().trim().max(60), type: z.enum(types), required: z.boolean(),
   options: z.array(z.object({ id: captureKeySchema, label: z.string().trim().max(60) }).strict()).max(50),
 }).strict().superRefine((field, ctx) => {
@@ -25,18 +26,19 @@ export const captureConsentSchema = z.object({ id: captureKeySchema, version: ca
 export const captureContentSchema = z.object({ businessName: z.string().trim().max(200), title: z.string().trim().max(200), intro: z.string().max(2000), submitLabel: z.string().trim().max(80), thankYou: z.string().trim().max(2000), unavailableMessage: z.string().trim().max(2000), businessEmail: leadSchema.shape.email, businessPhone: z.string().trim().max(100), showBusinessEmail: z.boolean(), showBusinessPhone: z.boolean(), privacy: privacySchema.nullable(), consent: captureConsentSchema.nullable() }).strict();
 export const captureGmailRulesSchema = z.object({ phrases: z.array(z.string().trim().min(1).max(200)).max(20), location: z.enum(['subject', 'body', 'both']), mode: z.enum(['all', 'any']) }).strict().refine(value => new Set(value.phrases.map(phrase => phrase.toLowerCase())).size === value.phrases.length, 'Duplicate phrases');
 export const captureMappingSchema = z.object({ fieldId: captureKeySchema, instruction: z.string().trim().min(1).max(2000) }).strict();
-const common = { schemaVersion: z.literal(1), fields: captureFieldsSchema.optional(), contactRequired: z.boolean().optional(), workflow: captureWorkflowSchema.optional() };
+const common = { postalCountryCode: z.literal('US').optional(), schemaVersion: z.literal(1), fields: captureFieldsSchema.optional(), contactRequired: z.boolean().optional(), workflow: captureWorkflowSchema.optional() };
 export const captureDraftConfigurationSchema = z.discriminatedUnion('type', [
   z.object({ ...common, type: z.literal('website'), brief: z.string().max(10000).optional(), content: captureContentSchema.partial().optional() }).strict(),
   z.object({ ...common, type: z.literal('gmail'), connectionId: captureIdSchema.optional(), accountEmail: z.email().max(254).optional(), rules: captureGmailRulesSchema.optional(), mappings: z.array(captureMappingSchema).max(50).optional(), sampleId: captureIdSchema.optional() }).strict(),
 ]);
 /** Complete launch shape only. Membership, connection ownership and approved-sample binding remain authoritative repository checks. */
-const launchCommon = { schemaVersion: z.literal(1), fields: captureFieldsSchema.min(1), contactRequired: z.literal(true), workflow: captureWorkflowSchema };
+const launchCommon = { postalCountryCode: z.literal('US').optional(), schemaVersion: z.literal(1), fields: captureFieldsSchema.min(1), contactRequired: z.literal(true), workflow: captureWorkflowSchema };
 export const captureConfigurationSchema = z.discriminatedUnion('type', [
   z.object({ ...launchCommon, type: z.literal('website'), brief: z.string().max(10000).optional(), content: captureContentSchema }).strict(),
   z.object({ ...launchCommon, type: z.literal('gmail'), connectionId: captureIdSchema, accountEmail: z.email().max(254), rules: captureGmailRulesSchema, mappings: z.array(captureMappingSchema).max(50), sampleId: captureIdSchema }).strict(),
 ]).superRefine((value, ctx) => {
   const fields = value.fields;
+  if(fields.some(field=>field.key==='postalCode')&&value.postalCountryCode!=='US') ctx.addIssue({code:'custom',message:'Choose United States for the ZIP code field.',path:['postalCountryCode']});
   if (!['name', 'service'].every(key => fields.some(field => field.key === key && field.required)) || !fields.some(field => field.key === 'email' || field.key === 'phone')) ctx.addIssue({ code: 'custom', message: 'Required lead/contact fields missing' });
   for (const field of fields) {
     if (!field.label || ['dropdown', 'checkboxes'].includes(field.type) && (field.options.length < 2 || field.options.some(option => !option.label || field.key === 'service' && option.label.length > 200))) ctx.addIssue({ code: 'custom', message: 'Incomplete field definition', path: ['fields'] });
@@ -70,6 +72,7 @@ export function captureAnswerIssues(fields: readonly CaptureField[], answers: Ca
     if (typeof value !== 'string') { issues.push(field.id); continue; }
     const text = value.trim(), limit = field.key === 'name' || field.key === 'service' ? 200 : field.type === 'email' ? 254 : field.type === 'phone' ? 100 : field.key === 'address' || field.type === 'address' ? 500 : field.key === 'details' || field.type === 'long_text' ? 10000 : 200;
     if (field.required && !text || text.length > limit || text && field.type === 'email' && !leadSchema.shape.email.safeParse(text).success || text && field.type === 'dropdown' && !field.options.some(option => option.id === text)) issues.push(field.id);
+    if (text && field.key === 'postalCode' && !usPostalCodeSchema.safeParse(text).success) issues.push(field.id);
     if (text && field.type === 'date') { const date = new Date(`${text}T00:00:00Z`); if (!/^\d{4}-\d{2}-\d{2}$/.test(text) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== text) issues.push(field.id); }
   }
   if (contactRequired && !fields.some(field => ['email', 'phone'].includes(field.key) && typeof answers[field.id] === 'string' && (answers[field.id] as string).trim())) issues.push('contact');

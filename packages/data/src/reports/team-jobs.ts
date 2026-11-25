@@ -1,3 +1,4 @@
+import {serviceDisplaySql} from '../services/store';
 import type { Knex } from 'knex';
 import {
   teamJobsQuerySchema, teamJobsResultSchema,
@@ -13,7 +14,7 @@ export const teamJobEvidenceJSON = `jsonb_build_object(
     ELSE j."jobNumber"::text END || ' / ' || COALESCE(NULLIF(j.title, ''), j."customerName"),
   'status', j.status, 'completionDeadline', to_char(j."completionDeadline", 'YYYY-MM-DD'),
   'scheduledDate', to_char(j."scheduledDate", 'YYYY-MM-DD'), 'waitingReason', j."waitingReason",
-  'cells', jsonb_build_object('service', COALESCE(NULLIF(btrim(j.service), ''), 'No recorded service')),
+  'cells', jsonb_build_object('service', COALESCE(NULLIF(btrim(${serviceDisplaySql('j')}), ''), 'No recorded service')),
   'primary', CASE WHEN ?::boolean AND j."primaryOwnerId" IS DISTINCT FROM ?
     THEN jsonb_build_object('kind', 'withheld')
     WHEN j."primaryOwnerId" IS NULL THEN jsonb_build_object('kind', 'unassigned')

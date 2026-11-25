@@ -1,13 +1,13 @@
 import { effectiveJobNotificationPolicy } from '../job-notification-settings/policy';
 import { randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
-import type { AuthorizationContext, CalendarRecordRef, CalendarSchedule, VisitNotificationRecord, PermissionId } from '@salesmora/contracts';
+import type { AuthorizationContext, CalendarRecordRef, CalendarScheduleSnapshot, VisitNotificationRecord, PermissionId } from '@salesmora/contracts';
 import { resolveAuthorizedCollectionScope } from '@salesmora/domain';
-import { withWorkspaceAuthorization, AuthorizationAccessError, WorkspaceSuspendedError } from '../authorization/store';
+import { withWorkspaceAuthorization, withWorkspaceRecipientAuthorization, AuthorizationAccessError, WorkspaceSuspendedError } from '../authorization/store';
 import { withoutSuspendedWorkspaces } from '../accounts/workspace-hold';
 import { scoped } from '../work-orders/store';
 type Ref = Pick<CalendarRecordRef, 'type' | 'id'>;
-type Notice = { id: string; workspaceId: string; userId: string; event: VisitNotificationRecord['event']; actorName: string; before: CalendarSchedule; after: CalendarSchedule; timezone: string; createdAt: Date; readAt: Date | null };
+type Notice = { id: string; workspaceId: string; userId: string; event: VisitNotificationRecord['event']; actorName: string; before: CalendarScheduleSnapshot; after: CalendarScheduleSnapshot; timezone: string; createdAt: Date; readAt: Date | null };
 function jobs(trx: Knex.Transaction, context: AuthorizationContext) {
   const scope = resolveAuthorizedCollectionScope(context, 'jobs.read');
   const q = trx('jobs as j').where('j.workspaceId', context.workspaceId);
@@ -44,7 +44,7 @@ export async function projectVisitNotification(trx: Knex.Transaction, context: A
   return records.length ? { kind: 'visit', id: row.id, event: row.event, actorName: row.actorName, before: row.before, after: row.after, timezone: row.timezone, records, createdAt: new Date(row.createdAt).toISOString(), read: !!row.readAt } : null;
 }
 /** Called once inside the confirmed command transaction. Failed writes roll notices and outbox state back too. */
-export async function notifyVisitChange(trx: Knex.Transaction, context: AuthorizationContext, operationId: string, event: VisitNotificationRecord['event'], refs: readonly Ref[], before: CalendarSchedule, after: CalendarSchedule) {
+export async function notifyVisitChange(trx: Knex.Transaction, context: AuthorizationContext, operationId: string, event: VisitNotificationRecord['event'], refs: readonly Ref[], before: CalendarScheduleSnapshot, after: CalendarScheduleSnapshot) {
   if (JSON.stringify(before) === JSON.stringify(after) && !['joined', 'separated'].includes(event)) return;
   const recipients = new Set<string>(); const eligible: Ref[] = [];
   for (const ref of refs) {
@@ -62,7 +62,7 @@ export async function notifyVisitChange(trx: Knex.Transaction, context: Authoriz
   for (const userId of recipients) {
     if (userId === context.userId) continue;
     try {
-      await withWorkspaceAuthorization(trx, { workspaceId: context.workspaceId, userId }, context.enabledPermissions, false, async (nested, recipient) => {
+      await withWorkspaceRecipientAuthorization(trx, context, userId, async (nested, recipient) => {
         const records = await accessible(nested, recipient, eligible); if (!records.length) return;
         const id = randomUUID();
         const inserted = await nested('visitNotifications').insert({ id, workspaceId: context.workspaceId, userId, operationId, event, actorName: actor.name, before: JSON.stringify(before), after: JSON.stringify(after), timezone: workspace.timezone }).onConflict(['workspaceId', 'operationId', 'userId']).ignore().returning('id');

@@ -24,7 +24,9 @@ export type WorkspaceNavigationPage = (typeof copy.items)[number]["id"];
 export type WorkspaceNavigationAuthorizedPage =
   | WorkspaceNavigationPage
   | "estimate-settings"
-  | "lead-settings";
+  | "lead-settings"
+  | "service-settings"
+  | "team-settings";
 export interface WorkspaceNavigationProps {
   workspaceName: string;
   user: { name: string; email: string; role: keyof typeof copy.roles };
@@ -39,6 +41,7 @@ export interface WorkspaceNavigationProps {
   calendarHref?: string;
   estimatesHref?: string;
   reportsHref?: string;
+  workflowsHref?: string;
   /** Supply only when the server authorizes the Gantt chart. Omitted means deny. */
   ganttHref?: string;
   workOrdersHref?: string;
@@ -48,6 +51,8 @@ export interface WorkspaceNavigationProps {
   leadSettingsHref?: string;
   /** Supply only when the server authorizes permissions.read. Omitted means deny. */
   permissionsHref?: string;
+  servicesSettingsHref?: string;
+  teamSettingsHref?: string;
   aiUsageHref?: string;
   billingHref?: string;
   accountHref?: string;
@@ -62,7 +67,9 @@ export interface WorkspaceNavigationProps {
     | "notifications"
     | "job-notifications"
     | "estimates"
-    | "leads";
+    | "leads"
+    | "services"
+    | "team";
   availablePages?: readonly WorkspaceNavigationPage[];
   /** Current server-resolved permissions, independent of implemented routes. Omitted means deny. */
   authorizedPages?: readonly WorkspaceNavigationAuthorizedPage[];
@@ -84,6 +91,7 @@ const icons = {
   calendar: CalendarMonthOutlined,
   estimates: RequestQuoteOutlined,
   reports: BarChartOutlined,
+  workflows: AssignmentOutlined,
   campaigns: CampaignOutlined,
   settings: SettingsOutlined,
 };
@@ -105,6 +113,7 @@ export function WorkspaceNavigation({
   calendarHref = "/calendar",
   estimatesHref = "/estimates",
   reportsHref = "/reports",
+  workflowsHref = "/workflows",
   ganttHref,
   workOrdersHref = "/work-orders",
   materialsHref = "/materials",
@@ -119,6 +128,8 @@ export function WorkspaceNavigation({
   jobNotificationsHref,
   currentCalendarPage,
   currentSettingsPage,
+  servicesSettingsHref,
+  teamSettingsHref,
   availablePages,
   authorizedPages = [],
   accountSettingsAvailable = true,
@@ -142,6 +153,7 @@ export function WorkspaceNavigation({
     calendar: calendarHref,
     estimates: estimatesHref,
     reports: reportsHref,
+    workflows: workflowsHref,
     "work-orders": workOrdersHref,
     materials: materialsHref,
     settings: settingsHref,
@@ -260,6 +272,8 @@ export function WorkspaceNavigation({
                         href: estimateSettingsHref,
                         label: copy.estimateSettings,
                       },
+                      { id: "services", href: servicesSettingsHref, label: "Services" },
+                      { id: "team", href: teamSettingsHref, label: "Team" },
                       {
                         id: "leads",
                         href: leadSettingsHref,
