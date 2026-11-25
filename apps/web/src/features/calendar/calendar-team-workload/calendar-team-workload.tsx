@@ -22,9 +22,10 @@ export type CalendarTeamWorkloadProps = {
   state?: 'ready' | 'loading' | 'error';
   onSelect: (person: CalendarPersonFilter) => void;
   onRetry?: () => void;
+  onAvailability?: (personId: string) => void;
 };
 const button = 'min-h-11 cursor-pointer rounded-xl border border-line bg-paper px-4 py-2 text-sm font-semibold text-primary hover:bg-canvas focus-visible:focus-ring disabled:cursor-not-allowed disabled:text-muted';
-export function CalendarTeamWorkload({ weekDate, visits, members, viewerId, scope, selectedPerson = 'all', disabled = false, state = 'ready', onSelect, onRetry }: CalendarTeamWorkloadProps) {
+export function CalendarTeamWorkload({ weekDate, visits, members, viewerId, scope, selectedPerson = 'all', disabled = false, state = 'ready', onSelect, onRetry, onAvailability }: CalendarTeamWorkloadProps) {
   const id = useId(), start = calendarWeekStart(weekDate), dates = Array.from({ length: 7 }, (_, index) => addCalendarDays(start, index));
   const week = [...new Map(visits.map(visit => [visit.id, visit])).values()].filter(visit => dates.includes(visit.scheduledDate) && (scope !== 'own' || visit.crew.some(person => person.id === viewerId)));
   // Only explicit visit/person IDs establish identity. Matching names never merge people.
@@ -52,11 +53,13 @@ export function CalendarTeamWorkload({ weekDate, visits, members, viewerId, scop
           const busyDays = row.filter === 'unassigned' ? [] : dates.filter((_, index) => row.days[index] >= 4);
           const active = selected === row.filter;
           return <li key={row.key} className={`grid min-w-0 gap-3 rounded-xl border p-3 ${active ? 'border-primary bg-primary/5' : 'border-line bg-paper'}`}>
-            <button type="button" aria-label={copy.filter(row.name)} aria-pressed={active} disabled={disabled || scope === 'own'}
+            <div className="flex min-w-0 flex-wrap items-center gap-3"><button type="button" aria-label={copy.filter(row.name)} aria-describedby={`${id}-${row.key}-count`} aria-pressed={active} disabled={disabled || scope === 'own'}
               onClick={() => { if (!disabled && scope !== 'own') onSelect(active ? 'all' : row.filter); }}
-              className="flex min-h-11 min-w-0 cursor-pointer flex-wrap items-center justify-between gap-3 rounded-lg text-left text-sm font-semibold text-ink hover:bg-canvas focus-visible:focus-ring disabled:cursor-default">
-              <span className="min-w-0 wrap-anywhere">{row.name}</span><span className="text-muted">{copy.count(row.days.reduce((sum, count) => sum + count, 0))}</span>
-            </button>
+              className="flex min-h-11 min-w-0 flex-1 cursor-pointer flex-wrap items-center justify-between gap-3 rounded-lg text-left text-sm font-semibold text-ink hover:bg-canvas focus-visible:focus-ring disabled:cursor-default">
+              <span className="min-w-0 wrap-anywhere">{row.name}</span>
+            </button><span id={`${id}-${row.key}-count`} className="text-sm text-muted">{copy.count(row.days.reduce((sum, count) => sum + count, 0))}</span>
+            {onAvailability && members.some(member => `member:${member.id}` === row.key) && <button type="button" className={`${button} justify-self-start`} disabled={disabled}
+              aria-label={copy.availabilityFor(row.name)} onClick={() => onAvailability(row.key.slice(7))}>{copy.availability}</button>}</div>
             <dl aria-label={copy.daily} className="m-0 grid min-w-0 grid-cols-7 gap-1">{dates.map((date, index) => <div key={date} className={`grid min-w-0 gap-1 rounded-lg py-2 text-center text-xs ${row.days[index] >= 4 && row.filter !== 'unassigned' ? 'bg-amber-50 text-amber-900' : 'bg-canvas text-muted'}`}>
               <dt><abbr title={calendarDayColumnData.fullDate(date)} className="no-underline">{copy.day(date)}</abbr></dt><dd className="m-0 font-semibold wrap-anywhere">{row.days[index]}</dd>
             </div>)}</dl>

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { validateDemoResetTarget } from './demo-reset-safety.mjs';
+import { assertCompleteMigrationLedger, validateDemoResetTarget } from './demo-reset-safety.mjs';
 
 const valid = {
   MIGRATION_DATABASE_URL: 'postgresql://salesmora:example@127.0.0.1:55432/salesmora',
@@ -57,4 +57,17 @@ test('does not expose malformed URL input in error messages', () => {
     () => validateDemoResetTarget({ ...valid, MIGRATION_DATABASE_URL: 'private-value' }),
     error => !error.message.includes('private-value'),
   );
+});
+
+test('requires every current migration exactly once in the demo ledger', () => {
+  const expected = ['baseline.ts', 'workflows.ts', 'README.md'];
+  assert.doesNotThrow(() => assertCompleteMigrationLedger([{ name: 'workflows.ts' }, { name: 'baseline.ts' }], expected));
+  for (const ledger of [
+    [{ name: 'baseline.ts' }],
+    [{ name: 'baseline.ts' }, { name: 'old.ts' }],
+    [{ name: 'baseline.ts' }, { name: 'baseline.ts' }, { name: 'workflows.ts' }],
+  ]) {
+    assert.throws(() => assertCompleteMigrationLedger(ledger, expected), /migration ledger/);
+  }
+  assert.throws(() => assertCompleteMigrationLedger([], []), /migration ledger/);
 });

@@ -132,10 +132,13 @@ function WorkOrdersListRoute({ workspaceId, initial, initialQuery, field, create
   const duplicateSources = creatingFor ? rows.filter(r => r.jobId === creatingFor.id).map(r => ({ value: r.id, label: copy.sourceDuplicate(r.number, r.title), detail: copy.sourceDuplicateDetail })) : [];
   if (denied) return <FormFeedback kind="error" message={copy.unavailable}/>;
   return <div className="grid min-w-0 gap-4">
+    <header className="flex flex-wrap items-start justify-between gap-4">
+      <h1 className="m-0 text-heading-lg font-semibold">{copy.title}</h1>
+      {list.canCreate && <button type="button" className={woPrimary} onClick={() => void startPicking()}>{copy.add}</button>}
+    </header>
     {listQuery.isError && <FormFeedback kind="error" message={copy.error}/>}
     {creationJobQuery.isError && <FormFeedback kind="error" message={copy.jobsError}/>}
     {(error || (writes.error && !moving && !creatingFor && !deleting)) && <FormFeedback kind="error" message={error || writes.error} />}
-    {list.canCreate && <div className="flex justify-end"><button type="button" className={woPrimary} onClick={() => void startPicking()}>{copy.add}</button></div>}
     <WorkOrdersList rows={rows} total={list.total} page={list.page} pageSize={list.pageSize} filters={filters} sort={sort} metrics={list.metrics}
       members={members} jobNumbers={list.options.jobs.map(j => j.number)} view={view} onView={setView} field={field} state={loading ? 'loading' : listQuery.isError ? 'error' : 'ready'}
       pendingId={writes.pending ? moving?.row.id : undefined} onRequestMove={requestMove}

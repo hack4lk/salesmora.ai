@@ -45,7 +45,6 @@ export const Lead: Story = {
     }
     await expect(within(items(canvasElement)[0]).getByText("$8,655.56")).toBeVisible();
     await expect(canvas.getByRole("status")).toHaveTextContent(c.loaded(3, 3));
-    await expect(canvas.getByText(c.createHint.lead)).toBeVisible();
   },
 };
 export const Job: Story = {
@@ -117,7 +116,6 @@ export const ReadOnly: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("button", { name: c.create })).not.toBeInTheDocument();
-    await expect(canvas.queryByText(c.createHint.lead)).not.toBeInTheDocument();
     await expect(canvas.getAllByRole("link")).toHaveLength(3);
     await expect(args.onCreate).not.toHaveBeenCalled();
   },

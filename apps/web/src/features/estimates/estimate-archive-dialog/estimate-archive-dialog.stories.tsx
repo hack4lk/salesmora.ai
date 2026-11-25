@@ -33,7 +33,7 @@ function ReloadPreview(args: EstimateArchiveDialogProps & { change?: "read" | "p
   const [changed, setChanged] = useState(false);
   const record = changed ? {
     ...args.estimate, version: args.estimate.version + 1,
-    ...(args.change === "status" ? { status: "accepted" as const } : {}),
+    ...(args.change === "status" ? { status: "published" as const } : {}),
     ...(args.change === "flag" ? { archived: !args.estimate.archived } : {}),
   } : args.estimate;
   const capabilities = changed && args.change === "read" ? { ...args.capabilities, read: false }
@@ -205,7 +205,7 @@ export const Draft: Story = {
 };
 export const Sent: Story = { args: { estimate: { ...estimate, status: "sent" } }, play: Draft.play };
 export const Published: Story = { args: { estimate: { ...estimate, status: "published" } }, play: Draft.play };
-export const Accepted: Story = { args: { estimate: { ...estimate, status: "accepted" } }, play: Draft.play };
+export const Accepted: Story = { args: { estimate: { ...estimate, status: "accepted" } }, play: Archive.play };
 export const AlreadyArchived: Story = {
   args: { estimate: { ...estimate, archived: true } },
   play: async ({ canvasElement }) => { await blocked(canvasElement, c.errors.archived); },

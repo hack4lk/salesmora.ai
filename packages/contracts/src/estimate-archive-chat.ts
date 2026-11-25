@@ -23,7 +23,7 @@ export const estimateArchiveChatTicketSchema = z.object({
   const duration = Date.parse(value.expiresAt) - Date.parse(value.createdAt);
   if (duration <= 0 || duration > 900000 ||
       (value.actionType === "estimate.archive"
-        ? value.estimate.archived || !["declined", "expired", "superseded", "void"].includes(value.estimate.status)
+        ? value.estimate.archived || !["accepted", "declined", "expired", "superseded", "void"].includes(value.estimate.status)
         : !value.estimate.archived)) {
     context.addIssue({ code: "custom", message: "Archive/Restore must bind an eligible source and at most 15-minute window." });
   }

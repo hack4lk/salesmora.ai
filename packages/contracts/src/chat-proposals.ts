@@ -1,3 +1,4 @@
+import { workflowProposalStoredSchema } from './workflows';
 import { z } from 'zod';
 import { leadSchema } from './lead';
 import {
@@ -23,7 +24,7 @@ import { captureSetupProposeSchema, captureSetupViewSchema } from './lead-captur
 import { captureSourceInputSchema, captureSourceProposalViewSchema } from './lead-capture/assistant-sources';
 
 export const chatProposalFamilies = [
-  'action', 'estimateDraft', 'estimateSharing', 'estimateDecision', 'estimateDraftAction',
+  'workflow', 'action', 'estimateDraft', 'estimateSharing', 'estimateDecision', 'estimateDraftAction',
   'estimateVoid', 'estimateArchive', 'estimateDraftDelete', 'estimateConversion',
   'calendar', 'captureSetup', 'captureSource', 'customer', 'workOrder', 'material',
 ] as const;
@@ -118,6 +119,7 @@ function family<F extends ChatProposalFamily, S extends z.ZodType>(name: F, payl
   return z.object({ ...fields, family: z.literal(name), payload: retained(payload) }).strict();
 }
 export const chatProposalSchema = z.discriminatedUnion('family', [
+  family('workflow', workflowProposalStoredSchema),
   family('action', leadActionProposalPayloadSchema),
   family('estimateDraft', estimateDraftChatStoredSchema),
   family('estimateSharing', estimateShareChatStoredSchema),
@@ -142,9 +144,10 @@ export const estimateProposalFamilies = [
   'estimateVoid', 'estimateArchive', 'estimateDraftDelete', 'estimateConversion',
 ] as const satisfies readonly ChatProposalFamily[];
 export const pendingUniqueProposalFamilies = [
-  ...estimateProposalFamilies, 'calendar', 'captureSetup', 'captureSource',
+  ...estimateProposalFamilies, 'workflow', 'calendar', 'captureSetup', 'captureSource',
 ] as const satisfies readonly ChatProposalFamily[];
 export const proposalSupersession: Readonly<Record<ChatProposalFamily, readonly ChatProposalFamily[]>> = {
+  workflow: ['workflow'],
   action: ['action'], customer: ['customer', 'action'],
   workOrder: ['workOrder', 'material', 'customer', 'action'], material: ['workOrder', 'material', 'customer', 'action'],
   estimateDraft: estimateProposalFamilies, estimateSharing: estimateProposalFamilies,

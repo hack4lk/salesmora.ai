@@ -11,6 +11,15 @@ function context(role: WorkspaceRole): AuthorizationContext {
     policy: createDefaultWorkspacePolicy(workspaceId), enabledPermissions: ['assistant.use', 'leads.read', 'leads.create', 'leads.assign', 'leads.stage.update', 'leads.update', 'leads.archive', 'leads.export', 'leads.delete'] };
 }
 describe('shared app, Leads capability and chat authorization', () => {
+  it('exposes workflow preparation only on Workflows with current publish authority', () => {
+    const owner = context("owner");
+    owner.enabledPermissions = ["assistant.use", "workflows.read", "workflows.publish", "estimates.read", "jobs.read", "leads.read"];
+    expect(authorizeChatTool(owner, "workflows.list", "workflows_prepare", chatToolIds).allowed).toBe(true);
+    expect(authorizeChatTool(owner, "home", "workflows_prepare", chatToolIds).allowed).toBe(false);
+    expect(authorizeChatTool(owner, "workflows.list", "calendar_query", chatToolIds).allowed).toBe(false);
+    expect(authorizeChatTool({ ...owner, enabledPermissions: ["assistant.use", "workflows.read"] },
+      "workflows.list", "workflows_prepare", chatToolIds).allowed).toBe(false);
+  });
   it('offers Calendar reads globally only with enabled assistant and Calendar grants', () => {
     for (const role of workspaceRoles) {
       const c = context(role); c.enabledPermissions = ['assistant.use','calendar.read'];

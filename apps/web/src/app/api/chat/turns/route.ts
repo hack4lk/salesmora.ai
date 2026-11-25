@@ -126,6 +126,7 @@ async function postTurn(request: Request, reportDatabase?: () => void) {
         let calendarResult;
         let reportResult;
         let captureResult;
+        let workflowDraft;
         let calendarProposal;
         let captureSetup;
         let captureSource;
@@ -201,6 +202,7 @@ async function postTurn(request: Request, reportDatabase?: () => void) {
             captureSource = result.captureSource;
             captureSetup = result.captureSetup;
             captureResult = result.captureResult;
+            workflowDraft = result.workflowDraft;
             calendarProposal = result.calendarProposal;
             estimateResult = result.estimateResult;
             estimateDraft = result.estimateDraft;
@@ -251,6 +253,7 @@ async function postTurn(request: Request, reportDatabase?: () => void) {
               result: customerResult,
             });
           }
+          if (workflowDraft) send({ type: "workflow.draft", messageId: turn.messageId, result: workflowDraft });
           if (calendarProposal) send({ type:"calendar.proposal",messageId:turn.messageId,result:calendarProposal });
           if (captureSource) send({ type: "capture.source", messageId: turn.messageId, result: captureSource });
           if (captureSetup) send({ type: "capture.setup", messageId: turn.messageId, result: captureSetup });

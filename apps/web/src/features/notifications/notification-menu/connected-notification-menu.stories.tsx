@@ -7,10 +7,11 @@ import { notificationMenuData as copy } from './notification-menu.data';
 
 const reads = fn(), commands = fn();
 let readStatus = 200, writeStatus = 200, marked = false;
+const markedIds = new Set<string>();
 async function open(canvasElement: HTMLElement) {
   const c = within(canvasElement);
-  await c.findByRole('button', { name: copy.open(1) });
-  await userEvent.click(c.getByRole('button', { name: copy.open(1) }));
+  await c.findByRole('button', { name: copy.open(2) });
+  await userEvent.click(c.getByRole('button', { name: copy.open(2) }));
   const dialog = within(await within(canvasElement.ownerDocument.body).findByRole('dialog', { name: copy.title }));
   await dialog.findByText(copy.stories.description);
   return dialog;
@@ -22,24 +23,23 @@ const meta = {
   args: { workspaceId: notificationScope.workspaceId, workspaceName: copy.stories.workspace },
   decorators: [Story => <StrictMode><main className="min-h-screen p-4 sm:p-8"><h1 className="text-heading font-semibold text-ink">{copy.stories.heading}</h1><div className="flex justify-end"><Story/></div></main></StrictMode>],
   beforeEach: () => {
-    reads.mockClear(); commands.mockClear(); readStatus = 200; writeStatus = 200; marked = false;
+    reads.mockClear(); commands.mockClear(); readStatus = 200; writeStatus = 200; marked = false; markedIds.clear();
     const original = globalThis.fetch;
     globalThis.fetch = async (input, init) => {
       const path = String(input);
       if (path === '/api/notifications/read') {
-        commands(JSON.parse(String(init?.body)));
+        const command = JSON.parse(String(init?.body));
+        commands(command);
         if (writeStatus !== 200) return Response.json({ error: copy.actionError }, { status: writeStatus });
-        marked = true;
+        markedIds.add(command.id);
         return Response.json({ ok: true });
       }
       if (!path.startsWith('/api/notifications?')) return original(input, init);
       reads(path);
       if (readStatus !== 200) return Response.json({ error: copy.loadError }, { status: readStatus });
-      const fixture = new URL(path, 'http://localhost').searchParams.get('page') === '2' ? older : first;
-      return Response.json({
-        ...fixture, unreadCount: marked ? 0 : 1,
-        items: fixture.items.map(item => ({ ...item, read: marked || item.read })),
-      });
+      const page = Number(new URL(path, 'http://localhost').searchParams.get('page') ?? 1);
+      const items = [...first.items, ...older.items].filter(item => !item.read && !marked && !markedIds.has(item.id));
+      return Response.json({ items: items.slice(page - 1, page), unreadCount: items.length, hasMore: page < items.length, page });
     };
     return () => { globalThis.fetch = original; };
   },
@@ -52,10 +52,14 @@ export const PaginationAndMarkRead: Story = { play: async ({ canvasElement }) =>
   await userEvent.click(dialog.getByRole('button', { name: copy.older }));
   await waitFor(() => expect(dialog.getAllByRole('listitem')).toHaveLength(2));
   await expect(dialog.queryByRole('button', { name: copy.older })).not.toBeInTheDocument();
-  await userEvent.click(dialog.getByRole('button', { name: copy.markRead }));
+  await userEvent.click(dialog.getAllByRole('button', { name: copy.markRead })[0]);
   await waitFor(() => expect(commands).toHaveBeenCalledTimes(1));
   await expect(commands).toHaveBeenCalledWith({ workspaceId: notificationScope.workspaceId, id: first.items[0].id });
-  await waitFor(() => expect(dialog.queryByRole('button', { name: copy.markRead })).not.toBeInTheDocument());
+  await waitFor(() => expect(dialog.getAllByRole('listitem')).toHaveLength(1));
+  await expect(within(canvasElement).getByLabelText(copy.open(1))).toBeInTheDocument();
+  await waitFor(() => expect(dialog.getByRole('button', { name: copy.markRead })).toBeEnabled());
+  await userEvent.click(dialog.getByRole('button', { name: copy.markRead }));
+  await expect(await dialog.findByText(copy.emptyTitle)).toBeVisible();
   await expect(within(canvasElement).getByLabelText(copy.open(0))).toBeInTheDocument();
 } };
 export const RefreshEvent: Story = { play: async ({ canvasElement }) => {
@@ -74,7 +78,7 @@ export const FailedWriteAndExplicitRetry: Story = { play: async ({ canvasElement
   await expect(commands).toHaveBeenCalledTimes(1);
   writeStatus = 200;
   await userEvent.click(dialog.getByRole('button', { name: copy.markRead }));
-  await waitFor(() => expect(dialog.queryByRole('button', { name: copy.markRead })).not.toBeInTheDocument());
+  await waitFor(() => expect(within(canvasElement).getByLabelText(copy.open(1))).toBeInTheDocument());
   await expect(commands).toHaveBeenCalledTimes(2);
   await expect(commands.mock.calls[0]).toEqual(commands.mock.calls[1]);
 } };

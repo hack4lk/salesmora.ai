@@ -183,6 +183,7 @@ export function EstimateConvertConnected({
   return <EstimateConvertDialog
     {...dialogReview}
     parentJob={parentJob ?? undefined}
+    services={review.services}
     capabilities={{ ...denied, read: readable && review.capabilities.read }}
     open
     pending={operation !== null}

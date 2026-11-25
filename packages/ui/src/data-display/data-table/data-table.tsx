@@ -6,7 +6,7 @@ import ArrowDownward from '@mui/icons-material/ArrowDownward';
 import {dataTableData as copy} from './data-table.data';
 
 export interface DataTableColumn<Row>{
-  id:string;label:string;render:(row:Row)=>ReactNode;sortable?:boolean;
+  id:string;label:string;render:(row:Row)=>ReactNode;sortable?:boolean;compact?:boolean;
 }
 export interface DataTableProps<Row>{
   caption:string;columns:readonly DataTableColumn<Row>[];rows:readonly Row[];
@@ -44,7 +44,7 @@ export function DataTable<Row>({caption,columns,rows,getRowId,getRowLabel,sort,o
           <caption className="sr-only">{caption}</caption>
           <thead className="sticky top-0 z-10 bg-canvas"><tr>
             {selectable&&<th scope="col" className="w-12 p-2"><Checkbox checked={all} indeterminate={some} onChange={(_event,checked)=>selectPage(checked)} slotProps={{input:{'aria-label':copy.selectPage,'aria-checked':some?'mixed':all}}} className="text-muted [&.Mui-checked]:text-primary [&.MuiCheckbox-indeterminate]:text-primary [&.Mui-focusVisible]:focus-ring"/></th>}
-            {columns.map(column=>{const active=sort?.column===column.id,direction=active&&sort.direction==='asc'?'desc':'asc';return <th key={column.id} scope="col" aria-sort={active?(sort.direction==='asc'?'ascending':'descending'):undefined} className="px-4 py-3 font-semibold text-muted">{column.sortable&&onSort?<button type="button" aria-label={copy.sort(column.label,direction)} onClick={()=>onSort(column.id,direction)} className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg text-left hover:text-primary focus-visible:focus-ring">{column.label}{active&&(sort.direction==='asc'?<ArrowUpward className="text-base"/>:<ArrowDownward className="text-base"/>)}</button>:column.label}</th>;})}
+            {columns.map(column=>{const active=sort?.column===column.id,direction=active&&sort.direction==='asc'?'desc':'asc';return <th key={column.id} scope="col" aria-sort={active?(sort.direction==='asc'?'ascending':'descending'):undefined} className={`px-4 py-3 font-semibold text-muted${column.compact ? " w-px whitespace-nowrap" : ""}`}>{column.sortable&&onSort?<button type="button" aria-label={copy.sort(column.label,direction)} onClick={()=>onSort(column.id,direction)} className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg text-left hover:text-primary focus-visible:focus-ring">{column.label}{active&&(sort.direction==='asc'?<ArrowUpward className="text-base"/>:<ArrowDownward className="text-base"/>)}</button>:column.label}</th>;})}
           </tr></thead>
           <tbody>{rows.map(row=><tr key={getRowId(row)} tabIndex={onRowOpen?0:undefined} aria-describedby={onRowOpen?`${id}-keyboard`:undefined} aria-selected={selectable?selected.has(getRowId(row)):undefined} onClick={event=>open(event,row)} onKeyDown={event=>open(event,row)} className={`border-t border-line focus-visible:focus-ring ${onRowOpen?'cursor-pointer hover:bg-canvas':''} ${selected.has(getRowId(row))?'bg-canvas':''}`}>
             {selectable&&<td className="p-2">{checkbox(row)}</td>}{columns.map(column=><td key={column.id} className="px-4 py-4 align-middle wrap-anywhere">{column.render(row)}</td>)}

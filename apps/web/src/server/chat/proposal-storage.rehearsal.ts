@@ -219,7 +219,7 @@ try {
         else {
           const customerId = randomUUID();
           await db('customers').insert({ id: customerId, workspaceId: identity.workspaceId, name: 'Fixture customer', type: 'person', companyName: '', email: '', phone: '', location: '', internalNotes: '' });
-          const job = await createJob(runtime, identity, enabledPermissions, { workspaceId: identity.workspaceId, customerId, submissionId: randomUUID(), title: 'Fixture Work Order parent', primaryOwnerId: identity.userId });
+          const job = await createJob(runtime, identity, enabledPermissions, {postalCode:'10001', workspaceId: identity.workspaceId, customerId, submissionId: randomUUID(), title: 'Fixture Work Order parent', primaryOwnerId: identity.userId });
           const row = await db('jobs').where({ id: job.jobId }).first();
           args = { ...Object.fromEntries(Object.keys(workOrdersProposeSchema.shape).map(key => [key, null])), operation: 'create', jobNumber: `J-${String(row.jobNumber).padStart(4, '0')}`, title: 'Fictional Work Order proposal' };
         }
@@ -381,7 +381,7 @@ try {
   const workOrderDecision = (draft: WorkOrderChatDraft, decision: 'confirm' | 'cancel' = 'confirm', who = identity) =>
     resolveWorkOrderDraft(who, { draftId: draft.id, inputHash: draft.inputHash, decision });
   async function savedWorkOrder() {
-    const customer = await savedCustomer(), job = await createJob(runtime, identity, enabledPermissions, {
+    const customer = await savedCustomer(), job = await createJob(runtime, identity, enabledPermissions, {postalCode:'10001',
       workspaceId: identity.workspaceId, customerId: customer.id, submissionId: randomUUID(), title: 'Fictional Job', primaryOwnerId: identity.userId,
     });
     const row = await db('jobs').where({ id: job.jobId }).first();

@@ -3,13 +3,14 @@
 import { useRef, useState } from 'react';
 import { leadSchema } from '@salesmora/contracts';
 import { SideDrawer, FormFeedback } from '@salesmora/ui';
-import { CreateLeadForm, type CreateLeadValues } from '../create-lead-form/create-lead-form';
+import { CreateLeadForm, type CreateLeadValues, type CreateLeadFormProps } from '../create-lead-form/create-lead-form';
 import { LeadOwnerSelect, type LeadOwnerMember } from '../lead-owner-select/lead-owner-select';
 import { addLeadDrawerData as copy } from './add-lead-drawer.data';
 
 export type AddLeadResult = { ok: true; lead: { id: string; name: string; href: string }; hiddenByFilters?: boolean }
   | { ok: false; kind?: 'error' | 'limit_reached'; message?: string };
 export type AddLeadDrawerProps = {
+  serviceControl?:CreateLeadFormProps['serviceControl'];
   open: boolean; canCreate: boolean; canAssign: boolean; viewerId: string;
   members: readonly LeadOwnerMember[]; ownersLoading?: boolean; ownersError?: string; onRetryOwners?: () => void;
   limitReached?: boolean; canManageBilling?: boolean; billingHref?: string;
@@ -21,7 +22,7 @@ export type AddLeadDrawerProps = {
   onCreated: (result: Extract<AddLeadResult, { ok: true }>) => void;
 };
 
-export function AddLeadDrawer({ open, canCreate, canAssign, viewerId, members, ownersLoading = false, ownersError, onRetryOwners,
+export function AddLeadDrawer({ serviceControl, open, canCreate, canAssign, viewerId, members, ownersLoading = false, ownersError, onRetryOwners,
   limitReached = false, canManageBilling = false, billingHref, initialValues, duplicate, onClose, onSubmit, onCreated }: AddLeadDrawerProps) {
   const [pending, setPending] = useState(false);
   const [serverLimit, setServerLimit] = useState(false);
@@ -47,7 +48,7 @@ export function AddLeadDrawer({ open, canCreate, canAssign, viewerId, members, o
     } finally { setPending(false); }
   }
   return <SideDrawer open={open} title={copy.title} description={copy.description} busy={pending} onClose={close}>
-    {!canCreate ? <FormFeedback kind="error" message={copy.denied}/> : <CreateLeadForm owners={[]} variant="quick" initialValues={initialValues}
+    {!canCreate ? <FormFeedback kind="error" message={copy.denied}/> : <CreateLeadForm serviceControl={serviceControl} owners={[]} variant="quick" initialValues={initialValues}
       blocked={atLimit} onSubmit={submit} onCancel={close}
       notice={<>
         {atLimit && <div className="grid gap-3">{!serverLimit && <FormFeedback kind="error" message={copy.limit}/>}{canManageBilling && billingHref && !pending ? <a href={billingHref} className="w-fit rounded-lg font-semibold text-primary underline focus-visible:focus-ring">{copy.billing}</a> : <p className="m-0 text-sm text-muted">{copy.contactOwner}</p>}</div>}

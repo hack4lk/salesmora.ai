@@ -47,6 +47,7 @@ export async function executeChatTool(
     const result = await handler(context, args);
     request.signal.throwIfAborted();
     const families = proposalKinds.filter(kind => {
+      if (kind === 'workflow') return !!result.workflowDraft;
       if (kind === 'customer') return !!result.customerResult?.draft;
       if (kind === 'workOrder' || kind === 'material') {
         const draft = result.workOrderResult?.draft;

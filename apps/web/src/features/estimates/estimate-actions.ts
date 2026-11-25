@@ -30,7 +30,7 @@ export function getEstimateRowActions({ status, archived = false, capabilities: 
   }
   if (["sent", "published", "declined", "expired"].includes(status) && caps.update) actions.push("revise");
   if (["sent", "published"].includes(status) && caps.void) actions.push("void");
-  if (["declined", "expired", "superseded", "void"].includes(status) && caps.archive) actions.push("archive");
+  if (["accepted", "declined", "expired", "superseded", "void"].includes(status) && caps.archive) actions.push("archive");
   if (status === "draft" && caps.delete) actions.push("delete-draft");
   return actions;
 }

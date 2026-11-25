@@ -40,7 +40,7 @@ test('settings API requires identity, role and scope and uses private responses'
 });
 test('strict writes require same origin, current entitlement, reviewed revision and retry identity', async () => {
   const current = await (await clients.owner.get(url())).json();
-  const input = { workspaceId, submissionId: randomUUID(), section: 'deadline', revision: current.deadline.revision, values: { mode: 'relative', days: 14, count: 'business' } };
+  const input = { postalCode:'10001', workspaceId, submissionId: randomUUID(), section: 'deadline', revision: current.deadline.revision, values: { mode: 'relative', days: 14, count: 'business' } };
   expect((await clients.owner.put(url(), { headers: { Origin: 'https://example.test' }, data: input })).status()).toBe(403);
   expect((await clients.owner.put(url(), { headers, data: { ...input, canManage: true } })).status()).toBe(422);
   expect((await clients.field.put(url(), { headers, data: input })).status()).toBe(404);
@@ -102,7 +102,7 @@ test('creation deadline preview is creator-scoped and forged/stale previews cann
   const preview = await response.json(); expect(Object.keys(preview).sort()).toEqual(['canOverride', 'context']);
   expect((await clients.field.get(previewURL)).status()).toBe(404);
   const customer = await clients.owner.post('/api/customers', { headers, data: { workspaceId, submissionId: randomUUID(), values: { name: 'Deadline creation customer', type: 'person', companyName: '', email: '', phone: '', location: '', internalNotes: '', ownerId: '' } } }); expect(customer.status()).toBe(201);
-  const input = { workspaceId, submissionId: randomUUID(), customerId: (await customer.json()).customerId, title: 'Reviewed default Job', primaryOwnerId: users.owner,
+  const input = { postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId: (await customer.json()).customerId, title: 'Reviewed default Job', primaryOwnerId: users.owner,
     completionDeadline: preview.context.projectedDate, deadlineIntent: { mode: 'workspace', revision: preview.context.revision }, deadlinePreview: { revision: preview.context.revision, createdDate: preview.context.createdDate, resolvedDate: preview.context.projectedDate, timezone: preview.context.timezone } };
   const before = (await db('jobs').where({ workspaceId })).length;
   const { deadlineIntent: _intent, deadlinePreview: _preview, ...legacyRequest } = input; void _intent; void _preview; expect((await clients.owner.post('/api/jobs', { headers, data: legacyRequest })).status()).toBe(422);
@@ -164,7 +164,7 @@ test('scheduled deadline appears in the live notification menu and can be marked
   const today = (await db.raw("SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD') AS day")).rows[0].day;
   const customerId = randomUUID();
   await db('customers').insert({ id: customerId, workspaceId, name: 'Reminder UI customer', type: 'person', companyName: '', email: '', phone: '', location: '', internalNotes: '' });
-  const job = await createJob(db, { workspaceId, userId: users.owner }, permissionIds, {
+  const job = await createJob(db, { workspaceId, userId: users.owner }, permissionIds, {postalCode:'10001',
     workspaceId, submissionId: randomUUID(), customerId, title: 'Live deadline reminder fixture', primaryOwnerId: users.field, completionDeadline: today,
   });
   await db('jobNotificationSettings').insert({ workspaceId, section: 'reminders', version: 1,
@@ -182,7 +182,7 @@ test('scheduled deadline appears in the live notification menu and can be marked
     await expect(card).toBeVisible();
     await expect(card.getByRole('link', { name: 'View Job', exact: true })).toHaveAttribute('href', `/jobs/${job.jobId}?workspace=${workspaceId}`);
     await card.getByRole('button', { name: 'Mark as read', exact: true }).click();
-    await expect(card.getByText('Read', { exact: true })).toBeVisible();
+    await expect(card).toHaveCount(0);
     expect((await db('deadlineNotifications').where({ id: rows[0].id }).first()).readAt).not.toBeNull();
   } finally { await context.close(); }
 });
@@ -207,7 +207,7 @@ test('Job activity preference persists independently and Job-created notices use
     expect((await clients.field.put('/api/settings/notifications', { headers, data: { workspaceId, userId: users.owner, leadAssignedEmail: true, jobActivityEmail: true } })).status()).toBe(400);
     const customerId = randomUUID();
     await db('customers').insert({ id: customerId, workspaceId, name: 'Job creation notice customer', type: 'person', companyName: '', email: '', phone: '', location: '', internalNotes: '' });
-    const command = { workspaceId, submissionId: randomUUID(), customerId, title: 'Live Job creation notice', primaryOwnerId: users.field, teamUserIds: [users.office, users.owner] };
+    const command = { postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: 'Live Job creation notice', primaryOwnerId: users.field, teamUserIds: [users.office, users.owner] };
     const job = await createJob(db, { workspaceId, userId: users.owner }, permissionIds, command);
     await createJob(db, { workspaceId, userId: users.owner }, permissionIds, command);
     const notices = await db('jobNotifications').where({ workspaceId, jobId: job.jobId });
@@ -219,7 +219,7 @@ test('Job activity preference persists independently and Job-created notices use
     await expect(card).toBeVisible();
     await expect(card.getByRole('link', { name: 'View Job', exact: true })).toHaveAttribute('href', `/jobs/${job.jobId}?workspace=${workspaceId}`);
     await card.getByRole('button', { name: 'Mark as read', exact: true }).click();
-    await expect(card.getByText('Read', { exact: true })).toBeVisible();
+    await expect(card).toHaveCount(0);
     const fieldNotice = notices.find(n => n.userId === users.field)!;
     expect((await db('jobNotifications').where({ id: fieldNotice.id }).first()).readAt).not.toBeNull();
     expect((await clients.office.post('/api/notifications/read', { headers, data: { workspaceId, id: fieldNotice.id } })).status()).toBe(404);
@@ -229,7 +229,7 @@ test('Job activity preference persists independently and Job-created notices use
 test('status API retries produce one historical notification and the live menu shows before/after values', async ({ browser }) => {
   const customerId = randomUUID();
   await db('customers').insert({ id: customerId, workspaceId, name: 'Status notice customer', type: 'person', companyName: '', email: '', phone: '', location: '', internalNotes: '' });
-  const job = await createJob(db, { workspaceId, userId: users.owner }, permissionIds, { workspaceId, submissionId: randomUUID(), customerId,
+  const job = await createJob(db, { workspaceId, userId: users.owner }, permissionIds, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId,
     title: 'Live status notification fixture', primaryOwnerId: users.field, teamUserIds: [users.office, users.owner] });
   await db('jobNotifications').where({ workspaceId, jobId: job.jobId }).delete();
   const change = { workspaceId, jobId: job.jobId, expectedVersion: 1, submissionId: randomUUID(), action: 'status', to: 'in-progress', note: 'PRIVATE status note' };
@@ -254,7 +254,7 @@ test('status API retries produce one historical notification and the live menu s
     await expect(card.getByText('In Progress', { exact: true })).toBeVisible();
     await expect(card.getByRole('link', { name: 'View Job', exact: true })).toHaveAttribute('href', `/jobs/${job.jobId}?workspace=${workspaceId}`);
     await card.getByRole('button', { name: 'Mark as read', exact: true }).click();
-    await expect(card.getByText('Read', { exact: true })).toBeVisible();
+    await expect(card).toHaveCount(0);
     await expect(panel.getByRole('heading', { name: 'A Job was completed', exact: true })).toBeVisible();
     expect((await clients.office.post('/api/notifications/read', { headers, data: { workspaceId, id: original.id } })).status()).toBe(404);
   } finally { await context.close(); }
@@ -263,7 +263,7 @@ test('status API retries produce one historical notification and the live menu s
 test('assignment API removes Job access while the final minimal notice remains readable and markable', async ({ browser }) => {
   const customerId = randomUUID();
   await db('customers').insert({ id: customerId, workspaceId, name: 'Assignment notice customer', type: 'person', companyName: '', email: '', phone: '', location: '', internalNotes: '' });
-  const job = await createJob(db, { workspaceId, userId: users.owner }, permissionIds, { workspaceId, submissionId: randomUUID(), customerId,
+  const job = await createJob(db, { workspaceId, userId: users.owner }, permissionIds, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId,
     title: 'PRIVATE removed Job title', primaryOwnerId: users.field, teamUserIds: [users.office] });
   expect((await clients.field.get(`/api/jobs/${job.jobId}?workspace=${workspaceId}`)).status()).toBe(200);
   const change = { workspaceId, jobId: job.jobId, expectedVersion: 1, submissionId: randomUUID(), action: 'assign', primaryOwnerId: users.office, teamUserIds: [] };
@@ -290,7 +290,7 @@ test('assignment API removes Job access while the final minimal notice remains r
     await expect(card.getByRole('link', { name: 'View Job', exact: true })).toHaveCount(0);
     await expect(card).not.toContainText('PRIVATE removed Job title');
     await card.getByRole('button', { name: 'Mark as read', exact: true }).click();
-    await expect(card.getByText('Read', { exact: true })).toBeVisible();
+    await expect(card).toHaveCount(0);
     expect((await db('jobNotifications').where({ id: removed.id }).first()).readAt).not.toBeNull();
   } finally { await context.close(); }
 });
@@ -298,7 +298,7 @@ test('assignment API removes Job access while the final minimal notice remains r
 test('deadline API records added/changed/removed snapshots and the live menu marks each authorized notice read', async ({ browser }) => {
   const customerId = randomUUID();
   await db('customers').insert({ id: customerId, workspaceId, name: 'Deadline notice customer', type: 'person', companyName: '', email: '', phone: '', location: '', internalNotes: '' });
-  const job = await createJob(db, { workspaceId, userId: users.owner }, permissionIds, { workspaceId, submissionId: randomUUID(), customerId,
+  const job = await createJob(db, { workspaceId, userId: users.owner }, permissionIds, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId,
     title: 'Live deadline change fixture', primaryOwnerId: users.field, teamUserIds: [users.office, users.owner] });
   await db('jobNotifications').where({ workspaceId, jobId: job.jobId }).delete();
   const change = { workspaceId, jobId: job.jobId, expectedVersion: 1, submissionId: randomUUID(), action: 'deadline', completionDeadline: '2026-11-06' };
@@ -332,7 +332,7 @@ test('deadline API records added/changed/removed snapshots and the live menu mar
       await expect(card.getByText(before, { exact: true })).toBeVisible(); await expect(card.getByText(after, { exact: true })).toBeVisible();
       await expect(card.getByRole('link', { name: 'View Job', exact: true })).toHaveAttribute('href', `/jobs/${job.jobId}?workspace=${workspaceId}`);
       await card.getByRole('button', { name: 'Mark as read', exact: true }).click();
-      await expect(card.getByText('Read', { exact: true })).toBeVisible();
+      await expect(card).toHaveCount(0);
     }
     expect((await db('jobNotifications').where({ workspaceId, jobId: job.jobId, userId: users.field }).whereNull('readAt')).length).toBe(0);
   } finally { await context.close(); }

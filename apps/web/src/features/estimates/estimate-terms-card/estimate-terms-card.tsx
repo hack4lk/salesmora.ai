@@ -25,7 +25,7 @@ export type EstimateTermsCardProps = {
 };
 
 export function EstimateTermsCard({
-  value, timezone, calculation, paymentPresets = [], status = "draft", canEdit = false,
+  value, calculation, paymentPresets = [], status = "draft", canEdit = false,
   pending = false, errors = {}, onChange,
 }: EstimateTermsCardProps) {
   const id = useId();
@@ -49,11 +49,11 @@ export function EstimateTermsCard({
         <div className="grid min-w-0 gap-2">
           <label htmlFor={`${id}-date`} className="text-sm font-semibold">{c.optional(c.validUntil)}</label>
           <input id={`${id}-date`} name="validUntil" type="date" value={value.validUntil} disabled={pending}
-            className={estimateInput} aria-invalid={!!errors.validUntil} aria-describedby={`${id}-date-hint`}
+            className={estimateInput} aria-invalid={!!errors.validUntil} aria-describedby={errors.validUntil ? `${id}-date-hint` : undefined}
             onChange={(event) => change({ validUntil: event.target.value })} />
-          <p id={`${id}-date-hint`} className={`m-0 text-sm leading-6 wrap-anywhere ${errors.validUntil ? "text-error" : "text-muted"}`}>
-            {errors.validUntil ?? c.validUntilHint(timezone)}
-          </p>
+          {errors.validUntil && <p id={`${id}-date-hint`} className="m-0 text-sm leading-6 text-error wrap-anywhere">
+            {errors.validUntil}
+          </p>}
         </div>
         {paymentPresets.length > 0 && <div className="grid min-w-0 gap-2">
           <label htmlFor={`${id}-preset`} className="text-sm font-semibold">{c.preset}</label>
@@ -111,7 +111,7 @@ export function EstimateTermsCard({
       </dl>}
       {!editable && Object.entries(errors).map(([field, message]) => <p key={field} role="alert" className="m-0 text-sm text-error">{message}</p>)}
       {!editable && depositError && <p role="alert" className="m-0 text-sm text-error">{depositError}</p>}
-      <p className="m-0 text-sm leading-6 text-muted wrap-anywhere">{editable ? c.depositHint : `${c.validUntilHint(timezone)} ${c.depositHint}`}</p>
+      <p className="m-0 text-sm leading-6 text-muted wrap-anywhere">{c.depositHint}</p>
       <div className="grid min-w-0 gap-3 border-t border-line pt-4">
         {([[c.deposit, calculation.depositCents], [c.balance, calculation.balanceCents]] as const).map(([label, cents]) => (
           <div key={label} role="group" aria-label={label}>

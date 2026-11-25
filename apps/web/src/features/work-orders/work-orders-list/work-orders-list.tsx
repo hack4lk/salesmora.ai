@@ -24,10 +24,22 @@ export function WorkOrdersList({rows,total,page,pageSize,filters,sort,metrics,me
  const value=(key:keyof WorkOrderListFilters)=>key==='status'?workOrderStatusBadgeData[filters.status as keyof typeof workOrderStatusBadgeData]?.label:key==='assignee'?(filters.assignee==='unassigned'?copy.unassigned:filters.assignee):String(filters[key]);
  const active=(['search','status','assignee','jobNumber','scheduledFrom','scheduledTo'] as const).filter(k=>filters[k]!==''&&filters[k]!=='all'&&!(field&&k==='assignee')).map(k=>({id:k,label:`${copy.chip[k]}: ${value(k)}`}));
  const filtered=active.length>0||filters.archived;
- const metricValues=[metrics.issuedToday,metrics.inProgress,metrics.overdue,metrics.awaitingSignoff];
  return <div className="grid min-w-0 gap-6">
-  <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">{(['issuedToday','inProgress','overdue','awaitingSignoff'] as const).map((key,i)=><MetricCard key={key} state={state} label={copy.metrics[key]} value={metricValues[i]} description={copy.descriptions[i]}/>)}</div>
-  <FilterBar title={copy.title} activeFilters={active} disabled={disabled} onRemove={key=>patch({[key]:defaultWorkOrderListFilters[key as keyof WorkOrderListFilters]})} onClearAll={()=>onFilters({...defaultWorkOrderListFilters,mine:filters.mine,archived:filters.archived})}>
+  <div className="@container min-w-0">
+   <div className="grid min-w-0 gap-3 @lg:grid-cols-2 @5xl:grid-cols-4">
+    {(['issuedToday','inProgress','overdue','awaitingSignoff'] as const).map((key,index)=>(
+     <MetricCard
+      key={key}
+      labelPosition="left"
+      state={state}
+      label={copy.metrics[key]}
+      value={metrics[key]}
+      description={copy.descriptions[index]}
+     />
+    ))}
+   </div>
+  </div>
+  <FilterBar hideTitle activeFilters={active} disabled={disabled} onRemove={key=>patch({[key]:defaultWorkOrderListFilters[key as keyof WorkOrderListFilters]})} onClearAll={()=>onFilters({...defaultWorkOrderListFilters,mine:filters.mine,archived:filters.archived})}>
    <div className="grid min-w-0 flex-1 basis-full gap-3 sm:grid-cols-2 lg:grid-cols-3">
     <label className={woLabel} htmlFor={id}>{copy.search}<input id={id} type="search" maxLength={200} className={woInput} placeholder={copy.placeholder} value={filters.search} onChange={e=>patch({search:e.target.value})}/></label>
     <label className={woLabel}>{copy.status}<select className={woInput} value={filters.status} onChange={e=>patch({status:e.target.value as WorkOrderListFilters['status']})}><option value="all">{copy.all}</option>{workOrderStatuses.map(s=><option key={s} value={s}>{workOrderStatusBadgeData[s].label}</option>)}</select></label>
@@ -41,12 +53,12 @@ export function WorkOrdersList({rows,total,page,pageSize,filters,sort,metrics,me
     </div>
    </div>
   </FilterBar>
-  <div className="flex flex-wrap items-center justify-between gap-3"><p role="status" className="m-0 text-sm text-muted">{copy.count(total)}</p><div className="flex flex-wrap items-center gap-2">{onView&&<div role="group" aria-label={copy.views} className="flex gap-2">{(['table','board'] as const).map(v=><button key={v} type="button" disabled={disabled} aria-pressed={view===v} className={view===v?woPrimary:woButton} onClick={()=>onView(v)}>{copy[v]}</button>)}</div>}{canExport&&<button type="button" className={woButton} disabled={disabled||exporting||total===0} onClick={onExport}>{exporting?copy.exporting:copy.export}</button>}</div></div>
+  {(onView||canExport)&&<div className="flex flex-wrap items-center justify-end gap-2">{onView&&<div role="group" aria-label={copy.views} className="flex gap-2">{(['table','board'] as const).map(v=><button key={v} type="button" disabled={disabled} aria-pressed={view===v} className={view===v?woPrimary:woButton} onClick={()=>onView(v)}>{copy[v]}</button>)}</div>}{canExport&&<button type="button" className={woButton} disabled={disabled||exporting||total===0} onClick={onExport}>{exporting?copy.exporting:copy.export}</button>}</div>}
   {view==='board'?(state==='loading'?<div role="status" aria-busy="true" className="grid gap-4 rounded-2xl border border-line bg-paper p-6"><span className="text-sm text-muted">{copy.loading}</span>{[0,1,2].map(k=><div key={k} aria-hidden="true" className="h-12 rounded-xl bg-canvas motion-safe:animate-pulse"/>)}</div>
    :state==='error'?<div className="grid justify-items-start gap-4 rounded-2xl border border-line bg-paper p-6"><p role="alert" className="m-0 text-sm text-error">{copy.error}</p>{onRetry&&<button type="button" className={woButton} onClick={onRetry}>{copy.retry}</button>}</div>
    :rows.length===0?<p role="status" className="m-0 rounded-2xl border border-line bg-paper p-6 text-sm leading-6 text-muted">{filtered||filters.search?copy.noMatch:copy.empty}</p>
    :<WorkOrdersBoard rows={rows} pendingId={pendingId} onOpen={onOpen} onAction={onAction} onRequestMove={onRequestMove}/>)
-  :<DataTable caption={copy.caption} rows={rows} getRowId={r=>r.id} getRowLabel={r=>r.title} onRowOpen={onOpen} sort={sort} onSort={(column,direction)=>onSort({column:column as WorkOrderListSort['column'],direction})} state={state} onRetry={onRetry} emptyMessage={filtered||filters.search?copy.noMatch:copy.empty} errorMessage={copy.error} renderCard={r=><WorkOrderCard workOrder={r} onOpen={()=>onOpen(r)} onAction={a=>onAction(r,a)}/>}
+  :<DataTable constrainHeight={false} caption={copy.caption} rows={rows} getRowId={r=>r.id} getRowLabel={r=>r.title} onRowOpen={onOpen} sort={sort} onSort={(column,direction)=>onSort({column:column as WorkOrderListSort['column'],direction})} state={state} onRetry={onRetry} emptyMessage={filtered||filters.search?copy.noMatch:copy.empty} errorMessage={copy.error} renderCard={r=><WorkOrderCard workOrder={r} onOpen={()=>onOpen(r)} onAction={a=>onAction(r,a)}/>}
    columns={[
     {id:'number',label:copy.number,sortable:true,render:r=><div className="grid gap-1"><span className="font-semibold">{r.number}</span><span>{r.title}</span></div>},
     {id:'customer',label:copy.customer,render:r=><div className="grid gap-1"><span>{r.customerName}</span><span className="text-xs text-muted">{r.jobNumber}</span></div>},

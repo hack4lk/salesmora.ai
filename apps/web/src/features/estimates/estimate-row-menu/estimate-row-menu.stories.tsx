@@ -45,7 +45,12 @@ export const Draft: Story = {
 };
 export const Sent: Story = { args: { status: "sent" } };
 export const Published: Story = { args: { status: "published" } };
-export const Accepted: Story = { args: { status: "accepted" } };
+export const Accepted: Story = { args: { status: "accepted" }, play: async ({ canvasElement }) => {
+  await userEvent.click(within(canvasElement).getByRole("button"));
+  const menu = within(canvasElement.ownerDocument.body);
+  await expect(await menu.findByRole("menuitem", { name: copy.actions.archive })).toBeVisible();
+  await expect(menu.queryByRole("menuitem", { name: copy.actions["delete-draft"] })).not.toBeInTheDocument();
+} };
 export const Declined: Story = { args: { status: "declined" } };
 export const Expired: Story = { args: { status: "expired" } };
 export const Superseded: Story = { args: { status: "superseded" } };

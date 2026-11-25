@@ -1,4 +1,4 @@
-import { test, expect, request as requests, type APIRequestContext } from '@playwright/test';
+import { test, expect, request as requests, type APIRequestContext, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { createDatabase } from '@salesmora/data';
 const connection = process.env.TEST_DATABASE_URL;
@@ -7,6 +7,10 @@ const db = createDatabase(connection), origin = 'http://127.0.0.1:3002', headers
 const prefix = `lead-read-${randomUUID()}`, clients: Record<string, APIRequestContext> = {}, users: Record<string, string> = {};
 let workspaceId: string, otherWorkspace: string;
 const ids = Array.from({ length: 68 }, () => randomUUID());
+async function openLeadActions(page: Page) {
+  await page.getByRole('button', { name: 'Lead actions', exact: true }).click();
+  return page.getByRole('menu', { name: 'Lead actions', exact: true });
+}
 const password = 'Fictional-read-test-password-42!';
 test.beforeAll(async () => {
   // Disposable _test database only: clear ephemeral auth buckets between fixture runs.
@@ -152,7 +156,7 @@ test('pipeline menu, drag, quick view and full record move through real confirma
   await dialog.getByRole('combobox', { name: 'New stage', exact: true }).selectOption('won'); await dialog.getByRole('button', { name: 'Confirm move' }).click();
   await expect.poll(async () => (await db('leads').where({ id: ids[0] }).first()).stage).toBe('won');
   await page.goto(`/leads/${ids[0]}?workspace=${workspaceId}`);
-  await page.getByRole('button', { name: 'Move to another stage', exact: true }).click();
+  await (await openLeadActions(page)).getByRole('menuitem', { name: 'Move to another stage', exact: true }).click();
   await dialog.getByRole('combobox', { name: 'New stage', exact: true }).selectOption('lost'); await dialog.getByLabel('Lost reason (optional)', { exact: true }).fill('Timing changed.');
   await dialog.getByRole('button', { name: 'Confirm move' }).click(); await expect(dialog).toHaveCount(0);
   await expect(page.getByText('Timing changed.', { exact: true })).toBeVisible();
@@ -243,7 +247,7 @@ test('Prepare follow-up opens the one shared assistant with an unsent draft and 
   await prepare.click(); await expect(page.locator('dialog:modal')).toHaveCount(1);
   await expect(composer).toBeFocused();
   const draft = await composer.inputValue();
-  expect(draft).toContain('Prepare follow-up wording for LD-'); expect(draft).toContain('Read Customer 018'); expect(draft).toContain('Kitchen repair'); expect(draft).toContain('do not send any message or change records');
+  expect(draft).toMatch(/^Draft a follow-up for LD-\d+\.$/);
   expect(draft).not.toContain('18 Willow Street'); expect(draft).not.toContain('212'); expect(requests).toHaveLength(0);
   await composer.fill('My existing unsent draft.'); await page.getByRole('button', { name: 'Close chat', exact: true }).click();
   await expect(prepare).toBeFocused(); await prepare.click(); await expect(composer).toHaveValue('My existing unsent draft.'); expect(requests).toHaveLength(0);
@@ -291,10 +295,39 @@ test('lead edit API enforces ordinary fields, role/scope, source origin, version
   expect((await clients.office.patch(endpoint, { headers, data })).status()).toBe(404);
   expect((await (await clients.office.get(`/api/leads/${ids[24]}?workspace=${workspaceId}`)).json()).lead.canEdit).toBe(false);
 });
+test('edit flyout saves lead owner and details together and supports unassignment', async ({ page }) => {
+  test.setTimeout(60000);
+  const id = randomUUID();
+  await db('leads').insert({ id, workspaceId, createdBy: users.owner, submissionId: randomUUID(), submissionHash: 'owner-edit-fixture',
+    name: 'Owner edit fixture', email: '', phone: '', service: 'Repair', address: '', details: '', notes: '', source: 'website', stage: 'new', ownerId: users.field });
+  await login(page, 'owner'); await page.goto(`/leads/${id}?workspace=${workspaceId}`);
+  const contact = page.getByRole('region', { name: 'Contact details', exact: true });
+  await contact.getByRole('button', { name: 'Edit', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit lead', exact: true });
+  await editor.getByRole('combobox', { name: 'Lead owner', exact: true }).selectOption(users.office);
+  await editor.getByRole('textbox', { name: 'Lead name', exact: true }).fill('Owner and name edited');
+  await editor.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect(editor).toHaveCount(0);
+  await expect(contact.getByText('Read test office', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Owner and name edited', exact: true })).toBeVisible();
+  expect((await db('leads').where({ id }).first()).ownerId).toBe(users.office);
+  expect(Number((await db('assignmentNotifications').where({ leadId: id, userId: users.office }).count('* as n').first())?.n)).toBe(1);
+  await page.reload();
+  await contact.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(editor.getByRole('combobox', { name: 'Lead owner', exact: true })).toHaveValue(users.office);
+  await editor.getByRole('combobox', { name: 'Lead owner', exact: true }).selectOption('');
+  await editor.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect(editor).toHaveCount(0);
+  await expect(contact.getByText('Unassigned', { exact: true })).toBeVisible();
+  expect((await db('leads').where({ id }).first()).ownerId).toBeNull();
+});
+
 test('lead editor saves fields/history, guards discard and preserves a draft across conflict and explicit reload', async ({ page }) => {
   test.setTimeout(60000); await login(page, 'field'); await page.goto(`/leads/${ids[27]}?workspace=${workspaceId}`);
-  const open = page.getByRole('button', { name: 'Edit lead', exact: true }), editor = page.getByRole('dialog', { name: 'Edit lead', exact: true });
-  await open.click(); const name = editor.getByRole('textbox', { name: 'Lead name', exact: true }), service = editor.getByRole('textbox', { name: 'Service requested', exact: true });
+  const open = async () => (await openLeadActions(page)).getByRole('menuitem', { name: 'Edit lead', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit lead', exact: true });
+  await open(); await expect(editor.getByRole('combobox', { name: 'Lead owner', exact: true })).toHaveCount(0);
+  const name = editor.getByRole('textbox', { name: 'Lead name', exact: true }), service = editor.getByRole('textbox', { name: 'Service requested', exact: true });
   await name.fill('Field customer edited'); await editor.getByRole('textbox', { name: 'Email address (optional)', exact: true }).fill('EDITED@EXAMPLE.TEST');
   await service.fill('Updated repair request'); await editor.getByRole('textbox', { name: 'Notes (optional)', exact: true }).fill('Updated internal context.');
   await editor.getByRole('combobox', { name: 'Source', exact: true }).selectOption('referral');
@@ -302,7 +335,7 @@ test('lead editor saves fields/history, guards discard and preserves a draft acr
   await expect(page.getByRole('heading', { name: 'Field customer edited', exact: true, level: 1 })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Lead details updated', exact: true })).toBeVisible();
   expect((await db('leads').where({ id: ids[27] }).first()).email).toBe('edited@example.test');
-  await page.reload(); await open.click(); await service.fill('My unsaved service');
+  await page.reload(); await open(); await service.fill('My unsaved service');
   await editor.getByRole('button', { name: 'Cancel', exact: true }).click();
   const discard = page.getByRole('alertdialog', { name: 'Discard unsaved changes?', exact: true }); await expect(discard).toBeVisible();
   await discard.getByRole('button', { name: 'Cancel', exact: true }).click(); await expect(service).toHaveValue('My unsaved service');
@@ -316,11 +349,11 @@ test('lead editor saves fields/history, guards discard and preserves a draft acr
   await expect(service).toHaveValue('Another teammate service'); await expect(service).not.toHaveAttribute('readonly');
   await service.fill('Reapplied service'); await editor.getByRole('button', { name: 'Save changes', exact: true }).click(); await expect(editor).toHaveCount(0);
   expect((await db('leads').where({ id: ids[27] }).first()).service).toBe('Reapplied service');
-  await page.goto(`/leads/${ids[63]}?workspace=${workspaceId}`); await open.click(); await expect(editor.getByRole('combobox', { name: 'Source', exact: true })).toBeDisabled();
+  await page.goto(`/leads/${ids[63]}?workspace=${workspaceId}`); await open(); await expect(editor.getByRole('combobox', { name: 'Source', exact: true })).toBeDisabled();
 });
 test('mobile editor safely retries a lost save response and preserves edits when permission is revoked', async ({ page }) => {
   test.setTimeout(60000); await login(page, 'field'); await page.setViewportSize({ width: 390, height: 950 });
-  await page.goto(`/leads/${ids[30]}?workspace=${workspaceId}`); await page.getByRole('button', { name: 'Edit lead', exact: true }).click();
+  await page.goto(`/leads/${ids[30]}?workspace=${workspaceId}`); await (await openLeadActions(page)).getByRole('menuitem', { name: 'Edit lead', exact: true }).click();
   const editor = page.getByRole('dialog', { name: 'Edit lead', exact: true }), name = editor.getByRole('textbox', { name: 'Lead name', exact: true });
   await name.fill('Saved once despite lost response');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -334,7 +367,7 @@ test('mobile editor safely retries a lost save response and preserves edits when
   await page.unroute(`**/api/leads/${ids[30]}`); await editor.getByRole('button', { name: 'Save changes', exact: true }).click(); await expect(editor).toHaveCount(0);
   expect(Number((await db('leadActivity').where({ leadId: ids[30], type: 'edited' }).count('* as n').first())?.n)).toBe(1);
   expect((await db('leads').where({ id: ids[30] }).first()).version).toBe(2);
-  await page.getByRole('button', { name: 'Edit lead', exact: true }).click();
+  await (await openLeadActions(page)).getByRole('menuitem', { name: 'Edit lead', exact: true }).click();
   const service = editor.getByRole('textbox', { name: 'Service requested', exact: true }); await service.fill('Keep my unsaved service');
   await db('workspaceRolePolicies').where({ workspaceId, role: 'field', permission: 'leads.update' }).delete();
   await editor.getByRole('button', { name: 'Save changes', exact: true }).click();
@@ -356,7 +389,7 @@ test('owner assignment, notification bell and personal opt-out are connected wit
   expect((await clients.owner.post(endpoint,{headers,data:{...data,ownerId:users.other}})).status()).toBe(409);
   expect((await clients.owner.post(endpoint,{headers,data:{...data,actorId:users.other}})).status()).toBe(422);
   await login(page,'owner');await page.goto(`/leads/${leadId}?workspace=${workspaceId}`);
-  await page.getByRole('button',{name:'Change owner',exact:true}).click();
+  await (await openLeadActions(page)).getByRole('menuitem', { name: 'Change owner', exact: true }).click();
   const confirm=page.getByRole('alertdialog',{name:'Change owner',exact:true});
   await confirm.getByRole('combobox',{name:'Lead owner',exact:true}).selectOption(users.field);
   await page.route(`**/api/leads/${leadId}/owner`,async route=>{const response=await route.fetch();expect(response.status()).toBe(200);await route.abort('failed');});
@@ -380,13 +413,13 @@ test('owner assignment, notification bell and personal opt-out are connected wit
   const menu=fieldPage.getByRole('dialog',{name:'Notifications',exact:true});
   await expect(menu.getByText(/Assignment Customer/)).toBeVisible();
   await menu.getByRole('button',{name:'Mark as read',exact:true}).click();
-  await expect(menu.getByText('Read',{exact:true})).toBeVisible();
+  await expect(menu.getByText(/Assignment Customer/)).toHaveCount(0);
   await menu.getByRole('link',{name:'Notification preferences',exact:true}).click();
   await expect(fieldPage.getByRole('heading',{name:'Notification preferences',exact:true})).toBeVisible();
-  await fieldPage.getByRole('switch',{name:'Lead assigned to you',exact:true}).click();
+  await fieldPage.getByRole('switch',{name:'Lead assignments and workflow reminders',exact:true}).click();
   await fieldPage.getByRole('button',{name:'Save preferences',exact:true}).click();
   await expect(fieldPage.getByText('Your email notification preferences have been updated.',{exact:true})).toBeVisible();
-  await fieldPage.reload();await expect(fieldPage.getByRole('switch',{name:'Lead assigned to you',exact:true})).not.toBeChecked();
+  await fieldPage.reload();await expect(fieldPage.getByRole('switch',{name:'Lead assignments and workflow reminders',exact:true})).not.toBeChecked();
   expect((await (await clients.owner.get(`/api/settings/notifications?workspace=${workspaceId}`)).json()).leadAssignedEmail).toBe(true);
   const version=(await db('leads').where({id:leadId}).first()).version;
   const unassign={...data,submissionId:randomUUID(),expectedVersion:version,ownerId:null};
@@ -433,7 +466,7 @@ test('live record archive and list restore preserve filters, history and data wi
   await login(page,'owner');const id=randomUUID();
   await db('leads').insert({id,workspaceId,createdBy:users.owner,submissionId:randomUUID(),submissionHash:'archive-ui-fixture',name:'Archive UI Customer',email:'',phone:'',service:'Fixture repair',address:'',details:'Kept details',notes:'Kept notes',source:'website',stage:'new',ownerId:users.owner});
   await page.goto(`/leads/${id}?workspace=${workspaceId}&view=list&q=Archive+UI`);
-  await page.getByRole('button',{name:'Archive',exact:true}).click();
+  await (await openLeadActions(page)).getByRole('menuitem', { name: 'Archive', exact: true }).click();
   const dialog=page.getByRole('alertdialog',{name:'Archive lead?',exact:true});
   await expect(dialog).toBeVisible();
   await page.route(`**/api/leads/${id}/archive`,async route=>{const result=await route.fetch();expect(result.status()).toBe(200);await route.abort('failed');});
@@ -441,9 +474,11 @@ test('live record archive and list restore preserve filters, history and data wi
   await expect(dialog.getByText('The action could not be completed. Your current view has been preserved.',{exact:true})).toBeVisible();
   await page.unroute(`**/api/leads/${id}/archive`);
   await dialog.getByRole('button',{name:'Archive lead',exact:true}).click();await expect(dialog).toHaveCount(0);
-  await expect(page.getByRole('button',{name:'Restore',exact:true})).toBeVisible();
+  const archivedActions = await openLeadActions(page);
+  await expect(archivedActions.getByRole('menuitem', { name: 'Restore', exact: true })).toBeVisible();
   await expect(page.getByRole('heading',{name:'Lead archived',exact:true})).toBeVisible();
-  await expect(page.getByRole('button',{name:'Edit lead',exact:true})).toHaveCount(0);
+  await expect(archivedActions.getByRole('menuitem', { name: 'Edit lead', exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
   await page.getByRole('link',{name:'Back to leads',exact:true}).click();await expect(page).toHaveURL(/q=Archive\+UI/);
   await expect(page.getByRole('link',{name:'Archive UI Customer',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Show archived',exact:true}).click();
@@ -491,7 +526,7 @@ test('live typed deletion handles a lost response and returns to the originating
   await db('leads').insert({ id, workspaceId, createdBy: users.owner, submissionId: randomUUID(), submissionHash: 'delete-ui-fixture', name: 'Delete UI Customer', email: '', phone: '', service: 'Fixture repair', address: '', details: '', notes: 'Private fixture note', source: 'website', stage: 'new', ownerId: users.owner });
   const row = await db('leads').where({ id }).first(), leadNumber = `LD-${String(row.leadNumber).padStart(4, '0')}`;
   await page.goto(`/leads/${id}?workspace=${workspaceId}&view=list&q=Delete+UI`);
-  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await (await openLeadActions(page)).getByRole('menuitem', { name: 'Delete', exact: true }).click();
   const dialog = page.getByRole('alertdialog', { name: 'Delete this lead permanently?', exact: true });
   await expect(dialog).toBeVisible(); const confirm = dialog.getByRole('button', { name: 'Delete lead', exact: true });
   await expect(confirm).toBeDisabled();

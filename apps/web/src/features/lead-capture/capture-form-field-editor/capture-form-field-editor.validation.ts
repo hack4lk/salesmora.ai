@@ -14,9 +14,9 @@ export type CaptureFormField = {
 export type CaptureFormFieldEditorValue = { fields: readonly CaptureFormField[]; contactRequired: boolean };
 export type CaptureFieldIssue = { fieldId?: string; optionId?: string; message: string };
 export const customCaptureFieldTypes: readonly CaptureCustomFieldType[] = ['short_text', 'long_text', 'dropdown', 'checkboxes', 'date'];
-export const standardCaptureFieldTypes: Record<CaptureStandardField, CaptureFormField['type']> = { name: 'short_text', email: 'email', phone: 'phone', service: 'short_text', details: 'long_text', address: 'address' };
+export const standardCaptureFieldTypes: Record<CaptureStandardField, CaptureFormField['type']> = { name: 'short_text', email: 'email', phone: 'phone', service: 'short_text', details: 'long_text', address: 'address', postalCode:'short_text' };
 export const captureFieldTypesForKey: Record<CaptureFormField['key'], readonly CaptureFormField['type'][]> = {
-  custom: customCaptureFieldTypes,
+  postalCode:['short_text'], custom: customCaptureFieldTypes,
   name: ['short_text', 'long_text'], email: ['email'], phone: ['phone'],
   service: ['short_text', 'dropdown'], details: ['long_text', 'short_text'], address: ['address', 'short_text', 'long_text'],
 };

@@ -1,0 +1,17 @@
+import type {Meta,StoryObj} from '@storybook/nextjs-vite';
+import {expect,fn,userEvent,within} from 'storybook/test';
+import {ServiceEmailDraftDrawer,type ServiceEmailDraftDrawerProps} from './service-email-draft-drawer';
+import {dueCustomers,dueService,dueTemplate} from './workflow-service-due.fixtures';
+const meta={title:'Workflows/Service email draft',component:ServiceEmailDraftDrawer,parameters:{layout:'fullscreen'},args:{open:true,service:dueService,template:dueTemplate,sample:dueCustomers[0],canDraft:true,onClose:fn(),onReload:fn(),onGenerate:fn<ServiceEmailDraftDrawerProps['onGenerate']>(async()=>({subject:'Your {Service} reminder',body:'Hello {First name}, call our office at (555) 010-0142 or email office@example.test to arrange your next {Service}.'})),onSave:fn<ServiceEmailDraftDrawerProps['onSave']>(async()=>{})},decorators:[Story=><main className="min-h-screen bg-canvas p-4"><Story/></main>]} satisfies Meta<typeof ServiceEmailDraftDrawer>;
+export default meta;type Story=StoryObj<typeof meta>;
+const dialog=(element:HTMLElement)=>within(within(element.ownerDocument.body).getByRole('dialog'));
+export const Draft:Story={};
+export const Personalization:Story={play:async({canvasElement})=>{const d=dialog(canvasElement);await expect(d.getByText('Hi Skyler,',{exact:false})).toBeVisible();await expect(d.getByText('Time for your next Gutter cleaning?')).toBeVisible();}};
+export const NeutralGreeting:Story={args:{sample:{...dueCustomers[0],firstName:null}},play:async({canvasElement})=>{await expect(dialog(canvasElement).getByText('Hi there,',{exact:false})).toBeVisible();}};
+export const DraftError:Story={args:{onGenerate:fn<ServiceEmailDraftDrawerProps['onGenerate']>(async()=>{throw Error('unavailable');})},play:async({canvasElement})=>{const d=dialog(canvasElement);await userEvent.type(d.getByLabelText('Work with the assistant'),'Shorten it');await userEvent.click(d.getByRole('button',{name:'Update draft'}));await expect(await d.findByRole('alert')).toBeVisible();await expect(d.getByLabelText('Work with the assistant')).toHaveValue('Shorten it');}};
+export const SaveError:Story={args:{onSave:fn<ServiceEmailDraftDrawerProps['onSave']>(async()=>{throw Error('unavailable');})},play:async({canvasElement})=>{const d=dialog(canvasElement);await userEvent.type(d.getByLabelText('Subject'),' Contact our office');await userEvent.click(d.getByRole('button',{name:'Save draft'}));await expect(await d.findByRole('alert')).toBeVisible();await expect(d.getByLabelText('Subject')).toHaveValue(dueTemplate.subject+' Contact our office');}};
+export const UnsupportedField:Story={play:async({canvasElement})=>{const d=dialog(canvasElement);await userEvent.clear(d.getByLabelText('Subject'));await userEvent.click(d.getByLabelText('Subject'));await userEvent.paste('Reminder {Unknown}');await expect(d.getByRole('button',{name:'Save draft'})).toBeDisabled();}};
+export const Conflict:Story={args:{conflict:true}};
+export const ReadOnly:Story={args:{canDraft:false}};
+export const Cancel:Story={play:async({canvasElement,args})=>{await userEvent.click(dialog(canvasElement).getByRole('button',{name:'Cancel'}));await expect(args.onSave).not.toHaveBeenCalled();await expect(args.onGenerate).not.toHaveBeenCalled();}};
+export const Mobile:Story={globals:{viewport:{value:'phone',isRotated:false}}};

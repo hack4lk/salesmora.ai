@@ -22,7 +22,7 @@ const check = async (label: string, run: () => Promise<void>) => {
   await run(); console.log('PASS ' + label); passed++;
 };
 const input = (overrides: Partial<CreateJobInput> = {}): CreateJobInput => ({
-  workspaceId, submissionId: randomUUID(), customerId, title: 'Job assignment notification fixture', primaryOwnerId: users.field, teamUserIds: [users.office, users.owner], ...overrides,
+  postalCode:'10001',workspaceId, submissionId: randomUUID(), customerId, title: 'Job assignment notification fixture', primaryOwnerId: users.field, teamUserIds: [users.office, users.owner], ...overrides,
 });
 const notices = () => db('jobNotifications').where({ workspaceId });
 const mailbox: JobMail[] = [];

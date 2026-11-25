@@ -5,9 +5,12 @@ import { FormFeedback, SubmitButton } from '@salesmora/ui';
 import { useFormReady } from '../../auth/use-form-ready';
 import { notificationPreferencesPageData as copy } from './notification-preferences-page.data';
 
-export type NotificationPreferencesValues = { leadAssignedEmail: boolean; visitChangedEmail?: boolean; estimateEmail?: boolean; deadlineReminderEmail?: boolean; jobActivityEmail?: boolean };
+export type NotificationPreferencesValues = { workflowMaterialsEmail?: boolean; workflowVisitEmail?: boolean; workflowBriefingEmail?: boolean; leadAssignedEmail: boolean; visitChangedEmail?: boolean; estimateEmail?: boolean; deadlineReminderEmail?: boolean; jobActivityEmail?: boolean };
 export type NotificationPreferencesPageProps = {
   /** Optional groups let preview and live adapters expose their supported preferences. */
+  showWorkflowMaterialsReminders?: boolean;
+  showWorkflowVisitReminders?: boolean;
+  showWorkflowBriefings?: boolean;
   showVisitChanges?: boolean;
   showEstimateNotifications?: boolean;
   showDeadlineReminders?: boolean;
@@ -27,15 +30,18 @@ export type NotificationPreferencesPageProps = {
 const secondaryClass = 'inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-line bg-paper px-4 py-2 text-sm font-semibold text-primary hover:bg-canvas focus-visible:focus-ring disabled:cursor-not-allowed disabled:text-muted';
 
 /** Controlled personal preferences. The live adapter owns identity, persistence and request state. */
-export function NotificationPreferencesPage({ showVisitChanges = false, showEstimateNotifications = false, showDeadlineReminders = false, showJobActivity = false, jobActivityScope = 'all', state, values, savedValues, saveState, onChange, onSave, onDiscard, onRetry }: NotificationPreferencesPageProps) {
+export function NotificationPreferencesPage({ showWorkflowMaterialsReminders = false, showWorkflowVisitReminders = false, showWorkflowBriefings = false, showVisitChanges = false, showEstimateNotifications = false, showDeadlineReminders = false, showJobActivity = false, jobActivityScope = 'all', state, values, savedValues, saveState, onChange, onSave, onDiscard, onRetry }: NotificationPreferencesPageProps) {
   const id = useId(), interactive = useFormReady();
   const pending = saveState === 'pending';
-  const dirty = values.leadAssignedEmail !== savedValues.leadAssignedEmail ||
+  const dirty = (showWorkflowMaterialsReminders && (values.workflowMaterialsEmail ?? true) !== (savedValues.workflowMaterialsEmail ?? true)) || (showWorkflowVisitReminders && (values.workflowVisitEmail ?? true) !== (savedValues.workflowVisitEmail ?? true)) || (showWorkflowBriefings && (values.workflowBriefingEmail ?? true) !== (savedValues.workflowBriefingEmail ?? true)) || values.leadAssignedEmail !== savedValues.leadAssignedEmail ||
     (showVisitChanges && (values.visitChangedEmail ?? true) !== (savedValues.visitChangedEmail ?? true)) ||
     (showEstimateNotifications && (values.estimateEmail ?? true) !== (savedValues.estimateEmail ?? true)) ||
     (showDeadlineReminders && (values.deadlineReminderEmail ?? true) !== (savedValues.deadlineReminderEmail ?? true)) ||
     (showJobActivity && (values.jobActivityEmail ?? true) !== (savedValues.jobActivityEmail ?? true));
   const preferences = [
+    ...(showWorkflowMaterialsReminders ? [{ key: "workflowMaterialsEmail" as const, label: "Visit materials reminders", help: "Receive workflow reminders when an upcoming visit has work-order materials marked Needed or Ordered. In-app delivery follows the workflow’s notification options." }] : []),
+    ...(showWorkflowVisitReminders ? [{ key: "workflowVisitEmail" as const, label: "Unassigned visit reminders", help: "Receive workflow reminders when an upcoming visit has no assignee. In-app delivery follows the workflow’s notification options." }] : []),
+    ...(showWorkflowBriefings ? [{ key: "workflowBriefingEmail" as const, label: "Workflow briefings", help: "Receive your saved Monday briefing by email. In-app delivery follows the workflow’s notification options." }] : []),
     { key: 'leadAssignedEmail' as const, label: copy.leadAssigned, help: copy.leadDescription },
     ...(showJobActivity ? [{ key: 'jobActivityEmail' as const, label: copy.jobActivity, help: jobActivityScope === 'creation-status-assignment' ? copy.jobActivityAssignmentDescription : jobActivityScope === 'creation' ? copy.jobActivityCreationDescription : jobActivityScope === 'creation-status' ? copy.jobActivityStatusDescription : copy.jobActivityDescription }] : []),
     ...(showVisitChanges ? [{ key: 'visitChangedEmail' as const, label: copy.visitChanged, help: copy.visitDescription }] : []),

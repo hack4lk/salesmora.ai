@@ -2,7 +2,6 @@ export const leadNextStepCardData = {
   title: 'Suggested next step', prepare: 'Prepare follow-up', empty: 'No suggested next step yet.',
   emptyHelp: 'Ask the assistant to help prepare a follow-up for this lead.',
   unavailable: 'The assistant is unavailable right now. Try again later.', busy: 'The assistant is working. Wait for the current response before preparing another follow-up.',
-  draftHint: 'Opens the assistant with a draft prompt for your review.',
   prompt: (number: string) => `Prepare follow-up wording for ${number}. Use only lead details I am allowed to read. Keep it as a draft for me to review; do not send any message.`,
   stories: { title: 'Lead next-step card', description: 'Suggested action preview. Prepare follow-up opens the existing assistant with an unsent prompt. Replies are mocked.',
     lead: { id: 'jordan', version: 3, leadNumber: 'LD-1042', name: 'Jordan Lee' },

@@ -21,7 +21,7 @@ const limits: CaptureSubmissionLimits = { challengeAfter: 5, hardLimit: 20, sour
 const delivery = { websiteReady: async () => true, gmailReady: async () => false };
 let created = false, groups = 0; const priorBilling = process.env.BILLING_SANDBOX_ENABLED;
 async function check(label: string, run: () => Promise<void>) { await run(); groups++; console.log(`PASS ${label}`); }
-async function fixture(notify = true) {
+async function fixture(notify = true, postal = false) {
   const identity = { workspaceId: randomUUID(), userId: `submission-${randomUUID()}` }, now = new Date();
   await db('users').insert({ id: identity.userId, name: 'Fixture owner', email: `${identity.userId}@example.test`, emailVerified: true, createdAt: now, updatedAt: now, termsVersion: 'test', termsAcceptedAt: now });
   await db.transaction(async trx => { await trx('workspaces').insert({ id: identity.workspaceId, ownerId: identity.userId, businessName: 'Fixture business', businessType: 'plumbing', postalCode: '', serviceRange: '', timezone: 'America/New_York' }); await trx('workspaceMemberships').insert({ ...identity, role: 'owner' }); await initializeWorkspacePolicy(trx, identity); await trx('workspaceSubscriptions').insert({ workspaceId: identity.workspaceId, plan: 'free', catalogVersion: 'fixture' }); });
@@ -29,6 +29,7 @@ async function fixture(notify = true) {
     fields: [{ id: 'name', key: 'name', label: 'Name', type: 'short_text', required: true, options: [] }, { id: 'service', key: 'service', label: 'Service', type: 'dropdown', required: true, options: [{ id: 'repair', label: 'Repair' }, { id: 'install', label: 'Installation' }] }, { id: 'email', key: 'email', label: 'Email', type: 'email', required: false, options: [] }, { id: 'custom', key: 'custom', label: 'Project details', type: 'long_text', required: false, options: [] }],
     workflow: { assignment: { kind: 'default' }, stage: 'contacted', tags: ['Website', 'Plumbing'], notifyAssigned: notify },
     content: { businessName: 'Fixture business', title: 'Request service', intro: '', submitLabel: 'Send request', thankYou: 'Thanks', unavailableMessage: 'Call our team', businessEmail: '', businessPhone: '', showBusinessEmail: false, showBusinessPhone: false, consent: { id: 'contact', version: 1, label: 'Contact me about this request.', required: true }, privacy: { label: 'Privacy', href: 'https://example.test/privacy' } } };
+  if(postal){configuration.postalCountryCode='US';configuration.fields!.push({id:'postal',key:'postalCode',label:'ZIP code (United States)',type:'short_text',required:true,options:[]});}
   const draft = await createCaptureDraft(web, identity, enabled, { workspaceId: identity.workspaceId, requestId: randomUUID(), name: 'Website', configuration }); const query = { workspaceId: identity.workspaceId, sourceId: draft.sourceId };
   const review = await readCapturePublicationReview(web, identity, enabled, query, delivery);
   await publishCaptureDraft(web, identity, enabled, { ...query, requestId: randomUUID(), confirmed: true, expectedVersion: review.sourceVersion, draftVersion: review.draftVersion, configurationVersion: review.configurationVersion, baseApprovedVersion: review.baseApprovedVersion, timing: { kind: 'now' } }, delivery);
@@ -133,6 +134,11 @@ try {
   await check('abuse state expires without touching immutable receipts; general request budgets include retries', async () => {
     await db('captureSubmissionAttempts').update({ expiresAt: new Date(Date.now() - 1000) }); await db('captureChallengeChecks').update({ expiresAt: new Date(Date.now() - 1000) }); const before = (await db('captureReceipts')).length; await purgeCaptureSubmissionAbuse(worker); assert.equal((await db('captureSubmissionAttempts')).length, 0); assert.equal((await db('captureChallengeChecks')).length, 0); assert.equal((await db('captureReceipts')).length, before);
     assert.equal(await takeCaptureRequestBudget(web, 1), null); assert.equal((await takeCaptureRequestBudget(web, 1))?.state, 'rate-limited');
+  });
+  await check('structured capture ZIP normalizes to the lead and rejects address inference',async()=>{
+    const f=await fixture(false,true); const value=input(f);value.submission.answers.postal='00501-1234';
+    assert.equal((await accept(value)).state,'accepted');const lead=await db('leads').where({workspaceId:f.identity.workspaceId}).first();assert.equal(lead.postalCode,'00501');assert.equal(lead.countryCode,'US');
+    const invalid=input(f);invalid.submission.answers.postal='Manhattan';assert.equal((await accept(invalid)).state,'accepted');assert.ok((await db('intakeItems').where({workspaceId:f.identity.workspaceId}).first()).flags.includes('missing'));assert.equal((await db('leads').where({workspaceId:f.identity.workspaceId})).length,1);
   });
   console.log(`Capture submission rehearsal passed (${groups} groups).`);
 } finally { if (priorBilling === undefined) delete process.env.BILLING_SANDBOX_ENABLED; else process.env.BILLING_SANDBOX_ENABLED = priorBilling; await web.destroy(); await worker.destroy(); await db.destroy(); if (created) await owner.raw('DROP DATABASE ??', [name]); await owner.destroy(); }

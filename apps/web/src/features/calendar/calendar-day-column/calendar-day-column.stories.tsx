@@ -41,7 +41,7 @@ export const BusyDay: Story = {
     await userEvent.click(c.getByRole('button', { name: copy.more(3) }));
     const dialog = body.getByRole('dialog', { name: copy.allVisits(copy.fullDate(args.date)) });
     await expect(within(dialog).getAllByRole('article')).toHaveLength(6);
-    await userEvent.click(within(dialog).getByRole('button', { name: calendarEventCardData.toggleVisit(visits[0].title) }));
+    await userEvent.click(within(dialog).getByRole('button', { name: new RegExp(calendarEventCardData.toggleVisit(visits[0].title)) }));
     await userEvent.click(within(dialog).getByRole('button', { name: calendarEventCardData.openVisit(visits[0].title) }));
     await expect(args.onOpenVisit).toHaveBeenCalledWith(visits[0].id);
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
@@ -55,7 +55,7 @@ export const ArrivalOrder: Story = { args: { visits: [visits[0], visits[2], visi
 } };
 export const ReadOnly: Story = { args: { canSchedule: false, visits: visits.slice(0, 2).map(v => ({ ...v, canReschedule: false })) }, play: async ({ canvasElement, args }) => {
   const c = within(canvasElement); await expect(c.queryByRole('button', { name: copy.scheduleOn(copy.fullDate(args.date)) })).toBeNull();
-  await userEvent.click(c.getByRole('button', { name: calendarEventCardData.toggleVisit(visits[0].title) }));
+  await userEvent.click(c.getByRole('button', { name: new RegExp(calendarEventCardData.toggleVisit(visits[0].title)) }));
   await userEvent.click(c.getByRole('button', { name: calendarEventCardData.openVisit(visits[0].title) }));
   await expect(args.onOpenVisit).toHaveBeenCalledWith(visits[0].id);
 } };

@@ -33,3 +33,9 @@ describe('visit-change email boundary', () => {
     }
   });
 });
+it('includes changed work time when the date and arrival window stay the same', () => {
+  const email = renderVisitChangedEmail({ ...input, before: { ...input.after, workTime: { startTime: '09:00', durationMinutes: 60 } },
+    after: { ...input.after, workTime: { startTime: '09:00', durationMinutes: 90 } } });
+  expect(email.text).toContain('Previous planned work: 9:00 AM–10:00 AM · 1 hour');
+  expect(email.text).toContain('Planned work: 9:00 AM–10:30 AM · 1 hour 30 min');
+});

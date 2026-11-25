@@ -8,6 +8,7 @@ import { database, findWorkspace } from "../workspaces/store";
 import { enabledPermissions, workspaceAuthorization, workspaceCapabilities } from "../authorization/permissions";
 import { WorkOrderPrintPaper } from "../../features/work-orders/work-order-print-paper/work-order-print-paper";
 import { WorkOrderPrintToolbar } from "../../features/work-orders/work-order-print-paper/work-order-print-toolbar";
+import { ProtectedFooter } from "../../features/public-site/site-footer/protected-footer";
 
 /** The crew sheet shares the detail read, so permissions apply; only the fields the sheet needs are mapped, so prices and costs never reach the page. */
 export async function renderWorkOrderPrintPage(params: Record<string, string | string[] | undefined>, workOrderId: string) {
@@ -32,10 +33,10 @@ export async function renderWorkOrderPrintPage(params: Record<string, string | s
       printedAt: new Date().toISOString(),
       signoff: completion && { summary: completion.summary, completedByName: completion.completedByName, completedAt: completion.completedAt, signerName: completion.signerName, signedAt: completion.signedAt, signatureUrl: completion.signatureImage },
     };
-    return <main className="min-h-screen bg-canvas p-4 print:bg-paper print:p-0 sm:p-8">
+    return <><main className="min-h-screen bg-canvas p-4 print:bg-paper print:p-0 sm:p-8">
       <WorkOrderPrintToolbar backHref={`/work-orders/${workOrderId}?workspace=${workspace.id}`} />
       <WorkOrderPrintPaper data={data} />
-    </main>;
+    </main><ProtectedFooter /></>;
   } catch (error) {
     if (error instanceof AuthorizationAccessError || error instanceof WorkOrderContractError || error instanceof WorkOrderValidationError) notFound();
     throw error;

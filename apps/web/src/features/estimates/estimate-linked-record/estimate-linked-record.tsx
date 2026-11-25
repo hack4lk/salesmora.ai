@@ -88,21 +88,12 @@ export function EstimateLinkedRecord({
             )}
           </div>
           {!record.href && <p className="m-0 text-sm leading-6 text-muted">{c.cannotOpen}</p>}
-          <dl className="m-0 grid min-w-0 gap-3 text-sm">
-            <div>
+          <dl className="m-0 min-w-0 text-sm">
+            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3">
               <dt className="font-semibold text-muted">{c.customer}</dt>
-              <dd className="m-0 mt-1 wrap-anywhere">{record.customer?.name ?? c.noCustomer}</dd>
+              <dd className="m-0 wrap-anywhere">{record.customer?.name ?? c.noCustomer}</dd>
             </div>
-            {record.type === "lead" && !record.customer && (
-              <div>
-                <dt className="font-semibold text-muted">{c.contact}</dt>
-                <dd className="m-0 mt-1 wrap-anywhere">{record.contactName}</dd>
-              </div>
-            )}
           </dl>
-          {record.type === "lead" && !record.customer && (
-            <p className="m-0 text-sm leading-6 text-muted">{c.noCustomerHint}</p>
-          )}
           {record.type === "lead" && existingEstimates.length > 0 && (
             <div role="note" aria-labelledby={`${id}-existing`} className="grid min-w-0 gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
               <h3 id={`${id}-existing`} className="m-0 text-base font-semibold">{c.existingTitle}</h3>

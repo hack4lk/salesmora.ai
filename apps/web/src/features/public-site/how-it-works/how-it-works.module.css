@@ -1,0 +1,129 @@
+.section {
+  scroll-margin-top: 24px;
+  padding: 88px 0;
+  background: #f4f8fc;
+  line-height: normal;
+}
+
+.wrap {
+  width: min(1120px, calc(100% - 48px));
+  margin: auto;
+}
+
+.heading {
+  max-width: 660px;
+  margin-bottom: 36px;
+}
+
+.eyebrow {
+  margin: 0 0 16px;
+  color: #276c68;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.heading h2 {
+  margin: 0;
+  color: #276c68;
+  font-size: clamp(30px, 3vw, 40px);
+  font-weight: 600;
+  line-height: 1.18;
+  letter-spacing: -0.025em;
+}
+
+.description {
+  margin: 14px 0 0;
+  color: #52677b;
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.stepLabel {
+  color: #276c68;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.steps h3 {
+  margin: 10px 0 20px;
+  color: #315c8a;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: normal;
+}
+
+.stepArt {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 170px;
+  margin-top: 16px;
+  padding: 20px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #d7eaf8, #c9efe2);
+}
+
+.stepArt::before {
+  content: '';
+  position: absolute;
+  top: -16px;
+  right: 0;
+  left: 0;
+  border-top: 2px solid #b2d8d0;
+}
+
+.stepCard {
+  width: 100%;
+  max-width: 240px;
+  padding: 16px;
+  border: 1px solid #d8e6ee;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px #23384d12;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.stepCard strong,
+.stepDescription {
+  display: block;
+}
+
+.stepDescription {
+  margin-top: 8px;
+  color: #52677b;
+}
+
+.badge {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 4px 9px;
+  border-radius: 12px;
+  background: #d4f3e9;
+  color: #23384d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (max-width: 850px) {
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 600px) {
+  .section { padding: 64px 0; }
+  .wrap { width: calc(100% - 32px); }
+  .steps { grid-template-columns: 1fr; }
+  .steps article { padding-bottom: 8px; }
+}

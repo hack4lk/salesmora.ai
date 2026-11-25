@@ -63,7 +63,7 @@ export function LeadsTable({ rows, total, page, pageSize, now, timezone, sort, s
       <label className="flex flex-wrap items-center gap-3 text-sm text-muted">{copy.sortBy}<select value={sort.column} onChange={event => onSort({ column: event.target.value as LeadTableSort['column'], direction: sort.direction })} className="min-h-11 max-w-full cursor-pointer rounded-xl border border-line bg-paper px-3 py-2 text-ink focus-visible:focus-ring">{copy.columns.map(column => <option key={column.id} value={column.id}>{column.label}</option>)}</select></label>
       <button type="button" className={action} aria-label={copy.reverseSort(sort.direction)} onClick={() => onSort({ ...sort, direction: sort.direction === 'asc' ? 'desc' : 'asc' })}>{sort.direction === 'asc' ? copy.ascending : copy.descending}</button>
     </div>}
-    <DataTable caption={copy.caption} rows={rows} columns={columns} getRowId={row => row.id} getRowLabel={row => row.name} sort={sort}
+    <DataTable constrainHeight={false} caption={copy.caption} rows={rows} columns={columns} getRowId={row => row.id} getRowLabel={row => row.name} sort={sort}
       onSort={onSort ? (column, direction) => { if (copy.columns.some(item => item.id === column)) onSort({ column: column as LeadTableSort['column'], direction }); } : undefined}
       selectedIds={selectedIds} onSelectionChange={selection?.onChange} onRowOpen={onRowOpen} state={state} onRetry={onRetry}
       emptyMessage={filtered ? copy.filteredEmpty : copy.empty} errorMessage={copy.error}

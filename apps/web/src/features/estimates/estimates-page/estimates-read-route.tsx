@@ -74,6 +74,7 @@ const readOnlyCapabilities: EstimateCapabilities = {
 
 type EstimatesReadRouteProps = {
   workspaceId: string; viewerId: string; initialQuery: EstimateListQuery; canReadLeads: boolean; canReadJobs: boolean;
+  field?: boolean;
 };
 export function EstimatesReadRoute(props: EstimatesReadRouteProps) {
   return <ApiQueryScopeBoundary scope={{ viewerId: props.viewerId, workspaceId: props.workspaceId }}>
@@ -84,6 +85,7 @@ function EstimatesContent({
   workspaceId,
   viewerId,
   initialQuery,
+  field = false,
   canReadLeads,
   canReadJobs,
 }: EstimatesReadRouteProps) {
@@ -436,6 +438,40 @@ function EstimatesContent({
 
   return (
     <div className="grid min-w-0 gap-6">
+      <header className="flex flex-wrap items-end justify-between gap-5">
+        <div className="min-w-0">
+          <h1 className="m-0 text-heading font-semibold text-ink">{copy.title}</h1>
+          <p className="mb-0 mt-3 text-base leading-6 text-muted">{field ? copy.fieldDescription : copy.description}</p>
+        </div>
+        {displayState === "ready" && result && (result.canCreate || result.canExport) && (
+          <div className="flex flex-wrap gap-3">
+            {result.canExport && (
+              <button
+                type="button"
+                className={estimateButton}
+                disabled={
+                  exportPending ||
+                  actionPending ||
+                  actionBlocked ||
+                  filters.search !== query.q
+                }
+                onClick={() => void openExportReview()}
+              >
+                {copy.export}
+              </button>
+            )}
+            {result.canCreate && (
+            <button
+              type="button"
+              className={estimatePrimary}
+              onClick={() => router.push(createHref)}
+            >
+              {copy.create}
+            </button>
+            )}
+          </div>
+        )}
+      </header>
       {notice && <p role="status" className="m-0 text-sm leading-6">{notice}</p>}
       {actionPending && <p role="status" className="m-0 text-sm leading-6">{copy.actions.preparing}</p>}
       {actionError && <div className="grid justify-items-start gap-3">
@@ -447,34 +483,6 @@ function EstimatesContent({
           setRetry(value => value + 1);
         }}>{copy.actions.reload}</button>
       </div>}
-      {displayState === "ready" && result && (result.canCreate || result.canExport) && (
-        <div className="flex justify-end gap-3">
-          {result.canExport && (
-            <button
-              type="button"
-              className={estimateButton}
-              disabled={
-                exportPending ||
-                actionPending ||
-                actionBlocked ||
-                filters.search !== query.q
-              }
-              onClick={() => void openExportReview()}
-            >
-              {copy.export}
-            </button>
-          )}
-          {result.canCreate && (
-          <button
-            type="button"
-            className={estimatePrimary}
-            onClick={() => router.push(createHref)}
-          >
-            {copy.create}
-          </button>
-          )}
-        </div>
-      )}
       <EstimatesMetrics
         totals={metrics}
         state={displayState}
@@ -488,8 +496,6 @@ function EstimatesContent({
         value={filters}
         members={members}
         currentMemberId={viewerId}
-        shownCount={displayState === "ready" ? result?.total : undefined}
-        totalCount={displayState === "ready" ? result?.scopeTotal : undefined}
         disabled={displayState !== "ready"}
         onChange={changeFilters}
       />

@@ -122,7 +122,7 @@ function VisitorCaptureFormSession({ definition, value, availability, pending = 
             {error && <p id={`${id}-${field.id}-error`} className="m-0 text-sm text-error">{error}</p>}
           </fieldset>;
           return <MuiTextField key={field.id} name={field.id} label={label} required={field.required} value={text} fullWidth variant="outlined" size="small" className={fieldClasses}
-            autoComplete={field.key === 'name' ? 'name' : field.key === 'email' ? 'email' : field.key === 'phone' ? 'tel' : field.key === 'address' ? 'street-address' : 'off'}
+            autoComplete={field.key === 'name' ? 'name' : field.key === 'email' ? 'email' : field.key === 'phone' ? 'tel' : field.key === 'postalCode' ? 'postal-code' : field.key === 'address' ? 'street-address' : 'off'}
             type={field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : field.type === 'date' ? 'date' : 'text'}
             multiline={field.type === 'long_text'} minRows={field.type === 'long_text' ? 4 : undefined} select={field.type === 'dropdown'}
             error={!!error} helperText={error} disabled={busy}

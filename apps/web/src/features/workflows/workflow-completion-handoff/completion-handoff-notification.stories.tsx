@@ -1,0 +1,12 @@
+import {useState} from 'react';
+import type {Meta,StoryObj} from '@storybook/nextjs-vite';
+import {expect,fn,userEvent,within} from 'storybook/test';
+import {NotificationMenu} from '../../notifications/notification-menu/notification-menu';
+import {completionHandoffNotification} from './completion-handoff-notification';
+const item=completionHandoffNotification({id:'handoff-example',workspaceId:'00000000-0000-4000-8000-000000000001',createdAt:'2026-11-22T18:00:00Z',read:false,snapshot:{jobId:'00000000-0000-4000-8000-000000000002',jobNumber:'J-0014',jobTitle:'Roofing repair',totalOpen:2,workOrders:[{number:'WO-0007',title:'Seal roof flashing',status:'in-progress'},{number:'WO-0008',title:'Final inspection',status:'draft'}]}});
+const meta={title:'Workflows/Completion handoff notification',component:NotificationMenu,parameters:{layout:'fullscreen'},decorators:[Story=><main className="flex min-h-screen items-start justify-end bg-canvas p-4"><Story/></main>],args:{workspaceName:'Example workspace',unreadCount:1,items:[item],state:'ready',preferencesHref:'/settings/notifications?workspace=00000000-0000-4000-8000-000000000001',onOpen:fn(),onRetry:fn(),onMarkRead:fn(),onLoadMore:fn()}} satisfies Meta<typeof NotificationMenu>;
+export default meta;type Story=StoryObj<typeof meta>;
+async function open(element:HTMLElement){await userEvent.click(within(element).getByRole('button',{name:'Open notifications, 1 unread'}));return within(within(element.ownerDocument.body).getByRole('dialog'));}
+export const Reminder:Story={play:async({canvasElement})=>{const d=await open(canvasElement);await expect(d.getByText('Completed job still has open work orders')).toBeVisible();await expect(d.getByText('WO-0007 · Seal roof flashing · In progress')).toBeVisible();await expect(d.getByRole('link',{name:'Open job'})).toHaveAttribute('href',item.href);}};
+export const MarkRead:Story={render:function Read(args){const [read,setRead]=useState(false);return <NotificationMenu {...args} unreadCount={read?0:1} items={args.items.map(i=>({...i,read}))} onMarkRead={id=>{args.onMarkRead(id);setRead(true);}}/>;},play:async({canvasElement})=>{const d=await open(canvasElement);await userEvent.click(d.getByRole('button',{name:'Mark as read'}));await expect(d.queryByText('Completed job still has open work orders')).not.toBeInTheDocument();}};
+export const Mobile:Story={globals:{viewport:{value:'phone',isRotated:false}},play:async({canvasElement})=>{await open(canvasElement);}};

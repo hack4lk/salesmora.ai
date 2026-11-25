@@ -6,6 +6,7 @@ async function status() {
   const config = workerConfiguration();
   const db = createDatabase(config.databaseURL);
   const queues = [new Queue(`${config.queueName}-chat-retention`, { connection: { ...config.connection, maxRetriesPerRequest: 1 } }),
+    new Queue(`${config.queueName}-workflows`, { connection: { ...config.connection, maxRetriesPerRequest: 1 } }),
     ...(config.tasks === 'retention' ? [] : [new Queue(config.queueName, { connection: { ...config.connection, maxRetriesPerRequest: 1 } })])];
   // Never print connection URLs, raw job failures or customer payloads.
   for (const queue of queues) queue.on('error', () => {});
@@ -17,9 +18,11 @@ async function status() {
     const visitDelivery = await db('visitNotifications').select('emailStatus').count({count:'*'}).groupBy('emailStatus');
     const deadlineDelivery = await db('deadlineNotifications').select('emailStatus').count({count:'*'}).groupBy('emailStatus');
     const jobDelivery = await db('jobNotifications').select('emailStatus').count({count:'*'}).groupBy('emailStatus');
-    const ready = !!scheduler && reports.every(report => report.workers > 0);
+    const workflowDelivery = await db('workflowQueueOutbox').whereNull('completedAt').select('kind').count({ count: '*' }).groupBy('kind');
+    const workflowMaintenance = await queues[1].getJobScheduler('workflow-queue-cleanup');
+    const ready = !!scheduler && !!workflowMaintenance && reports.every(report => report.workers > 0);
     const capture = captureSchedulerConfiguration();
-    console.log(JSON.stringify({ event: 'worker.status', ready, retentionScheduled: !!scheduler, captureSchedulerConfigured: !!capture, captureWorkspaceCount: capture?.workspaces.length ?? 0, assignmentDelivery, visitDelivery, deadlineDelivery, jobDelivery, queues: reports }));
+    console.log(JSON.stringify({ event: 'worker.status', ready, retentionScheduled: !!scheduler, captureSchedulerConfigured: !!capture, captureWorkspaceCount: capture?.workspaces.length ?? 0, assignmentDelivery, visitDelivery, deadlineDelivery, jobDelivery, workflowDelivery, workflowMaintenanceScheduled: !!workflowMaintenance, queues: reports }));
     if (!ready) process.exitCode = 1;
   } finally { await Promise.allSettled(queues.map(queue => queue.close())); await db.destroy(); }
 }

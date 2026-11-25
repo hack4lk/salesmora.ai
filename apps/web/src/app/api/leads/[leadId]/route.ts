@@ -1,6 +1,6 @@
 import { isWorkspaceSuspended, workspaceSuspendedResponse } from '../../../../server/http/suspension';
 import { NextResponse } from 'next/server';
-import { AuthorizationAccessError, LeadEditConflictError, LeadSourceLockedError, LeadDeleteConflictError, LeadDeleteConfirmationError, LeadDeleteWonError } from '@salesmora/data';
+import { AuthorizationAccessError, LeadAssignmentConflictError, LeadEditConflictError, LeadSourceLockedError, LeadDeleteConflictError, LeadDeleteConfirmationError, LeadDeleteWonError } from '@salesmora/data';
 import { leadDetailQuerySchema, updateLeadSchema, deleteLeadSchema } from '@salesmora/contracts';
 import { deleteWorkspaceLead } from '../../../../server/leads/delete';
 import { updateWorkspaceLead } from '../../../../server/leads/update';
@@ -39,6 +39,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ le
     if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     if (error instanceof AuthorizationAccessError) return NextResponse.json({ error: 'This lead is unavailable or you no longer have permission to edit it.' }, { status: 404, headers });
     if (error instanceof LeadEditConflictError) return NextResponse.json({ error: error.message, changedFields: error.changedFields }, { status: 409, headers });
+    if (error instanceof LeadAssignmentConflictError) return NextResponse.json({ error: "The lead or selected owner changed. Reload the latest details before saving.", changedFields: [] }, { status: 409, headers });
     if (error instanceof LeadSourceLockedError) return NextResponse.json({ error: 'The source of this Gmail or campaign lead cannot be changed.' }, { status: 422, headers });
     return NextResponse.json({ error: 'Could not save this lead. Your edits are preserved. Try again.' }, { status: 500, headers });
   }

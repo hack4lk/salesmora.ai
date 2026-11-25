@@ -43,6 +43,20 @@ export const Field: Story = {args:{user:{...meta.args.user,role:'field'}},play:a
   for(const item of nav.items.filter(item=>['reports','campaigns'].includes(item.id)))await expect(c.queryByRole('button',{name:`${item.label} ${nav.unavailable}`})).not.toBeInTheDocument();
 }};
 export const Mobile: Story = {globals:{viewport:{value:'phone',isRotated:false}}};
+export const Footer: Story = {beforeEach:()=>{
+  const original=globalThis.fetch;
+  globalThis.fetch=(input,init)=>String(input).startsWith('/api/notifications?')
+    ? Promise.resolve(Response.json({items:[],unreadCount:0,hasMore:false,page:1}))
+    : original(input,init);
+  return ()=>{globalThis.fetch=original;};
+},play:async({canvasElement})=>{
+  const c=within(canvasElement), footer=within(c.getByRole('contentinfo'));
+  await expect(footer.getByText(/SalesMora is a product of Karpuk Creative, LLC/)).toBeVisible();
+  await expect(footer.getByRole('link',{name:'Terms of Service'})).toHaveAttribute('href','/terms');
+  await expect(footer.getByRole('link',{name:'Privacy Policy'})).toHaveAttribute('href','/privacy');
+  await expect(footer.getByRole('link',{name:'Contact & support'})).toHaveAttribute('href','mailto:info@salesmora.ai');
+}};
+export const FooterMobile: Story = {globals:{viewport:{value:'phone',isRotated:false}},beforeEach:Footer.beforeEach,play:Footer.play};
 export const SignOutPending: Story = {args:{onSignOut:fn(()=>new Promise<void>(()=>{}))},play:async({canvasElement,args})=>{
   const c=await openAccount(canvasElement);
   await userEvent.click(c.getByRole('button',{name:nav.signOut}));

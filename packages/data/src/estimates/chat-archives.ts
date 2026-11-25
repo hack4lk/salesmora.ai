@@ -116,10 +116,10 @@ export async function proposeEstimateChatArchive(
     const estimateId = await resolveEstimateProposalId(trx, context.workspaceId, ref);
     const prepared = await reviewFor(trx, context, estimateId);
     if (request.operation === "archive"
-      ? prepared.estimate.archived || !["declined", "expired", "superseded", "void"].includes(prepared.estimate.status)
+      ? prepared.estimate.archived || !["accepted", "declined", "expired", "superseded", "void"].includes(prepared.estimate.status)
       : !prepared.estimate.archived) {
       throw new EstimateDraftValidationError(request.operation === "archive"
-        ? "Only an unarchived Declined, Expired, Superseded or Void estimate can be archived."
+        ? "Only an unarchived Accepted, Declined, Expired, Superseded or Void estimate can be archived."
         : "Only an archived estimate can be restored.");
     }
     const now = new Date();

@@ -4,7 +4,7 @@ import {
   type AuthorizationContext, type TeamLeadsQuery, type TeamLeadsResult,
 } from '@salesmora/contracts';
 import { AuthorizationAccessError } from '../authorization/store';
-import { leadReportContext } from './leads';
+import { leadReportContext, openLeadReportStages, leadInactivityPredicate } from './leads';
 import { validateTeamReportMembers } from './team-filters';
 
 export const teamLeadEvidenceJSON = `jsonb_build_object(
@@ -28,7 +28,7 @@ export async function teamLeadsWorkloadSource(
   const selected = query.selected;
   if (assigned && (selected.kind === 'queue' ? selected.queue === 'unassigned'
     : selected.id !== `member:${context.userId}`)) throw new AuthorizationAccessError();
-  const scoped = auth.scoped.clone().whereNull('l.archivedAt').whereIn('l.stage', ['new', 'contacted', 'estimate-sent']);
+  const scoped = auth.scoped.clone().whereNull('l.archivedAt').whereIn('l.stage', openLeadReportStages);
   if (query.filters.members.length > 0) scoped.whereIn('l.ownerId', query.filters.members);
   const base = scoped.select('l.*').toSQL();
   const predicate = selected.kind === 'queue'
@@ -44,7 +44,7 @@ export async function teamLeadsWorkloadSource(
        SELECT l.*, r.id AS "currentOwnerId",
          CASE WHEN r.id IS NULL THEN 'unassigned' ELSE 'member:' || r.id END AS "ownerKey",
          CASE WHEN r.id IS NOT NULL THEN 'member' WHEN l."ownerId" IS NOT NULL THEN 'former' ELSE 'unassigned' END AS "ownerState",
-         l."lastActivityAt" < CURRENT_TIMESTAMP - INTERVAL '7 days' AS inactive
+         ${leadInactivityPredicate} AS inactive
        FROM open l LEFT JOIN roster r ON r.id = l."ownerId"
      )`, bindings: [...base.bindings, context.workspaceId, assigned, context.userId] };
 }

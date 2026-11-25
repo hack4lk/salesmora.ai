@@ -1,3 +1,4 @@
+import {serviceChoices} from '../services/store';
 import { createHash, randomUUID } from "node:crypto";
 import type { Knex } from "knex";
 import {
@@ -137,7 +138,7 @@ async function loadConversionContext(
     }).allowed) throw new AuthorizationAccessError();
     leadId = row.leadId;
     customerId = (lead.customerId as string | null) ?? null;
-    service = lead.service as string;
+    service = (lead.serviceId??lead.service) as string;
     parentNumber = `LD-${String(lead.leadNumber).padStart(4, "0")}`;
     if (customerId) {
       const customerQuery = trx("customers")
@@ -165,7 +166,7 @@ async function loadConversionContext(
     const job = await trx("jobs").where({ workspaceId: context.workspaceId, id: row.jobId }).first();
     if (!job) throw new AuthorizationAccessError();
     parentJob = job;
-    service = job.service as string;
+    service = (job.serviceId??job.service) as string;
     parentNumber = `J-${String(job.jobNumber).padStart(4, "0")}`;
     customerId = (job.customerId as string | null) ?? null;
     const teamUserIds = await jobMemberIds(trx, context, job.id);
@@ -245,6 +246,7 @@ async function loadConversionContext(
       service,
       scope: snapshot.content.scope,
       serviceAddress: snapshot.content.serviceAddress,
+      postalCode: typeof lead?.postalCode==='string'?lead.postalCode:'',
       convertedJob: convertedJob?.canOpen ? convertedJob : null,
     },
     capabilities: { read: true },
@@ -274,6 +276,7 @@ async function loadConversionContext(
         title: snapshot.content.name,
         service,
         location: snapshot.content.serviceAddress,
+        postalCode: typeof lead?.postalCode==='string'?lead.postalCode:'',
         description: snapshot.content.scope,
         primaryOwnerId: null,
         teamUserIds: [],
@@ -283,6 +286,7 @@ async function loadConversionContext(
       },
     },
     members,
+    services:canCreateJob?await serviceChoices(trx,context.workspaceId):[],
     parentJob: parentJobReference,
   } satisfies EstimateConversionReview;
   return { response, leadId, leadVersion: sourceLeadVersion, customerVersion };
@@ -434,6 +438,7 @@ export async function convertAcceptedEstimateToJob(
         title: input.job.title,
         service: input.job.service,
         location: input.job.location,
+        postalCode: input.job.postalCode, countryCode: input.job.countryCode,
         description: input.job.description,
         primaryOwnerId: input.job.primaryOwnerId,
         teamUserIds: input.job.teamUserIds,

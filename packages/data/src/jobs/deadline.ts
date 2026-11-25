@@ -1,3 +1,4 @@
+import {serviceChoices} from '../services/store';
 import type { Knex } from 'knex';
 import { defaultDeadlineRuleSchema, type AuthorizationContext, type PermissionId, type JobCreationDeadlineContext, type CreateJobInput } from '@salesmora/contracts';
 import { authorize, resolveAuthorizedCollectionScope, defaultJobDeadline } from '@salesmora/domain';
@@ -18,7 +19,7 @@ export async function readJobCreationDeadline(db: Knex, identity: WorkspaceIdent
     const resource = { kind: 'job' as const, id: c.workspaceId, workspaceId: c.workspaceId, ownerId: c.userId, teamUserIds: [] };
     if (!authorize(c, { permission: 'jobs.create' }).allowed || !resolveAuthorizedCollectionScope(c, 'jobs.read').allowed || !authorize(c, { permission: 'jobs.assign', resource }).allowed) throw new AuthorizationAccessError();
     const { createdAt: _createdAt, ...context } = await jobDeadlineContextInTransaction(trx, c.workspaceId); void _createdAt;
-    return { context, canOverride: authorize(c, { permission: 'jobs.schedule.update', resource }).allowed };
+    return { context, services:await serviceChoices(trx,c.workspaceId), canOverride: authorize(c, { permission: 'jobs.schedule.update', resource }).allowed };
   });
 }
 /** Called under the creation workspace lock, after receipt lookup and before any insert. */

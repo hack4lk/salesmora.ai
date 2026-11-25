@@ -26,8 +26,8 @@ export const Default: Story = { play: async ({ canvasElement, args }) => {
 } };
 export const SharedVisit: Story = { args: { visits: [visits[0], visits[0]] }, play: async ({ canvasElement }) => {
   const c = within(canvasElement); await expect(c.getByRole('status')).toHaveTextContent(copy.weekCount(1));
-  await expect(c.getByRole('button', { name: copy.filter(copy.stories.sam) })).toHaveTextContent(copy.count(1));
-  await expect(c.getByRole('button', { name: copy.filter(copy.stories.alex) })).toHaveTextContent(copy.count(1));
+  await expect(c.getByRole('button', { name: copy.filter(copy.stories.sam) })).toHaveAccessibleDescription(copy.count(1));
+  await expect(c.getByRole('button', { name: copy.filter(copy.stories.alex) })).toHaveAccessibleDescription(copy.count(1));
 } };
 export const BusyDay: Story = { args: { visits: Array.from({ length: 4 }, (_, index) => ({ ...visits[1], id: `busy-${index}` })) }, play: async ({ canvasElement }) => {
   const c = within(canvasElement); await expect(c.getByText(copy.busy)).toBeVisible(); await expect(c.getByText(copy.busyDay('Oct 20', 4))).toBeVisible();
@@ -41,7 +41,7 @@ export const SelectedPerson: Story = { args: { selectedPerson: 'me' }, play: asy
 } };
 export const Unassigned: Story = { args: { selectedPerson: 'unassigned' }, play: async ({ canvasElement, args }) => {
   const c = within(canvasElement), unassigned = c.getByRole('button', { name: copy.filter(copy.unassigned) });
-  await expect(unassigned).toHaveAttribute('aria-pressed', 'true'); await expect(unassigned).toHaveTextContent(copy.count(1));
+  await expect(unassigned).toHaveAttribute('aria-pressed', 'true'); await expect(unassigned).toHaveAccessibleDescription(copy.count(1));
   await userEvent.click(c.getByRole('button', { name: copy.everyone })); await userEvent.click(unassigned); await expect(args.onSelect).toHaveBeenLastCalledWith('unassigned');
 } };
 export const FieldScoped: Story = { args: { scope: 'own' }, play: async ({ canvasElement, args }) => {
@@ -51,7 +51,7 @@ export const FieldScoped: Story = { args: { scope: 'own' }, play: async ({ canva
   await expect(args.onSelect).not.toHaveBeenCalled();
 } };
 export const ZeroVisits: Story = { args: { visits: [] }, play: async ({ canvasElement }) => {
-  const c = within(canvasElement); await expect(c.getByText(copy.empty)).toBeVisible(); await expect(c.getByRole('button', { name: copy.filter(copy.stories.sam) })).toHaveTextContent(copy.count(0));
+  const c = within(canvasElement); await expect(c.getByText(copy.empty)).toBeVisible(); await expect(c.getByRole('button', { name: copy.filter(copy.stories.sam) })).toHaveAccessibleDescription(copy.count(0));
 } };
 export const NoTeam: Story = { args: { visits: [], members: [] } };
 export const LongContent: Story = { args: { members: [{ id: 'sam', name: copy.stories.longName }, members[1], members[2]] } };
@@ -72,4 +72,14 @@ export const Keyboard: Story = { play: async ({ canvasElement, args }) => {
   const c = within(canvasElement), user = userEvent.setup({ document: canvasElement.ownerDocument }), person = c.getByRole('button', { name: copy.filter(copy.stories.sam) });
   person.focus(); await user.keyboard('{Enter}'); await expect(args.onSelect).toHaveBeenLastCalledWith('me');
   await user.keyboard(' '); await expect(args.onSelect).toHaveBeenLastCalledWith('all'); await expect(person).toHaveFocus();
+} };
+export const Availability: Story = { args: { onAvailability: fn() }, play: async ({ canvasElement, args }) => {
+  const c = within(canvasElement); await userEvent.click(c.getByRole('button', { name: copy.availabilityFor(copy.stories.alex) }));
+  await expect(args.onAvailability).toHaveBeenCalledWith('alex');
+  await expect(c.queryByRole('button', { name: copy.availabilityFor(copy.unassigned) })).not.toBeInTheDocument();
+  await expect(args.onSelect).not.toHaveBeenCalled();
+} };
+export const OwnAvailability: Story = { args: { scope: 'own', onAvailability: fn() }, play: async ({ canvasElement, args }) => {
+  const c = within(canvasElement); await expect(c.queryByRole('button', { name: copy.availabilityFor(copy.stories.alex) })).not.toBeInTheDocument();
+  await userEvent.click(c.getByRole('button', { name: copy.availabilityFor(copy.stories.sam) })); await expect(args.onAvailability).toHaveBeenCalledWith('sam');
 } };

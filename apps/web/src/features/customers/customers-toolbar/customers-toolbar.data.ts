@@ -23,6 +23,4 @@ export const customersToolbarData = {
     newest: "Newest",
   },
   searchFilter: (value: string) => `Search: ${value}`,
-  count: (n: number) =>
-    `${n.toLocaleString("en-US")} ${n === 1 ? "customer" : "customers"} found`,
 };

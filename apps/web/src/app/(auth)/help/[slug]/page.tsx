@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getSession } from '../../../../server/auth/session';
 import { currentHelpArticle } from '../../../../server/chat/help';
 import { HelpArticle } from '../../../../features/help/help-article/help-article';
+import { ProtectedFooter } from '../../../../features/public-site/site-footer/protected-footer';
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'SalesMora help' };
 export default async function HelpPage({ params, searchParams }: {
@@ -16,5 +17,5 @@ export default async function HelpPage({ params, searchParams }: {
     if (error instanceof AuthorizationAccessError || error.message === 'Help access denied') notFound(); throw error;
   });
   if (!article) notFound();
-  return <HelpArticle {...article} workspaceHref={`/home?workspace=${encodeURIComponent(workspace)}`} />;
+  return <><HelpArticle {...article} workspaceHref={`/home?workspace=${encodeURIComponent(workspace)}`} /><ProtectedFooter /></>;
 }

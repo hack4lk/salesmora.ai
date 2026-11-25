@@ -1,4 +1,5 @@
-import { createHash } from "node:crypto";
+import { assignLeadInTransaction } from "./assign";
+import { createHash, randomUUID } from "node:crypto";
 import type { Knex } from "knex";
 import {
   updateLeadSchema,
@@ -42,8 +43,9 @@ export async function updateLeadInTransaction(trx: Knex.Transaction, context: Au
   const identity = { userId: context.userId, workspaceId: context.workspaceId };
   if (input.workspaceId !== identity.workspaceId) throw new AuthorizationAccessError();
   if (selectedFields && (!selectedFields.length || selectedFields.some(field => !leadEditableFields.includes(field)))) throw new AuthorizationAccessError();
+  if (selectedFields && input.ownerId !== undefined) throw new AuthorizationAccessError();
   const requestedValues = selectedFields ? Object.fromEntries(selectedFields.map(field => [field, input.values[field]])) : input.values;
-  const requestHash = createHash('sha256').update(JSON.stringify([input.leadId, input.expectedVersion, requestedValues])).digest('hex');
+  const requestHash = createHash('sha256').update(JSON.stringify([input.leadId, input.expectedVersion, requestedValues, ...(input.ownerId !== undefined ? [input.ownerId] : [])])).digest('hex');
   const scope = resolveAuthorizedCollectionScope(context, "leads.read");
   if (
     !scope.allowed ||
@@ -72,6 +74,9 @@ export async function updateLeadInTransaction(trx: Knex.Transaction, context: Au
     }).allowed
   )
     throw new AuthorizationAccessError();
+  if (input.ownerId !== undefined && !authorize(context, { permission: "leads.assign", resource: {
+    kind: "lead", id: lead.id, workspaceId: context.workspaceId, ownerId: lead.ownerId,
+  } }).allowed) throw new AuthorizationAccessError();
   const previous = await trx("leadActivity")
     .where({ id: input.submissionId, workspaceId: identity.workspaceId })
     .first();
@@ -79,8 +84,8 @@ export async function updateLeadInTransaction(trx: Knex.Transaction, context: Au
     if (
       previous.leadId !== lead.id ||
       previous.actorId !== identity.userId ||
-      previous.type !== "edited" ||
-      previous.changes.requestHash !== requestHash
+      !((previous.type === "edited" && previous.changes.requestHash === requestHash) ||
+        (previous.type === "assigned" && previous.changes.editRequestHash === requestHash))
     )
       throw new LeadEditConflictError();
     return { version: lead.version };
@@ -125,13 +130,17 @@ export async function updateLeadInTransaction(trx: Knex.Transaction, context: Au
     ? Object.fromEntries(selectedFields.map(field => [field, input.values[field] ?? lead[field]]))
     : { ...input.values, source: input.values.source ?? lead.source };
   const fields = leadEditableFields
-    .filter((field) => Object.hasOwn(values, field) && values[field] !== lead[field])
+    .filter((field) => Object.hasOwn(values, field) && values[field] !== (lead[field]??''))
     .map((field) => ({
       field,
-      before: lead[field] as string,
+      before: (lead[field]??'') as string,
       after: values[field],
     }));
-  if (!fields.length) return { version: lead.version };
+  const ownerChanged = input.ownerId !== undefined && input.ownerId !== lead.ownerId;
+  if (!fields.length) return ownerChanged ? assignLeadInTransaction(trx, context, {
+    workspaceId: context.workspaceId, leadId: lead.id, submissionId: input.submissionId,
+    expectedVersion: lead.version, ownerId: input.ownerId!,
+  }, actorType, requestHash) : { version: lead.version };
   const version = lead.version + 1,
     now = new Date(),
     actor = await trx("users").where({ id: identity.userId }).first("name");
@@ -141,7 +150,7 @@ export async function updateLeadInTransaction(trx: Knex.Transaction, context: Au
       workspaceId: identity.workspaceId,
       version: input.expectedVersion,
     })
-    .update({ ...values, version, updatedAt: now, lastActivityAt: now });
+    .update({ ...values, ...(Object.hasOwn(values,'postalCode')?{postalCode:values.postalCode||null,countryCode:values.postalCode?'US':null}:{}), version, updatedAt: now, lastActivityAt: now });
   if (updated !== 1) throw new LeadEditConflictError();
   await trx("leadActivity").insert({
     id: input.submissionId,
@@ -159,5 +168,11 @@ export async function updateLeadInTransaction(trx: Knex.Transaction, context: Au
     }),
     createdAt: now,
   });
+  // Reuse assignment validation, activity and notification delivery in this same transaction.
+  // Any assignment failure rolls back the detail edit too. The edit event anchors retries.
+  if (ownerChanged) return assignLeadInTransaction(trx, context, {
+    workspaceId: context.workspaceId, leadId: lead.id, submissionId: randomUUID(),
+    expectedVersion: version, ownerId: input.ownerId!,
+  }, actorType);
   return { version };
 }

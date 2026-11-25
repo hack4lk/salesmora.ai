@@ -25,6 +25,11 @@ The command is `pnpm db:reset:demo`. It is separate from
 4. Review the displayed target and confirm the destructive action explicitly.
    An unattended invocation requires an explicit confirmation flag; the flag
    does not bypass the local-target checks.
+5. Existing workflow configurations are preserved only when their workspace,
+   publisher, recipients and referenced settings map to the seeded demo
+   accounts. A non-demo or unsupported dependency stops the reset before
+   deletion. Referenced website capture sources are preserved; other source
+   types stop the reset.
 
 Run `pnpm db:reset:demo` from the repository root and type `reset salesmora`
 at the confirmation prompt. For unattended use, `pnpm db:reset:demo --yes`
@@ -35,20 +40,39 @@ confirmed state. Inspect the database before retrying: a failed phase may have
 partially completed. Demo passwords may already have been added to `.env.local`
 if the connection check fails.
 Rerunning the reset is destructive and starts again from an empty database.
+The command prints the path of a private workflow recovery snapshot in
+`.local/backups/demo-workflows/` before deletion. If the reset fails after
+the database was dropped and the replacement has no workflows, pass that path
+as `--workflow-snapshot=/absolute/path/to/snapshot.json` on the next reset.
+The snapshot contains workflow and capture-source configuration, may contain
+sensitive data, and is retained with owner-only permissions; remove it only
+when no longer needed. If the replacement already contains workflows, the
+recovery option stops rather than replacing them; inspect the database first.
+
+The final pre-drop check temporarily disables new database connections. If
+the process is interrupted during that check, an owner can restore
+connections with `ALTER DATABASE salesmora WITH ALLOW_CONNECTIONS true`
+from the local maintenance database after verifying that no reset is running.
 
 ## What the reset will do
 
 1. Validate configuration, required dependencies, target identity, and
-   confirmation. Prepare credentials and check active connections before
-   dropping anything.
-2. Drop and recreate only the local development database.
-3. Run all current migrations in order, including the fresh baseline, then
+   confirmation. Prepare credentials and check active connections.
+2. Save a private snapshot of workflow configurations and their required
+   demo identities, services and website sources. Rehearse migration, seeding
+   and restoration in a disposable local database. Recheck connections and
+   snapshot consistency before dropping anything.
+3. Drop and recreate only the local development database.
+4. Run all current migrations in order, including the fresh baseline, then
    verify web runtime access using the existing database roles.
-4. Capture one seed timestamp and populate the demo data. Account and CRM
+5. Capture one seed timestamp and populate the demo data. Account and CRM
    phases use separate transactions; a failed CRM phase may leave accounts
    behind, but the command will report failure rather than success.
-5. Verify the migration ledger, seed invariants, account access, and a
-   representative sample of the data. Print a summary without passwords.
+6. Restore saved workflows and referenced website sources paused. Queued
+   workflow history and deliveries are not restored. Verify the complete
+   migration ledger, restored configurations, seed invariants, account
+   access, and a representative sample of the data. Print a summary without
+   passwords.
 
 Database reset does not imply deletion of external object storage, Redis,
 email inboxes, or third-party resources. The seed must not depend on stale

@@ -11,7 +11,7 @@ export async function workspaceSettings(userId: string, workspaceId: string) {
     const profile = await trx('workspaces').where({ id: workspaceId }).first('businessName', 'businessType', 'postalCode', 'serviceRange') as {
       businessName: string; businessType: string; postalCode: string; serviceRange: string;
     };
-    const services = await trx('workspaceServices').where({ workspaceId }).select<{ service: string }[]>('service').orderBy('service');
-    return { context, profile: { ...profile, services: services.map(row => row.service) } };
+    const services = await trx('workspaceServices').where({ workspaceId }).whereNull('archivedAt').select<{ name: string }[]>('name').orderBy('name');
+    return { context, profile: { ...profile, services: services.map(row => row.name) } };
   });
 }

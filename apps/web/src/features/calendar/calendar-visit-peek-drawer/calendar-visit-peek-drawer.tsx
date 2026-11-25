@@ -1,5 +1,6 @@
 'use client';
 
+import { calendarWorkTimeSummary } from '@salesmora/domain';
 import { FormFeedback, SideDrawer, StatusBadge } from '@salesmora/ui';
 import { JobStatusBadge } from '../../jobs/job-status-badge/job-status-badge';
 import { WorkOrderStatusBadge } from '../../work-orders/work-order-status-badge/work-order-status-badge';
@@ -29,6 +30,7 @@ export type CalendarVisitPeekDrawerProps = {
 };
 const action = 'min-h-11 cursor-pointer rounded-xl border border-line bg-paper px-4 py-2 text-sm font-semibold text-primary hover:bg-canvas focus-visible:focus-ring';
 export function CalendarVisitPeekDrawer({ open, visit, state = 'ready', onClose, onRetry, onOpenRecord, onSchedule, onAskAssistant, assistantDisabled = false }: CalendarVisitPeekDrawerProps) {
+  const work = calendarWorkTimeSummary(visit?.workTime);
   const ready = state === 'ready' && visit !== null;
   const people = visit ? [...new Map(visit.crew.map(person => [person.id, person])).values()] : [];
   return <SideDrawer open={open} title={ready ? visit.title : copy.title} description={copy.description} onClose={onClose}
@@ -58,6 +60,7 @@ export function CalendarVisitPeekDrawer({ open, visit, state = 'ready', onClose,
               <span className="text-xs text-muted">{copy.timezone}: {visit.timezone}</span>
             </dd>
           </div>
+          {work && <div><dt className="text-xs font-semibold text-muted">Planned work</dt><dd className="m-0 mt-1 text-sm leading-6">{work.range} · {work.duration}{visit.workTimezone && visit.workTimezone !== visit.timezone ? ` · ${visit.workTimezone}` : ''}</dd></div>}
           <div><dt className="text-xs font-semibold text-muted">{copy.people}</dt><dd className="m-0 mt-1 text-sm leading-6">{people.length ? people.map(person => person.name).join(', ') : eventCopy.unassigned}</dd></div>
           {visit.completionDeadline && <div><dt className="text-xs font-semibold text-muted">{eventCopy.deadline}</dt><dd className={`m-0 mt-1 text-sm ${visit.completionDeadline.overdue ? 'font-semibold text-error' : ''}`}>
             <time dateTime={visit.completionDeadline.date}>{eventCopy.date(visit.completionDeadline.date)}</time>{visit.completionDeadline.overdue && ` · ${eventCopy.overdue}`}

@@ -7,7 +7,7 @@ import { validateRegistration, type RegistrationErrors, type RegistrationSubmiss
 
 export type { RegistrationSubmission } from './registration-form.validation';
 export type RegistrationResult = { ok: true } | { ok: false; message?: string };
-export interface RegistrationFormProps extends Pick<TermsAcceptanceProps, 'termsHref' | 'privacyHref' | 'onTermsClick' | 'onPrivacyClick'> {
+export interface RegistrationFormProps extends Pick<TermsAcceptanceProps, 'termsHref' | 'privacyHref' | 'openDocumentsInNewTab' | 'onTermsClick' | 'onPrivacyClick'> {
   initialEmail?: string;
   emailDisabled?: boolean;
   submitLabel?: string;

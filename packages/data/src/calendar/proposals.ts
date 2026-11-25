@@ -90,7 +90,7 @@ export async function proposeCalendarSchedule(db:Knex,identity:WorkspaceIdentity
     const clearing = input.operation === 'clear';
     const arrivalWindow = clearing ? null : input.windowMode === 'keep' || (!input.windowMode && input.arrivalWindow === null) ? current.arrivalWindow : input.arrivalWindow;
     if (current.scheduledDate === input.scheduledDate && current.arrivalWindow === arrivalWindow) return { clarification:clearing ? copy.alreadyUnscheduled : copy.unchanged,stamp:await calendarChatStamp(trx,c) };
-    const schedule = { scheduledDate:input.scheduledDate,arrivalWindow };
+    const schedule = { scheduledDate:input.scheduledDate,arrivalWindow,...(current.workTime ? { workTime: clearing ? null : current.workTime } : {}) };
     // Clearing has no proposed day: overlap/workload/past-date advisories do not apply.
     const warnings:string[] = [];
     if (!clearing) {
@@ -101,7 +101,7 @@ export async function proposeCalendarSchedule(db:Knex,identity:WorkspaceIdentity
     }
     const id = randomUUID(),now = new Date();
     const draft = calendarProposalDraftSchema.parse({ ...(clearing ? { intent:'clear' } : {}),id,inputHash:'0'.repeat(64),visitId,revision:current.revision,createdAt:now.toISOString(),expiresAt:new Date(now.getTime()+900000).toISOString(),state:'pending' as const,
-      timezone:current.timezone,from:{ scheduledDate:current.scheduledDate,arrivalWindow:current.arrivalWindow },to:schedule,
+      timezone:current.timezone,...(current.workTimezone ? { workTimezone:current.workTimezone } : {}),from:{ scheduledDate:current.scheduledDate,arrivalWindow:current.arrivalWindow,...(current.workTime ? { workTime:current.workTime } : {}) },to:schedule,
       records:current.records.map(r => ({ ...r,expectedVersion:current.review.records.find(ref => ref.id === r.id && ref.type === r.type)!.expectedVersion })),crew:current.crew,warnings });
     const payload:CalendarProposalStored = { draft,command:{ workspaceId:identity.workspaceId,visitId,submissionId:id,expectedVisitVersion:current.review.expectedVisitVersion,records:current.review.records,schedule },authority:authorization,stamp:await calendarChatStamp(trx,c),receipt:null,resultStamp:null };
     draft.inputHash = inputHash(payload); calendarProposalStoredSchema.parse(payload);

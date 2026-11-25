@@ -98,7 +98,13 @@ export function LeadsPagePreview({ relatedEstimates, onCreateEstimate, initialVi
           return { count: filtered.length, rowLimit: 50000, scope: access.scope };
         } : undefined}
         onExport={async () => { if (!access.canExport || failActions) throw new Error(copy.failure); }}
-        onEdit={async request => { try { if (!access.canEdit) throw new Error(copy.failure); const lead = checked(request.leadId, request.expectedVersion); update(lead, request.values, { kind: 'edited', changes: (Object.keys(request.values) as (keyof typeof request.values)[]).filter(field => lead[field] !== request.values[field]).map(field => ({ field, before: lead[field], after: request.values[field] ?? null })) }); return { ok: true, lead: { id: lead.id, version: lead.version + 1, canEdit: true, origin: lead.source === 'gmail' ? 'gmail' : 'manual', values: { ...lead, ...request.values } } }; } catch { return { ok: false, error: { kind: 'error', message: copy.failure } }; } }}
+        onEdit={async request => { try {
+          if (!access.canEdit || (request.ownerId !== undefined && !access.canAssign)) throw new Error(copy.failure);
+          const lead = checked(request.leadId, request.expectedVersion);
+          const owner = request.ownerId === undefined ? lead.owner : members.find(member => member.id === request.ownerId) ?? null;
+          update(lead, { ...request.values, owner }, { kind: 'edited', changes: (Object.keys(request.values) as (keyof typeof request.values)[]).filter(field => lead[field] !== request.values[field]).map(field => ({ field, before: lead[field]??null, after: request.values[field] ?? null })) });
+          return { ok: true, lead: { id: lead.id, version: lead.version + 1, canEdit: true, origin: lead.source === 'gmail' ? 'gmail' : 'manual', values: { ...lead, ...request.values, ownerId: owner?.id ?? null } } };
+        } catch { return { ok: false, error: { kind: 'error', message: copy.failure } }; } }}
         onNote={async request => { const lead = current.current.find(lead => lead.id === request.leadId && (!assignedOnly || lead.owner?.id === 'sam')); if (!lead || failActions) return { ok: false, message: copy.failure }; const note = { id: request.submissionId, body: request.body, authorName: copy.stories.viewer, createdAt: copy.stories.now }; update(lead, { teamNotes: [note, ...lead.teamNotes] }, { kind: 'note', body: note.body }); return { ok: true, note }; }}
         onPrepareFollowUp={request => { if (!assistantDraft.trim()) setAssistantDraft(request.prompt); setAssistantOpen(true); }} prepareButtonRef={prepareRef}/>
     </main>

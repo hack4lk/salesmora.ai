@@ -44,6 +44,12 @@ describe('lead edit boundary', () => {
     for (const field of ['stage', 'ownerId', 'workspaceId', 'createdBy', 'archivedAt', 'version', 'origin']) expect(updateLeadSchema.safeParse({ ...input, values: { ...input.values, [field]: 'forged' } }).success).toBe(false);
     for (const extra of [{ expectedVersion: 0 }, { actorId: 'owner' }, { role: 'owner' }, { values: { ...input.values, name: ' ' } }, { values: { ...input.values, email: 'invalid' } }, { values: { ...input.values, details: 'x'.repeat(10001) } }]) expect(updateLeadSchema.safeParse({ ...input, ...extra }).success).toBe(false);
   });
+  it('accepts a separately authorized owner change without allowing ownership inside ordinary fields', () => {
+    expect(updateLeadSchema.parse({ ...input, ownerId: 'teammate' }).ownerId).toBe('teammate');
+    expect(updateLeadSchema.parse({ ...input, ownerId: null }).ownerId).toBeNull();
+    expect(updateLeadSchema.parse(input).ownerId).toBeUndefined();
+    expect(updateLeadSchema.safeParse({ ...input, ownerId: '' }).success).toBe(false);
+  });
   it('normalizes editable text/email and permits omission of protected source', () => {
     const values = Object.fromEntries(Object.entries(input.values).filter(([field]) => field !== 'source'));
     expect(updateLeadSchema.parse({ ...input, values: { ...values, name: ' Example ', email: 'HELLO@EXAMPLE.TEST' } }).values).toMatchObject({ name: 'Example', email: 'hello@example.test' });

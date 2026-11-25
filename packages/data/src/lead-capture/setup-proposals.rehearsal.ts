@@ -75,10 +75,14 @@ try {
     assert.equal(Number((await db('captureSources').count('* as n').first())!.n), 1);
   });
   await check('suggestion confirmation preserves persisted draft; saving requires a distinct reviewed proposal', async () => {
-    const base = await snapshot(sourceId), fields = base.configuration.fields!.map(field => field.key === 'details' ? { ...field, label: 'Describe the repair' } : field);
+    const persisted = await snapshot(sourceId);
+    const base = { ...persisted, configuration: { ...persisted.configuration, brief: 'These are leads to get more roofing work.' } } as CaptureSetupContext;
+    const fields = base.configuration.fields!.map(field => field.key === 'details' ? { ...field, label: 'Tell us about your roofing work' } : field);
     const proposed = await prepare({ operation: 'suggest_website_fields', fields, contactRequired: true }, base);
     const applied = await decide(proposed); assert.equal(applied.receipt?.kind, 'suggestions');
-    assert.deepEqual((await snapshot(sourceId)).configuration, base.configuration);
+    assert.equal(proposed.review.configuration.type, 'website');
+    assert.equal(proposed.review.configuration.type === 'website' && proposed.review.configuration.brief, 'These are leads to get more roofing work.');
+    assert.deepEqual((await snapshot(sourceId)).configuration, persisted.configuration);
     const saved = await prepare({ operation: 'save_draft' }, { ...base, configuration: proposed.review.configuration });
     const receipt = await decide(saved); assert.equal(receipt.receipt?.kind, 'saved');
     assert.deepEqual((await snapshot(sourceId)).configuration, proposed.review.configuration);

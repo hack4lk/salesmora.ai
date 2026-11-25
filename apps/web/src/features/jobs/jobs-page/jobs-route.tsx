@@ -148,7 +148,7 @@ function JobsContent({ workspaceId, userId, initial, initialQuery, initialDetail
   }
   async function create(values: JobCreateValues) {
     await write({ customerId: values.customerId, title: values.title, primaryOwnerId: values.primaryOwnerId, teamUserIds: values.teamUserIds,
-      service: values.service, location: values.location, description: values.description, scheduledDate: values.scheduledDate,
+      service: values.service, location: values.location, postalCode: values.postalCode, description: values.description, scheduledDate: values.scheduledDate,
       arrivalWindow: values.arrivalWindow, completionDeadline: values.completionDeadline, deadlineIntent: values.deadlineIntent, deadlinePreview: values.deadlinePreview }, true);
   }
   const common = { open: true, pending, error: error || undefined, conflict, onReload: reload, onClose: close };
@@ -198,7 +198,7 @@ function JobsContent({ workspaceId, userId, initial, initialQuery, initialDetail
     {overlay === 'peek' && job && <JobPeekDrawer open job={job} today={list.today} onClose={close} onOpen={() => openAction(job, 'open')} onAction={a => openAction(job, a)}/>}
     {overlay === 'create' && <JobCreateConnectedDialog {...common} workspaceId={workspaceId} onPreviewReload={() => { setConflict(false); setError(''); writeReceipt.current = undefined; }} members={list.options.members} customers={list.options.customers} allowNewCustomer={false}
       canSchedule={list.canScheduleCreation} onConfirm={create}/>}
-    {overlay === 'edit' && job && <JobEditDialog key={job.version} {...common} job={job}
+    {overlay === 'edit' && job && <JobEditDialog key={job.version} {...common} job={job} postalCode={job.postalCode??''} services={detail?.serviceChoices ?? list.options.serviceChoices}
       onConfirm={v => write({ action: 'edit', ...v })}/>}
     {overlay === 'status' && job && <JobStatusDialog key={`${job.id}:${job.version}:${target}`} {...common} job={job}
       initialTo={target ?? (['completed', 'canceled', 'needs-scheduling'].includes(job.status) ? 'in-progress' : job.status === 'in-progress' ? 'waiting' : 'in-progress')}

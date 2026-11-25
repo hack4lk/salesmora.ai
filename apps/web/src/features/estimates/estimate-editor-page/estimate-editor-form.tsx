@@ -24,6 +24,7 @@ import { estimateEditorRouteData as c } from "./estimate-editor-route.data";
 import { EstimateCreationFlow, type EstimateCreationFlowProps } from "../estimate-creation-flow/estimate-creation-flow";
 import { EstimatePaymentOption } from "../estimate-payment-option/estimate-payment-option";
 import { EstimateActionsMenu, type EstimateMenuItem } from "../estimate-row-menu/estimate-row-menu";
+import { getEstimateRowActions } from "../estimate-actions";
 
 function linkedParent(parent: NonNullable<EstimateEditorSeed["parent"]>): EstimateLinkedParent {
   return parent.type === "lead"
@@ -118,6 +119,8 @@ export function EstimateEditorForm({
   const totalCents = review.calculation.totalCents;
   const parent = record?.parent ?? seed.parent;
   const actions: EstimateMenuItem[] = [];
+  const rowActions = record ? getEstimateRowActions({ status: record.status, archived: record.archived,
+    capabilities: { ...seed.capabilities, send: false, decide: false, export: false } }) : [];
   if (record && !record.archived && onPreview && !creation) actions.push({
     id: "preview", label: c.preview, disabled: dirty || conflict,
     title: dirty ? c.saveBeforePreview : undefined, onSelect: onPreview,
@@ -132,10 +135,10 @@ export function EstimateEditorForm({
     id: "void", label: c.void, disabled: dirty || conflict, destructive: true, onSelect: onVoid,
   });
   if (record && seed.capabilities.archive) {
-    if (!record.archived && ["declined", "expired", "superseded", "void"].includes(record.status) && onArchive) actions.push({
+    if (rowActions.includes("archive") && onArchive) actions.push({
       id: "archive", label: c.archive, disabled: dirty || conflict, onSelect: onArchive,
     });
-    if (record.archived && onRestore) actions.push({
+    if (rowActions.includes("restore") && onRestore) actions.push({
       id: "restore", label: c.restore, disabled: dirty || conflict, onSelect: onRestore,
     });
   }

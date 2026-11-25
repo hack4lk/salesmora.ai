@@ -53,9 +53,18 @@ export const estimateRevisionFamilySchema = z.object({
 const paper = z.object({
   state: z.literal("snapshot"), estimateId: z.uuid(), version, snapshotHash: hash, content: estimatePaperContentSchema, amounts: estimatePaperAmountsSchema,
 });
+// Staff reads replace the captured settings logo path with an authorized estimate URL.
+// Keep this projection separate so stored snapshots retain their exact schema and hash.
+const staffPaper = paper.extend({
+  content: estimatePaperContentSchema.extend({
+    business: estimatePaperContentSchema.shape.business.extend({ logoPath: z.string().nullable() }),
+  }),
+}).refine(value => value.content.business.logoPath === null || value.content.business.logoPath === `/api/estimates/${value.estimateId}/logo`, {
+  message: "Expected this estimate's authorized logo URL.", path: ["content", "business", "logoPath"],
+});
 export const estimateSharingReviewSchema = z.object({
   estimate: estimateEditorRecordSchema, today: z.iso.date(), canSend: z.boolean(), subject: z.string(), issues: z.array(z.string()), snapshotHash: hash.nullable(),
-  paper: paper.nullable(), draftPaper: paper.nullable(), draft: estimatePaperContentSchema.nullable(),
+  paper: staffPaper.nullable(), draftPaper: paper.nullable(), draft: estimatePaperContentSchema.nullable(),
   delivery: z.object({
     email: z.union([z.object({ state: z.literal("not-sent") }), z.object({
       state: z.enum(["queued", "sent", "failed", "bounced"]), recipientEmail: z.string(), updatedAt: z.string(),

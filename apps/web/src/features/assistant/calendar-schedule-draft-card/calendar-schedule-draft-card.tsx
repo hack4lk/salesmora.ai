@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { calendarWorkTimeSummary } from '@salesmora/domain';
 import { StatusBadge } from '@salesmora/ui';
 import { JobStatusBadge } from '../../jobs/job-status-badge/job-status-badge';
 import { WorkOrderStatusBadge } from '../../work-orders/work-order-status-badge/work-order-status-badge';
@@ -43,8 +44,8 @@ function ScheduleReview({ draft, context, state = 'ready', disabled = false, onD
       <p className="mb-0 mt-3 text-sm font-semibold">{clearing ? copy.clear.heading : draft.from.scheduledDate ? copy.reschedule : copy.schedule}</p>
       {status === 'pending' && <p className="mb-0 mt-2 text-sm leading-6 text-assistant-muted">{clearing ? copy.clear.description : copy.description}</p>}
       <dl className="mb-0 mt-4 grid min-w-0 gap-3 sm:grid-cols-2">
-        <div className="min-w-0 rounded-xl border border-assistant-border p-3"><dt className="text-xs font-semibold text-assistant-muted">{status === 'confirmed' ? copy.previous : copy.current}</dt><dd className="m-0 mt-2 text-base font-semibold wrap-anywhere">{schedule(draft.from)}</dd></div>
-        <div className="min-w-0 rounded-xl border border-assistant-border bg-assistant-message p-3"><dt className="text-xs font-semibold text-assistant-muted">{status === 'confirmed' ? copy.saved : copy.proposed}</dt><dd className="m-0 mt-2 text-base font-semibold text-assistant-accent wrap-anywhere">{schedule(draft.to)}</dd></div>
+        <div className="min-w-0 rounded-xl border border-assistant-border p-3"><dt className="text-xs font-semibold text-assistant-muted">{status === 'confirmed' ? copy.previous : copy.current}</dt><dd className="m-0 mt-2 text-base font-semibold wrap-anywhere">{schedule(draft.from)}{draft.from.workTime && <span className="mt-1 block text-sm text-assistant-muted">Planned work: {calendarWorkTimeSummary(draft.from.workTime)?.range} · {calendarWorkTimeSummary(draft.from.workTime)?.duration}{draft.workTimezone && draft.workTimezone !== draft.timezone ? ` · ${draft.workTimezone}` : ''}</span>}</dd></div>
+        <div className="min-w-0 rounded-xl border border-assistant-border bg-assistant-message p-3"><dt className="text-xs font-semibold text-assistant-muted">{status === 'confirmed' ? copy.saved : copy.proposed}</dt><dd className="m-0 mt-2 text-base font-semibold text-assistant-accent wrap-anywhere">{schedule(draft.to)}{draft.to.workTime && <span className="mt-1 block text-sm">Planned work: {calendarWorkTimeSummary(draft.to.workTime)?.range} · {calendarWorkTimeSummary(draft.to.workTime)?.duration}{draft.workTimezone && draft.workTimezone !== draft.timezone ? ` · ${draft.workTimezone}` : ''}</span>}</dd></div>
         <div className="sm:col-span-2"><dt className="text-xs text-assistant-muted">{copy.timezone}</dt><dd className="m-0 mt-1 text-sm wrap-anywhere">{draft.timezone}</dd></div>
         <div className="sm:col-span-2"><dt className="text-xs text-assistant-muted">{copy.people}</dt><dd className="m-0 mt-1 text-sm leading-6 wrap-anywhere">{people.length ? people.map(p => p.name).join(', ') : calendarCopy.unassigned}</dd></div>
       </dl>

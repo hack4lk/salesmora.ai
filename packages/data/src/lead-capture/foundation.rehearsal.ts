@@ -1,7 +1,7 @@
 /** Fresh-baseline checks on an isolated local database; never mutates existing test or application tables. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { Knex } from 'knex';
 import { createDatabase } from '../database';
@@ -42,7 +42,9 @@ try {
     for (const [i, workspaceId] of workspaces.entries()) await initializeWorkspacePolicy(trx, { workspaceId, userId: `capture-owner-${i}` });
   });
   await check('fresh baseline applies once with canonical grants', async () => {
-    assert.equal((await db('knex_migrations').count('* as count').first())?.count, '1');
+    const directory = fileURLToPath(new URL('../baseline-migrations', import.meta.url));
+    const expected = readdirSync(directory).filter(name => name.endsWith('.ts')).sort();
+    assert.deepEqual(await db('knex_migrations').orderBy('name').pluck('name'), expected);
     assert.equal((await db('workspaceRolePolicies').where('permission', 'like', 'campaigns.%')).length, 0);
     assert.equal((await migrateFreshBaseline(db))[1].length, 0);
   });

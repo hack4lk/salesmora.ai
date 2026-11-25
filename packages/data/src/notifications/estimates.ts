@@ -4,6 +4,7 @@ import {
   estimateNotificationEventSchema,
   estimateStatusSchema,
   permissionIds,
+  workflowDefinitionSchema,
   type AuthorizationContext,
   type EstimateNotificationEvent,
   type EstimateStatus,
@@ -12,6 +13,7 @@ import {
 import { resolveAuthorizedCollectionScope } from "@salesmora/domain";
 import { AuthorizationAccessError, WorkspaceSuspendedError, withWorkspaceAuthorization } from "../authorization/store";
 import { withoutSuspendedWorkspaces } from "../accounts/workspace-hold";
+import { unscheduledEstimateEligibility, estimateFollowUpEligibility, workflowNotificationEvent, workflowParticipantsEligible } from "../workflows/execution";
 
 type EstimateNotificationRow = {
   id: string;
@@ -84,7 +86,7 @@ export function canReadEstimateNotifications(context: AuthorizationContext) {
   return hasEstimateReadScope(context);
 }
 
-export function estimateNotificationQuery(trx: Knex.Transaction, context: AuthorizationContext) {
+export function estimateNotificationQuery(trx: Knex.Transaction, context: AuthorizationContext, includeEmailOnly = false) {
   const query = trx("estimateNotifications as n")
     .join("estimates as e", function joinEstimate() {
       this.on("e.id", "n.estimateId").andOn("e.workspaceId", "n.workspaceId");
@@ -92,6 +94,7 @@ export function estimateNotificationQuery(trx: Knex.Transaction, context: Author
     .join("workspaces as w", "w.id", "e.workspaceId")
     .where("n.workspaceId", context.workspaceId)
     .where("n.userId", context.userId);
+  if (!includeEmailOnly) query.where("n.inApp", true);
   constrainEstimateRead(query, trx, context);
   return query;
 }
@@ -179,6 +182,10 @@ function currentForEmail(row: EstimateNotificationRow) {
         row.expiringSoon;
     case "expired":
       return row.currentStatus === "expired";
+    case "needs_scheduling":
+      return row.currentStatus === "accepted";
+    case "awaiting_decision":
+      return row.currentStatus === "sent";
     default:
       return false;
   }
@@ -200,16 +207,20 @@ export async function processEstimateNotificationEmails(
   enabled: readonly PermissionId[],
   send: (mail: EstimateNotificationEmail) => Promise<void>,
   limit = 10,
+  selection?: { id?: string; workspaceId?: string; nonWorkflowOnly?: boolean },
 ) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
     throw new RangeError("Invalid Estimate notification delivery batch size.");
   }
   const summary = { sent: 0, skipped: 0, retryPending: 0, failed: 0 };
-  const candidates = await withoutSuspendedWorkspaces(db("estimateNotifications"), "estimateNotifications.workspaceId")
+  const query = withoutSuspendedWorkspaces(db("estimateNotifications"), "estimateNotifications.workspaceId")
     .where({ emailStatus: "queued" })
     .where("nextAttemptAt", "<=", db.fn.now())
-    .orderBy("nextAttemptAt").orderBy("id").limit(limit)
-    .select("id", "workspaceId", "userId");
+    .orderBy("nextAttemptAt").orderBy("id").limit(limit);
+  if (selection?.id) query.where("id", selection.id);
+  if (selection?.workspaceId) query.where("workspaceId", selection.workspaceId);
+  if (selection?.nonWorkflowOnly) query.whereNull("workflowId");
+  const candidates = await query.select("id", "workspaceId", "userId");
 
   for (const candidate of candidates) {
     try {
@@ -224,7 +235,8 @@ export async function processEstimateNotificationEmails(
             .where("nextAttemptAt", "<=", trx.fn.now())
             .forUpdate().skipLocked().first();
           if (!queued) return;
-          const row = await estimateNotificationQuery(trx, context)
+          const row = await estimateNotificationQuery(trx, context, true)
+            .leftJoin("workflows as wf", function () { this.on("wf.id", "n.workflowId").andOn("wf.workspaceId", "n.workspaceId"); })
             .where("n.id", candidate.id)
             .select(
               "n.event", "n.estimateId", "n.attempts", "n.createdAt",
@@ -232,16 +244,24 @@ export async function processEstimateNotificationEmails(
               "u.email", "u.emailVerified",
               notificationStatus(trx),
               reminderWindow(trx),
+              "wf.status as workflowStatus", "wf.definition as workflowDefinition", "wf.publisherId as workflowPublisherId",
+              trx.raw(`CASE WHEN n.event = 'needs_scheduling' THEN (${unscheduledEstimateEligibility})
+                WHEN n.event = 'awaiting_decision' THEN (${estimateFollowUpEligibility}) ELSE false END AS "workflowEligible"`),
             )
             .join("users as u", "u.id", "n.userId")
             .first() as (EstimateNotificationRow & {
               attempts: number;
               email: string;
               emailVerified: boolean;
+              workflowStatus: string | null; workflowDefinition: unknown; workflowPublisherId: string | null; workflowEligible: boolean;
             }) | undefined;
           const preference = await trx("notificationPreferences")
             .where({ userId: context.userId }).first("estimateEmail");
-          if (!row || !currentForEmail(row) || !row.emailVerified ||
+          const workflow = row && ["needs_scheduling", "awaiting_decision"].includes(row.event) ? workflowDefinitionSchema.safeParse(row.workflowDefinition) : null;
+          const workflowAllowed = !workflow || (workflow.success && workflow.data.kind !== "unassigned_lead" && row?.workflowStatus === "active" && row.workflowEligible &&
+            workflowNotificationEvent(workflow.data) === row.event && workflow.data.notifications?.email === true && workflow.data.recipientId === context.userId && !!row.workflowPublisherId &&
+            await workflowParticipantsEligible(trx, context, workflow.data, row.workflowPublisherId));
+          if (!row || !currentForEmail(row) || !workflowAllowed || !row.emailVerified ||
               preference?.estimateEmail === false) {
             await trx("estimateNotifications").where({ id: candidate.id })
               .update({ emailStatus: "skipped" });

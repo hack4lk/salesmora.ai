@@ -8,7 +8,7 @@ export const customersMetricsData = {
   jobs: {
     label: "With active jobs",
     description: "Customers with current work",
-    unavailable: "Available when the Jobs module is connected.",
+    unavailable: "Active job totals are unavailable.",
   },
   errorTitle: "Totals unavailable",
   error: "Customer totals could not be loaded.",
@@ -18,6 +18,6 @@ export const customersMetricsData = {
     description:
       "Fictional workspace totals using the shared MetricCard. No customer data is loaded; retry is mocked.",
     future:
-      "Future-module preview: job totals are supplied only when Jobs is available.",
+      "Job totals reflect the jobs you can view.",
   },
 } as const;

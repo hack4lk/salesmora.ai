@@ -1,16 +1,17 @@
+import { calendarVisitScheduleValues } from "./sync";
 import { notifyVisitChange } from "../notifications/visits";
 import { createHash, randomUUID } from "node:crypto";
 import type { Knex } from "knex";
 import {
   calendarScheduleCommandSchema, calendarLinkCommandSchema, calendarSeparateCommandSchema, workOrderVisitChangeSchema,
-  type WorkOrderVisitManagement, type CalendarVisit, type AuthorizationContext, type CalendarRecordRef, type CalendarSchedule, type PermissionId, type JobStatus,
+  type WorkOrderVisitManagement, type CalendarVisit, type AuthorizationContext, type CalendarRecordRef, type CalendarScheduleCommand, type CalendarSchedule, type PermissionId, type JobStatus,
 } from "@salesmora/contracts";
 import { assertCalendarRevision, authorize, CalendarRevisionError, scheduledJobStatus, assertEditable, editsChangeIssuedContent, WorkOrderLifecycleError } from "@salesmora/domain";
 import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIdentity } from "../authorization/store";
 import { scoped, selects, resource, type Row } from "../work-orders/store";
 import { calendarRecordColumn, calendarRecordTable, snapshotCalendarRecord } from "./sync";
 
-type Source = "ui" | "assistant-confirmed";
+type Source = "ui" | "assistant-confirmed" | "system";
 type Loaded = { ref: CalendarRecordRef; row: { id: string; version: number; status: string; scheduledDate: string | null; arrivalWindow: string | null }; order?: Row };
 type Result = { visitId: string; version: number; records: CalendarRecordRef[] };
 
@@ -58,7 +59,7 @@ async function writeSchedule(trx: Knex.Transaction, context: AuthorizationContex
   const { row, ref, order } = record;
   const status = ref.type === "job" ? scheduledJobStatus(row.status as JobStatus, schedule.scheduledDate) : row.status;
   await snapshotCalendarRecord(trx, context.workspaceId, visitId, ref.type, row, schedule.scheduledDate ? "rescheduled" : "cleared");
-  await trx(calendarRecordTable(ref.type)).where({ workspaceId: context.workspaceId, id: row.id }).update({ ...schedule, status, version: row.version + 1, updatedAt: trx.fn.now(),
+  await trx(calendarRecordTable(ref.type)).where({ workspaceId: context.workspaceId, id: row.id }).update({ scheduledDate: schedule.scheduledDate, arrivalWindow: schedule.arrivalWindow, status, version: row.version + 1, updatedAt: trx.fn.now(),
     ...(ref.type === "job" ? { lastActivityAt: trx.fn.now() } : order && editsChangeIssuedContent(order.status) ? { changedAfterIssueAt: trx.fn.now() } : {}) });
   const actor = await trx("users").where({ id: context.userId }).first("name");
   await trx(ref.type === "job" ? "jobActivity" : "workOrderActivity").insert({ id: randomUUID(), workspaceId: context.workspaceId, [calendarRecordColumn(ref.type)]: row.id,
@@ -69,20 +70,26 @@ async function writeSchedule(trx: Knex.Transaction, context: AuthorizationContex
 const hashInput = (action: string, input: unknown, source: Source) => createHash("sha256").update(JSON.stringify({ action, input, source })).digest("hex");
 
 export async function scheduleCalendarVisit(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[], raw: unknown, source: Source = "ui") {
-  const input = calendarScheduleCommandSchema.parse(raw), hash = hashInput("schedule", input, source);
+  const input = calendarScheduleCommandSchema.parse(raw);
   if (identity.workspaceId !== input.workspaceId) throw new AuthorizationAccessError();
-  return withWorkspaceAuthorization(db, identity, enabled, true, async (trx, context) => {
-    const current = await visit(trx, context, input.visitId);
-    const previous = await replay(trx, context, input.submissionId, hash); if (previous) return previous;
-    assertCalendarRevision(current.row.version, input.expectedVisitVersion, current.records.map(r => r.ref), input.records);
-    const before = await trx("calendarVisits").where({ workspaceId: context.workspaceId, id: input.visitId }).select(trx.raw(`to_char("scheduledDate",'YYYY-MM-DD') AS "scheduledDate"`), "arrivalWindow").first();
-    const records: CalendarRecordRef[] = [];
-    for (const record of current.records) records.push(await writeSchedule(trx, context, input.visitId, record, input.schedule, source));
-    await trx("calendarVisits").where({ workspaceId: context.workspaceId, id: input.visitId })
-      .update({ ...input.schedule, version: current.row.version + 1, updatedAt: trx.fn.now() });
-    await notifyVisitChange(trx, context, input.submissionId, !input.schedule.scheduledDate ? "cleared" : before.scheduledDate ? "rescheduled" : "scheduled", records, before, input.schedule);
-    return remember(trx, context, input.submissionId, hash, { visitId: input.visitId, version: current.row.version + 1, records });
-  });
+  return withWorkspaceAuthorization(db, identity, enabled, true, (trx, context) => scheduleCalendarVisitInTransaction(trx, context, input, source));
+}
+/** Server-only composition under the caller's current exclusive workspace authority. */
+export async function scheduleCalendarVisitInTransaction(trx: Knex.Transaction, context: AuthorizationContext, input: CalendarScheduleCommand, source: Source,
+  bookingGapMinutes?: number) {
+  if (!trx.isTransaction || input.workspaceId !== context.workspaceId) throw new AuthorizationAccessError();
+  if (bookingGapMinutes !== undefined && (!Number.isInteger(bookingGapMinutes) || bookingGapMinutes < 0 || bookingGapMinutes > 120)) throw new CalendarRevisionError();
+  const hash = hashInput('schedule', bookingGapMinutes === undefined ? input : { ...input, bookingGapMinutes }, source);
+  const current = await visit(trx, context, input.visitId);
+  const previous = await replay(trx, context, input.submissionId, hash); if (previous) return previous;
+  assertCalendarRevision(current.row.version, input.expectedVisitVersion, current.records.map(r => r.ref), input.records);
+  const before = await trx("calendarVisits").where({ workspaceId: context.workspaceId, id: input.visitId }).select(trx.raw(`to_char("scheduledDate",'YYYY-MM-DD') AS "scheduledDate"`), "arrivalWindow", "workTime", "workTimezone").first();
+  const records: CalendarRecordRef[] = [];
+  for (const record of current.records) records.push(await writeSchedule(trx, context, input.visitId, record, { ...input.schedule, workTime: input.schedule.scheduledDate ? input.schedule.workTime === undefined ? current.row.workTime : input.schedule.workTime : null }, source));
+  const [savedSchedule] = await trx("calendarVisits").where({ workspaceId: context.workspaceId, id: input.visitId })
+    .update({ ...calendarVisitScheduleValues(input.schedule), ...(bookingGapMinutes === undefined ? {} : { bookingGapMinutes }), version: current.row.version + 1, updatedAt: trx.fn.now() }).returning(["workTime", "workTimezone"]);
+  await notifyVisitChange(trx, context, input.submissionId, !input.schedule.scheduledDate ? "cleared" : before.scheduledDate ? "rescheduled" : "scheduled", records, before, { ...input.schedule, workTime: savedSchedule.workTime, workTimezone: savedSchedule.workTimezone });
+  return remember(trx, context, input.submissionId, hash, { visitId: input.visitId, version: current.row.version + 1, records });
 }
 
 /** The only join path. Dates are copied from the Job's explicitly selected visit, never inferred. */
@@ -99,14 +106,14 @@ export async function linkCalendarWorkOrder(db: Knex, identity: WorkspaceIdentit
     if (!target.row.scheduledDate || !target.records.some(r => r.ref.type === "job" && r.ref.id === order.order?.jobId) ||
       target.records.some(r => r.order && r.order.jobId !== order.order?.jobId)) throw new CalendarRevisionError();
     const date = await trx("calendarVisits").where({ id: input.visitId, workspaceId: context.workspaceId })
-      .select(trx.raw(`to_char("scheduledDate",'YYYY-MM-DD') AS "scheduledDate"`), "arrivalWindow").first();
-    const before = await trx("calendarVisits").where({ workspaceId: context.workspaceId, id: input.sourceVisitId }).select(trx.raw(`to_char("scheduledDate",'YYYY-MM-DD') AS "scheduledDate"`), "arrivalWindow").first();
+      .select(trx.raw(`to_char("scheduledDate",'YYYY-MM-DD') AS "scheduledDate"`), "arrivalWindow", "workTime", "workTimezone").first();
+    const before = await trx("calendarVisits").where({ workspaceId: context.workspaceId, id: input.sourceVisitId }).select(trx.raw(`to_char("scheduledDate",'YYYY-MM-DD') AS "scheduledDate"`), "arrivalWindow", "workTime", "workTimezone").first();
     const ref = await writeSchedule(trx, context, input.sourceVisitId, order, date, source, "visit-linked");
     await notifyVisitChange(trx, context, input.submissionId, "joined", [ref], before, date);
     await trx("calendarVisitRecords").where({ workspaceId: context.workspaceId, visitId: input.sourceVisitId }).whereNull("endedAt").update({ endedAt: trx.fn.now() });
     await trx("calendarVisitRecords").insert({ id: randomUUID(), workspaceId: context.workspaceId, visitId: input.visitId, workOrderId: input.workOrderId });
     await trx("calendarVisits").where({ workspaceId: context.workspaceId, id: input.sourceVisitId }).increment("version", 1).update({ updatedAt: trx.fn.now() });
-    await trx("calendarVisits").where({ workspaceId: context.workspaceId, id: input.visitId }).increment("version", 1).update({ updatedAt: trx.fn.now() });
+    await trx("calendarVisits").where({ workspaceId: context.workspaceId, id: input.visitId }).update({ version: target.row.version + 1, bookingGapMinutes: Math.max(target.row.bookingGapMinutes ?? 0, from.row.bookingGapMinutes ?? 0), updatedAt: trx.fn.now() });
     return remember(trx, context, input.submissionId, hash, { visitId: input.visitId, version: target.row.version + 1, records: [...target.records.map(r => r.ref), ref] });
   });
 }
@@ -120,14 +127,15 @@ export async function separateCalendarWorkOrder(db: Knex, identity: WorkspaceIde
     assertCalendarRevision(current.row.version, input.expectedVisitVersion, current.records.map(r => r.ref), input.records);
     const order = current.records.find(r => r.ref.type === "work_order" && r.ref.id === input.workOrderId);
     if (!order || current.records.length < 2) throw new CalendarRevisionError();
-    const before = await trx("calendarVisits").where({ workspaceId: context.workspaceId, id: input.visitId }).select(trx.raw(`to_char("scheduledDate",'YYYY-MM-DD') AS "scheduledDate"`), "arrivalWindow").first();
+    const before = await trx("calendarVisits").where({ workspaceId: context.workspaceId, id: input.visitId }).select(trx.raw(`to_char("scheduledDate",'YYYY-MM-DD') AS "scheduledDate"`), "arrivalWindow", "workTime", "workTimezone").first();
     const id = randomUUID();
     await snapshotCalendarRecord(trx, context.workspaceId, input.visitId, order.ref.type, order.row, "separated");
-    await trx("calendarVisits").insert({ id, workspaceId: context.workspaceId, ...input.schedule });
-    const ref = await writeSchedule(trx, context, id, order, input.schedule, source, "visit-separated");
+    const schedule = { ...input.schedule, workTime: input.schedule.scheduledDate ? input.schedule.workTime === undefined ? current.row.workTime : input.schedule.workTime : null };
+    await trx("calendarVisits").insert({ id, workspaceId: context.workspaceId, ...calendarVisitScheduleValues(schedule), bookingGapMinutes: current.row.bookingGapMinutes });
+    const ref = await writeSchedule(trx, context, id, order, schedule, source, "visit-separated");
     await trx("calendarVisitRecords").where({ workspaceId: context.workspaceId, visitId: input.visitId, workOrderId: input.workOrderId }).whereNull("endedAt").update({ endedAt: trx.fn.now() });
     await trx("calendarVisitRecords").insert({ id: randomUUID(), workspaceId: context.workspaceId, visitId: id, workOrderId: input.workOrderId });
-    await notifyVisitChange(trx, context, input.submissionId, "separated", [ref], before, input.schedule);
+    await notifyVisitChange(trx, context, input.submissionId, "separated", [ref], before, schedule);
     // Membership revision changes; original visit's date/window and other resource rows stay untouched.
     await trx("calendarVisits").where({ workspaceId: context.workspaceId, id: input.visitId }).increment("version", 1).update({ updatedAt: trx.fn.now() });
     return remember(trx, context, input.submissionId, hash, { visitId: id, version: 1, records: [ref] });
@@ -191,11 +199,11 @@ async function projectManagedVisit(trx: Knex.Transaction, context: Authorization
   }
   const names = await trx("users").whereIn("id", [...people]).select("id", "name");
   const date = await trx("calendarVisits").where({ workspaceId: context.workspaceId, id: loaded.row.id })
-    .select(trx.raw(`to_char("scheduledDate",'YYYY-MM-DD') AS "scheduledDate"`), "arrivalWindow").first();
+    .select(trx.raw(`to_char("scheduledDate",'YYYY-MM-DD') AS "scheduledDate"`), "arrivalWindow", "workTime", "workTimezone").first();
   const records: CalendarVisit["records"] = refs.map(item => item.order ? { type: "work_order", id: item.row.id,
     number: `WO-${String(item.order.workOrderNumber).padStart(4, "0")}`, title: item.order.title, status: item.order.status }
     : { type: "job", id: item.row.id, number: `J-${String(job.jobNumber).padStart(4, "0")}`, title: job.title, status: item.row.status as JobStatus });
-  return { id: loaded.row.id, revision: membershipRevision(loaded), ...date, timezone, title: records[0].title, customerName: job.customerName,
+  return { id: loaded.row.id, revision: membershipRevision(loaded), ...date, workTimezone: loaded.row.workTimezone ?? null, workStartsAt: loaded.row.workStartsAt?.toISOString() ?? null, workEndsAt: loaded.row.workEndsAt?.toISOString() ?? null, timezone, title: records[0].title, customerName: job.customerName,
     location: job.location || null, nextStep: null, records, crew: names, completionDeadline: canReadJob && job.completionDeadline ? { date: job.completionDeadline, overdue: job.completionDeadline < today } : null, waiting: false, canReschedule: true,
     review: { expectedVisitVersion: loaded.row.version, records: refs.map(r => r.ref) } };
 }

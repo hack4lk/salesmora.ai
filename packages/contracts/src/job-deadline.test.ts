@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { createJobSchema, createReviewedJobSchema } from './job';
-const base = { workspaceId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', submissionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', customerId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', title: 'Fixture', primaryOwnerId: null };
+const base = { postalCode:'10001', workspaceId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', submissionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', customerId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', title: 'Fixture', primaryOwnerId: null };
 const preview = { revision: '1', createdDate: '2026-10-26', resolvedDate: '2026-11-09', timezone: 'America/New_York' };
 it('binds explicit deadline intent and reviewed result together', () => {
   expect(createJobSchema.safeParse({ ...base, deadlineIntent: { mode: 'workspace', revision: '1' }, deadlinePreview: preview, completionDeadline: preview.resolvedDate }).success).toBe(true);

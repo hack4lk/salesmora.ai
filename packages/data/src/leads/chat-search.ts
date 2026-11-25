@@ -1,3 +1,4 @@
+import {serviceDisplaySql} from '../services/store';
 import { chatLeadSearchData as copy } from './chat-search.data';
 import type { Knex } from 'knex';
 import { leadExportSchema, leadExportQuery, leadSearchSnapshotSchema, leadSearchEvidenceSchema, type AuthorizationContext, type LeadExportInput } from '@salesmora/contracts';
@@ -35,7 +36,7 @@ export async function searchChatLeads(trx: Knex.Transaction, context: Authorizat
   const count = await base.clone().count<{ count: string }[]>({ count: 'l.id' }).timeout(5000, { cancel: true }).first();
   const rows: { id: string; version: number; leadNumber: number; name: string; service: string; stage: string; archivedAt: Date | null; ownerId: string | null; memberId: string | null; ownerName: string | null }[] = await base.clone().leftJoin('users as u', 'u.id', 'l.ownerId').leftJoin('workspaceMemberships as m', function () { this.on('m.userId', 'l.ownerId').andOn('m.workspaceId', 'l.workspaceId'); })
     .orderBy('l.createdAt', 'desc').orderBy('l.id', 'desc').limit(10).timeout(5000, { cancel: true })
-    .select('l.id', 'l.version', 'l.leadNumber', 'l.name', 'l.service', 'l.stage', 'l.archivedAt', 'l.ownerId', 'm.userId as memberId', trx.raw('coalesce(u.name,l."ownerName") as "ownerName"'));
+    .select('l.id', 'l.version', 'l.leadNumber', 'l.name', trx.raw(`${serviceDisplaySql('l')} AS service`), 'l.stage', 'l.archivedAt', 'l.ownerId', 'm.userId as memberId', trx.raw('coalesce(u.name,l."ownerName") as "ownerName"'));
   return leadSearchSnapshotSchema.parse({ filters,
     ownerIds: [...new Set(rows.flatMap(row => row.memberId ? [row.memberId] : []))],
     result: { id, scope, asOf: new Date().toISOString(), filterLabels: labels, includeArchived: filters.archived, total: Number(count?.count ?? 0), rows: rows.map(row => ({

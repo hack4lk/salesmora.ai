@@ -1,11 +1,13 @@
 export const estimateNotificationEmailData = {
   brand: "SalesMora.ai",
   headings: {
+    awaiting_decision: "An Estimate is awaiting a decision",
     sent: "An Estimate was sent",
     delivery_failed: "Estimate email delivery failed",
     viewed: "A customer viewed an Estimate",
     decision_recorded: "An Estimate decision was recorded",
     expiring_soon: "An Estimate expires soon",
+    needs_scheduling: "An approved Estimate needs a visit",
     expired: "An Estimate expired",
   },
   statusLabels: {

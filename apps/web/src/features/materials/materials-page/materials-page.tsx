@@ -37,9 +37,8 @@ export function MaterialsPage(props: MaterialsPageProps) {
         : [{ id: 'reason', label: copy.columns.reason, render: (row: MaterialView) => row.rejectionReason || copy.none }]),
     { id: 'actions', label: copy.columns.actions, render: actions },
   ];
-  return (
+  const content = (
     <div className="grid min-w-0 gap-6">
-      {(canManage || canPropose) && <MaterialStatusTabs status={filters.status} pendingProposals={pendingProposals} canManage={canManage} disabled={disabled} onChange={status => props.onFilters({ ...filters, status, archived: false })} />}
       <MaterialsFilters filters={filters} options={options} canManage={canManage} disabled={disabled} onFilters={props.onFilters} />
       <MaterialsToolbar total={total} canManage={canManage} canPropose={canPropose} canExport={canExport && catalog} exporting={exporting} disabled={disabled} onAdd={props.onAdd} onExport={props.onExport} />
       {!canManage && !canPropose && <p className="m-0 rounded-2xl border border-line bg-paper p-4 text-sm text-muted">{copy.readOnly}</p>}
@@ -49,4 +48,9 @@ export function MaterialsPage(props: MaterialsPageProps) {
       <Pagination total={total} page={page} pageSize={pageSize} disabled={disabled} onPageChange={props.onPage} onPageSizeChange={props.onPageSize} />
     </div>
   );
+  return canManage || canPropose ? (
+    <MaterialStatusTabs status={filters.status} pendingProposals={pendingProposals} disabled={disabled} onChange={status => props.onFilters({ ...filters, status, archived: false })}>
+      {content}
+    </MaterialStatusTabs>
+  ) : content;
 }

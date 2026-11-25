@@ -13,10 +13,17 @@ export const demoAccounts = [
 ] as const;
 
 export type DemoCredentials = Record<(typeof demoAccounts)[number]['key'], string>;
+export type DemoSeedPreservation = {
+  users: Partial<Record<(typeof demoAccounts)[number]['key'], string>>;
+  workspaces: Partial<Record<'main' | 'free' | 'standard', string>>;
+  timezones: Partial<Record<'main' | 'free' | 'standard', string>>;
+  services: { workspaceId: string; id: string; service: string; name: string; archivedAt: string | Date | null }[];
+};
 
 export async function seedDemoAccounts(
   db: ReturnType<typeof createDatabase>, credentials: DemoCredentials, now: Date,
   timezone = Intl.DateTimeFormat().resolvedOptions().timeZone,
+  preserved?: DemoSeedPreservation,
 ) {
   if (!Number.isFinite(now.getTime())) throw new Error('A valid demo seed time is required.');
   new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(now);
@@ -25,9 +32,11 @@ export async function seedDemoAccounts(
     if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
       throw new Error(`Invalid ${account.key}.`);
     }
-    return { ...account, id: randomUUID(), hash: await hashPassword(password) };
+    return { ...account, id: preserved?.users[account.key] ?? randomUUID(), hash: await hashPassword(password) };
   }));
-  const main = randomUUID(), free = randomUUID(), standard = randomUUID();
+  const main = preserved?.workspaces.main ?? randomUUID();
+  const free = preserved?.workspaces.free ?? randomUUID();
+  const standard = preserved?.workspaces.standard ?? randomUUID();
   const createdAt = new Date(now.getTime() - 180 * 86400_000);
   const paidThrough = new Date(now.getTime() + 365 * 86400_000);
 
@@ -46,25 +55,25 @@ export async function seedDemoAccounts(
       });
     }
     const businesses = [
-      { id: main, owner: users[0], name: 'Evergreen Home Services', plan: 'premium' },
-      { id: free, owner: users[4], name: 'Cedar Handyman', plan: 'free' },
-      { id: standard, owner: users[5], name: 'Harbor Property Care', plan: 'standard' },
+      { key: 'main', id: main, owner: users[0], name: 'Evergreen Home Services', plan: 'premium' },
+      { key: 'free', id: free, owner: users[4], name: 'Cedar Handyman', plan: 'free' },
+      { key: 'standard', id: standard, owner: users[5], name: 'Harbor Property Care', plan: 'standard' },
     ] as const;
     for (const business of businesses) {
       await trx('workspaces').insert({
         id: business.id, ownerId: business.owner.id, businessName: business.name,
         businessType: 'handyman', postalCode: '00000', serviceRange: '20',
-        timezone, createdAt,
+        timezone: preserved?.timezones[business.key] ?? timezone, createdAt,
       });
       await trx('workspaceMemberships').insert({
         workspaceId: business.id, userId: business.owner.id, role: 'owner',
       });
       await initializeWorkspacePolicy(trx, { workspaceId: business.id, userId: business.owner.id });
-      await trx('workspaceServices').insert([
-        { workspaceId: business.id, service: 'repairs' },
-        { workspaceId: business.id, service: 'maintenance' },
-        { workspaceId: business.id, service: 'installation' },
-      ]);
+      const savedServices = preserved?.services.filter(service => service.workspaceId === business.id) ?? [];
+      const defaults = ['repairs', 'maintenance', 'installation']
+        .filter(service => !savedServices.some(saved => saved.service === service))
+        .map(service => ({ workspaceId: business.id, service }));
+      await trx('workspaceServices').insert([...savedServices, ...defaults]);
       await trx('workspaceSubscriptions').insert({
         workspaceId: business.id, plan: business.plan, intendedPlan: business.plan,
         catalogVersion: workspacePlanCatalogVersion,
@@ -79,6 +88,6 @@ export async function seedDemoAccounts(
   return {
     workspaces: { main, free, standard },
     users: Object.fromEntries(users.map(user => [user.key, user.id])),
-    timezone,
+    timezone: preserved?.timezones.main ?? timezone,
   };
 }

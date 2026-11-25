@@ -11,9 +11,11 @@ export interface SettingsOverviewProps {
   jobNotificationsHref?: string;
   billingHref?: string;
   accountHref?: string;
+  servicesSettingsHref?: string;
+  teamSettingsHref?: string;
 }
 
-export function SettingsOverview({ workspaceName, profile, jobNotificationsHref, workOrdersHref, estimatesHref, leadsSettingsHref, permissionsHref, aiUsageHref, billingHref, accountHref }: SettingsOverviewProps) {
+export function SettingsOverview({ workspaceName, profile, servicesSettingsHref, teamSettingsHref, jobNotificationsHref, workOrdersHref, estimatesHref, leadsSettingsHref, permissionsHref, aiUsageHref, billingHref, accountHref }: SettingsOverviewProps) {
   const details = profile ? [
     [copy.fields.businessName, profile.businessName],
     [copy.fields.businessType, copy.businessTypes.find(type => type.value === profile.businessType)?.label ?? profile.businessType],
@@ -22,6 +24,8 @@ export function SettingsOverview({ workspaceName, profile, jobNotificationsHref,
     [copy.fields.services, profile.services.map(service => copy.serviceCatalog.find(option => option.value === service)?.label ?? service).join(', ') || copy.notSet],
   ] : [];
   const cards = [
+    { id: 'team', href: teamSettingsHref, title: 'Team', description: 'Manage member availability and work ZIP codes.', link: 'View team' },
+    { id: 'services', href: servicesSettingsHref, title: copy.servicesTitle, description: copy.servicesDescription, link: copy.viewServices },
     { id: 'account', href: accountHref, title: copy.accountTitle, description: copy.accountDescription, link: copy.viewAccount },
     { id: 'billing', href: billingHref, title: copy.billingTitle, description: copy.billingDescription, link: copy.viewBilling },
     { id: 'ai-usage', href: aiUsageHref, title: copy.aiUsageTitle, description: copy.aiUsageDescription, link: copy.viewAIUsage, ownerOnly: true },

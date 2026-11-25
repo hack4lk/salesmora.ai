@@ -32,7 +32,7 @@ async function change(action: string, extra: Record<string, unknown> = {}, role 
 }
 test('Jobs APIs enforce role, tenant, lifecycle, current grants, retries and scoped aggregates', async () => {
   const { context: deadline } = await (await clients.owner.get(`/api/jobs/creation-deadline?workspace=${workspaceId}`)).json();
-  const input = { completionDeadline: deadline.projectedDate, deadlineIntent: { mode: 'workspace', revision: deadline.revision }, deadlinePreview: { revision: deadline.revision, createdDate: deadline.createdDate, resolvedDate: deadline.projectedDate, timezone: deadline.timezone }, workspaceId, submissionId: randomUUID(), customerId, title: 'Repair leaking valve', primaryOwnerId: users.field, teamUserIds: [], service: 'Plumbing' };
+  const input = {postalCode:'10001', completionDeadline: deadline.projectedDate, deadlineIntent: { mode: 'workspace', revision: deadline.revision }, deadlinePreview: { revision: deadline.revision, createdDate: deadline.createdDate, resolvedDate: deadline.projectedDate, timezone: deadline.timezone }, workspaceId, submissionId: randomUUID(), customerId, title: 'Repair leaking valve', primaryOwnerId: users.field, teamUserIds: [], service: 'Plumbing' };
   const created = await clients.owner.post('/api/jobs', { headers, data: input });
   expect(created.status()).toBe(201); jobId = (await created.json()).jobId;
   expect((await clients.owner.post('/api/jobs', { headers, data: input })).status()).toBe(201);

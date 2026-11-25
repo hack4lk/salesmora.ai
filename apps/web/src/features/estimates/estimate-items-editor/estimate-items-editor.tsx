@@ -267,7 +267,6 @@ export function EstimateItemsEditor({
         </dl>
         {result.subtotalCents === null && <p className="m-0 text-sm text-muted">{c.unavailable}</p>}
         <p className="m-0 text-sm leading-6 text-muted">{c.subtotalHint}</p>
-        <p className="m-0 text-sm leading-6 text-muted">{c.limits}</p>
       </div>
       <p role="status" aria-live="polite" className="sr-only">{announcement}</p>
     </section>

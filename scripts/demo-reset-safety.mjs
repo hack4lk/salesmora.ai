@@ -32,3 +32,12 @@ export function validateDemoResetTarget(env) {
   }
   return { host: owner.hostname, port: owner.port, database: 'salesmora' };
 }
+
+export function assertCompleteMigrationLedger(applied, expected) {
+  const actualNames = applied.map(row => row.name).sort();
+  const expectedNames = expected.filter(name => name.endsWith('.ts')).sort();
+  if (expectedNames.length === 0 || actualNames.length !== expectedNames.length ||
+      actualNames.some((name, index) => name !== expectedNames[index])) {
+    throw new Error('The demo database migration ledger does not match the current migrations.');
+  }
+}

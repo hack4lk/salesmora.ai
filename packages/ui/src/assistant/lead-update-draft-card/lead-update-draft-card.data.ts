@@ -10,7 +10,7 @@ export const leadUpdateDraftCardData = {
     expired: 'Proposal expired. Ask for a new proposal.', superseded: 'Replaced by a newer proposal.',
     conflict: 'This lead has changed. Review a new proposal before saving.', forbidden: 'You no longer have access to make these changes.',
   },
-  fields: { stage: 'Stage', name: 'Name', email: 'Email', phone: 'Phone', service: 'Service requested', address: 'Service address', details: 'Request details', notes: 'Internal notes', source: 'Source' },
+  fields: { stage: 'Stage', name: 'Name', email: 'Email', phone: 'Phone', service: 'Service requested', address: 'Service address', postalCode:'ZIP code', details: 'Request details', notes: 'Internal notes', source: 'Source' },
   stages: { new: 'New', contacted: 'Contacted', 'estimate-sent': 'Estimate sent', won: 'Won', lost: 'Lost' },
   lostReason: 'Lost reason',
   sources: { website: 'Website', referral: 'Referral', phone: 'Phone', gmail: 'Gmail', other: 'Other' },

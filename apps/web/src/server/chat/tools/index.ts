@@ -1,3 +1,4 @@
+import { workflowsPrepare } from './workflows';
 import { captureQuery, capturePropose } from './lead-capture';
 import { calendarQuery,calendarPropose } from './calendar';
 import { customersQuery, customersPropose } from "../customers";
@@ -18,6 +19,7 @@ import { executeChatTool, type ChatToolDefinition } from './runner';
 
 /** Keep this explicit and exhaustive: a definition requires a server handler to execute. */
 const handlers = {
+  workflows_prepare: { execute: workflowsPrepare },
   reports_query: { execute: reportsQuery },
   lead_capture_query: { execute: captureQuery },
   lead_capture_propose_action: { execute: capturePropose },

@@ -53,7 +53,7 @@ try {
     await trx('customers').insert({ id: customerId, workspaceId, name: 'PRIVATE_CUSTOMER', type: 'person',
       companyName: '', email: 'private@example.test', phone: '', location: '', internalNotes: 'PRIVATE_NOTES' });
   });
-  const seed = (title: string) => db.transaction(trx => createJob(trx, identity, enabled, {
+  const seed = (title: string) => db.transaction(trx => createJob(trx, identity, enabled, {postalCode:'10001',
     workspaceId, submissionId: randomUUID(), customerId, title, primaryOwnerId: owner, service: 'PRIVATE_SERVICE',
   }));
   await seed('=SUM(1,2)');

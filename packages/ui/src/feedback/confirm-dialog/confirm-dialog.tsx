@@ -18,6 +18,7 @@ export type ConfirmDialogProps = {
   confirmDisabled?: boolean;
   cancelLabel?: string;
   destructive?: boolean;
+  showWarningIcon?: boolean;
   confirmAppearance?: "default" | "seafoam";
   pending?: boolean;
   pendingLabel?: string;
@@ -48,6 +49,7 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel = copy.cancel,
   destructive = false,
+  showWarningIcon = destructive,
   confirmAppearance = "seafoam",
   confirmDisabled = false,
   pending = false,
@@ -139,7 +141,7 @@ export function ConfirmDialog({
         }}
         className="min-w-0 p-6 sm:p-8"
       >
-        {destructive && (
+        {showWarningIcon && (
           <div className="mb-5 flex size-12 items-center justify-center rounded-xl bg-error/10 text-error">
             <WarningAmberOutlined aria-hidden="true" />
           </div>

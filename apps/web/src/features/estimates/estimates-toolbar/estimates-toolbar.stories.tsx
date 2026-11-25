@@ -13,8 +13,6 @@ const meta = {
   args: {
     value: defaultEstimateFilters,
     members: preview.members,
-    shownCount: 8,
-    totalCount: 10,
     onChange: fn(),
   },
   decorators: [
@@ -53,10 +51,8 @@ export const Filtered: Story = {
       related: "lead",
       includeHidden: true,
     },
-    shownCount: 1,
   },
 };
-export const NoResults: Story = { args: { shownCount: 0 } };
 export const Disabled: Story = { args: { disabled: true } };
 export const SearchAndClear: Story = {
   play: async ({ canvasElement }) => {

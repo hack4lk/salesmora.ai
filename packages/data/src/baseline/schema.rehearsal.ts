@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { createDatabase } from '../database';
@@ -22,6 +22,8 @@ const names = [`baseline_reference_${suffix}_test`, `baseline_candidate_${suffix
 const owner = createDatabase(connection);
 const execute = promisify(execFile);
 const migrationCLI = fileURLToPath(new URL('../migrate.ts', import.meta.url));
+const migrationDirectory = fileURLToPath(new URL('../baseline-migrations', import.meta.url));
+const migrationNames = readdirSync(migrationDirectory).filter(name => name.endsWith('.ts')).sort();
 const runCLI = (name: string, ...args: string[]) => {
   const url = new URL(connection);
   url.pathname = `/${name}`;
@@ -114,8 +116,10 @@ try {
     table.increments('id'); table.string('name'); table.integer('batch'); table.timestamp('migration_time');
   });
   await databases[0]('knex_migrations').insert({ name: '202610110001_historical.ts', batch: 1 });
-  await migrateFreshBaseline(databases[1]);
-  await migrateFreshBaseline(databases[1]);
+  await databases[1].transaction(async trx => {
+    await trx.raw('SET LOCAL search_path TO public, pg_catalog');
+    await trx.migrate.up({ directory: migrationDirectory, name: '202611150001_fresh_baseline.ts', loadExtensions: ['.ts'], schemaName: 'public' });
+  });
   await assert.rejects(migrateFreshBaseline(databases[0]), /legacy or unknown migration ledger/);
   await databases[2].schema.createTable('existing_data', table => table.integer('id'));
   await assert.rejects(migrateFreshBaseline(databases[2]), /requires an empty database/);
@@ -139,10 +143,10 @@ try {
   assert.match((await runCLI(names[2])).stdout, /Migrations complete/);
   assert.match((await runCLI(names[2], '--test')).stdout, /Migrations complete \(test\)/);
   await assert.rejects(runCLI(names[2], '--test', '--rollback'), /forward-only/);
-  assert.equal((await databases[2]('knex_migrations')).length, 1);
+  assert.deepEqual((await databases[2]('knex_migrations').orderBy('name').pluck('name')), migrationNames);
   const simultaneous = await Promise.all([migrateFreshBaseline(databases[3]), migrateFreshBaseline(databases[3])]);
-  assert.deepEqual(simultaneous.map(result => result[1].length).sort(), [0, 1]);
-  assert.equal((await databases[3]('knex_migrations')).length, 1);
+  assert.deepEqual(simultaneous.map(result => result[1].length).sort((a, b) => a - b), [0, migrationNames.length]);
+  assert.deepEqual((await databases[3]('knex_migrations').orderBy('name').pluck('name')), migrationNames);
   const roles = await databases[1].raw<{ rows: { rolname: string; current_user: string }[] }>(
     'SELECT rolname, current_user FROM pg_roles',
   );
@@ -151,7 +155,7 @@ try {
   assert.match((await runCLI(names[3])).stdout, /Migrations complete/);
   await assert.rejects(runCLI(names[0]), /legacy or unknown migration ledger/);
   await assert.rejects(runCLI(names[3], '--rollback'), /forward-only/);
-  assert.equal((await databases[3]('knex_migrations')).length, 1);
+  assert.deepEqual((await databases[3]('knex_migrations').orderBy('name').pluck('name')), migrationNames);
   const queries = [
     `SELECT table_name, column_name, data_type, udt_schema, udt_name, is_nullable, column_default,
       character_maximum_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision,

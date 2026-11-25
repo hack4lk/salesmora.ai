@@ -122,6 +122,7 @@ export function CustomerTable({
   ];
   return (
     <DataTable
+      constrainHeight={false}
       caption={c.caption}
       columns={columns}
       rows={rows}

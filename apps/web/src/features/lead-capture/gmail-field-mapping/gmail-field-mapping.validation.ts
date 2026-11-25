@@ -1,6 +1,6 @@
 import { leadSchema } from '@salesmora/contracts';
 import { gmailFieldMappingData as copy } from './gmail-field-mapping.data';
-export type GmailMappingTarget = { id: string; key: 'name' | 'email' | 'phone' | 'service' | 'details' | 'address' | 'custom'; label: string; required?: boolean };
+export type GmailMappingTarget = { id: string; key: 'name' | 'email' | 'phone' | 'service' | 'details' | 'address' | 'postalCode' | 'custom'; label: string; required?: boolean };
 export type GmailMappingSample = { id: string; version: number; subject: string; body: string; retrievalId?: string };
 export type GmailFieldMappingRow = {
   id: string; fieldId: string; included: boolean; source: 'label' | 'subject' | 'body'; label: string;

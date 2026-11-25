@@ -61,7 +61,7 @@ try {
     address: '', details: 'PRIVATE_NOTES', notes: 'PRIVATE_NOTES', source: 'website', stage: 'new',
   });
   await seedLead();
-  await db.transaction(trx => createJob(trx, identity, enabled, {
+  await db.transaction(trx => createJob(trx, identity, enabled, {postalCode:'10001',
     workspaceId, submissionId: randomUUID(), customerId, title: 'Private job label', primaryOwnerId: owner, service: 'Repair',
   }));
   const leads = teamReportExportInputSchema.parse({ dataset: 'evidence', query: {

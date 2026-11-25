@@ -82,3 +82,15 @@ export const DocumentLinks: Story = {
     await expect(args.onChange).not.toHaveBeenCalled();
   },
 };
+export const DocumentLinksInNewTabs: Story = {
+  args: { openDocumentsInNewTab: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    for (const name of [copy.terms, copy.privacy]) {
+      const link = canvas.getByRole('link', { name: `${name} ${copy.newTab}` });
+      await expect(link).toHaveAttribute('target', '_blank');
+      await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    }
+    await expect(canvas.getByRole('checkbox')).not.toBeChecked();
+  },
+};

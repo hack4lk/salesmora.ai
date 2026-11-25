@@ -14,9 +14,6 @@ export const estimateLinkedRecordData = {
   openLabel: (label: string, number: string) => `${label} · ${number}`,
   customer: "Customer",
   noCustomer: "No customer linked yet",
-  contact: "Lead contact",
-  noCustomerHint:
-    "The estimate uses the lead's contact details. Customer linking or creation is handled during conversion to a job.",
   cannotOpen: "The linked record cannot be opened with your current access.",
   existingTitle: "This lead already has an open estimate",
   existingHint: "Review the existing Draft, Sent or Published estimate before creating another. You can still create a separate estimate.",

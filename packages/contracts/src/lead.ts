@@ -1,10 +1,11 @@
 import { z } from 'zod';
+import { usPostalCodeSchema } from './postal-code';
 const optionalText = (max: number) => z.string().trim().max(max);
 export const leadSchema = z.object({
   name: z.string().trim().min(1).max(200),
   email: z.string().trim().max(254).pipe(z.union([z.literal(''), z.email()])).transform(value => value.toLowerCase()),
   phone: optionalText(100), service: z.string().trim().min(1).max(200),
-  address: optionalText(500), details: optionalText(10000), notes: optionalText(10000),
+  address: optionalText(500), postalCode: z.union([z.literal(''), usPostalCodeSchema]).optional(), countryCode: z.literal('US').optional(), details: optionalText(10000), notes: optionalText(10000),
   source: z.enum(['website', 'referral', 'phone', 'gmail', 'other']),
   stage: z.enum(['new', 'contacted', 'estimate-sent', 'won', 'lost']),
   ownerId: z.string().max(200),

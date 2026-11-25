@@ -31,3 +31,9 @@ it('accepts bounded Week queries and rejects impossible or mismatched filters', 
     expect(calendarQuerySchema.safeParse({ workspaceId, ...patch }).success).toBe(false);
   }
 });
+it('allows optional recorded work only with a date while preserving omitted legacy intent', () => {
+  const workTime = { startTime: '09:00', durationMinutes: 90 };
+  expect(calendarScheduleSchema.parse({ ...input.schedule, workTime }).workTime).toEqual(workTime);
+  expect(calendarScheduleSchema.parse(input.schedule)).not.toHaveProperty('workTime');
+  expect(calendarScheduleSchema.safeParse({ scheduledDate: null, arrivalWindow: null, workTime }).success).toBe(false);
+});

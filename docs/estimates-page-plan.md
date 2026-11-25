@@ -377,7 +377,7 @@ Reuse as is: `DataTable`, `Pagination`, `FilterBar`, `ConfirmDialog` (typed conf
 #### Slice F, component 6: archive/restore dialog (approved)
 
 - Implemented in `estimate-archive-dialog/` with colocated copy/fictional fixtures, presentation review/request helpers, 63 tests and 69 stories. Reuses the shared non-destructive `ConfirmDialog`, estimate status/Archived badges, feedback and existing row-action eligibility. The neutral confirmation follows the existing Customers archive/restore review; this reversible action is not presented as permanent deletion.
-- Archive is limited to unarchived Declined, Expired, Superseded and Void estimates. Restore removes the separate Archived flag without changing status or revision. The shared selector permits restoring any authorized archived record; the dialog does not introduce a new status restriction. Both modes require read plus the host-scoped archive grant (Owner/Admin/Office), not update/send/decision/void/delete permission. Field has no archive/restore grant.
+- Archive is available for unarchived Accepted, Declined, Expired, Superseded and Void estimates. Restore removes the separate Archived flag without changing status or revision. The shared selector permits restoring any authorized archived record; the dialog does not introduce a new status restriction. Both modes require read plus the host-scoped archive grant (Owner/Admin/Office), not update/send/decision/void/delete permission. Field has no archive/restore grant.
 - Review identifies the estimate number, revision, name, prepared-for recipient, current status and separate Archived flag. Archiving retains the record, snapshots, decisions and staff history and explains how to find it using Include archived and superseded. Restoring does not promise default-list visibility: filters and superseded/revision rules still apply. It does not renew expired, withdrawn or replaced customer links, send anything or change a linked lead/job/payment.
 - The host supplies an explicit review bound to estimate ID, expected version and mode. Confirmation returns only `{ estimateId, expectedVersion, mode }`. The action never flips automatically when the archived flag changes; an Archive review cannot silently become Restore or vice versa. A resolved callback never changes the record, displays saved success or closes the review without authoritative host replacement.
 - Missing permissions, read loss, invalid saved metadata, wrong record/version/action, archive on an ineligible or already-archived record and restore on an unarchived record are explicit blockers. Read loss hides estimate/customer context, supplied private error text, effects and reload controls.
@@ -1211,3 +1211,24 @@ App-recorded model-history references contain only state/mode and Estimate ident
 ## Staging email rollout — October 28, 2026
 
 The user approved and requested enabling Estimate email on staging. Send/Resend, protected Copy Link and signed-out customer paper are now active behind the explicit staging switch on matching successful web/worker deployments. A real Resend test delivery, idempotent request replay and customer-link browser/API checks passed with fictional data; local Mailpit flows and permission/confirmation checks remain. [Estimate staging email](estimate-staging-email.md) supersedes earlier locally gated descriptions for staging. Production activation and bounce/complaint webhook processing remain separate.
+
+### Frozen logo read contract
+
+The sharing review used by the Delivery and customer link card validates staff paper separately from draft and stored snapshot paper. Saved paper uses the authorized `/api/estimates/{estimateId}/logo` URL, bound to the same estimate ID. Draft and frozen-storage content retain the settings-logo path schema. This keeps accepted estimates with a captured logo readable without changing their snapshots or hashes. Contract tests, the AcceptedWithLogo connected story, and the acceptance browser regression cover this boundary.
+
+
+### Accepted estimate archive access — November 18, 2026
+
+Accepted estimates now offer Archive estimate from the shared actions menu, including the detail page and list. The existing archive grant and exact-version confirmation apply. Archive hides the record from default lists and preserves Accepted status, decisions, snapshots and linked Jobs; Restore removes the archive flag. Permanent deletion remains limited to eligible never-shared drafts. UI selectors, archive reviews, server transactions and assistant preparation use the same expanded eligibility. Browser, component, contract and database regressions cover accepted archive/restore and preserved approval history.
+
+### New-estimate source tabs — November 19, 2026
+
+The canonical EstimateParentPicker uses the established MUI Tabs and Tab components for Leads and Jobs, matching the application tab styling. The related search/results panel is labelled by the selected tab and supports arrow-key focus with explicit keyboard activation. Source visibility continues to follow the existing Lead/Job read permissions.
+
+Create an estimate uses compact divided rows for the Lead/Job picker. Record number, name and service sit inline when space permits, with status aligned to the right. Narrow screens wrap the record details as needed. Existing tabs, search, record selection and permission scope are reused.
+
+The Define your estimate linked-record summary keeps Customer and its value on one row. It omits the redundant Lead contact row and conversion explanation. The items editor no longer shows the static unit/line/subtotal maximums paragraph; existing validation and contextual errors continue to enforce those limits.
+
+The terms card omits the static valid-through timezone/draft explanation. Date validation errors still appear beside the field when applicable.
+
+Review histories use compact divided lists. Revision rows group revision, status, current marker, total and Open action together. Estimate history groups event/time and actor/source inline, with compact before/after changes and decision metadata. Notes, reasons, permissions, chronological ordering and load-more behavior remain available in the canonical panels.

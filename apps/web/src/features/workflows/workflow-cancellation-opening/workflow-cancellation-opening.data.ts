@@ -1,0 +1,17 @@
+export const cancellationOpeningData = {
+  title: 'Fill an opening', back: 'Back to workflows', available: 'Opening available', filled: 'This opening has been filled.',
+  expired: 'This opening is no longer available.', paused: 'This workflow is paused. Resume it before booking a replacement.',
+  denied: 'You no longer have access to this opening.', loading: 'Checking this opening…', error: 'The opening could not be loaded.',
+  refresh: 'Refresh suggestions', retry: 'Try again', suggestions: 'Suggested replacements',
+  help: 'Unscheduled jobs that fit this opening. Nothing is booked until you confirm.',
+  crew: 'Available people', service: 'Service', empty: 'No matching jobs fit this opening right now.',
+  emptyHelp: 'You can refresh after updating working hours, qualifications or unscheduled jobs.',
+  readOnly: 'You can review suggestions, but you don’t have permission to book them.',
+  limit: 'Showing up to 5 suggestions. Availability is checked again when you book.',
+  choose: 'Review booking', review: 'Review replacement', confirm: 'Confirm booking',
+  reviewHelp: 'Review the job, people and time before booking.', assumption: 'Confirm that this job can be completed in the planned duration.',
+  stale: 'This suggestion changed. Close this review and refresh suggestions.',
+  job: 'Job', customer: 'Customer', people: 'Assigned people', planned: 'Planned work',
+  preserved: 'Existing assignments kept', qualified: 'Qualified worker selected',
+  failed: 'Booking could not be confirmed. Review the opening and try again.',
+} as const;

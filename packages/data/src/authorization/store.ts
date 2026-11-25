@@ -19,6 +19,7 @@ export class AuthorizationConflictError extends Error {
 export interface WorkspaceIdentity { userId: string; workspaceId: string }
 
 const transactionAuthorities = new WeakMap<Knex, AuthorizationContext>();
+const mutationAuthorities = new WeakSet<Knex>();
 const requestAuthorities = new AsyncLocalStorage<{ db: Knex; context: AuthorizationContext }>();
 
 /** Server-authenticated, request-local authority. Never wrap confirmation endpoints in this scope. */
@@ -38,10 +39,12 @@ function isTransaction(db: Knex): db is Knex.Transaction {
 
 async function scopedAuthority<T>(
   trx: Knex.Transaction, context: AuthorizationContext, run: (trx: Knex.Transaction, context: AuthorizationContext) => Promise<T>,
+  mutationLocked = false,
 ) {
   transactionAuthorities.set(trx, context);
+  if (mutationLocked) mutationAuthorities.add(trx);
   try { return await run(trx, context); }
-  finally { transactionAuthorities.delete(trx); }
+  finally { transactionAuthorities.delete(trx); mutationAuthorities.delete(trx); }
 }
 
 async function loadContext(trx: Knex.Transaction, identity: WorkspaceIdentity, enabledPermissions: readonly PermissionId[]): Promise<AuthorizationContext> {
@@ -86,7 +89,7 @@ export async function withWorkspaceAuthorization<T>(db: Knex, identity: Workspac
     const context = { ...held, enabledPermissions: held.enabledPermissions.filter(permission => enabledPermissions.includes(permission)) };
     // Keep write savepoints: a caller may catch a domain/SQL failure and return clarification.
     if (write || context.enabledPermissions.length !== held.enabledPermissions.length)
-      return db.transaction(trx => scopedAuthority(trx, context, run));
+      return db.transaction(trx => scopedAuthority(trx, context, run, mutationAuthorities.has(db)));
     if (!isTransaction(db)) throw new Error('Authorization scope requires a live transaction.');
     return run(db, context);
   }
@@ -100,9 +103,32 @@ export async function withWorkspaceAuthorization<T>(db: Knex, identity: Workspac
     const context = await loadContext(trx, identity, enabledPermissions);
     if (options?.reuseNestedAuthority) {
       if (!write) throw new Error('Nested authorization reuse requires an exclusive workspace lock.');
-      return scopedAuthority(trx, context, run);
+      return scopedAuthority(trx, context, run, true);
     }
     return run(trx, context);
+  });
+}
+/** A write that must reauthorize under an exclusive lock. A page/read request snapshot
+ * is not mutation authority; only a proven live mutation scope may be reused. */
+export async function withCurrentWorkspaceMutation<T>(db: Knex, identity: WorkspaceIdentity, enabled: readonly PermissionId[],
+  run: (trx: Knex.Transaction, context: AuthorizationContext) => Promise<T>): Promise<T> {
+  const held = transactionAuthorities.get(db);
+  if (held && (held.userId !== identity.userId || held.workspaceId !== identity.workspaceId)) throw new AuthorizationAccessError();
+  if (held && mutationAuthorities.has(db)) return withWorkspaceAuthorization(db, identity, enabled, true, run);
+  return db.transaction(async trx => {
+    await lockedWorkspace(trx, identity.workspaceId, true);
+    const context = await loadContext(trx, identity, enabled);
+    return scopedAuthority(trx, context, run, true);
+  });
+}
+/** Recipient delivery inside an already-protected workspace transaction needs its own current
+ * user policy, rather than reusing the actor's request-local authority. The parent holds the workspace lock. */
+export async function withWorkspaceRecipientAuthorization<T>(trx: Knex.Transaction, actor: AuthorizationContext, userId: string,
+  run: (nested: Knex.Transaction, recipient: AuthorizationContext) => Promise<T>): Promise<T> {
+  if (!isTransaction(trx)) throw new AuthorizationAccessError();
+  return trx.transaction(async nested => {
+    const recipient = await loadContext(nested, { workspaceId: actor.workspaceId, userId }, actor.enabledPermissions);
+    return scopedAuthority(nested, recipient, run);
   });
 }
 export async function loadWorkspaceAuthorization(db: Knex, identity: WorkspaceIdentity, enabledPermissions: readonly PermissionId[]) {
@@ -117,6 +143,10 @@ export async function initializeWorkspacePolicy(trx: Knex.Transaction, identity:
   const owner = await trx('workspaceMemberships').where({ ...identity, role: 'owner' }).first('userId');
   if (!workspace || !owner || await trx('workspacePolicies').where({ workspaceId: identity.workspaceId }).first()) throw new AuthorizationAccessError();
   const result = validateWorkspacePolicy({ workspaceId: identity.workspaceId, revision: 0, grants: [...defaults,
+    ...(["owner","admin"] as const).map(role=>({role,permission:"customers.email.send" as const,scope:"enabled" as const})),
+    ...(["owner", "admin", "office"] as const).map(role => ({ role, permission: "workflows.read" as const, scope: "enabled" as const })),
+    ...(["owner", "admin"] as const).map(role => ({ role, permission: "workflows.publish" as const, scope: "enabled" as const })),
+    ...(["owner", "admin"] as const).map(role => ({ role, permission: "workflows.manage" as const, scope: "enabled" as const })),
     {role: "office", permission: "leadCapture.archive", scope: "workspace"},
     {role: "field", permission: "jobs.schedule.update", scope: "assigned"},
     ...(["owner", "admin", "office"] as const).map(role => ({role, permission: "workorders.schedule.update" as const, scope: "workspace" as const})),

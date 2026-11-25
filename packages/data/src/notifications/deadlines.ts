@@ -15,8 +15,9 @@ export function deadlineNotificationQuery(trx: Knex.Transaction, context: Author
     this.on('n.jobId', 'j.id').andOn('n.workspaceId', 'j.workspaceId');
   }).where('n.userId', context.userId);
 }
-export async function readDeadlineNotifications(trx: Knex.Transaction, context: AuthorizationContext, take: number) {
+export async function readDeadlineNotifications(trx: Knex.Transaction, context: AuthorizationContext, take: number, unreadOnly = false) {
   const query = deadlineNotificationQuery(trx, context);
+  if (unreadOnly) query.whereNull('n.readAt');
   const unread = Number((await query.clone().whereNull('n.readAt').count({ count: 'n.id' }).first())?.count ?? 0);
   const rows = await query.select('n.id', 'n.event', 'n.jobId', 'j.jobNumber', 'j.title', 'n.timezone', 'n.createdAt', 'n.readAt', trx.raw(noticeDates))
     .orderBy('n.createdAt', 'desc').orderBy('n.id', 'desc').limit(take);

@@ -1,5 +1,6 @@
 import { businessTypes, serviceCatalog } from '@salesmora/contracts';
 export const settingsOverviewData = {
+  servicesTitle: 'Services', servicesDescription: 'Manage the service types used across jobs, intake and workflows.', viewServices: 'Service settings',
   jobNotificationsTitle: 'Deadlines & notifications', jobNotificationsDescription: 'Configure Job deadline defaults, reminder schedules and workspace email events.', viewJobNotifications: 'Job notification settings',
   accountTitle: 'Account', accountDescription: 'View your personal account details and workspace role.', viewAccount: 'View account',
   documentTitle: 'Settings | SalesMora.ai',

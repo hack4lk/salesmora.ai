@@ -76,7 +76,7 @@ export const EmptyDaySchedule: Story = { play: async ({ canvasElement }) => {
 export const PeekToReschedule: Story = { play: async ({ canvasElement }) => {
   const c = within(canvasElement), body = within(canvasElement.ownerDocument.body), grid = within(c.getByRole('region', { name: calendarWeekGridData.label }));
   const title = calendarPageVisits[0].title;
-  await userEvent.click(grid.getByRole('button', { name: calendarEventCardData.toggleVisit(title) }));
+  await userEvent.click(grid.getByRole('button', { name: new RegExp(calendarEventCardData.toggleVisit(title)) }));
   await userEvent.click(grid.getByRole('button', { name: calendarEventCardData.openVisit(title) }));
   await userEvent.click(within(body.getByRole('dialog')).getByRole('button', { name: calendarVisitPeekDrawerData.reschedule }));
   await waitFor(() => expect(body.getAllByRole('dialog')).toHaveLength(1));

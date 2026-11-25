@@ -1,0 +1,15 @@
+.skip {
+  position: absolute;
+  z-index: 5;
+  top: -100px;
+  left: 16px;
+  padding: 12px;
+  background: #fff;
+  color: #23384d;
+}
+
+.skip:focus {
+  top: 12px;
+  outline: 3px solid #3b6fa5;
+  outline-offset: 4px;
+}

@@ -1,23 +1,27 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { arrivalWindows, jobDateSchema } from '@salesmora/contracts';
+import { calendarWorkTimeSchema, type CalendarWorkTime, arrivalWindows, jobDateSchema } from '@salesmora/contracts';
 import { JobDialog } from '../../jobs/job-dialog/job-dialog';
 import { jobButton, jobInput, jobLabel } from '../../jobs/job-ui';
 import { JobStatusBadge } from '../../jobs/job-status-badge/job-status-badge';
 import { WorkOrderStatusBadge } from '../../work-orders/work-order-status-badge/work-order-status-badge';
 import type { CalendarVisitPeek } from '../calendar-visit-peek-drawer/calendar-visit-peek-drawer';
 import { calendarEventCardData as eventCopy } from '../calendar-event-card/calendar-event-card.data';
+import { calendarWorkTimeSummary } from '@salesmora/domain';
+import { CalendarWorkTimeFields, type CalendarWorkTimeDraft } from '../calendar-work-time-fields/calendar-work-time-fields';
 import { calendarScheduleDialogData as copy } from './calendar-schedule-dialog.data';
 
 /** Presentation snapshot only; live commands must reauthorize every affected record and check its version. */
-export type CalendarScheduleTarget = CalendarVisitPeek & { revision: string };
-export type CalendarScheduleDraft = { visitId: string; revision: string; scheduledDate: string | null; arrivalWindow: typeof arrivalWindows[number] | null };
+export type CalendarScheduleTarget = CalendarVisitPeek & { revision: string; workTime?: CalendarWorkTime | null; workTimezone?: string | null };
+export type CalendarScheduleDraft = { visitId: string; revision: string; scheduledDate: string | null; arrivalWindow: typeof arrivalWindows[number] | null; workTime?: CalendarWorkTimeDraft | null };
 export type CalendarScheduleDialogProps = {
   open: boolean;
   targets: readonly CalendarScheduleTarget[];
   initialVisitId?: string;
   initialDate?: string;
+  /** Hosts opt into the canonical planned-work fields supported by the live Calendar boundary. */
+  workTimeEnabled?: boolean;
   today: string;
   /** Already-scoped server advisories, valid only for this exact candidate schedule. */
   advisories?: CalendarScheduleDraft & { messages: readonly string[] };
@@ -40,24 +44,26 @@ function ScheduleSession(props: CalendarScheduleDialogProps) {
 }
 function ScheduleForm({ visit, onSelect, ...props }: CalendarScheduleDialogProps & { visit: CalendarScheduleTarget; onSelect: (id: string) => void }) {
   const [date, setDate] = useState(props.initialDate ?? visit.scheduledDate ?? ''), [window, setWindow] = useState<typeof arrivalWindows[number] | ''>(visit.arrivalWindow ?? '');
+  const [workTime, setWorkTime] = useState<CalendarWorkTimeDraft | null>(visit.workTime ?? null);
   const [step, setStep] = useState<'edit' | 'review' | 'clear'>('edit');
   const review = useRef<HTMLDListElement>(null);
   useEffect(() => { if (step !== 'edit') review.current?.focus(); }, [step]);
   const active = visit.records.filter(record => !['completed', 'canceled'].includes(record.status));
   const allowed = visit.canReschedule && active.length > 0;
-  const draft: CalendarScheduleDraft = { visitId: visit.id, revision: visit.revision, scheduledDate: step === 'clear' ? null : date, arrivalWindow: step === 'clear' ? null : window || null };
+  const draft: CalendarScheduleDraft = { visitId: visit.id, revision: visit.revision, scheduledDate: step === 'clear' ? null : date, arrivalWindow: step === 'clear' ? null : window || null, ...(props.workTimeEnabled ? { workTime: step === 'clear' ? null : workTime } : {}) };
   const { onDraftChange } = props;
-  useEffect(() => { onDraftChange?.({ visitId: visit.id, revision: visit.revision, scheduledDate: step === 'clear' ? null : date, arrivalWindow: step === 'clear' ? null : window || null }); }, [onDraftChange, visit.id, visit.revision, date, window, step]);
-  const changed = draft.scheduledDate !== visit.scheduledDate || draft.arrivalWindow !== visit.arrivalWindow;
-  const valid = step === 'clear' || jobDateSchema.safeParse(date).success;
+  useEffect(() => { onDraftChange?.({ visitId: visit.id, revision: visit.revision, scheduledDate: step === 'clear' ? null : date, arrivalWindow: step === 'clear' ? null : window || null, ...(props.workTimeEnabled ? { workTime: step === 'clear' ? null : workTime } : {}) }); }, [onDraftChange, visit.id, visit.revision, date, window, step, props.workTimeEnabled, workTime]);
+  const changed = draft.scheduledDate !== visit.scheduledDate || draft.arrivalWindow !== visit.arrivalWindow || (props.workTimeEnabled && JSON.stringify(draft.workTime ?? null) !== JSON.stringify(visit.workTime ?? null));
+  const valid = step === 'clear' || jobDateSchema.safeParse(date).success && (!props.workTimeEnabled || workTime === null || calendarWorkTimeSchema.safeParse(workTime).success);
   const warnings = step === 'clear' ? [] : [
     ...(date && date < props.today ? [copy.past] : []),
     ...(date && visit.completionDeadline && date > visit.completionDeadline.date ? [copy.after] : []),
-    ...(props.advisories && props.advisories.visitId === draft.visitId && props.advisories.revision === draft.revision && props.advisories.scheduledDate === draft.scheduledDate && props.advisories.arrivalWindow === draft.arrivalWindow ? props.advisories.messages : []),
+    ...(props.advisories && props.advisories.visitId === draft.visitId && props.advisories.revision === draft.revision && props.advisories.scheduledDate === draft.scheduledDate && props.advisories.arrivalWindow === draft.arrivalWindow && JSON.stringify(props.advisories.workTime ?? null) === JSON.stringify(draft.workTime ?? null) ? props.advisories.messages : []),
   ];
   const people = [...new Map(visit.crew.map(person => [person.id, person])).values()];
+  const work = (value: unknown) => { const summary = calendarWorkTimeSummary(value); return summary ? `${summary.range} · ${summary.duration}` : copy.noWorkTime; };
   const schedule = (day: string | null, arrival: string | null) => day ? `${eventCopy.date(day)} · ${arrival ? eventCopy.window(arrival) : eventCopy.noWindow}` : copy.noDate;
-  return <JobDialog open={props.open} title={step === 'clear' ? copy.clearTitle : visit.scheduledDate ? copy.edit : copy.title} description={copy.description}
+  return <JobDialog open={props.open} title={step === 'clear' ? copy.clearTitle : visit.scheduledDate ? copy.edit : copy.title} description={props.workTimeEnabled ? copy.workTimeDescription : copy.description}
     confirmLabel={step === 'edit' ? copy.review : step === 'clear' ? copy.confirmClear : copy.confirm}
     confirmDisabled={!allowed || !valid || !changed} pending={props.pending} error={props.error || (props.conflict ? copy.conflict : undefined)} conflict={props.conflict} onReload={props.onReload}
     closeOnSubmit={step !== 'edit'} onClose={props.onClose}
@@ -71,12 +77,13 @@ function ScheduleForm({ visit, onSelect, ...props }: CalendarScheduleDialogProps
       <label className={jobLabel}>{copy.window}<select className={jobInput} disabled={!allowed} value={window} onChange={e => { const value = arrivalWindows.find(window => window === e.target.value) ?? ''; setWindow(value); }}>
         <option value="">{copy.none}</option>{arrivalWindows.map(window => <option key={window} value={window}>{eventCopy.window(window)}</option>)}
       </select></label>
+      {props.workTimeEnabled && <CalendarWorkTimeFields value={workTime} onChange={setWorkTime} disabled={!allowed || props.pending}/>}
     </> : <>
       <dl ref={review} tabIndex={-1} aria-label={copy.review} className="m-0 grid gap-3 rounded-xl border border-line bg-canvas p-4 text-sm focus-visible:focus-ring">
-        <div><dt className="font-semibold text-muted">{copy.from}</dt><dd className="m-0 mt-1">{schedule(visit.scheduledDate, visit.arrivalWindow)}</dd></div>
-        <div><dt className="font-semibold text-muted">{copy.to}</dt><dd className="m-0 mt-1 font-semibold">{schedule(draft.scheduledDate, draft.arrivalWindow)}</dd></div>
+        <div><dt className="font-semibold text-muted">{copy.from}</dt><dd className="m-0 mt-1">{schedule(visit.scheduledDate, visit.arrivalWindow)}{props.workTimeEnabled && <span className="mt-1 block text-muted">{copy.workTime}: {work(visit.workTime)}{visit.workTimezone && visit.workTimezone !== visit.timezone ? ` · ${visit.workTimezone}` : ''}</span>}</dd></div>
+        <div><dt className="font-semibold text-muted">{copy.to}</dt><dd className="m-0 mt-1 font-semibold">{schedule(draft.scheduledDate, draft.arrivalWindow)}{props.workTimeEnabled && <span className="mt-1 block">{copy.workTime}: {work(draft.workTime)}</span>}</dd></div>
       </dl>
-      {step === 'clear' && <p className="m-0 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">{copy.clearHelp}</p>}
+      {step === 'clear' && <p className="m-0 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">{props.workTimeEnabled ? copy.workTimeClearHelp : copy.clearHelp}</p>}
       <button type="button" className={jobButton} onClick={() => setStep('edit')}>{copy.back}</button>
     </>}
     <p className="m-0 text-xs text-muted">{copy.timezone}: {visit.timezone}</p>

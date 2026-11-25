@@ -3,7 +3,7 @@ import { apiReadOptions, invalidateWorkspaceResources } from '../api/api-read-op
 import { apiQueryKeys, type ApiQueryScope } from '../api/api-query';
 import { apiRequest, type ApiRequestOptions } from '../api/api-request';
 
-export type SettingsResource = 'lead-settings' | 'job-notification-settings' | 'estimate-settings' |
+export type SettingsResource = 'service-settings' | 'lead-settings' | 'job-notification-settings' | 'estimate-settings' |
   'work-order-settings' | 'notification-preferences' | 'permissions' | 'ai-usage';
 
 export function settingsReadOptions<T>(scope: ApiQueryScope, resource: SettingsResource, path: string, parse: (raw: unknown) => T, failureMessage: string) {
@@ -20,6 +20,7 @@ export function settingsReadOptions<T>(scope: ApiQueryScope, resource: SettingsR
 }
 
 const dependents: Record<SettingsResource, readonly string[]> = {
+  'service-settings': ['service-choices','jobs','job-creation-deadline','leads','intake','capture','workflows','workflow-booking-options','estimates','calendar','reports'],
   'lead-settings': ['leads', 'intake', 'home'],
   'job-notification-settings': ['jobs', 'calendar', 'home'],
   'estimate-settings': ['estimates'],

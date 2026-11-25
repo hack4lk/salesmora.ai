@@ -1,3 +1,4 @@
+import {serviceChoices,resolveWorkspaceService,ServiceSettingsInvalid} from '../services/store';
 import { notifyJobCreated, notifyJobStatusChanged, notifyJobAssignmentChanged, notifyJobDeadlineChanged } from '../notifications/jobs';
 import { resolveReviewedJobDeadline } from "./deadline";
 import { notifyVisitChange } from "../notifications/visits";
@@ -5,7 +6,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Knex } from "knex";
 import {
   createJobSchema, defaultDeadlineRuleSchema, jobMutationSchema, jobQuerySchema, jobIdSchema,
-  type JobMember, type JobView, type JobListResult, type JobDetailResult, type JobActivityRecord, type AuthorizationContext, type CreateJobInput, type JobMutation, type JobQuery, type JobRecord, type PermissionId,
+  type WorkspaceServiceChoice, type JobMember, type JobView, type JobListResult, type JobDetailResult, type JobActivityRecord, type AuthorizationContext, type CreateJobInput, type JobMutation, type JobQuery, type JobRecord, type PermissionId,
 } from "@salesmora/contracts";
 import { authorize, resolveAuthorizedCollectionScope, isClosedJob, scheduledJobStatus, validateJobTransition } from "@salesmora/domain";
 import { AuthorizationAccessError, withWorkspaceAuthorization, type WorkspaceIdentity } from "../authorization/store";
@@ -17,8 +18,8 @@ export class JobConflictError extends Error {
   constructor(message = "This job changed. Reload its current details before trying again.") { super(message); }
 }
 export class JobValidationError extends Error {}
-type JobRow = Omit<JobRecord,"number"|"createdAt"|"updatedAt"> & {workspaceId:string;jobNumber:number;createdAt:Date;updatedAt:Date};
-type Source = "ui" | "assistant-confirmed";
+type JobRow = Omit<JobRecord,"number"|"createdAt"|"updatedAt"> & {workspaceId:string;jobNumber:number;createdAt:Date;updatedAt:Date;workTime?:JobView["workTime"];workTimezone?:string|null};
+type Source = "ui" | "assistant-confirmed" | "system";
 function resource(row: JobRow) {
   return {kind:"job" as const,id:row.id,workspaceId:row.workspaceId,ownerId:row.primaryOwnerId,teamUserIds:row.teamUserIds};
 }
@@ -31,15 +32,21 @@ function scoped(trx:Knex.Transaction, context:AuthorizationContext) {
 }
 const teamSelect = `(SELECT coalesce(array_agg(t."userId" ORDER BY t."userId"), ARRAY[]::text[]) FROM "jobTeamMembers" t WHERE t."workspaceId"=j."workspaceId" AND t."jobId"=j.id) AS "teamUserIds"`;
 const dateSelect = `to_char(j."scheduledDate", 'YYYY-MM-DD') AS "scheduledDate", to_char(j."completionDeadline", 'YYYY-MM-DD') AS "completionDeadline"`;
-async function record(trx:Knex.Transaction,context:AuthorizationContext,id:string,lock=false):Promise<JobRow> {
+async function record(trx:Knex.Transaction,context:AuthorizationContext,id:string,lock=false,includeWorkTime=false):Promise<JobRow> {
   const q=scoped(trx,context).where("j.id",id).select("j.*",trx.raw(teamSelect),trx.raw(dateSelect));
+  if(includeWorkTime) q.joinRaw(`LEFT JOIN LATERAL (
+    SELECT v."workTime",v."workTimezone" FROM "calendarVisitRecords" r
+    JOIN "calendarVisits" v ON v."workspaceId"=r."workspaceId" AND v.id=r."visitId"
+    WHERE r."workspaceId"=j."workspaceId" AND r."jobId"=j.id AND r."endedAt" IS NULL
+      AND v."scheduledDate"=j."scheduledDate"
+  ) planned ON true`).select('planned.workTime','planned.workTimezone');
   const row=await (lock?q.forUpdate("j"):q).first();
   if(!row) throw new AuthorizationAccessError();
   return row as JobRow;
 }
 function dto(row:JobRow):JobRecord {
   return {id:row.id,number:`J-${String(row.jobNumber).padStart(4,"0")}`,customerId:row.customerId,customerName:row.customerName,sourceLeadId:row.sourceLeadId,
-    title:row.title,service:row.service,location:row.location,description:row.description,status:row.status,
+    title:row.title,service:row.service,serviceId:row.serviceId??null,location:row.location,postalCode:row.postalCode??null,countryCode:row.countryCode??null,description:row.description,status:row.status,
     primaryOwnerId:row.primaryOwnerId,teamUserIds:row.teamUserIds,scheduledDate:row.scheduledDate,arrivalWindow:row.arrivalWindow,
     completionDeadline:row.completionDeadline,waitingReason:row.waitingReason,version:row.version,createdAt:row.createdAt.toISOString(),updatedAt:row.updatedAt.toISOString()};
 }
@@ -125,6 +132,7 @@ export async function createJobInTransaction(
     sourceLeadNumber = `LD-${String(lead.leadNumber).padStart(4, "0")}`;
   }
 
+  try { input.service=await resolveWorkspaceService(trx,context.workspaceId,input.service); } catch(error) { if(error instanceof ServiceSettingsInvalid)throw new JobValidationError(error.message);throw error; }
   await validTeam(trx, context, input.primaryOwnerId, input.teamUserIds);
   const { completionDeadline, createdAt } = await resolveReviewedJobDeadline(trx, context, input);
   // The reviewed workspace rule is a creation policy; manual overrides require scheduling authority above.
@@ -186,9 +194,9 @@ async function membersFor(trx: Knex.Transaction, context: AuthorizationContext, 
   if (ids) query.whereIn("u.id", ids);
   return query.select("u.id", "u.name", "m.role").orderBy("u.name").orderBy("u.id");
 }
-function view(row: JobRow, context: AuthorizationContext, members: JobMember[]): JobView {
+function view(row: JobRow, context: AuthorizationContext, members: JobMember[], services:WorkspaceServiceChoice[]=[]): JobView {
   const allowed = (permission: PermissionId) => authorize(context, { permission, resource: resource(row) }).allowed;
-  return { ...dto(row), ownerName: members.find(m => m.id === row.primaryOwnerId)?.name ?? (row.primaryOwnerId ? "Former teammate" : "Unassigned"),
+  return { ...dto(row), ...(row.workTime!==undefined?{workTime:row.workTime,workTimezone:row.workTimezone??null}:{}), service:services.find(s=>s.id===row.serviceId)?.name??row.service, ownerName: members.find(m => m.id === row.primaryOwnerId)?.name ?? (row.primaryOwnerId ? "Former teammate" : "Unassigned"),
     teamNames: row.teamUserIds.map(id => members.find(m => m.id === id)?.name ?? "Former teammate"), nextStep: "",
     capabilities: { status: allowed("jobs.status.update"), complete: allowed("jobs.complete"), cancel: allowed("jobs.cancel"),
       reopen: allowed("jobs.reopen"), schedule: allowed("jobs.schedule.update"), assign: allowed("jobs.assign"), note: allowed("jobs.progress.create"),
@@ -204,6 +212,7 @@ export async function readJobs(db: Knex, identity: WorkspaceIdentity, enabled: r
     const metricsRow = await scoped(trx, context).whereNotIn("j.status", ["completed", "canceled"]).select(trx.raw(
       `count(*)::int as active, count(*) filter (where j."completionDeadline" < ?::date)::int as overdue,
        count(*) filter (where j.status = 'waiting')::int as waiting, count(*) filter (where j."primaryOwnerId" is null)::int as unassigned`, [today])).first();
+    const catalog = await serviceChoices(trx, context.workspaceId);
     const facets = await scoped(trx, context).distinct("j.customerName", "j.service");
     const canAssign = authorize(context, { permission: "jobs.assign", resource: { kind: "job", id: context.workspaceId, workspaceId: context.workspaceId, ownerId: context.userId, teamUserIds: [] } }).allowed;
     const visibleIds: { primaryOwnerId: string | null; teamUserIds: string[] }[] =
@@ -223,7 +232,7 @@ export async function readJobs(db: Knex, identity: WorkspaceIdentity, enabled: r
     if (input.unassigned) base.whereNull("j.primaryOwnerId");
     if (input.customerId) base.where("j.customerId", input.customerId);
     if (input.customerName) base.where("j.customerName", input.customerName);
-    if (input.service) base.where("j.service", input.service);
+    if (input.service) base.andWhere(q=>q.where("j.service",input.service).orWhereIn("j.serviceId",catalog.filter(s=>s.name===input.service||s.key===input.service).map(s=>s.id)));
     if (input.createdAfter) base.whereRaw(`(j."createdAt" AT TIME ZONE ?)::date >= ?::date`, [workspace.timezone, input.createdAfter]);
     if (input.mine) base.andWhere(q => q.where("j.primaryOwnerId", context.userId).orWhereExists(
       trx("jobTeamMembers as jt").select(trx.raw("1")).whereRaw('jt."workspaceId" = j."workspaceId" AND jt."jobId" = j.id').where("jt.userId", context.userId)));
@@ -237,9 +246,9 @@ export async function readJobs(db: Knex, identity: WorkspaceIdentity, enabled: r
     const query = base.clone();
     if (input.sort === "ownerName") query.leftJoin("users as ownerSort", "ownerSort.id", "j.primaryOwnerId");
     const rows: JobRow[] = await query.select("j.*", trx.raw(teamSelect), trx.raw(dateSelect)).orderBy(sortColumn, input.direction, "last").orderBy("j.id").limit(input.pageSize).offset((page - 1) * input.pageSize);
-    return { rows: rows.map(r => view(r, context, members)), total, page, pageSize: input.pageSize, timezone: workspace.timezone, today,
+    return { rows: rows.map(r => view(r, context, members, catalog)), total, page, pageSize: input.pageSize, timezone: workspace.timezone, today,
       metrics: { active: Number(metricsRow.active), overdue: Number(metricsRow.overdue), waiting: Number(metricsRow.waiting), unassigned: Number(metricsRow.unassigned) },
-      options: { members, customers, customerNames: [...new Set<string>(facets.map(f => f.customerName))].sort(), services: [...new Set<string>(facets.map(f => f.service).filter(Boolean))].sort() },
+      options: { members, customers, customerNames: [...new Set<string>(facets.map(f => f.customerName))].sort(), services: [...new Set<string>([...catalog.map(s=>s.name),...facets.map(f=>catalog.find(s=>s.key===f.service)?.name??f.service).filter(Boolean)])].sort(), serviceChoices:catalog },
       canCreate: canAssign && authorize(context, { permission: "jobs.create" }).allowed && canReadCustomers.allowed && canReadCustomers.scope === "workspace",
       canScheduleCreation: authorize(context, { permission: "jobs.schedule.update", resource: { kind: "job", id: context.workspaceId, workspaceId: context.workspaceId, ownerId: context.userId, teamUserIds: [] } }).allowed };
   });
@@ -248,7 +257,7 @@ export async function readJob(db: Knex, identity: WorkspaceIdentity, enabled: re
   id = jobIdSchema.parse(id);
   if (!Number.isInteger(page) || page < 1 || page > 100000) throw new JobValidationError("Invalid activity page.");
   return withWorkspaceAuthorization(db, identity, enabled, false, async (trx, context) => {
-    const row = await record(trx, context, id);
+    const row = await record(trx, context, id, false, true);
     const query = trx("jobActivity").where({ workspaceId: context.workspaceId, jobId: id });
     const total = Number((await query.clone().count({ n: "id" }).first())?.n ?? 0);
     const activityPage = Math.min(page, Math.max(1, Math.ceil(total / 20)));
@@ -260,7 +269,8 @@ export async function readJob(db: Knex, identity: WorkspaceIdentity, enabled: re
       const lead = await trx("leads").where({ workspaceId: context.workspaceId, id: row.sourceLeadId }).first("ownerId");
       canOpenLead = !!lead && authorize(context, { permission: "leads.read", resource: { kind: "lead", id: row.sourceLeadId, workspaceId: context.workspaceId, ownerId: lead.ownerId } }).allowed;
     }
-    return { job: view(row, context, members), activity: entries.map(e => ({ ...e, changes: e.changes as Record<string, unknown>, createdAt: e.createdAt.toISOString() })) as JobActivityRecord[], activityTotal: total, activityPage, canOpenCustomer, canOpenLead };
+    const catalog=await serviceChoices(trx,context.workspaceId);
+    return { serviceChoices:catalog, job: view(row, context, members, catalog), activity: entries.map(e => ({ ...e, changes: e.changes as Record<string, unknown>, createdAt: e.createdAt.toISOString() })) as JobActivityRecord[], activityTotal: total, activityPage, canOpenCustomer, canOpenLead };
   });
 }
 
@@ -294,8 +304,9 @@ export async function mutateJobInTransaction(trx:Knex.Transaction,context:Author
   }else if(input.action==="deadline"){
     patch.completionDeadline=input.completionDeadline;changes={from:row.completionDeadline,to:input.completionDeadline};
   }else if(input.action==="edit"){
-    Object.assign(patch,{title:input.title,service:input.service,location:input.location,description:input.description});
-    changes={from:{title:row.title,service:row.service,location:row.location,description:row.description},to:{title:input.title,service:input.service,location:input.location,description:input.description}};
+    try { input.service=await resolveWorkspaceService(trx,context.workspaceId,input.service,{service:row.service,serviceId:row.serviceId}); } catch(error){if(error instanceof ServiceSettingsInvalid)throw new JobValidationError(error.message);throw error;}
+    Object.assign(patch,{title:input.title,service:input.service,location:input.location,postalCode:input.postalCode,countryCode:input.countryCode,description:input.description});
+    changes={from:{title:row.title,service:row.service,serviceId:row.serviceId??null,location:row.location,postalCode:row.postalCode??null,countryCode:row.countryCode??null,description:row.description},to:{title:input.title,service:input.service,location:input.location,postalCode:input.postalCode,countryCode:input.countryCode,description:input.description}};
   }else if(input.action==="assign"){
     if(row.primaryOwnerId!==input.primaryOwnerId && row.primaryOwnerId && input.teamUserIds.includes(row.primaryOwnerId))throw new JobValidationError("Remove the previous primary owner from the team; add them back explicitly in a later change if needed.");
     await validTeam(trx,context,input.primaryOwnerId,input.teamUserIds);

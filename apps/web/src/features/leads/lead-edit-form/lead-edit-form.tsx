@@ -1,17 +1,20 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type FormEvent, type ChangeEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ChangeEvent, type ReactNode } from 'react';
 import MuiTextField from '@mui/material/TextField';
 import { leadSchema } from '@salesmora/contracts';
 import { ConfirmDialog, FormFeedback, SubmitButton, TextField, fieldClasses } from '@salesmora/ui';
+import { LeadOwnerSelect, type LeadOwnerMember } from '../lead-owner-select/lead-owner-select';
 import type { CreateLeadValues } from '../create-lead-form/create-lead-form';
 import { leadEditFormData as copy } from './lead-edit-form.data';
 
-export type LeadEditValues = Pick<CreateLeadValues, 'name' | 'email' | 'phone' | 'service' | 'address' | 'details' | 'notes' | 'source'>;
+export type LeadEditValues = Pick<CreateLeadValues, 'name' | 'email' | 'phone' | 'service' | 'address' | 'postalCode' | 'details' | 'notes' | 'source'> & { ownerId?: string | null };
 export type LeadEditRecord = { id: string; version: number; values: LeadEditValues; canEdit: boolean; origin: 'manual' | 'gmail' | 'campaign' | 'lead_capture' };
 export type LeadEditError = { kind: 'error' | 'conflict'; message: string; changedFields?: readonly (keyof LeadEditValues)[] };
-export type LeadEditRequest = { leadId: string; expectedVersion: number; values: Omit<LeadEditValues, 'source'> & { source?: LeadEditValues['source'] } };
+export type LeadEditRequest = { leadId: string; expectedVersion: number; ownerId?: string | null; values: Omit<LeadEditValues, 'source' | 'ownerId'> & { source?: LeadEditValues['source'] } };
 export type LeadEditFormProps = {
+  serviceControl?: (props:{value:string;disabled:boolean;onChange:(value:string)=>void})=>ReactNode;
+  canAssign?: boolean; members?: readonly LeadOwnerMember[]; viewerId?: string; currentOwner?: { id: string; name: string; former?: boolean } | null;
   /** Frozen edit-session snapshot; background changes must become conflicts, not silently advance its version. */
   lead: LeadEditRecord; value: LeadEditValues; pending?: boolean; error?: LeadEditError;
   onChange: (value: LeadEditValues) => void; onCancel: () => void;
@@ -22,10 +25,10 @@ export type LeadEditFormProps = {
   /** Host uses this to guard in-app navigation; browser unload is guarded here. */
   onDirtyChange?: (dirty: boolean) => void;
 };
-const schema = leadSchema.pick({ name: true, email: true, phone: true, service: true, address: true, details: true, notes: true, source: true });
-const keys: (keyof LeadEditValues)[] = ['name', 'email', 'phone', 'service', 'address', 'details', 'notes', 'source'];
+const schema = leadSchema.pick({ name: true, email: true, phone: true, service: true, address: true, postalCode: true, details: true, notes: true, source: true });
+const keys: (Exclude<keyof LeadEditValues, 'ownerId'>)[] = ['name', 'email', 'phone', 'service', 'address', 'postalCode', 'details', 'notes', 'source'];
 
-export function LeadEditForm({ lead, value, pending = false, error, onChange, onCancel, onSubmit, onSaved, onReload, onDirtyChange }: LeadEditFormProps) {
+export function LeadEditForm({ serviceControl, lead, value, pending = false, error, onChange, onCancel, onSubmit, onSaved, onReload, onDirtyChange, canAssign = false, members = [], viewerId = '', currentOwner }: LeadEditFormProps) {
   const id = useId(), lock = useRef(false);
   const [working, setWorking] = useState(false);
   const [failure, setFailure] = useState<LeadEditError>();
@@ -34,7 +37,8 @@ export function LeadEditForm({ lead, value, pending = false, error, onChange, on
   const problem = failure ?? error;
   const conflict = problem?.kind === 'conflict';
   const busy = pending || working;
-  const dirty = keys.some(key => value[key] !== lead.values[key]);
+  const ownerChanged = (value.ownerId ?? null) !== (lead.values.ownerId ?? null);
+  const dirty = keys.some(key => value[key] !== lead.values[key]) || ownerChanged;
   const readOnly = !lead.canEdit || conflict;
   const sourceLocked = lead.origin !== 'manual';
   useEffect(() => {
@@ -44,18 +48,22 @@ export function LeadEditForm({ lead, value, pending = false, error, onChange, on
     window.addEventListener('beforeunload', warn);
     return () => { window.removeEventListener('beforeunload', warn); onDirtyChange?.(false); };
   }, [dirty, busy, onDirtyChange]);
-  function change(key: keyof LeadEditValues, next: string) {
+  function change(key: Exclude<keyof LeadEditValues, 'ownerId'>, next: string) {
     if (busy || readOnly || (key === 'source' && sourceLocked)) return;
     onChange({ ...value, [key]: next }); setErrors({}); setFailure(undefined);
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (lock.current || busy || readOnly || !dirty) return;
-    const parsed = schema.safeParse({ ...value, source: sourceLocked ? lead.values.source : value.source });
+    if (ownerChanged && (!canAssign || (value.ownerId != null && !members.some(member => member.id === value.ownerId)))) {
+      setFailure({ kind: "error", message: copy.ownerUnavailable }); return;
+    }
+    const parsed = schema.safeParse(Object.fromEntries(keys.map(key =>
+      [key, key === 'source' && sourceLocked ? lead.values.source : value[key]])));
     if (!parsed.success) {
       const messages: Partial<Record<keyof LeadEditValues, string>> = {};
       for (const issue of parsed.error.issues) {
-        const key = issue.path[0] as keyof LeadEditValues;
+        const key = issue.path[0] as Exclude<keyof LeadEditValues, 'ownerId'>;
         if (!keys.includes(key)) continue;
         messages[key] ??= issue.code === 'too_big' && typeof issue.maximum === 'number' ? copy.tooLong(copy.labels[key], issue.maximum) : key === 'name' || key === 'service' || key === 'email' ? copy.errors[key] : copy.invalid;
       }
@@ -67,7 +75,7 @@ export function LeadEditForm({ lead, value, pending = false, error, onChange, on
     lock.current = true; setWorking(true); setFailure(undefined); setErrors({});
     try {
       const { source, ...editable } = parsed.data;
-      const result = await onSubmit({ leadId: lead.id, expectedVersion: lead.version, values: sourceLocked ? editable : { ...editable, source } });
+      const result = await onSubmit({ leadId: lead.id, expectedVersion: lead.version, ...(ownerChanged ? { ownerId: value.ownerId ?? null } : {}), values: sourceLocked ? editable : { ...editable, source } });
       if (result.ok) onSaved(result.lead); else setFailure(result.error);
     } catch { setFailure({ kind: 'error', message: copy.failed }); }
     finally { lock.current = false; setWorking(false); }
@@ -81,10 +89,10 @@ export function LeadEditForm({ lead, value, pending = false, error, onChange, on
     catch { setFailure({ kind: 'conflict', message: copy.reloadFailed, changedFields: problem?.changedFields }); setDiscard(null); }
     finally { lock.current = false; setWorking(false); }
   }
-  function field(key: Exclude<keyof LeadEditValues, 'source'>, multiline = false) {
+  function field(key: Exclude<keyof LeadEditValues, 'source' | 'ownerId'>, multiline = false) {
     const changed = conflict && problem?.changedFields?.includes(key);
     const helper = errors[key] ?? (changed ? copy.changed : undefined);
-    const common = { name: key, value: value[key], disabled: busy, required: key === 'name' || key === 'service', error: !!errors[key], helperText: helper,
+    const common = { name: key, value: value[key]??'', disabled: busy, required: key === 'name' || key === 'service', error: !!errors[key], helperText: helper,
       onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => change(key, event.target.value),
       slotProps: { input: { readOnly: !!readOnly } }, className: changed ? `${fieldClasses} [&_.MuiOutlinedInput-notchedOutline]:border-amber-700` : fieldClasses };
     return multiline || key === 'phone' ? <MuiTextField {...common} label={copy.optional(copy.labels[key])} type={key === 'phone' ? 'tel' : 'text'} multiline={multiline} minRows={multiline ? 3 : undefined} fullWidth size="small"/> : <TextField {...common} label={copy.labels[key]} type={key === 'email' ? 'email' : 'text'}/>;
@@ -96,8 +104,12 @@ export function LeadEditForm({ lead, value, pending = false, error, onChange, on
       {conflict && onReload && <button type="button" disabled={busy} onClick={() => setDiscard('reload')} className="min-h-11 w-fit cursor-pointer rounded-xl border border-line px-4 font-semibold text-primary focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50">{copy.reload}</button>}
       <section aria-labelledby={`${id}-contact`} className="grid gap-6 rounded-2xl border border-line bg-paper p-6"><h2 id={`${id}-contact`} className="m-0 text-lg font-semibold text-ink">{copy.sections.contact.title}</h2>{field('name')}
         <div className="grid gap-6 sm:grid-cols-2">{field('email')}{field('phone')}</div>
+        <LeadOwnerSelect value={value.ownerId ?? null} members={members} currentOwner={currentOwner} viewerId={viewerId}
+          canAssign={canAssign} pending={busy} disabled={!!readOnly} onChange={ownerId => {
+            if (!busy && !readOnly && canAssign) { onChange({ ...value, ownerId }); setFailure(undefined); }
+          }} />
       </section>
-      <section aria-labelledby={`${id}-service`} className="grid gap-6 rounded-2xl border border-line bg-paper p-6"><h2 id={`${id}-service`} className="m-0 text-lg font-semibold text-ink">{copy.sections.service.title}</h2>{field('service')}{field('address')}{field('details', true)}</section>
+      <section aria-labelledby={`${id}-service`} className="grid gap-6 rounded-2xl border border-line bg-paper p-6"><h2 id={`${id}-service`} className="m-0 text-lg font-semibold text-ink">{copy.sections.service.title}</h2>{serviceControl?serviceControl({value:value.service,disabled:busy,onChange:service=>onChange({...value,service})}):field('service')}{field('address')}{field('postalCode')}{field('details', true)}</section>
       <section aria-labelledby={`${id}-notes`} className="grid gap-6 rounded-2xl border border-line bg-paper p-6"><h2 id={`${id}-notes`} className="m-0 text-lg font-semibold text-ink">{copy.sections.notes.title}</h2>{field('notes', true)}</section>
       <section aria-labelledby={`${id}-source`} className="grid gap-3 rounded-2xl border border-line bg-paper p-6"><h2 id={`${id}-source`} className="m-0 text-lg font-semibold text-ink">{copy.labels.source}</h2>
         <label htmlFor={`${id}-source-input`} className="sr-only">{copy.labels.source}</label>

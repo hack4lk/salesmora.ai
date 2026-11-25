@@ -65,6 +65,10 @@ const meta = {
 } satisfies Meta<typeof RefreshHarness>;
 export default meta;
 type Story = StoryObj<typeof meta>;
+async function openLeadActions(canvasElement: HTMLElement) {
+  await userEvent.click(within(canvasElement).getByRole('button', { name: 'Lead actions' }));
+  return within(await within(canvasElement.ownerDocument.body).findByRole('menu', { name: 'Lead actions' }));
+}
 
 export const InitialServerSnapshot: Story = { play: async ({ canvasElement }) => {
   const c = within(canvasElement);
@@ -106,7 +110,7 @@ export const AccessRevoked: Story = { play: async ({ canvasElement }) => {
 export const Detail: Story = { args: { initialDetail: leadDetailFixture } };
 export const MoveStage: Story = { ...Detail, play: async ({ canvasElement }) => {
   const c = within(canvasElement), body = within(canvasElement.ownerDocument.body);
-  await userEvent.click(c.getByRole('button', { name: 'Move to another stage' }));
+  await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: 'Move to another stage' }));
   await userEvent.selectOptions(body.getByRole('combobox', { name: 'New stage' }), 'contacted');
   await userEvent.click(body.getByRole('button', { name: 'Confirm move' }));
   await waitFor(() => expect(body.queryByRole('alertdialog')).not.toBeInTheDocument());
@@ -123,7 +127,7 @@ export const AddNote: Story = { ...Detail, play: async ({ canvasElement }) => {
 } };
 export const Edit: Story = { ...Detail, play: async ({ canvasElement }) => {
   const c = within(canvasElement), body = within(canvasElement.ownerDocument.body);
-  await userEvent.click(c.getByRole('button', { name: 'Edit lead' }));
+  await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: 'Edit lead' }));
   const input = body.getByRole('textbox', { name: 'Service requested' });
   await userEvent.clear(input); await userEvent.type(input, 'Updated fixture service');
   await userEvent.click(body.getByRole('button', { name: 'Save changes' }));
@@ -134,8 +138,8 @@ export const Edit: Story = { ...Detail, play: async ({ canvasElement }) => {
 export const EditConflict: Story = {
   ...Detail, beforeEach: () => { conflict = true; },
   play: async ({ canvasElement }) => {
-    const c = within(canvasElement), body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(c.getByRole('button', { name: 'Edit lead' }));
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: 'Edit lead' }));
     const input = body.getByRole('textbox', { name: 'Service requested' });
     await userEvent.clear(input); await userEvent.type(input, 'Preserved draft service');
     await userEvent.click(body.getByRole('button', { name: 'Save changes' }));

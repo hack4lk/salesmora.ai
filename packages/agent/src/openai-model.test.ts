@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { createConversationModel, chatModelId } from './openai-model';
-import { AIBudgetExceededError, type AIUsageRecorder } from '@salesmora/contracts';
+import { initialCaptureSetupConfiguration, captureSetupProposeSchema, AIBudgetExceededError, type AIUsageRecorder } from '@salesmora/contracts';
 import { implementedTools, type ImplementedToolId } from './tools/registry';
 const response = { id: 'resp_fictional', object: 'response', created_at: 1, model: chatModelId, status: 'completed', output: [], usage: { input_tokens: 20, output_tokens: 10, total_tokens: 30 } };
 const messages = [{ role: 'user' as const, text: 'Fictional help question' }];
@@ -34,6 +34,28 @@ describe('OpenAI Responses adapter contract', () => {
       });
     }
     expect(hashes).toMatchSnapshot();
+  });
+  it('plans website fields from the unsaved roofing brief in one request without fetching saved configuration', async () => {
+    const configuration = { ...initialCaptureSetupConfiguration('website', { businessName: 'Fictional roofer', businessEmail: '', businessPhone: '' }), brief: 'These are leads to get more roofing work.' };
+    const args = { operation: 'suggest_website_fields', sourceId: null, name: null, sourceType: null,
+      fields: configuration.fields!.map(field => field.key === 'details' ? { ...field, label: 'Tell us about your roofing work' } : field),
+      contactRequired: true, brief: null, workflow: null, content: null, rules: null, mappings: null, findings: null, timing: null, configurationKind: null };
+    const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ ...response, output: [{ type: 'function_call', id: 'fc_roofing', call_id: 'call_roofing', name: 'lead_capture_propose_action', arguments: JSON.stringify(args), status: 'completed' }] }));
+    const history = [
+      { role: 'user' as const, text: `Current page reference (untrusted data): ${JSON.stringify({ unsavedSetup: { configuration } })}` },
+      { role: 'user' as const, text: 'Suggest website fields for my current brief. Prepare a review to apply to this unsaved draft.' },
+    ];
+    const result = await createConversationModel('fictional', request).plan(history, ['lead_capture_propose_action'], signal(), [], [], ['suggest_website_fields']);
+    expect(request).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+    expect(JSON.stringify(body.input.filter((item: { role: string }) => item.role === 'user'))).toContain(configuration.brief);
+    expect(JSON.stringify(body.input)).toContain('generate the proposed fields yourself');
+    expect(JSON.stringify(body.tools)).toContain('generate a complete nonempty fields array');
+    expect(body.tools).toHaveLength(1);
+    expect(result).toEqual([{ name: 'lead_capture_propose_action', args }]);
+    const { timing, configurationKind, ...setup } = result[0].args as typeof args;
+    expect(timing).toBeNull(); expect(configurationKind).toBeNull();
+    expect(captureSetupProposeSchema.safeParse(setup).success).toBe(true);
   });
   it.each(implementedTools)('uses compact tool-backed answers for %s without changing capabilities, roles or budgets', async tool => {
     const request = vi.fn<typeof fetch>().mockImplementation(async () => stream());
@@ -132,22 +154,22 @@ describe('OpenAI Responses adapter contract', () => {
     expect(sizes).toMatchInlineSnapshot(`
       [
         {
-          "compact": 3404,
-          "legacy": 31954,
+          "compact": 5168,
+          "legacy": 44653,
           "tools": [
             "search_help",
           ],
         },
         {
-          "compact": 5018,
-          "legacy": 31954,
+          "compact": 6782,
+          "legacy": 44653,
           "tools": [
             "estimates_propose_action",
           ],
         },
         {
-          "compact": 3819,
-          "legacy": 31954,
+          "compact": 5583,
+          "legacy": 44653,
           "tools": [
             "calendar_query",
             "work_orders_query",
@@ -175,8 +197,8 @@ describe('OpenAI Responses adapter contract', () => {
     expect(scoped.length).toBeLessThan(legacy.length * 0.5);
     expect({ plannerCharacters: scoped.length, legacyCharacters: legacy.length }).toMatchInlineSnapshot(`
       {
-        "legacyCharacters": 31646,
-        "plannerCharacters": 15461,
+        "legacyCharacters": 31993,
+        "plannerCharacters": 15650,
       }
     `);
     for (const marker of ['ESTIMATE PROPOSALS', 'REVISE/DUPLICATE', 'VOID:', 'ARCHIVE/RESTORE:',
@@ -292,7 +314,12 @@ describe('OpenAI Responses adapter contract', () => {
     const planning = system(bodies[0]);
     const safety = planning.filter(item => JSON.stringify(item).includes('This planner can only read or prepare a review'));
     expect(safety).toHaveLength(1);
-    expect(planning.filter(item => !safety.includes(item))).toEqual(system(bodies[1]));
+    // Booking intent guidance belongs to planning; answer metadata retains the same authority
+    // without carrying authoring instructions into every compact answer.
+    const normalize = (items: { role: string }[]) => items.map(item => 'content' in item && typeof item.content === 'string'
+      ? { ...item, content: item.content.replace(/ Automatic booking of new jobs.*?individual calendar tools are absent\./, '').replace(/ Fill cancellations using cancellation_fill.*?individual Calendar tools\./, '') } : item);
+    expect(normalize(planning.filter(item => !safety.includes(item)))).toEqual(normalize(system(bodies[1])));
+    expect(JSON.stringify(system(bodies[1]))).not.toContain('No individual job or crew identity is needed for a future rule');
     expect(bodies[0].tools.map((tool: { name: string }) => tool.name).sort()).toEqual([...implementedTools].sort());
   });
   it('measures at least 50% smaller report/help-only planner instructions without shortening history or schemas', async () => {
@@ -307,8 +334,8 @@ describe('OpenAI Responses adapter contract', () => {
     expect(size(bodies[0])).toBeLessThan(size(bodies[1]) * 0.5);
     expect({ plannerCharacters: size(bodies[0]), legacyCharacters: size(bodies[1]) }).toMatchInlineSnapshot(`
       {
-        "legacyCharacters": 31611,
-        "plannerCharacters": 3696,
+        "legacyCharacters": 31958,
+        "plannerCharacters": 3885,
       }
     `);
   });
@@ -330,7 +357,7 @@ describe('OpenAI Responses adapter contract', () => {
     expect({ compactCharacters: compact.length, ordinaryCharacters: ordinary.length }).toMatchInlineSnapshot(`
       {
         "compactCharacters": 4043,
-        "ordinaryCharacters": 31646,
+        "ordinaryCharacters": 31993,
       }
     `);
     expect(compact).toContain('Missing costs are not zero');
@@ -582,7 +609,7 @@ it("advertises strict Archive/Restore preparation and separate explicit confirma
     expect(parameters).not.toContain(`"${field}"`);
   }
   const instructions = JSON.stringify(body.input.filter((item: { role: string }) => ["system", "developer"].includes(item.role)));
-  for (const rule of ["ARCHIVE/RESTORE:", "unarchived Declined, Expired, Superseded or Void",
+  for (const rule of ["ARCHIVE/RESTORE:", "unarchived Accepted, Declined, Expired, Superseded or Void",
     "Only its explicit Confirm archive/restore", "Preparation and cancellation change no business data",
     "never substitute Archive for Void"]) {
     expect(instructions).toContain(rule);
@@ -790,4 +817,203 @@ describe('Gmail extraction model transport', () => {
     expect(generation.store).toBe(false);
     expect(finish).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'completed', tokens: expect.objectContaining({ totalTokens: 30 }) }));
   });
+});
+
+it('provides the supported follow-up recipe for the exact no-decision reminder request', async () => {
+  const args = { kind: 'estimate_follow_up', name: 'Estimate awaiting a decision', businessDays: 2, recipient: 'me', notifications: { inApp: true, email: true } };
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ ...response, output: [
+    { id: 'fc_workflow', type: 'function_call', call_id: 'call_workflow', name: 'workflows_prepare', arguments: JSON.stringify(args), status: 'completed' },
+  ] }));
+  const model = createConversationModel('fictional', request, undefined, { intentRouting: true });
+  const text = 'remind me 2 days after an estimate has been sent out if a decision has not been recorded';
+  await expect(model.plan([{ role: 'user', text }], ['workflows_prepare', 'search_help'], signal())).resolves.toEqual([{ name: 'workflows_prepare', args }]);
+  expect(request).toHaveBeenCalledTimes(1);
+  const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+  const instructions = JSON.stringify(body.input.filter((item: { role: string }) => ['system', 'developer'].includes(item.role)));
+  expect(instructions).toContain('estimate_follow_up');
+  expect(instructions).toContain('a decision has not been recorded uses estimate_follow_up');
+  expect(instructions).not.toContain('Prepare only the supported unscheduled-estimate reminder');
+  expect(body.tools.map((tool: { name: string }) => tool.name)).toContain('workflows_prepare');
+  expect(body.input.some((item: { role: string; content: unknown }) => item.role === 'user' && JSON.stringify(item.content).includes(text))).toBe(true);
+});
+
+it('limits the workflow selector to the currently authorized recipes in one planning request', async () => {
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(response));
+  const model = createConversationModel('fictional', request, undefined, { intentRouting: true });
+  await model.plan([{ role: 'user', text: 'Remind me after one business day if a new lead is still unassigned.' }],
+    ['workflows_prepare', 'search_help'], signal(), [], [], [], ['unassigned_lead']);
+  expect(request).toHaveBeenCalledTimes(1);
+  const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+  const workflow = body.tools.find((tool: { name: string }) => tool.name === 'workflows_prepare');
+  expect(workflow.parameters.properties.kind.enum).toEqual(['unassigned_lead', null]);
+  const instructions = JSON.stringify(body.input.filter((item: { role: string }) => ['system', 'developer'].includes(item.role)));
+  expect(instructions).toContain('WORKFLOWS: workflows_prepare supports unassigned_lead');
+  expect(instructions).not.toContain('supports unscheduled_estimate');
+});
+
+it('advertises the fixed Monday briefing only in the authorized workflow planner', async () => {
+  const args = { kind: 'weekly_briefing', name: 'Monday briefing', businessDays: null, recipient: 'me', notifications: { inApp: true, email: true } };
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ ...response, output: [
+    { id: 'fc_weekly', type: 'function_call', call_id: 'call_weekly', name: 'workflows_prepare', arguments: JSON.stringify(args), status: 'completed' },
+  ] }));
+  const model = createConversationModel('fictional', request, undefined, { intentRouting: true });
+  await expect(model.plan([{ role: 'user', text: 'Send me a Monday morning briefing of what needs attention.' }],
+    ['workflows_prepare', 'search_help'], signal(), [], [], [], ['weekly_briefing'])).resolves.toEqual([{ name: 'workflows_prepare', args }]);
+  expect(request).toHaveBeenCalledOnce();
+  const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+  expect(body.tools.find((tool: { name: string }) => tool.name === 'workflows_prepare').parameters.properties.kind.enum).toEqual(['weekly_briefing', null]);
+  expect(JSON.stringify(body.input)).toContain('Monday workspace-time briefing, default 9 AM');
+});
+
+it('plans the approved unassigned-visit request once with the authorized fixed-schedule selector', async () => {
+  const args = { kind: 'unassigned_visit', name: 'Upcoming visit has no assignee', businessDays: null, recipient: 'me', notifications: { inApp: true, email: true } };
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ ...response, output: [
+    { id: 'fc_visit', type: 'function_call', call_id: 'call_visit', name: 'workflows_prepare', arguments: JSON.stringify(args), status: 'completed' },
+  ] }));
+  const model = createConversationModel('fictional', request, undefined, { intentRouting: true });
+  await expect(model.plan([{ role: 'user', text: 'Remind me at 9 AM the day before a visit if nobody is assigned.' }],
+    ['workflows_prepare', 'search_help'], signal(), [], [], [], ['unassigned_visit'])).resolves.toEqual([{ name: 'workflows_prepare', args }]);
+  expect(request).toHaveBeenCalledOnce();
+  const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+  expect(body.tools.find((tool: { name: string }) => tool.name === 'workflows_prepare').parameters.properties.kind.enum).toEqual(['unassigned_visit', null]);
+  expect(JSON.stringify(body.input)).toContain('including weekends');
+});
+
+it.each(['unassigned_visit', 'weekly_briefing', 'unassigned_lead', 'estimate_follow_up', 'unscheduled_estimate', 'visit_materials'] as const)(
+  'carries the requested local time for %s without an extra intent-routing call', async kind => {
+    const args = { kind, name: 'Custom reminder time', businessDays: ['unassigned_visit', 'visit_materials', 'weekly_briefing'].includes(kind) ? null : 2,
+      localTime: '08:00', recipient: 'me', notifications: { inApp: true, email: true } };
+    const request = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ ...response, output: [
+      { id: 'fc_time', type: 'function_call', call_id: 'call_time', name: 'workflows_prepare', arguments: JSON.stringify(args), status: 'completed' },
+    ] }));
+    const model = createConversationModel('fictional', request, undefined, { intentRouting: true });
+    const messages = [{ role: 'user' as const, text: 'remind me at 8am the day before a visit is scheduled and noone is assigned.' }];
+    await expect(model.plan(messages, ['workflows_prepare', 'search_help'], signal(), [], [], [], [kind])).resolves.toEqual([{ name: 'workflows_prepare', args }]);
+    expect(request).toHaveBeenCalledOnce();
+    const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+    const instructions = JSON.stringify(body.input.filter((item: { role: string }) => ['system', 'developer'].includes(item.role)));
+    expect(instructions).toContain('8am means 08:00');
+    expect(instructions).toContain('Ask if AM/PM is ambiguous');
+    expect(instructions).not.toContain('Only 9 AM is supported');
+    const tool = body.tools.find((tool: { name: string }) => tool.name === 'workflows_prepare');
+    expect(tool.parameters.required).toContain('localTime');
+    expect(tool.parameters.properties.localTime.type).toEqual(['string', 'null']);
+    expect(tool.parameters.properties.kind.enum).toEqual([kind, null]);
+  });
+
+it('advertises material-status conditions and limitations only for the authorized reminder', async () => {
+  const args = { kind: 'visit_materials', name: 'Materials before a visit', businessDays: null, localTime: '08:00', recipient: 'me', notifications: { inApp: true, email: true } };
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ ...response, output: [
+    { id: 'fc_materials', type: 'function_call', call_id: 'call_materials', name: 'workflows_prepare', arguments: JSON.stringify(args), status: 'completed' },
+  ] }));
+  const model = createConversationModel('fictional', request, undefined, { intentRouting: true });
+  await expect(model.plan([{ role: 'user', text: 'Remind me at 8 AM the day before a visit if materials are still needed or on order.' }],
+    ['workflows_prepare', 'search_help'], signal(), [], [], [], ['visit_materials'])).resolves.toEqual([{ name: 'workflows_prepare', args }]);
+  expect(request).toHaveBeenCalledOnce();
+  const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+  const workflow = body.tools.find((tool: { name: string }) => tool.name === 'workflows_prepare');
+  expect(workflow.parameters.properties.kind.enum).toEqual(['visit_materials', null]);
+  expect(JSON.stringify(body.input)).toContain('Assignment is irrelevant');
+  expect(JSON.stringify(body.input)).toContain('clarify ambiguous required-items requests');
+  expect(JSON.stringify(body.input)).toContain('Empty lists');
+});
+
+it('prepares an existing workflow edit with nulls preserving every unspecified setting', async () => {
+  const args = { operation: 'edit', workflowRef: '00000000-0000-4000-8000-000000000071', kind: null, name: null,
+    businessDays: null, localTime: '08:15', recipient: null, notifications: null };
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ ...response, output: [
+    { id: 'fc_edit', type: 'function_call', call_id: 'call_edit', name: 'workflows_prepare', arguments: JSON.stringify(args), status: 'completed' },
+  ] }));
+  const model = createConversationModel('fictional', request, undefined, { intentRouting: true });
+  await expect(model.plan([{ role: 'user', text: `Change workflow ${args.workflowRef} to send at 8:15 AM.` }],
+    ['workflows_prepare', 'search_help'], signal(), [], [], [], ['unassigned_visit'])).resolves.toEqual([{ name: 'workflows_prepare', args }]);
+  expect(request).toHaveBeenCalledOnce();
+  const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+  expect(JSON.stringify(body.input)).toContain('preserve the current recipient');
+  expect(JSON.stringify(body.input)).toContain('require Save changes');
+  const tool = body.tools.find((tool: { name: string }) => tool.name === 'workflows_prepare');
+  expect(tool.parameters.required).toContain('operation'); expect(tool.parameters.required).toContain('workflowRef');
+  expect(tool.parameters.properties.operation.enum).toEqual(['create', 'edit']);
+});
+
+it('advertises create only when the server disallows workflow editing', async () => {
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(response));
+  const model = createConversationModel('fictional', request, undefined, { intentRouting: true });
+  await model.plan([{ role: 'user', text: 'Edit my workflow.' }], ['workflows_prepare', 'search_help'], signal(), [], [], [], ['unassigned_visit'], false);
+  const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+  const tool = body.tools.find((tool: { name: string }) => tool.name === 'workflows_prepare');
+  expect(tool.parameters.properties.operation.enum).toEqual(['create']);
+  expect(JSON.stringify(body.input)).toContain('Editing existing workflows is unavailable with current access');
+  expect(JSON.stringify(body.input)).toContain('Current workflow operations: create only');
+  expect(JSON.stringify(body.input)).not.toContain('Existing workflows can be edited through');
+});
+
+it('provides lead routing for automatic website assignment even when individual lead operations are unavailable', async () => {
+  const args = { operation: 'create', workflowRef: null, kind: 'lead_routing', name: 'Route website leads to Alex Parker', source: 'website',
+    businessDays: null, localTime: null, recipient: 'Alex Parker', notifications: null };
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ ...response, output: [
+    { id: 'fc_routing', type: 'function_call', call_id: 'call_routing', name: 'workflows_prepare', arguments: JSON.stringify(args), status: 'completed' },
+  ] }));
+  const text = 'assign new website leads automatically to alex parker';
+  const model = createConversationModel('fictional', request, undefined, { intentRouting: true });
+  await expect(model.plan([{ role: 'user', text }], ['search_help', 'workflows_prepare'], signal(), [], [], [], ['lead_routing']))
+    .resolves.toEqual([{ name: 'workflows_prepare', args }]);
+  expect(request).toHaveBeenCalledTimes(1);
+  const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+  const tool = body.tools.find((item: { name: string }) => item.name === 'workflows_prepare');
+  expect(tool.parameters.properties.kind.enum).toEqual(['lead_routing', null]);
+  const instructions = JSON.stringify(body.input.filter((item: { role: string }) => ['system', 'developer'].includes(item.role)));
+  expect(instructions).toContain('lead_routing');
+  expect(instructions).toContain('Current server-authorized lead operations: []');
+  expect(instructions).toContain('does not require individual lead operations');
+  expect(body.tools.map((item: { name: string }) => item.name)).not.toContain('leads_propose_action');
+});
+
+it('prepares completion handoff in one scoped request without a time or job lookup',async()=>{const args={kind:'completion_handoff',name:'Completed job still has open work orders',businessDays:null,localTime:null,recipient:'me',notifications:{inApp:true,email:true}};const request=vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({...response,output:[{id:'fc_handoff',type:'function_call',call_id:'call_handoff',name:'workflows_prepare',arguments:JSON.stringify(args),status:'completed'}]}));const model=createConversationModel('fictional',request,undefined,{intentRouting:true});await expect(model.plan([{role:'user',text:'When a job is completed, notify me if any linked work orders are still open.'}],['workflows_prepare','search_help'],signal(),[],[],[],['completion_handoff'])).resolves.toEqual([{name:'workflows_prepare',args}]);expect(request).toHaveBeenCalledTimes(1);const body=JSON.parse(String(request.mock.calls[0][1]?.body));expect(JSON.stringify(body.input)).toContain('completion_handoff');expect(JSON.stringify(body.input)).toContain('immediately');const tool=body.tools.find((t:{name:string})=>t.name==='workflows_prepare');expect(tool.parameters.properties.kind.enum).toEqual(['completion_handoff',null]);});
+
+it('retains the requested team and ZIP choice when a source-name answer completes routing setup', async () => {
+  const args = { operation: 'create', workflowRef: null, kind: 'lead_routing', name: 'Share incoming leads', source: 'Fictional Demo Form', businessDays: null,
+    recipient: null, localTime: null, notifications: null, routing: { strategy: 'round_robin', members: ['Jordan Example', 'Taylor Example'], matchWorkZipCodes: true } };
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ ...response, output: [
+    { id: 'fc_team', type: 'function_call', call_id: 'call_team', name: 'workflows_prepare', arguments: JSON.stringify(args), status: 'completed' },
+  ] }));
+  const history = [
+    { role: 'user' as const, text: 'Take turns assigning incoming website leads to Jordan Example and Taylor Example, matching their work ZIPs.' },
+    { role: 'assistant' as const, text: 'Which intake source should this use?' },
+    { role: 'user' as const, text: 'Fictional Demo Form' },
+  ];
+  await expect(createConversationModel('fictional', request).plan(history, ['workflows_prepare', 'search_help'], signal(), [], [], [], ['lead_routing']))
+    .resolves.toEqual([{ name: 'workflows_prepare', args }]);
+  expect(request).toHaveBeenCalledTimes(1);
+  const body = JSON.parse(request.mock.calls[0][1]!.body as string);
+  const instructions = JSON.stringify(body.input.filter((item: { role: string }) => ['system', 'developer'].includes(item.role)));
+  expect(instructions).toContain('carry forward the user-stated team, method and ZIP choice');
+  expect(instructions).toContain('Do not treat that source name as an existing workflow to edit');
+  for (const message of history) expect(JSON.stringify(body.input)).toContain(message.text);
+});
+
+it('offers annual service review with an explicit date in one scoped planning request',async()=>{
+ const args={operation:'create',kind:'annual_service_review',name:'Annual customer review',service:'Example cleaning',annualReviewRules:{firstReviewDate:'2027-04-22'},businessDays:null,recipient:'me',localTime:'10:15',notifications:null};
+ const request=vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({...response,output:[{id:'fc_annual',type:'function_call',call_id:'call_annual',name:'workflows_prepare',arguments:JSON.stringify(args),status:'completed'}]}));
+ await expect(createConversationModel('fictional',request,undefined,{intentRouting:true}).plan([{role:'user',text:'On April 22, 2027 at 10:15am every year, remind me to review Example cleaning customers.'}],['workflows_prepare','search_help'],signal(),[],[],[],['annual_service_review'])).resolves.toEqual([{name:'workflows_prepare',args}]);
+ expect(request).toHaveBeenCalledTimes(1);const body=JSON.parse(request.mock.calls[0][1]!.body as string);const tool=body.tools.find((t:{name:string})=>t.name==='workflows_prepare');expect(tool.parameters.required).toContain('annualReviewRules');expect(JSON.stringify(body.input)).toContain('Ask for the date if only spring/season was supplied');
+ expect(tool.parameters.properties.service.description).toContain('annual_service_review');
+ expect(JSON.stringify(body.input)).toContain('Recurring reminders to review a service’s customers');
+ expect(JSON.stringify(body.input)).toContain('No individual reminder or customer-record tool is needed.');
+});
+
+it('advertises automatic customer visit reminders independently of individual customer tools',async()=>{
+ const args={operation:'create',kind:'customer_visit_reminder',name:'Customer visit reminder',businessDays:null,recipient:'me',localTime:'09:00',notifications:null};
+ const request=vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({...response,output:[{id:'fc_visit',type:'function_call',call_id:'call_visit',name:'workflows_prepare',arguments:JSON.stringify(args),status:'completed'}]}));
+ await expect(createConversationModel('fictional',request,undefined,{intentRouting:true}).plan([{role:'user',text:'Automatically email customers at 9 AM the day before their visit with the arrival window.'}],['workflows_prepare','search_help'],signal(),[],[],[],['customer_visit_reminder'])).resolves.toEqual([{name:'workflows_prepare',args}]);
+ expect(request).toHaveBeenCalledTimes(1);const body=JSON.parse(request.mock.calls[0][1]!.body as string);expect(JSON.stringify(body.input)).toContain('No individual customer tool is needed.');expect(JSON.stringify(body.input)).toContain('Publication authorizes automatic sends.');
+ expect(JSON.stringify(body.input)).toContain('preparing that rule is allowed and is not an immediate send');
+ expect(JSON.stringify(body.input)).toContain('Call workflows_prepare in this turn to attach the review card');
+});
+
+it('prepares an assigned-lead inactivity review with a dynamic owner instead of asking for a teammate',async()=>{
+ const args={operation:'create',kind:'assigned_lead_cold',name:'Assigned lead needs attention',businessDays:3,recipient:'lead owner',localTime:'09:00',notifications:null};
+ const request=vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({...response,output:[{id:'fc_cold',type:'function_call',call_id:'call_cold',name:'workflows_prepare',arguments:JSON.stringify(args),status:'completed'}]}));
+ await expect(createConversationModel('fictional',request,undefined,{intentRouting:true}).plan([{role:'user',text:'Remind the lead owner at 9 AM if an assigned lead has no recorded activity for three business days.'}],['workflows_prepare','search_help'],signal(),[],[],[],['assigned_lead_cold'])).resolves.toEqual([{name:'workflows_prepare',args}]);
+ expect(request).toHaveBeenCalledTimes(1);const body=JSON.parse(request.mock.calls[0][1]!.body as string);expect(JSON.stringify(body.input)).toContain('Saved notes/lead edits/assignment changes reset the timer');expect(JSON.stringify(body.input)).toContain('One alert per inactive period');
 });

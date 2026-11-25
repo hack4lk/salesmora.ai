@@ -20,7 +20,7 @@ export const Default: Story = {
   play: async ({ canvasElement }) => {
     const c = within(canvasElement);
     await expect(c.getByRole("heading", { level: 1, name: copy.title })).toBeVisible();
-    await expect(c.getByText("8 of 10 estimates")).toBeVisible();
+    await expect(c.getByText("Showing 1–8 of 8")).toBeVisible();
     await expect(c.getByText("$24,644.03")).toBeVisible();
     await expect(c.getByText("1 · $3,296.74")).toBeVisible();
     await expect(c.getByRole("button", { name: "SalesMora assistant How can I help?" })).toBeVisible();
@@ -39,7 +39,7 @@ export const Field: Story = {
   args: { role: "field" },
   play: async ({ canvasElement }) => {
     const c = within(canvasElement);
-    await expect(c.getByText("2 of 2 estimates")).toBeVisible();
+    await expect(c.getByText("Showing 1–2 of 2")).toBeVisible();
     await expect(c.queryByText(rows[0].name)).not.toBeInTheDocument();
     await expect(c.queryByText(rows[8].name)).not.toBeInTheDocument();
     await expect(c.queryByRole("button", { name: copy.export })).not.toBeInTheDocument();
@@ -92,7 +92,7 @@ export const SearchAndClear: Story = {
     fireEvent.change(c.getByRole("searchbox"), { target: { value: copy.stories.missingSearch } });
     await waitFor(() => expect(c.getByRole("heading", { name: emptyCopy.filteredTitle })).toBeVisible());
     await userEvent.click(c.getByRole("button", { name: emptyCopy.clear }));
-    await waitFor(() => expect(c.getByText("8 of 10 estimates")).toBeVisible());
+    await waitFor(() => expect(c.getByText("Showing 1–8 of 8")).toBeVisible());
   },
 };
 export const QuickFilters: Story = {
@@ -100,19 +100,19 @@ export const QuickFilters: Story = {
     const c = within(canvasElement);
     const metrics = within(c.getByRole("region", { name: metricsCopy.title }));
     await userEvent.click(metrics.getByRole("button", { name: metricsCopy.awaiting.label }));
-    await expect(c.getByText("3 of 10 estimates")).toBeVisible();
+    await expect(c.getByText("Showing 1–3 of 3")).toBeVisible();
     await expect(metrics.getByText("$24,644.03")).toBeVisible();
     await userEvent.click(metrics.getByRole("button", { name: metricsCopy.expiring.label }));
-    await expect(c.getByText("2 of 10 estimates")).toBeVisible();
+    await expect(c.getByText("Showing 1–2 of 2")).toBeVisible();
     await userEvent.click(c.getByRole("button", { name: copy.clearQuickFilter }));
-    await expect(c.getByText("8 of 10 estimates")).toBeVisible();
+    await expect(c.getByText("Showing 1–8 of 8")).toBeVisible();
   },
 };
 export const IncludeHidden: Story = {
   play: async ({ canvasElement }) => {
     const c = within(canvasElement);
     await userEvent.click(c.getByRole("switch", { name: toolbarCopy.includeHidden }));
-    await expect(c.getByText("10 of 10 estimates")).toBeVisible();
+    await expect(c.getByText("Showing 1–10 of 10")).toBeVisible();
     await expect(c.getByText("$24,644.03")).toBeVisible();
   },
 };
@@ -120,9 +120,9 @@ export const OwnerAndRelatedFilters: Story = {
   play: async ({ canvasElement }) => {
     const c = within(canvasElement);
     await userEvent.selectOptions(c.getByLabelText(toolbarCopy.owner), "me");
-    await expect(c.getByText("4 of 10 estimates")).toBeVisible();
+    await expect(c.getByText("Showing 1–4 of 4")).toBeVisible();
     await userEvent.selectOptions(c.getByLabelText(toolbarCopy.related), "job");
-    await expect(c.getByText("1 of 10 estimates")).toBeVisible();
+    await expect(c.getByText("Showing 1–1 of 1")).toBeVisible();
     await expect(c.getByText("$24,644.03")).toBeVisible();
     await userEvent.selectOptions(c.getByLabelText(toolbarCopy.owner), "unassigned");
     await expect(c.getByRole("heading", { name: emptyCopy.filteredTitle })).toBeVisible();
@@ -177,7 +177,7 @@ export const Retry: Story = {
   play: async ({ canvasElement }) => {
     const c = within(canvasElement);
     await userEvent.click(c.getByRole("button", { name: metricsCopy.retry }));
-    await expect(c.getByText("8 of 10 estimates")).toBeVisible();
+    await expect(c.getByText("Showing 1–8 of 8")).toBeVisible();
     await expect(c.getByText("$24,644.03")).toBeVisible();
   },
 };

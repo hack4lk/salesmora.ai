@@ -63,7 +63,7 @@ function ConversionReview(props: EstimateConvertDialogProps) {
     </div>;
   }
   if (!issues.some((issue) => issue !== c.errors.binding) && customer.state === "ready") {
-    return <JobCreateDialog open={open} members={members} customers={[{ id: customer.id, name: customer.name }]}
+    return <JobCreateDialog open={open} services={props.services} members={members} customers={[{ id: customer.id, name: customer.name }]}
       initialValues={review.job} initialReview allowNewCustomer={false} lockCustomer canSchedule={props.canScheduleCreation}
       reviewContext={{ title: c.title, description: c.description, confirmLabel: c.confirm, content: context() }}
       closeOnConfirm={false} pending={busy} error={error?.message}

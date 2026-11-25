@@ -190,7 +190,7 @@ export type CustomerListResult = {
   page: number;
   members: { id: string; name: string }[];
   capabilities: CustomerCapabilities;
-  totals: { customers: number; withOpenLeads: number };
+  totals: { customers: number; withOpenLeads: number; withActiveJobs?: number };
   policyRevision: number;
   now: string;
 };
@@ -224,7 +224,11 @@ export const customerLeadSchema = z.object({
 }) satisfies z.ZodType<CustomerLead>;
 export const customerListResultSchema = z.object({
   ...customerReadShape, rows: z.array(customerRecordSchema), total: z.number().int().nonnegative(), page: z.number().int().positive(),
-  totals: z.object({ customers: z.number().int().nonnegative(), withOpenLeads: z.number().int().nonnegative() }), now: z.string(),
+  totals: z.object({
+    customers: z.number().int().nonnegative(),
+    withOpenLeads: z.number().int().nonnegative(),
+    withActiveJobs: z.number().int().nonnegative().optional(),
+  }), now: z.string(),
 }) satisfies z.ZodType<CustomerListResult>;
 export const customerDetailResultSchema = z.object({
   ...customerReadShape, customer: customerRecordSchema, leads: z.array(customerLeadSchema), leadsTotal: z.number().int().nonnegative(),

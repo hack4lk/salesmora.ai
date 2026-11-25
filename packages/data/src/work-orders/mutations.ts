@@ -250,7 +250,11 @@ export async function mutateWorkOrderInTransaction(trx: Knex.Transaction, contex
     return { workOrderId: row.id, version: row.version };
   }
   await trx("workOrders").where({ workspaceId: context.workspaceId, id: row.id }).update(patch);
-  await synchronizeCalendarRecord(trx, context.workspaceId, "work_order", row.id);
+  // Joined visits own their schedule. Editing materials/tasks must not replay stale legacy dates.
+  if (input.action === "schedule" || input.action === "complete" || input.action === "reopen" ||
+      (input.action === "status" && input.to === "canceled")) {
+    await synchronizeCalendarRecord(trx, context.workspaceId, "work_order", row.id);
+  }
   if (input.action === "schedule") await notifyVisitChange(trx, context, input.submissionId, !input.scheduledDate ? "cleared" : row.scheduledDate ? "rescheduled" : "scheduled", [{ type: "work_order", id: row.id }], { scheduledDate: row.scheduledDate, arrivalWindow: row.arrivalWindow }, { scheduledDate: input.scheduledDate, arrivalWindow: input.arrivalWindow });
   await log(trx, context, row.id, input.submissionId, row.version + 1, hash, input.action, changes, source);
   await notifyWorkOrderChange(trx, context, row, input);

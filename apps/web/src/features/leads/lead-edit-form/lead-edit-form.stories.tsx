@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
+import { leadOwnerSelectData } from '../lead-owner-select/lead-owner-select.data';
 import { Toast } from '@salesmora/ui';
 import { LeadEditForm, type LeadEditFormProps, type LeadEditValues } from './lead-edit-form';
 import { leadEditFormData as copy } from './lead-edit-form.data';
@@ -23,7 +24,7 @@ function Preview(args: PreviewProps) {
 const base = copy.stories.record;
 const draft: LeadEditValues = { ...base.values, service: copy.stories.changedService };
 const meta = { title: 'Leads/LeadEditForm', component: Preview, parameters: { layout: 'fullscreen' },
-  args: { lead: base, value: base.values, onSubmit: fn<LeadEditFormProps['onSubmit']>(async request => ({ ok: true, lead: { ...base, version: request.expectedVersion + 1, values: { ...base.values, ...request.values } } })), onReload: fn(async () => {}) },
+  args: { lead: base, value: base.values, onSubmit: fn<LeadEditFormProps['onSubmit']>(async request => ({ ok: true, lead: { ...base, version: request.expectedVersion + 1, values: { ...base.values, ...request.values, ...(request.ownerId !== undefined ? { ownerId: request.ownerId } : {}) } } })), onReload: fn(async () => {}) },
   decorators: [Story => <main className="min-h-screen bg-canvas p-4 sm:p-8"><div className="mx-auto w-full max-w-3xl"><h1 className="m-0 text-heading font-semibold text-ink">{copy.stories.title}</h1><p className="mb-6 mt-3 text-muted">{copy.stories.description}</p><Story/></div></main>],
 } satisfies Meta<typeof Preview>;
 export default meta;
@@ -84,3 +85,34 @@ export const ProtectedSourceSubmission: Story = { args: GmailSource.args, play: 
   await expect(args.onSubmit.mock.calls[0][0].values).not.toHaveProperty('ownerId');
 } };
 export const Narrow: Story = { args: Dirty.args, parameters: { viewport: { value: 'phone' } } };
+
+export const ChangeOwner: Story = { args: { canAssign: true, members: leadOwnerSelectData.stories.members, viewerId: 'sam' }, play: async ({ canvasElement, args }) => {
+  const c = within(canvasElement);
+  await userEvent.selectOptions(c.getByRole('combobox', { name: 'Lead owner' }), 'taylor');
+  await userEvent.click(c.getByRole('button', { name: copy.save }));
+  await expect(args.onSubmit).toHaveBeenCalledWith(expect.objectContaining({ ownerId: 'taylor', values: base.values }));
+  await waitFor(() => expect(c.getByRole('button', { name: copy.save })).toBeDisabled());
+} };
+export const UnassignOwner: Story = { args: { canAssign: true, members: leadOwnerSelectData.stories.members,
+  lead: { ...base, values: { ...base.values, ownerId: 'sam' } }, value: { ...base.values, ownerId: 'sam' }, currentOwner: { id: 'sam', name: 'Sam Rivera' } },
+  play: async ({ canvasElement, args }) => {
+    const c = within(canvasElement);
+    await userEvent.selectOptions(c.getByRole('combobox', { name: 'Lead owner' }), '');
+    await userEvent.click(c.getByRole('button', { name: copy.save }));
+    await expect(args.onSubmit).toHaveBeenCalledWith(expect.objectContaining({ ownerId: null }));
+  },
+};
+export const OwnerReadOnly: Story = { args: { currentOwner: { id: 'sam', name: 'Sam Rivera' },
+  lead: { ...base, values: { ...base.values, ownerId: 'sam' } }, value: { ...base.values, ownerId: 'sam' } },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement);
+    await expect(c.queryByRole('combobox', { name: 'Lead owner' })).not.toBeInTheDocument();
+    await expect(c.getByRole('group', { name: 'Lead owner' })).toHaveTextContent('Sam Rivera');
+  },
+};
+export const WorkZipCode: Story = { play: async ({ canvasElement, args }) => {
+  const c = within(canvasElement);
+  await userEvent.type(c.getByRole('textbox', { name: 'ZIP code' }), '00501-1234');
+  await userEvent.click(c.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() => expect(args.onSubmit).toHaveBeenCalledWith(expect.objectContaining({ values: expect.objectContaining({ postalCode: '00501' }) })));
+} };

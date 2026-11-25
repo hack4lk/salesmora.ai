@@ -24,7 +24,7 @@ describe("Prefilled conversion review", () => {
       snapshotHash: estimate.snapshotHash, sourceLeadId: estimate.parentId,
       job: {
         customerId: customer.id, customerName: customer.name, title: estimate.name,
-        service: estimate.service, location: estimate.serviceAddress, description: estimate.scope,
+        service: estimate.service, postalCode:'10001', location: estimate.serviceAddress, description: estimate.scope,
         primaryOwnerId: null, teamUserIds: [], scheduledDate: null, arrivalWindow: null, completionDeadline: null,
       },
     });
@@ -46,7 +46,7 @@ describe("Prefilled conversion review", () => {
         expectedLeadVersion: estimate.sourceLeadVersion, expectedCustomerVersion: estimate.customerVersion,
         snapshotHash: estimate.snapshotHash, sourceLeadId: estimate.parentId,
         job: {
-          customerId: customer.id, title: estimate.name, service: estimate.service, location: estimate.serviceAddress, description: estimate.scope,
+          countryCode:'US', customerId: customer.id, title: estimate.name, service: estimate.service, postalCode:'10001', location: estimate.serviceAddress, description: estimate.scope,
           primaryOwnerId: null, teamUserIds: [], scheduledDate: null, arrivalWindow: null, completionDeadline: null,
         },
       },

@@ -20,40 +20,44 @@ const meta = { title: 'Leads/LeadDetailHeader', component: Preview, parameters: 
 } satisfies Meta<typeof Preview>;
 export default meta;
 type Story = StoryObj<typeof meta>;
+async function openLeadActions(canvasElement: HTMLElement) {
+  await userEvent.click(within(canvasElement).getByRole('button', { name: 'Lead actions' }));
+  return within(await within(canvasElement.ownerDocument.body).findByRole('menu', { name: 'Lead actions' }));
+}
 export const Default: Story = {};
 export const ReadOnly: Story = { args: { permissions: { canEdit: false, canArchive: false, canRestore: false, canDelete: false, canCreateEstimate: false, canStartJob: false } }, play: async ({ canvasElement }) => {
   await expect(within(canvasElement).queryByRole('button')).not.toBeInTheDocument();
 } };
 export const Archived: Story = { args: { lead: { ...copy.stories.lead, archived: true, needsAttention: false }, permissions: { ...copy.stories.permissions, canEdit: false } }, play: async ({ canvasElement }) => {
-  const c = within(canvasElement); await expect(c.queryByRole('button', { name: copy.archive })).not.toBeInTheDocument();await expect(c.getByRole('button', { name: copy.restore })).toBeEnabled();
+  const menu = await openLeadActions(canvasElement); await expect(menu.queryByRole('menuitem', { name: copy.archive })).not.toBeInTheDocument();await expect(menu.getByRole('menuitem', { name: copy.restore })).toBeEnabled();
 } };
 export const Won: Story = { args: { lead: { ...copy.stories.lead, stage: 'won', needsAttention: false } }, play: async ({ canvasElement, args }) => {
-  const c = within(canvasElement);await expect(c.getByRole('button', { name: copy.remove })).toBeDisabled();await expect(args.onRequestDelete).not.toHaveBeenCalled();
+  await expect((await openLeadActions(canvasElement)).getByRole('menuitem', { name: copy.remove })).toBeDisabled();await expect(args.onRequestDelete).not.toHaveBeenCalled();
 } };
 export const Pending: Story = { args: { pending: true }, play: async ({ canvasElement, args }) => {
-  const c = within(canvasElement);await expect(c.getByRole('button', { name: copy.edit })).toBeDisabled();await expect(c.getByRole('link', { name: copy.back })).toHaveAttribute('aria-disabled', 'true');await expect(args.onEdit).not.toHaveBeenCalled();
+  const c = within(canvasElement);await expect(c.getByRole('button', { name: copy.actions })).toBeDisabled();await expect(c.getByRole('link', { name: copy.back })).toHaveAttribute('aria-disabled', 'true');await expect(args.onEdit).not.toHaveBeenCalled();
 } };
 export const LongContent: Story = { args: { lead: { ...copy.stories.lead, name: copy.stories.longName, service: copy.stories.longService, businessName: copy.stories.longBusiness } } };
 export const Narrow: Story = { ...LongContent, parameters: { viewport: { value: 'phone' } } };
 export const EditRequest: Story = { play: async ({ canvasElement, args }) => {
-  await userEvent.click(within(canvasElement).getByRole('button', { name: copy.edit }));await expect(args.onEdit).toHaveBeenCalledWith(args.lead);
+  await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: copy.edit }));await expect(args.onEdit).toHaveBeenCalledWith(args.lead);
 } };
 export const ArchiveRequest: Story = { play: async ({ canvasElement, args }) => {
-  await userEvent.click(within(canvasElement).getByRole('button', { name: copy.archive }));await expect(args.onRequestArchive).toHaveBeenCalledWith(args.lead);
+  await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: copy.archive }));await expect(args.onRequestArchive).toHaveBeenCalledWith(args.lead);
 } };
 export const RestoreRequest: Story = { args: Archived.args, play: async ({ canvasElement, args }) => {
-  await userEvent.click(within(canvasElement).getByRole('button', { name: copy.restore }));await expect(args.onRequestRestore).toHaveBeenCalledWith(args.lead);
+  await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: copy.restore }));await expect(args.onRequestRestore).toHaveBeenCalledWith(args.lead);
 } };
 export const DeleteReviewRequest: Story = { play: async ({ canvasElement, args }) => {
-  await userEvent.click(within(canvasElement).getByRole('button', { name: copy.remove }));await expect(args.onRequestDelete).toHaveBeenCalledWith(args.lead);
+  await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: copy.remove }));await expect(args.onRequestDelete).toHaveBeenCalledWith(args.lead);
 } };
 export const ComingSoon: Story = { play: async ({ canvasElement }) => {
-  const c = within(canvasElement);await expect(c.getByRole('button', { name: `${copy.estimate} · ${copy.comingSoon}` })).toBeDisabled();await expect(c.getByRole('button', { name: `${copy.job} · ${copy.comingSoon}` })).toBeDisabled();
+  const menu = await openLeadActions(canvasElement);await expect(menu.getByRole('menuitem', { name: `${copy.estimate} · ${copy.comingSoon}` })).toBeDisabled();await expect(menu.getByRole('menuitem', { name: `${copy.job} · ${copy.comingSoon}` })).toBeDisabled();
 } };
 export const ConnectedEstimate: Story = {
   args: { onCreateEstimate: fn() },
   play: async ({ canvasElement, args }) => {
-    await userEvent.click(within(canvasElement).getByRole('button', { name: copy.estimate }));
+    await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: copy.estimate }));
     await expect(args.onCreateEstimate).toHaveBeenCalledOnce();
   },
 };

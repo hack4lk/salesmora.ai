@@ -13,7 +13,6 @@ export const estimateTermsCardData = {
   preset: "Copy payment preset",
   choosePreset: "Choose wording to copy",
   validUntil: "Valid until",
-  validUntilHint: (timezone: string) => `Valid through the end of this day in ${timezone}. Optional on a Draft; today or later is required to send or publish.`,
   depositType: "Deposit type",
   types: { none: "None", percent: "Percentage", amount: "Fixed amount" },
   depositPercent: "Deposit (%)",

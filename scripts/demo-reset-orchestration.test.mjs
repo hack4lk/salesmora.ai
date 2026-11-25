@@ -12,7 +12,7 @@ function actionsWithLog() {
   const calls = [];
   const actions = Object.fromEntries([
     'preflight', 'confirm', 'prepareCredentials', 'assertNoConnections', 'dropDatabase',
-    'createDatabase', 'migrate', 'provisionRoles', 'seed', 'verify',
+    'captureWorkflows', 'rehearseWorkflows', 'createDatabase', 'migrate', 'provisionRoles', 'seed', 'verify',
   ].map(name => [name, async () => {
     calls.push(name);
     if (name === 'confirm') return true;
@@ -25,7 +25,8 @@ test('runs the complete reset in order and verifies before success', async () =>
   const { calls, actions } = actionsWithLog();
   const result = await runDemoReset(env, actions);
   assert.deepEqual(calls, [
-    'preflight', 'confirm', 'prepareCredentials', 'assertNoConnections', 'dropDatabase',
+    'preflight', 'confirm', 'prepareCredentials', 'assertNoConnections', 'captureWorkflows',
+    'rehearseWorkflows', 'assertNoConnections', 'dropDatabase',
     'createDatabase', 'migrate', 'provisionRoles', 'seed', 'verify',
   ]);
   assert.equal(result.status, 'complete');
@@ -42,7 +43,7 @@ test('cancellation and invalid targets cannot drop a database', async () => {
 });
 
 test('preflight, credential and connection failures leave the database unchanged', async () => {
-  for (const phase of ['preflight', 'prepareCredentials', 'assertNoConnections']) {
+  for (const phase of ['preflight', 'prepareCredentials', 'assertNoConnections', 'captureWorkflows', 'rehearseWorkflows']) {
     const { calls, actions } = actionsWithLog();
     actions[phase] = async () => { throw new Error('test failure'); };
     await assert.rejects(runDemoReset(env, actions), /last confirmed state: unchanged/);

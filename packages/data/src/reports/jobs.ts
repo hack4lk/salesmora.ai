@@ -1,3 +1,4 @@
+import {serviceChoices} from '../services/store';
 import type { Knex } from 'knex';
 import {
   jobWorkloadQuerySchema,
@@ -12,7 +13,7 @@ import { AuthorizationAccessError } from '../authorization/store';
 import { jobReportContext } from './job-context';
 import { applyJobReportFilters, validateJobReportFilters } from './job-filters';
 
-const activeStatuses = ['needs-scheduling', 'scheduled', 'in-progress', 'waiting'] as const;
+export const activeJobReportStatuses = ['needs-scheduling', 'scheduled', 'in-progress', 'waiting'] as const;
 const waitingLabels = {
   customer: 'Waiting on customer',
   materials: 'Waiting on materials',
@@ -31,7 +32,7 @@ type RawJob = {
   jobNumber: number;
   title: string;
   customerName: string;
-  status: typeof activeStatuses[number];
+  status: typeof activeJobReportStatuses[number];
   primaryOwnerId: string | null;
   ownerName: string | null;
   service: string;
@@ -87,7 +88,7 @@ export function selectJobWorkloadProjection(
   }
   switch (selection.group) {
     case 'status':
-      if (!activeStatuses.includes(selection.id as typeof activeStatuses[number])) {
+      if (!activeJobReportStatuses.includes(selection.id as typeof activeJobReportStatuses[number])) {
         throw new RangeError('The selected Job status group is invalid.');
       }
       return query.where('j.status', selection.id);
@@ -122,7 +123,7 @@ async function readWorkload(
   query: JobWorkloadQuery,
   auth: Awaited<ReturnType<typeof jobReportContext>>,
 ): Promise<JobWorkloadResult> {
-  const active = auth.query.clone().whereIn('j.status', activeStatuses);
+  const active = auth.query.clone().whereIn('j.status', activeJobReportStatuses);
   await validateJobReportFilters(active, query.filters, trx);
   const filtered = applyJobReportFilters(active.clone(), query.filters);
   const counts = await jobWorkloadCounts(trx, filtered, auth.today);
@@ -140,6 +141,7 @@ async function readWorkload(
     ))
     .count<{ id: string; label: string; count: string }[]>({ count: 'j.id' })
     .groupBy('j.primaryOwnerId', 'reportOwner.name');
+  const catalog=await serviceChoices(trx,context.workspaceId);
   const serviceRows = await filtered.clone()
     .select(trx.raw(
       `CASE WHEN btrim(j."service") = '' THEN 'none'
@@ -155,7 +157,7 @@ async function readWorkload(
     .count<{ id: string; count: string }[]>({ count: 'j.id' })
     .groupBy('j.waitingReason');
   const groups = {
-    status: activeStatuses.map(status => ({
+    status: activeJobReportStatuses.map(status => ({
       id: status,
       label: statusLabels[status],
       count: safeCount(statusRows.find(row => row.status === status)?.count ?? 0),
@@ -171,7 +173,7 @@ async function readWorkload(
         ? [{ id: 'unassigned', label: 'No current primary owner', count: 0, evidenceId: 'owner:unassigned' }]
         : []),
     ],
-    service: groupRows(serviceRows).map(row => ({ ...row, evidenceId: `service:${row.id}` })),
+    service: groupRows(serviceRows).map(row => ({ ...row, label:catalog.find(s=>s.key===row.id.slice('service:'.length))?.name??row.label, evidenceId: `service:${row.id}` })),
     waitingReason: jobWaitingReasons.map(reason => ({
       id: reason,
       label: waitingLabels[reason],
@@ -222,7 +224,7 @@ async function readWorkload(
       label: `J-${String(row.jobNumber).padStart(4, '0')} / ${row.title || row.customerName}`,
       cells: {
         owner: row.primaryOwnerId === null ? 'No current primary owner' : row.ownerName || 'Current teammate',
-        service: row.service || 'No recorded service',
+        service: catalog.find(s=>s.key===row.service)?.name??(row.service || 'No recorded service'),
       },
       status: row.status,
       completionDeadline: row.completionDeadline,
@@ -251,7 +253,7 @@ async function readWorkload(
 }
 
 export async function jobWorkloadCounts(trx: Knex.Transaction, scoped: Knex.QueryBuilder, today: string) {
-  const filtered = scoped.clone().whereIn('j.status', activeStatuses);
+  const filtered = scoped.clone().whereIn('j.status', activeJobReportStatuses);
   const windowEnd = addCalendarDays(today, 7);
   const metricRow = await filtered.clone().select(trx.raw(
     `COUNT(*) AS "active",

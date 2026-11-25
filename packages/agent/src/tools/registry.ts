@@ -1,3 +1,4 @@
+import { workflowPrepareTool } from '../workflows/tools';
 import { captureSetupTool } from '../lead-capture/tools';
 import { captureQueryTool } from '../lead-capture/tools';
 import { calendarQueryTool, calendarProposeTool } from '../calendar/tools';
@@ -43,6 +44,7 @@ export interface ReadToolResult {
 /** Draft preparation is separate from reads. There is deliberately no commit tool. */
 export const toolRegistry = {
   ...readToolRegistry,
+  workflows_prepare: workflowPrepareTool,
   lead_capture_propose_action: captureSetupTool,
   calendar_propose_action: calendarProposeTool,
   estimates_propose_action: estimatesProposeTool,
@@ -60,6 +62,7 @@ export function isImplementedTool(name: string): name is ImplementedToolId {
   return Object.hasOwn(toolRegistry, name);
 }
 export interface ToolResult extends ReadToolResult {
+  workflowDraft?: import("@salesmora/contracts").WorkflowDraft;
   reportResult?: import("@salesmora/contracts").ReportAssistantTicket;
   captureSource?: import("@salesmora/contracts").CaptureAssistantProposalTicket;
   captureSetup?: import("@salesmora/contracts").CaptureAssistantProposalTicket;

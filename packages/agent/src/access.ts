@@ -20,6 +20,7 @@ import {
 } from "./leads/authorization";
 import {
   authorize,
+  availableWorkflowRecipes,
   resolveAuthorizedCollectionScope,
   type AuthorizationDecision,
 } from "@salesmora/domain";
@@ -28,7 +29,7 @@ import {
 export const chatSurfaceRegistry = Object.fromEntries(
   chatSurfaceKeys.map((surface) => [
     surface,
-    [
+    surface === "workflows.list" ? ["workflows_prepare", "search_help"] : [
       "search_help",
       "reports_query",
       "lead_capture_query",
@@ -103,6 +104,8 @@ export function authorizeChatTool(
       return resolveAuthorizedCollectionScope(context, "leadCapture.read");
     case "calendar_propose_action":
       return canProposeCalendarSchedule(context) ? assistant : denied();
+    case "workflows_prepare":
+      return availableWorkflowRecipes(context).length ? assistant : denied();
     case "calendar_query":
       return resolveAuthorizedCollectionScope(context, "calendar.read");
     // Retrieval must additionally filter every article by its current required app permissions.

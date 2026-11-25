@@ -3,6 +3,7 @@ import type { CalendarVisitPreview } from './calendar-event-card';
 export const calendarEventCardData = {
   types: { job: 'Job visit', work_order: 'Work Order visit', shared: 'Shared visit' },
   job: 'Job', workOrder: 'Work Order',
+  planned: 'Planned work', visitPrefix: 'Visit:',
   noWindow: 'Arrival window not set',
   crew: 'Assigned team', unassigned: 'Unassigned',
   deadline: 'Completion deadline', overdue: 'Overdue',

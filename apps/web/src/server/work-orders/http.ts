@@ -1,3 +1,4 @@
+import { calendarWorkTimeErrorMessage } from "../calendar/work-time-error";
 import "server-only";
 import { isWorkspaceSuspended, workspaceSuspendedResponse } from "../http/suspension";
 import { NextResponse } from "next/server";
@@ -27,6 +28,8 @@ export async function workOrderRequest(request: Request, run: (identity: { userI
   } catch (error) {
     if (isWorkspaceSuspended(error)) return workspaceSuspendedResponse();
     const known = error instanceof WorkOrderValidationError || error instanceof WorkOrderLifecycleError;
+    const workTimeMessage = calendarWorkTimeErrorMessage(error);
+    if (workTimeMessage) return NextResponse.json({ error: workTimeMessage }, { status: 422, headers: workOrderHeaders });
     const status = error instanceof AuthorizationAccessError ? 404 : (error instanceof WorkOrderConflictError || error instanceof CalendarSharedReviewRequiredError || error instanceof CalendarRevisionError) ? 409 : error instanceof WorkOrderContractError || known ? 422 : 500;
     const message = status === 404 ? "This work order or workspace is unavailable." : error instanceof WorkOrderConflictError || error instanceof CalendarSharedReviewRequiredError || error instanceof CalendarRevisionError || known ? (error as Error).message : status === 422 ? "Check the work order details and try again." : "Work orders could not be loaded or saved. Try again.";
     return NextResponse.json({ error: message, ...(status === 409 ? { code: "conflict" } : {}) }, { status, headers: workOrderHeaders });

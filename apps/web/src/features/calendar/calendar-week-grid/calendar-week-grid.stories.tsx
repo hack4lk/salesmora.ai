@@ -20,11 +20,11 @@ export const Default: Story = { play: async ({ canvasElement, args }) => {
   await expect(c.getAllByRole('group')).toHaveLength(7);
   await expect(c.getByRole('status')).toHaveTextContent(copy.count(6));
   await expect(c.getByText(dayCopy.today)).toBeVisible();
-  await userEvent.click(c.getByRole('button', { name: calendarEventCardData.toggleVisit(entries[0].title) }));
+  await userEvent.click(c.getByRole('button', { name: new RegExp(calendarEventCardData.toggleVisit(entries[0].title)) }));
   await userEvent.click(c.getByRole('button', { name: calendarEventCardData.openVisit(entries[0].title) }));
   await expect(args.onOpenVisit).toHaveBeenCalledWith(entries[0].id);
-  await expect(c.getByRole('button', { name: calendarEventCardData.toggleVisit(entries[1].title) })).toHaveAttribute('aria-expanded', 'false');
-  await userEvent.click(c.getByRole('button', { name: calendarEventCardData.toggleVisit(entries[0].title) }));
+  await expect(c.getByRole('button', { name: new RegExp(calendarEventCardData.toggleVisit(entries[1].title)) })).toHaveAttribute('aria-expanded', 'false');
+  await userEvent.click(c.getByRole('button', { name: new RegExp(calendarEventCardData.toggleVisit(entries[0].title)) }));
 } };
 export const EmptyWeek: Story = { args: { entries: [] }, play: async ({ canvasElement, args }) => {
   const c = within(canvasElement);
@@ -79,5 +79,5 @@ export const Keyboard: Story = { play: async ({ canvasElement }) => {
   days[0].focus(); await user.keyboard('{ArrowRight}'); await expect(days[1]).toHaveFocus();
   await user.keyboard('{End}'); await expect(days[6]).toHaveFocus();
   await user.keyboard('{Home}'); await expect(days[0]).toHaveFocus();
-  await user.keyboard('{ArrowDown}'); await expect(within(days[0]).getByRole('button', { name: calendarEventCardData.toggleVisit(entries[0].title) })).toHaveFocus();
+  await user.keyboard('{ArrowDown}'); await expect(within(days[0]).getByRole('button', { name: new RegExp(calendarEventCardData.toggleVisit(entries[0].title)) })).toHaveFocus();
 } };

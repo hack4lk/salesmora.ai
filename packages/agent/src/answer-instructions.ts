@@ -29,6 +29,7 @@ const policies = {
   materials_propose_action: [materials, proposal],
   work_orders_query: [workOrders],
   work_orders_propose_action: [workOrders, materials, proposal],
+  workflows_prepare: ["WORKFLOWS: A new draft requires Publish workflow to activate it; an edit review requires Save changes to update the existing workflow. A chat reply cannot confirm either. Explain clarifications briefly; never claim publication or saved edits before the app receipt."],
   calendar_query: [calendar],
   calendar_propose_action: [calendar, proposal],
   estimates_query: [estimates],

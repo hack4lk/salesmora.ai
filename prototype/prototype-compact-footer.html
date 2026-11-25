@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f8fc">
+  <title>Compact footer review · SalesMora prototype</title>
+  <style>
+    @font-face{font-family:"Source Sans 3";src:url("../apps/web/public/fonts/source-sans-3/source-sans-3-variable.woff2") format("woff2");font-style:normal;font-weight:400 700;font-display:swap}
+    :root{font-family:"Source Sans 3","Segoe UI",Arial,sans-serif;color:#23384d;background:#f4f8fc;--ink:#23384d;--muted:#52677b;--blue:#3b6fa5;--line:#e2eaf1;--canvas:#f4f8fc}
+    *{box-sizing:border-box}body{margin:0}button,select{font:inherit}a{color:#315c8a}a:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid var(--blue);outline-offset:3px}[hidden]{display:none!important}.skip{position:absolute;top:-100px;left:16px;z-index:10;padding:12px;background:#fff}.skip:focus{top:12px}
+    .review-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:12px 24px;background:#e7eff7;border-bottom:1px solid #c6d8e8;font-size:14px}.review-bar p{margin:3px 0 0;color:var(--muted)}.review-bar label{font-weight:600}.review-bar select{min-height:40px;margin-left:8px;padding:6px 10px;border:1px solid #9db5c9;border-radius:8px;color:var(--ink);background:#fff}
+    .workspace{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:calc(100vh - 70px)}.sidebar{display:flex;flex-direction:column;gap:24px;padding:28px 16px;border-right:1px solid var(--line);background:#fff}.logo{width:185px;max-width:100%;height:auto}.workspace-name{padding:12px;border:1px solid var(--line);border-radius:12px;font-size:14px}.workspace-name small{display:block;margin-top:4px;color:var(--muted)}.sidebar nav{display:grid;gap:4px}.sidebar nav a{padding:10px 12px;border-radius:10px;color:var(--muted);font-size:14px;font-weight:600;text-decoration:none}.sidebar nav a[aria-current]{background:#d4f3e9;color:var(--ink)}
+    .workspace-content{display:flex;min-width:0;flex-direction:column}.workspace-main{flex:1;padding:40px 48px 80px}.workspace-main h1{margin:0;font-size:36px;font-weight:600}.workspace-main>p{color:var(--muted)}.sample-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:28px}.sample-card{min-height:220px;padding:24px;border:1px solid var(--line);border-radius:16px;background:#fff}.sample-card h2{margin:0;font-size:19px}.sample-card p{color:var(--muted);line-height:1.6}.sample-card a{font-weight:600}
+    .compact-footer{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px 24px;padding:20px 48px;border-top:1px solid var(--line);background:#fff;color:var(--muted);font-size:14px;line-height:1.5}.compact-footer p{margin:0}.compact-footer nav{display:flex;flex-wrap:wrap;gap:8px 20px}.compact-footer a{text-underline-offset:3px}.workspace .compact-footer{padding-right:260px;padding-bottom:24px}
+    .assistant-launcher{position:fixed;right:24px;bottom:24px;z-index:2;overflow:hidden;padding:13px 18px;border:1px solid #4c6b89;border-radius:16px;background:linear-gradient(to right,#23384d,#274c75,#285e6e);color:#e4eef7;box-shadow:0 8px 25px #23384d30;cursor:pointer;text-align:left}.assistant-launcher:after{content:"";position:absolute;pointer-events:none;top:-62px;right:-30px;width:110px;height:110px;border:1px solid #fff3;border-radius:50%;box-shadow:0 0 0 9px rgb(255 255 255 / .08),0 0 0 20px rgb(255 255 255 / .05)}.assistant-launcher strong,.assistant-launcher span{position:relative;display:block}.assistant-launcher span{margin-top:3px;font-size:13px}
+    dialog{width:min(440px,calc(100% - 32px));padding:24px;border:1px solid var(--line);border-radius:16px;color:var(--ink)}dialog::backdrop{background:#23384d70}dialog h2{margin:0;font-size:22px}dialog p{color:var(--muted);line-height:1.6}dialog button{min-height:44px;padding:8px 16px;border:1px solid var(--blue);border-radius:10px;background:#fff;color:#315c8a;cursor:pointer}
+    .auth{display:flex;min-height:calc(100vh - 70px);flex-direction:column;background:#fff}.auth-main{display:grid;flex:1;grid-template-columns:1fr 1fr}.auth-brand{position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:24px;padding:56px;background:var(--canvas);border-right:1px solid var(--line)}.auth-brand:after{content:"";position:absolute;left:-180px;bottom:-180px;width:360px;height:360px;border:1px solid #3b6fa526;border-radius:50%;box-shadow:0 0 0 24px rgb(59 111 165 / .04),0 0 0 50px rgb(59 111 165 / .025)}.auth-brand .logo{width:220px}.auth-brand h1{max-width:440px;margin:0;font-size:clamp(36px,4vw,48px);font-weight:600;line-height:1.15}.auth-brand p{max-width:380px;color:var(--muted);line-height:1.6}.auth-panel{display:grid;place-items:center;padding:56px}.auth-card{width:min(100%,440px)}.auth-card h2{margin:0;font-size:30px;font-weight:600}.auth-card p{color:var(--muted);line-height:1.6}.auth-card a{font-weight:600}.auth-note{padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--canvas);font-size:14px}
+    @media(max-width:850px){.workspace{grid-template-columns:180px minmax(0,1fr)}.workspace-main{padding:32px 24px 80px}.compact-footer{padding-left:24px;padding-right:24px}.workspace .compact-footer{padding-right:24px;padding-bottom:110px}.auth-brand,.auth-panel{padding:32px}.sample-grid{grid-template-columns:1fr}}
+    @media(max-width:600px){.review-bar{padding:12px 16px}.workspace{display:block}.sidebar{padding:16px;gap:12px;border-right:0;border-bottom:1px solid var(--line)}.sidebar nav{display:flex;flex-wrap:wrap}.sidebar nav a{padding:8px}.workspace-name{display:none}.workspace-main{padding:24px 16px 48px}.workspace-main h1{font-size:30px}.compact-footer{padding:20px 16px}.workspace .compact-footer{padding-right:16px;padding-bottom:110px}.assistant-launcher{right:16px;bottom:16px}.auth-main{grid-template-columns:1fr}.auth-brand{padding:24px;border-right:0;border-bottom:1px solid var(--line)}.auth-brand h1,.auth-brand p{display:none}.auth-panel{padding:36px 24px 56px}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#preview-main">Skip to preview content</a>
+  <header class="review-bar">
+    <div><strong>Compact footer design review</strong><p>Static contexts · Fictional data · Legal pages are drafts</p></div>
+    <label for="context">Preview context<select id="context"><option value="workspace">Signed-in workspace</option><option value="auth">Authentication</option></select></label>
+  </header>
+  <div id="preview-main">
+    <div class="workspace" id="workspace-view">
+      <aside class="sidebar">
+        <a href="prototype-public-home.html"><img class="logo" src="../branding/assets/salesmora-logo.svg" alt="SalesMora.ai"></a>
+        <div class="workspace-name"><strong>Harbor Home Services</strong><small>Sample workspace</small></div>
+        <nav aria-label="Sample workspace navigation"><a href="prototype-screen-45-home-review.html" aria-current="page">Home</a><a href="prototype-screen-05-leads.html">Leads</a><a href="prototype-screen-08-customers.html">Customers</a><a href="prototype-screen-34-estimates.html">Estimates</a><a href="prototype-screen-09-jobs.html">Jobs</a><a href="prototype-screen-30-scheduling-calendar.html">Calendar</a><a href="prototype-screen-13-reports.html">Reports</a><a href="prototype-screen-16-settings.html">Settings</a></nav>
+      </aside>
+      <div class="workspace-content">
+        <main class="workspace-main"><h1>Welcome, Ava.</h1><p>A sample workspace to review how the footer fits alongside the app.</p><div class="sample-grid"><section class="sample-card"><h2>Needs attention</h2><p>Sample customer work appears here. This content is illustrative only.</p><a href="prototype-screen-45-home-review.html">Open the Home prototype</a></section><section class="sample-card"><h2>Upcoming work</h2><p>Keep scheduled work in view as your team moves through the day.</p><a href="prototype-screen-30-scheduling-calendar.html">Open the Calendar prototype</a></section></div></main>
+        <footer class="compact-footer"><p>SalesMora is a product of Karpuk Creative, LLC · © 2026</p><nav aria-label="Workspace footer"><a href="prototype-public-terms.html">Terms of Service</a><a href="prototype-public-privacy.html">Privacy Policy</a><a href="mailto:info@salesmora.ai">Contact &amp; support</a></nav></footer>
+      </div>
+      <button class="assistant-launcher" id="assistant-open" type="button"><strong>Ask SalesMora</strong><span>Assistant preview</span></button>
+    </div>
+    <div class="auth" id="auth-view" hidden>
+      <div class="auth-main">
+        <header class="auth-brand"><a href="prototype-public-home.html"><img class="logo" src="../branding/assets/salesmora-logo.svg" alt="SalesMora.ai"></a><h1>Customer work, together in one place.</h1><p>Keep leads, estimates, and jobs connected in a workspace for your business.</p></header>
+        <main class="auth-panel"><div class="auth-card"><h2>Create your account</h2><p>Start a workspace for your business. You’ll add your business details next.</p><div class="auth-note">This view illustrates footer placement. Account creation is simulated in the registration prototype.</div><p><a href="prototype-screen-01-register.html">Open the registration prototype</a></p><p>Already have an account? <a href="prototype-screen-01.html">Sign in</a></p></div></main>
+      </div>
+      <footer class="compact-footer"><p>SalesMora is a product of Karpuk Creative, LLC · © 2026</p><nav aria-label="Authentication footer"><a href="prototype-public-terms.html">Terms of Service</a><a href="prototype-public-privacy.html">Privacy Policy</a><a href="mailto:info@salesmora.ai">Contact &amp; support</a></nav></footer>
+    </div>
+  </div>
+  <dialog id="assistant-dialog" aria-labelledby="dialog-title"><h2 id="dialog-title">Assistant preview</h2><p>This is a placement preview. No AI request is sent and no business data is changed.</p><form method="dialog"><button type="submit">Close</button></form></dialog>
+  <script>
+    const context = document.getElementById('context');
+    const workspace = document.getElementById('workspace-view');
+    const auth = document.getElementById('auth-view');
+    context.addEventListener('change', () => {
+      workspace.hidden = context.value !== 'workspace';
+      auth.hidden = context.value !== 'auth';
+    });
+    document.getElementById('assistant-open').addEventListener('click', () => document.getElementById('assistant-dialog').showModal());
+  </script>
+</body>
+</html>

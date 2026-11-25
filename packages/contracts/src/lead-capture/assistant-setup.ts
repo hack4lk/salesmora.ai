@@ -26,7 +26,11 @@ export const captureSetupProposeSchema = setupInput.superRefine((value, context)
   if (value.operation === 'create_source' ? !value.name || !value.sourceType || value.sourceId !== null : value.sourceType !== null) context.addIssue({ code: 'custom', message: 'Invalid source selection.' });
   const present = (keys: readonly (keyof typeof value)[]) => keys.some(key => value[key] !== null);
   if (value.operation === 'begin_revision' && present(['name', 'fields', 'contactRequired', 'workflow', 'brief', 'content', 'rules', 'mappings', 'findings'])) context.addIssue({ code: 'custom', message: 'Revision preparation cannot change configuration.' });
-  if (value.operation === 'suggest_website_fields' && (!value.fields?.length || value.contactRequired === null || present(['name', 'workflow', 'content', 'rules', 'mappings', 'findings']))) context.addIssue({ code: 'custom', message: 'Provide only the proposed website fields.' });
+  if (value.operation === 'suggest_website_fields') {
+    if (!value.fields?.length) context.addIssue({ code: 'custom', path: ['fields'], message: 'Generate a nonempty proposed fields array from the current unsaved website brief; the user does not need to supply the fields.' });
+    if (value.contactRequired !== true) context.addIssue({ code: 'custom', path: ['contactRequired'], message: 'Set contactRequired to true to retain a required contact method.' });
+    if (present(['name', 'workflow', 'content', 'rules', 'mappings', 'findings'])) context.addIssue({ code: 'custom', message: 'Website-field suggestions must leave name, workflow, content, rules, mappings and findings null.' });
+  }
   if (value.operation === 'suggest_workflow' && (!value.workflow || present(['name', 'fields', 'contactRequired', 'brief', 'content', 'rules', 'mappings', 'findings']))) context.addIssue({ code: 'custom', message: 'Provide only the proposed workflow.' });
   if (['extract_sample', 'refine_mapping', 'approve_sample'].includes(value.operation)) {
     for (const key of ['fields', 'findings', 'mappings'] as const) if (!value[key]?.length) context.addIssue({ code: 'custom', path: [key], message: `Provide a nonempty ${key} array for the current email example.` });

@@ -1,8 +1,11 @@
 "use client";
+import { ConnectedWorkflowDraft } from "../../workflows/connected-workflow-draft";
+import { automationExamplesFor } from "../../workflows/workflow-automation-examples";
+import { WorkflowAutomationGuide } from "../../workflows/workflow-automation-guide";
 import { ApiQueryScopeBoundary, useApiQueryScope, useApiViewerId } from "../../api/api-query-provider";
 import { ConnectedCaptureSource } from '../capture-result/connected-capture-source';
 import { ConnectedCaptureSetup } from '../capture-result/connected-capture-setup';
-import type { CaptureAssistantProposalTicket } from '@salesmora/contracts';
+import type { CaptureAssistantProposalTicket, WorkflowDefinition } from '@salesmora/contracts';
 import { ConnectedCaptureRead } from '../capture-result/connected-capture-read';
 import type { CaptureChatTicket } from '@salesmora/contracts';
 import { ConnectedCalendarSchedule } from '../calendar-schedule-draft-card/connected-calendar-schedule';
@@ -71,7 +74,7 @@ const rememberThread = (workspaceId: string, id?: string) => {
     else sessionStorage.removeItem(storageKey(workspaceId));
   } catch {}
 };
-export function ConnectedAssistant(props: { workspaceId: string; surfaceKey: ChatSurfaceKey }) {
+export function ConnectedAssistant(props: { workspaceId: string; surfaceKey: ChatSurfaceKey; workflowRecipes?: readonly WorkflowDefinition["kind"][] }) {
   const viewerId = useApiViewerId();
   return <ApiQueryScopeBoundary scope={{ viewerId, workspaceId: props.workspaceId }}>
     <AssistantContent key={`${viewerId}:${props.workspaceId}`} {...props}/>
@@ -80,9 +83,11 @@ export function ConnectedAssistant(props: { workspaceId: string; surfaceKey: Cha
 function AssistantContent({
   workspaceId,
   surfaceKey,
+  workflowRecipes = [],
 }: {
   workspaceId: string;
   surfaceKey: ChatSurfaceKey;
+  workflowRecipes?: readonly WorkflowDefinition["kind"][];
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -101,6 +106,7 @@ function AssistantContent({
       captureSource?: CaptureAssistantProposalTicket;
       captureSetup?: CaptureAssistantProposalTicket;
       captureResult?: CaptureChatTicket;
+      workflowDraft?: import("@salesmora/contracts").WorkflowDraft;
       calendarProposal?: CalendarProposalTicket;
       calendarTurnId?: string;
       reportResult?: ReportAssistantTicket;
@@ -166,6 +172,7 @@ function AssistantContent({
             id: message.id,
             role: message.role,
             text: message.text,
+            workflowDraft: message.role === "assistant" ? state?.workflowDraft : undefined,
             calendarProposal: message.role === "assistant" ? state?.calendarProposal : undefined,
             captureSource: message.role === "assistant" ? state?.captureSource : undefined,
             captureSetup: message.role === "assistant" ? state?.captureSetup : undefined,
@@ -486,6 +493,10 @@ function AssistantContent({
           case "capture.result":
             setMessages(items => items.map(item => item.id === localAssistant ? { ...item, captureResult: event.result } : item));
             break;
+          case "workflow.draft":
+            setMessages(items => items.map(item => item.id === localAssistant ? { ...item, workflowDraft: event.result }
+              : item.workflowDraft?.state === "pending" ? { ...item, workflowDraft: { ...item.workflowDraft, state: "superseded" as const } } : item));
+            break;
           case "calendar.proposal":
             setMessages(items => items.map(item => item.id === localAssistant ? { ...item,calendarProposal:event.result } : item));
             break;
@@ -745,6 +756,16 @@ function AssistantContent({
 
   return (
     <AssistantPanel
+      {...(surfaceKey === "workflows.list" ? {
+        title: "What would you like to automate?",
+        description: "Create lead routing, team reminders and Monday briefings.",
+        composerPlaceholder: "Describe a workflow…",
+      } : {})}
+      renderBody={surfaceKey === "workflows.list" ? body => (
+        <WorkflowAutomationGuide examples={automationExamplesFor(workflowRecipes)}>
+          {body}
+        </WorkflowAutomationGuide>
+      ) : undefined}
       open={workspaceAssistant?.open}
       onOpenChange={workspaceAssistant?.setOpen}
       draft={workspaceAssistant?.draft}
@@ -778,8 +799,9 @@ function AssistantContent({
         const estimateArchive = messages.find(item => item.id === message.id)?.estimateArchive;
         const estimateDraftDelete = messages.find(item => item.id === message.id)?.estimateDraftDelete;
         const estimateConversion = messages.find(item => item.id === message.id)?.estimateConversion;
-        if (!report?.reportResult && !report?.reportStatus && !captureSource && !captureSetup && !capture && !calendar?.calendarProposal && !calendar?.calendarResult && !customer && !workOrder && !estimate && !estimateDraft && !estimateSharing && !estimateDecision && !estimateDraftAction && !estimateVoid && !estimateArchive && !estimateDraftDelete && !estimateConversion) return null;
+        if (!calendar?.workflowDraft && !report?.reportResult && !report?.reportStatus && !captureSource && !captureSetup && !capture && !calendar?.calendarProposal && !calendar?.calendarResult && !customer && !workOrder && !estimate && !estimateDraft && !estimateSharing && !estimateDecision && !estimateDraftAction && !estimateVoid && !estimateArchive && !estimateDraftDelete && !estimateConversion) return null;
         return <div className="grid min-w-0 gap-4">
+          {calendar?.workflowDraft && <ConnectedWorkflowDraft key={`${calendar.workflowDraft.id}:${calendar.workflowDraft.state}`} ticket={calendar.workflowDraft} onSaved={saved => setMessages(items => items.map(item => item.id === message.id ? { ...item, workflowDraft: saved } : item))} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} />}
           {captureSource && <ConnectedCaptureSource ticket={captureSource} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} onSaved={captureSaved} />}
           {captureSetup && <ConnectedCaptureSetup ticket={captureSetup} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} apply={workspaceAssistant?.applyCaptureSetup} onSaved={captureSaved} />}
           {capture && <ConnectedCaptureRead ticket={capture} disabled={blocked || runStatus === "thinking" || runStatus === "streaming"} onNavigate={href => { workspaceAssistant?.setOpen(false); workspaceAssistant?.clearPageContext(); router.push(href); }} />}

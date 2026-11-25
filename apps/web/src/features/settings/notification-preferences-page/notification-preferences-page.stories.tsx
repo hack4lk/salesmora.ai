@@ -417,3 +417,30 @@ export const JobAssignmentEmailsActive: Story = {
 export const JobAllActivityEmailsActive: Story = {
   args: { ...jobActivityArgs, jobActivityScope: 'all' },
 };
+
+export const WorkflowBriefingEmails: Story = { args: { showWorkflowBriefings: true }, play: async ({ canvasElement, args }) => {
+  const canvas = within(canvasElement);
+  const toggle = canvas.getByRole('switch', { name: 'Workflow briefings' });
+  await expect(toggle).toBeChecked();
+  await userEvent.click(toggle);
+  await expect(toggle).not.toBeChecked();
+  await expect(canvas.getByRole('switch', { name: copy.leadAssigned })).toBeChecked();
+  await userEvent.click(canvas.getByRole('button', { name: copy.save }));
+  await expect(args.onSave).toHaveBeenCalledWith({ leadAssignedEmail: true, workflowBriefingEmail: false });
+} };
+
+export const UnassignedVisitEmails: Story = { args: { showWorkflowVisitReminders: true }, play: async ({ canvasElement, args }) => {
+  const canvas = within(canvasElement), toggle = canvas.getByRole('switch', { name: 'Unassigned visit reminders' });
+  await expect(toggle).toBeChecked(); await userEvent.click(toggle);
+  await expect(canvas.getByRole('switch', { name: copy.leadAssigned })).toBeChecked();
+  await userEvent.click(canvas.getByRole('button', { name: copy.save }));
+  await expect(args.onSave).toHaveBeenCalledWith({ leadAssignedEmail: true, workflowVisitEmail: false });
+} };
+
+export const VisitMaterialsEmails: Story = { args: { showWorkflowMaterialsReminders: true }, play: async ({ canvasElement, args }) => {
+  const canvas = within(canvasElement), toggle = canvas.getByRole('switch', { name: 'Visit materials reminders' });
+  await expect(toggle).toBeChecked(); await userEvent.click(toggle);
+  await expect(canvas.getByRole('switch', { name: copy.leadAssigned })).toBeChecked();
+  await userEvent.click(canvas.getByRole('button', { name: copy.save }));
+  await expect(args.onSave).toHaveBeenCalledWith({ leadAssignedEmail: true, workflowMaterialsEmail: false });
+} };

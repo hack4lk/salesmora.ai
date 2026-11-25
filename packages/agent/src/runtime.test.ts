@@ -15,6 +15,27 @@ function fixture() {
   return { model, checkpointer, authorize, capabilities, executeTool: vi.fn<RuntimeDependencies['executeTool']>(async () => ({ evidence: { type: 'untrusted-help-reference', matches: [] }, sources: [] })), rememberSources: vi.fn(async () => {}), emit: vi.fn<RuntimeDependencies['emit']>(async () => {}) };
 }
 describe('bounded conversation graph', () => {
+  it.each(['unscheduled_estimate', 'weekly_briefing', 'unassigned_visit'] as const)('returns a prepared %s card without another model generation', async kind => {
+    const deps = fixture();
+    deps.authorize.mockResolvedValue(["workflows_prepare"]);
+    deps.model.plan = vi.fn(async () => [{ name: "workflows_prepare", args: { kind, name: "Reminder", businessDays: kind === "unscheduled_estimate" ? 1 : null, recipient: "me" } }]);
+    const answer = vi.fn(async function* () { yield "Unused"; });
+    deps.model.answer = answer;
+    deps.executeTool.mockResolvedValue({
+      evidence: { published: false },
+      workflowDraft: {
+        id: turnId, workspaceId: turnId, name: "Reminder", rule: "Remind me.", inputHash: "a".repeat(64),
+        expiresAt: new Date(Date.now() + 900000).toISOString(), state: "pending",
+        definition: { ...(kind === "unassigned_visit" ? { kind, calendarDaysBefore: 1 as const, localTime: "09:00" as const } : kind === "weekly_briefing" ? { kind, weekday: "monday" as const, localTime: "09:00" as const } : { kind, businessDays: 1 }), recipientId: "owner", recipientName: "Owner", timezone: "UTC" },
+      },
+    });
+    const result = await runConversation({ ...input(), surface: "workflows.list" }, deps);
+    expect(result.workflowDraft?.name).toBe("Reminder");
+    expect(deps.model.plan).toHaveBeenCalledOnce();
+    expect(answer).not.toHaveBeenCalled();
+    expect(deps.emit).toHaveBeenCalledWith({ type: "text", text: "Review the workflow below, then publish when you're ready." });
+  });
+
   it('runs without a saver and never reads or writes diagnostic checkpoints', async () => {
     const { checkpointer, ...deps } = fixture();
     const get = vi.spyOn(checkpointer, 'getTuple');
@@ -499,4 +520,69 @@ it('returns approved history-card data through the read facade without checkpoin
   const completed = await runConversation(input(), deps);
   expect(completed.historyResult).toEqual(result);
   expect(JSON.stringify(await deps.checkpointer.getTuple({ configurable: { thread_id: turnId } }))).not.toContain('PRIVATE_HISTORY_SENTINEL');
+});
+
+it.each(['unassigned_lead', 'estimate_follow_up', 'weekly_briefing', 'unassigned_visit'] as const)('passes authorized recipe kinds to planning and rejects an unadvertised %s call', async kind => {
+  const deps = fixture();
+  deps.capabilities.mockResolvedValue({ tools: ['workflows_prepare'], leadOperations: [], customerOperations: [], captureOperations: [],
+    workflowRecipes: kind === 'unassigned_lead' ? ['estimate_follow_up'] : ['unassigned_lead'] });
+  deps.model.plan = vi.fn(async (_messages, _tools, _signal, _leads, _customers, _capture, recipes) => {
+    expect(recipes).toEqual(kind === 'unassigned_lead' ? ['estimate_follow_up'] : ['unassigned_lead']);
+    return [{ name: 'workflows_prepare', args: { kind, name: 'Reminder', businessDays: ['weekly_briefing','unassigned_visit'].includes(kind) ? null : 1, recipient: 'me' } }];
+  });
+  await expect(runConversation({ ...input(), surface: 'workflows.list' }, deps)).rejects.toThrow('Access denied.');
+  expect(deps.executeTool).not.toHaveBeenCalled();
+});
+
+it('returns an edit review without a second generation and requires Save changes instead of publication', async () => {
+  const deps = fixture();
+  deps.authorize.mockResolvedValue(['workflows_prepare']);
+  deps.capabilities.mockResolvedValue({ tools: ['workflows_prepare'], workflowRecipes: ['unassigned_visit'], leadOperations: [], customerOperations: [], captureOperations: [] });
+  deps.model.plan = vi.fn(async () => [{ name: 'workflows_prepare', args: { operation: 'edit', workflowRef: turnId, kind: null, name: null, businessDays: null, recipient: null, localTime: '08:15', notifications: null } }]);
+  const answer = vi.fn(async function* () { yield 'Unused'; }); deps.model.answer = answer;
+  deps.executeTool.mockResolvedValue({ evidence: { saved: false }, workflowDraft: { id: turnId, workspaceId: turnId, name: 'Visit reminder', rule: 'Remind me.',
+    inputHash: 'a'.repeat(64), expiresAt: new Date(Date.now() + 900000).toISOString(), state: 'pending', editing: { id: turnId, version: 3, status: 'paused' },
+    definition: { kind: 'unassigned_visit', calendarDaysBefore: 1, localTime: '08:15', recipientId: 'owner', recipientName: 'Owner', timezone: 'UTC' } } });
+  const result = await runConversation({ ...input(), surface: 'workflows.list' }, deps);
+  expect(result.workflowDraft?.editing?.version).toBe(3);
+  expect(deps.model.plan).toHaveBeenCalledOnce(); expect(answer).not.toHaveBeenCalled();
+  expect(deps.emit).toHaveBeenCalledWith({ type: 'text', text: "Review the changes below, then save when you're ready." });
+});
+
+it('blocks an edit plan when the current capability snapshot allows creation only', async () => {
+  const deps = fixture();
+  deps.capabilities.mockResolvedValue({ tools: ['workflows_prepare'], workflowRecipes: ['unassigned_visit'], workflowEditing: false, leadOperations: [], customerOperations: [], captureOperations: [] });
+  deps.model.plan = async () => [{ name: 'workflows_prepare', args: { operation: 'edit', workflowRef: turnId, localTime: '08:15' } }];
+  await expect(runConversation({ ...input(), surface: 'workflows.list' }, deps)).rejects.toThrow('Access denied.');
+  expect(deps.executeTool).not.toHaveBeenCalled();
+});
+
+it('prepares source routing with no individual lead operations and no second generation', async () => {
+  const deps = fixture();
+  deps.authorize.mockResolvedValue(['workflows_prepare']);
+  deps.capabilities.mockResolvedValue({ tools: ['workflows_prepare'], workflowRecipes: ['lead_routing'], leadOperations: [], customerOperations: [], captureOperations: [] });
+  deps.model.plan = vi.fn(async () => [{ name: 'workflows_prepare', args: { operation: 'create', workflowRef: null, kind: 'lead_routing', name: 'Website routing',
+    source: 'website', recipient: 'Alex Parker', businessDays: null, localTime: null, notifications: null } }]);
+  const answer = vi.fn(async function* () { yield 'Unused'; }); deps.model.answer = answer;
+  deps.executeTool.mockResolvedValue({ evidence: { published: false }, workflowDraft: { id: turnId, workspaceId: turnId, name: 'Website routing',
+    rule: 'Assign new unassigned leads from Website to Alex Parker.', inputHash: 'a'.repeat(64), expiresAt: new Date(Date.now() + 900000).toISOString(), state: 'pending',
+    definition: { kind: 'lead_routing', sourceId: turnId, sourceName: 'Website', recipientId: 'alex', recipientName: 'Alex Parker', timezone: 'UTC', notifications: { inApp: true, email: true } } } });
+  const result = await runConversation({ ...input(), surface: 'workflows.list', messages: [{ role: 'user', text: 'assign new website leads automatically to alex parker' }] }, deps);
+  expect(result.workflowDraft?.definition.kind).toBe('lead_routing');
+  expect(deps.model.plan).toHaveBeenCalledOnce(); expect(answer).not.toHaveBeenCalled();
+});
+
+it('passes an incomplete supported workflow request to clarification without weakening recipe access', async () => {
+  const deps = fixture();
+  deps.capabilities.mockResolvedValue({ tools: ['workflows_prepare'], workflowRecipes: ['lead_routing'], leadOperations: [], customerOperations: [], captureOperations: [] });
+  deps.authorize.mockResolvedValue(['workflows_prepare']);
+  deps.model.plan = vi.fn(async () => [{ name: 'workflows_prepare', args: { operation: 'create', workflowRef: null, kind: null, name: null, source: 'Fictional Demo Form', recipient: null, businessDays: null } }]);
+  deps.executeTool.mockResolvedValue({ evidence: { type: 'workflow-clarification', published: false } });
+  const result = await runConversation({ ...input(), surface: 'workflows.list' }, deps);
+  expect(result.workflowDraft).toBeUndefined();
+  expect(deps.executeTool).toHaveBeenCalledOnce();
+  deps.model.plan = vi.fn(async () => [{ name: 'workflows_prepare', args: { operation: 'create', kind: 'weekly_briefing', name: 'Briefing', recipient: 'me', businessDays: null } }]);
+  deps.executeTool.mockClear();
+  await expect(runConversation({ ...input(), turnId: '00000000-0000-4000-8000-000000000099', surface: 'workflows.list' }, deps)).rejects.toThrow('Access denied.');
+  expect(deps.executeTool).not.toHaveBeenCalled();
 });

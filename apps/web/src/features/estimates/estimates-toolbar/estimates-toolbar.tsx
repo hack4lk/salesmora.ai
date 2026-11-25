@@ -24,8 +24,6 @@ export const defaultEstimateFilters: EstimateFilters = {
 export type EstimatesToolbarProps = {
   value: EstimateFilters;
   members: readonly EstimateMember[];
-  shownCount?: number;
-  totalCount?: number;
   currentMemberId?: string;
   disabled?: boolean;
   onChange: (value: EstimateFilters) => void;
@@ -34,8 +32,6 @@ export type EstimatesToolbarProps = {
 export function EstimatesToolbar({
   value,
   members,
-  shownCount,
-  totalCount,
   currentMemberId,
   disabled,
   onChange,
@@ -167,11 +163,6 @@ export function EstimatesToolbar({
           {c.includeHidden}
         </label>
       </FilterBar>
-      <p role="status" aria-live="polite" className="m-0 text-sm text-muted">
-        {shownCount !== undefined && totalCount !== undefined
-          ? c.count(shownCount, totalCount)
-          : c.countUnavailable}
-      </p>
     </div>
   );
 }

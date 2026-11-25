@@ -343,7 +343,7 @@ export function CustomersPagePreview({
                 <h1 className="m-0 text-heading font-semibold text-ink">
                   {c.title}
                 </h1>
-                <p className="mb-0 mt-3 max-w-reading text-base leading-6 text-muted">
+                <p className="mb-0 mt-3 text-base leading-6 text-muted">
                   {c.description}
                 </p>
               </div>
@@ -381,7 +381,6 @@ export function CustomersPagePreview({
             <CustomersToolbar
               value={filters}
               members={customerMembers}
-              count={filtered.length}
               disabled={state !== "ready"}
               canArchive={capabilities.archive}
               onChange={(next) => {

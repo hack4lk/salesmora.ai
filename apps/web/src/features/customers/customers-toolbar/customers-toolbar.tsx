@@ -23,7 +23,6 @@ export const defaultCustomerFilters: CustomerFilters = {
 export type CustomersToolbarProps = {
   value: CustomerFilters;
   members: readonly CustomerMember[];
-  count: number;
   disabled?: boolean;
   canArchive?: boolean;
   jobsAvailable?: boolean;
@@ -32,7 +31,6 @@ export type CustomersToolbarProps = {
 export function CustomersToolbar({
   value,
   members,
-  count,
   disabled,
   canArchive,
   jobsAvailable,
@@ -177,9 +175,6 @@ export function CustomersToolbar({
           </label>
         )}
       </FilterBar>
-      <p role="status" aria-live="polite" className="m-0 text-sm text-muted">
-        {c.count(count)}
-      </p>
     </div>
   );
 }

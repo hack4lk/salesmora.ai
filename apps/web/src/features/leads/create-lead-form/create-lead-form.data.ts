@@ -7,7 +7,7 @@ export const createLeadFormData = {
     management: { title: 'Lead management', description: "Choose how this lead enters your team's pipeline." },
     notes: { title: 'Internal notes', description: 'Keep private context for your team.' },
   },
-  labels: { name: 'Lead name', email: 'Email address', phone: 'Phone number', service: 'Service requested', address: 'Service address', details: 'Request details', source: 'Source', stage: 'Pipeline stage', ownerId: 'Lead owner', notes: 'Notes' },
+  labels: { name: 'Lead name', email: 'Email address', phone: 'Phone number', service: 'Service requested', address: 'Service address', postalCode:'ZIP code', details: 'Request details', source: 'Source', stage: 'Pipeline stage', ownerId: 'Lead owner', notes: 'Notes' },
   placeholders: { name: 'Full name', email: 'name@example.com', phone: '(212) 555-0100', service: 'e.g. Furnace repair', address: 'Street, city, ZIP', details: 'What did the customer tell you about the work?', notes: 'Add any context the team should know.' },
   optional: (label: string) => `${label} (optional)`,
   unassigned: 'Unassigned',

@@ -18,7 +18,7 @@ export type LeadListQuery = z.infer<typeof leadListQuerySchema>;
 export const leadDetailQuerySchema = z.object({ workspaceId: z.uuid(), leadId: z.uuid(), activityPage: z.coerce.number().int().min(1).max(100000).default(1) }).strict();
 export const leadCreatedActivitySchema = z.object({ source: z.enum(leadSources) });
 export type LeadReadRecord = {
-  id: string; leadNumber: string; version: number; name: string; service: string; email: string; phone: string; address: string; details: string; notes: string;
+  id: string; leadNumber: string; version: number; name: string; service: string; email: string; phone: string; address: string; postalCode?: string; countryCode?: 'US'; details: string; notes: string;
   stage: typeof leadStages[number]; source: typeof leadSources[number]; owner: { id: string; name: string; former: boolean } | null;
   createdAt: string; updatedAt: string; lastActivityAt: string; archived: boolean; needsAttention: boolean; canMove: boolean; canEdit: boolean; canAssign: boolean; canArchive: boolean; canRestore: boolean; canDelete: boolean; origin: 'manual' | 'gmail' | 'campaign' | 'lead_capture';
 };
@@ -32,7 +32,7 @@ export type LeadDetailResult = { relatedCustomer?: {name:string;number:string;em
 
 export const leadReadRecordSchema = z.object({
   id: z.uuid(), leadNumber: z.string().min(1), version: z.number().int().positive(),
-  name: z.string(), service: z.string(), email: z.string(), phone: z.string(), address: z.string(), details: z.string(), notes: z.string(),
+  name: z.string(), service: z.string(), email: z.string(), phone: z.string(), address: z.string(), postalCode: z.string().optional(), countryCode: z.literal('US').optional(), details: z.string(), notes: z.string(),
   stage: z.enum(leadStages), source: z.enum(leadSources),
   owner: z.object({ id: z.string().min(1), name: z.string(), former: z.boolean() }).nullable(),
   createdAt: z.iso.datetime({ offset: true }), updatedAt: z.iso.datetime({ offset: true }), lastActivityAt: z.iso.datetime({ offset: true }),
@@ -88,13 +88,13 @@ export type AddLeadNoteInput = z.infer<typeof addLeadNoteSchema>;
 export type LeadReadNote = { id: string; body: string; authorName: string; createdAt: string; viaAssistant: boolean };
 
 export const leadCreationProvenanceSchema = leadCreatedActivitySchema.extend({ origin: z.enum(['manual', 'gmail', 'campaign', 'lead_capture']).optional() });
-export const leadEditableFields = ['name', 'email', 'phone', 'service', 'address', 'details', 'notes', 'source'] as const;
+export const leadEditableFields = ['name', 'email', 'phone', 'service', 'address', 'postalCode', 'details', 'notes', 'source'] as const;
 export const leadEditableFieldSchema = z.enum(leadEditableFields);
-export const leadEditValuesSchema = leadSchema.pick({ name: true, email: true, phone: true, service: true, address: true, details: true, notes: true, source: true }).extend({ source: leadSchema.shape.source.optional() }).strict();
-export const updateLeadSchema = z.object({ workspaceId: z.uuid(), leadId: z.uuid(), submissionId: z.uuid(), expectedVersion: z.number().int().positive(), values: leadEditValuesSchema }).strict();
+export const leadEditValuesSchema = leadSchema.pick({ name: true, email: true, phone: true, service: true, address: true, postalCode: true, details: true, notes: true, source: true }).extend({ source: leadSchema.shape.source.optional() }).strict();
+export const updateLeadSchema = z.object({ workspaceId: z.uuid(), leadId: z.uuid(), submissionId: z.uuid(), expectedVersion: z.number().int().positive(), ownerId: z.string().min(1).max(200).nullable().optional(), values: leadEditValuesSchema }).strict();
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
-export const leadEditedActivitySchema = z.object({ fromVersion: z.number().int().positive(), toVersion: z.number().int().positive(), fields: z.array(z.object({ field: leadEditableFieldSchema, before: z.string(), after: z.string() })).min(1).max(8) });
-export const leadEditConflictSchema = z.object({ error: z.string(), changedFields: z.array(leadEditableFieldSchema).max(8) });
+export const leadEditedActivitySchema = z.object({ fromVersion: z.number().int().positive(), toVersion: z.number().int().positive(), fields: z.array(z.object({ field: leadEditableFieldSchema, before: z.string(), after: z.string() })).min(1).max(10) });
+export const leadEditConflictSchema = z.object({ error: z.string(), changedFields: z.array(leadEditableFieldSchema).max(10) });
 export const assignLeadSchema = z.object({ workspaceId: z.uuid(), leadId: z.uuid(), submissionId: z.uuid(), expectedVersion: z.number().int().positive(), ownerId: z.string().min(1).max(200).nullable() }).strict();
 export type AssignLeadInput = z.infer<typeof assignLeadSchema>;
 export const leadAssignedActivitySchema = z.object({ from: z.string().nullable(), to: z.string().nullable() });

@@ -5,6 +5,7 @@ export const calendarTeamWorkloadData = {
   count: (count: number) => `${count} ${count === 1 ? 'visit' : 'visits'}`,
   weekCount: (count: number) => `${count} distinct ${count === 1 ? 'visit' : 'visits'} this week`,
   filter: (name: string) => `Filter calendar by ${name}`,
+  availability: 'Availability', availabilityFor: (name: string) => `Availability for ${name}`,
   daily: 'Visits by day', busy: 'Busy day',
   busyDay: (date: string, count: number) => `${date}: ${count} visits`,
   helper: 'Visit counts do not measure free hours or availability. Working hours and time off are not included.',

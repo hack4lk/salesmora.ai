@@ -1,3 +1,4 @@
+import { resolveLeadRouting, recordLeadRouting } from "../workflows/routing";
 import { randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
 import { intakeQuerySchema, intakeListViewSchema, intakeDetailQuerySchema, intakeDetailViewSchema, prepareIntakeReviewSchema, intakePreparedReviewSchema, captureIntakeDecisionSchema, captureAnswerIssues, leadSchema, type AuthorizationContext, type CaptureDraftConfiguration, type PermissionId, type IntakeDetailView } from '@salesmora/contracts';
@@ -27,7 +28,7 @@ export function normalizeIntakeAnswers(configuration: CaptureDraftConfiguration,
 }
 export function intakeLeadValues(configuration: CaptureDraftConfiguration, answers: Record<string, string | string[]>) {
   const text = (key: string) => { const field = configuration.fields?.find(row => row.key === key), value = field ? answers[field.id] : ''; return typeof value !== 'string' ? '' : field?.type === 'dropdown' ? field.options.find(option => option.id === value.trim())?.label ?? '' : value.trim(); };
-  return { name: text('name'), email: text('email').toLowerCase(), phone: text('phone'), service: text('service'), address: text('address'), details: text('details') };
+  return { name: text('name'), email: text('email').toLowerCase(), phone: text('phone'), service: text('service'), address: text('address'), ...(configuration.postalCountryCode==='US'?{postalCode:text('postalCode'),countryCode:'US' as const}:{}), details: text('details') };
 }
 async function detail(trx: Knex.Transaction, context: AuthorizationContext, intakeId: string): Promise<IntakeDetailView> {
   read(context);
@@ -78,7 +79,7 @@ async function listIntakeInTransaction(trx: Knex.Transaction, context: Authoriza
       rows: rows.map(row => { const values = intakeLeadValues(row.configuration, row.answers); return { id: row.id, name: values.name, contact: [values.email, values.phone].filter(Boolean).join(' · '), summary: values.service, source: { id: row.sourceId, name: row.sourceName, type: row.sourceType }, status: row.status, flags: row.flags, receivedAt: row.receivedAt.toISOString(), canOpen: true, canReview: allowed(context, 'intake.approve', row.id) || allowed(context, 'intake.dismiss', row.id) }; }) });
 }
 
-const mergeFields = ['name', 'email', 'phone', 'service', 'address', 'details'] as const;
+const mergeFields = ['name', 'email', 'phone', 'service', 'address', 'postalCode', 'details'] as const;
 async function state(trx: Knex.Transaction, context: AuthorizationContext, view: IntakeDetailView, answers: Record<string, string | string[]>) {
   if (Object.keys(answers).some(id => !view.configuration.fields!.some(field => field.id === id))) throw new CaptureDraftValidationError();
   if (captureDraftFingerprint(answers) !== captureDraftFingerprint(normalizeIntakeAnswers(view.configuration, view.item.answers)) && !view.capabilities.canEdit) throw new AuthorizationAccessError();
@@ -87,9 +88,9 @@ async function state(trx: Knex.Transaction, context: AuthorizationContext, view:
   const candidates = matches.filter(lead => authorize(context, { permission: 'leads.read', resource: { kind: 'lead', id: lead.id, workspaceId: context.workspaceId, ownerId: lead.ownerId } }).allowed).slice(0, 20).map(lead => {
     const resource = { kind: 'lead' as const, id: lead.id, workspaceId: context.workspaceId, ownerId: lead.ownerId };
     return { leadId: lead.id, leadVersion: lead.version, name: lead.name, contact: [lead.email, lead.phone].filter(Boolean).join(' · '), reason: 'Matching email or phone', canLink: view.capabilities.canLink && !lead.archivedAt && authorize(context, { permission: 'leads.update', resource, fields: [...mergeFields] }).allowed,
-      changes: mergeFields.filter(key => values[key] && values[key] !== lead[key] && authorize(context, { permission: 'leads.update', resource, fields: [key] }).allowed).map(key => ({ id: key, label: key[0].toUpperCase() + key.slice(1), existing: lead[key] ?? '', proposed: values[key] })) };
+      changes: mergeFields.filter(key => values[key] && values[key] !== lead[key] && authorize(context, { permission: 'leads.update', resource, fields: [key] }).allowed).map(key => ({ id: key, label: key[0].toUpperCase() + key.slice(1), existing: lead[key] ?? '', proposed: values[key]! })) };
   });
-  const assignment = await resolveCaptureAssignment(trx, context.workspaceId, view.configuration.workflow!.assignment);
+  const assignment = await resolveLeadRouting(trx, context.workspaceId, view.source.id, await resolveCaptureAssignment(trx, context.workspaceId, view.configuration.workflow!.assignment), context);
   const requestHash = captureDraftFingerprint({ item: view.item, receiptId: view.receipt.id, configuration: view.configuration, answers, matches: matches.map(lead => ({ id: lead.id, version: lead.version, ownerId: lead.ownerId, archivedAt: lead.archivedAt })), candidates, assignment, context });
   return { values, candidates, assignment, requestHash, duplicateRequired: matches.length > 0 || view.item.flags.includes('duplicate') };
 }
@@ -134,11 +135,13 @@ export async function decideIntake(db: Knex, identity: WorkspaceIdentity, enable
       if (input.kind === 'create' && current.duplicateRequired || input.definitionVersion !== view.item.definitionVersion || input.workflowVersion !== view.item.workflowVersion || !current.assignment.ready || captureAnswerIssues(view.configuration.fields!, snapshot.review.answers, view.configuration.contactRequired).length) throw new CaptureDraftValidationError();
       await assertLeadCapacity(trx, identity.workspaceId, { enforce: true });
       const lead = leadSchema.parse({ ...current.values, notes: '', source: view.source.type, stage: view.configuration.workflow!.stage, ownerId: current.assignment.assigneeId ?? '' });
-      resultingLeadId = await insertAdmittedLead(trx, lead, { workspaceId: identity.workspaceId, createdBy: identity.userId, submissionId: input.requestId, submissionHash: hash }, current.assignment.assigneeId) ?? null;
+      const assignment=await resolveLeadRouting(trx,identity.workspaceId,view.source.id,current.assignment,context,{commit:true,postalCode:lead.postalCode,countryCode:lead.countryCode});
+      resultingLeadId = await insertAdmittedLead(trx, lead, { workspaceId: identity.workspaceId, createdBy: identity.userId, submissionId: input.requestId, submissionHash: hash }, assignment.assigneeId) ?? null;
       if (!resultingLeadId) throw new CaptureDraftConflictError();
       await trx('leadActivity').where({ id: resultingLeadId, workspaceId: identity.workspaceId }).update({ changes: JSON.stringify({ source: view.source.type, origin: 'lead_capture', receiptId: view.receipt.id, reviewId: input.reviewId }) });
       if (view.configuration.workflow!.tags.length) await trx('leadTags').insert(view.configuration.workflow!.tags.map(tag => ({ workspaceId: identity.workspaceId, leadId: resultingLeadId, tag })));
-      if (current.assignment.assigneeId && view.configuration.workflow!.notifyAssigned) {
+      await recordLeadRouting(trx, identity.workspaceId, resultingLeadId, assignment);
+      if (!current.assignment.routing && current.assignment.assigneeId && view.configuration.workflow!.notifyAssigned) {
         const id = randomUUID(), assignee = await trx('users').where({ id: current.assignment.assigneeId }).first('name');
         await trx('leadActivity').insert({ id, workspaceId: identity.workspaceId, leadId: resultingLeadId, actorId: identity.userId, actorType: 'user', actorName: (await trx('users').where({ id: identity.userId }).first('name')).name, type: 'assigned', changes: JSON.stringify({ from: null, to: assignee.name, ownerId: current.assignment.assigneeId, toVersion: 1 }), createdAt: now });
         await trx('assignmentNotifications').insert({ id, workspaceId: identity.workspaceId, leadId: resultingLeadId, userId: current.assignment.assigneeId, createdAt: now }); await trx('assignmentEmailOutbox').insert({ id });

@@ -7,6 +7,9 @@ const estimateStatuses = {
 } as const;
 
 export const notificationMenuData = {
+  leadWorkflowTitle: 'A new lead is still unassigned',
+  leadWorkflowDescription: (number: string, name: string) => `${number} · ${name} still needs an owner.`,
+  viewLead: 'View lead',
   title: 'Notifications',
   captureTitle: 'Lead Capture needs attention',
   captureOpen: 'Review capture source',
@@ -62,10 +65,12 @@ export const notificationMenuData = {
   },
   workOrderDescription: (actor: string, number: string, title: string) => `${actor || 'A teammate'} updated ${number} · ${title}.`,
   estimateTitles: {
+    awaiting_decision: 'An Estimate is awaiting a decision',
     sent: 'An Estimate was sent',
     delivery_failed: 'Estimate email delivery failed',
     viewed: 'A customer viewed an Estimate',
     decision_recorded: 'An Estimate decision was recorded',
+    needs_scheduling: 'An approved Estimate needs a visit',
     expiring_soon: 'An Estimate expires soon',
     expired: 'An Estimate expired',
   },

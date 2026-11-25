@@ -9,6 +9,10 @@ import { leadsPageData as copy } from './leads-page.data';
 const meta = { title: 'Leads/LeadsPage', component: LeadsPagePreview, parameters: { layout: 'fullscreen' } } satisfies Meta<typeof LeadsPagePreview>;
 export default meta;
 type Story = StoryObj<typeof meta>;
+async function openLeadActions(canvasElement: HTMLElement) {
+  await userEvent.click(within(canvasElement).getByRole('button', { name: 'Lead actions' }));
+  return within(await within(canvasElement.ownerDocument.body).findByRole('menu', { name: 'Lead actions' }));
+}
 export const Default: Story = {};
 export const List: Story = { args: { initialView: 'list' } };
 export const Detail: Story = { args: { initialRecord: 'jordan' } };
@@ -20,7 +24,7 @@ export const WithEstimates: Story = {
     const c = within(canvasElement);
     await expect(c.getByRole('heading', { name: 'Estimates' })).toBeVisible();
     await expect(c.getAllByRole('link', { name: /^Open estimate EST-/ })).toHaveLength(3);
-    await userEvent.click(c.getAllByRole('button', { name: 'Create estimate' })[0]);
+    await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: 'Create estimate' }));
     await expect(args.onCreateEstimate).toHaveBeenCalledOnce();
   },
 };
@@ -68,24 +72,25 @@ export const QuickView: Story = { ...List, play: async ({ canvasElement }) => {
 } };
 export const DeleteFlow: Story = { ...Detail, play: async ({ canvasElement }) => {
   const c = within(canvasElement), body = within(canvasElement.ownerDocument.body);
-  await userEvent.click(c.getByRole('button', { name: 'Delete' }));
+  await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: 'Delete' }));
   await userEvent.type(body.getByRole('textbox', { name: 'Lead number' }), 'LD-1042');
   await userEvent.click(body.getByRole('button', { name: 'Delete lead' }));
   await waitFor(() => expect(c.getByRole('heading', { name: 'Leads', level: 1 })).toBeVisible());
   await expect(c.queryByRole('link', { name: 'Jordan Lee' })).not.toBeInTheDocument();
 } };
 export const ArchiveAndRestore: Story = { ...Detail, play: async ({ canvasElement }) => {
-  const c = within(canvasElement), body = within(canvasElement.ownerDocument.body);
-  await userEvent.click(c.getByRole('button', { name: 'Archive' }));
+  const body = within(canvasElement.ownerDocument.body);
+  await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: 'Archive' }));
   await userEvent.click(body.getByRole('button', { name: 'Archive lead' }));
-  await waitFor(() => expect(c.getByRole('button', { name: 'Restore' })).toBeVisible());
-  await userEvent.click(c.getByRole('button', { name: 'Restore' }));
+  await waitFor(() => expect(body.queryByRole('alertdialog')).not.toBeInTheDocument());
+  await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: 'Restore' }));
   await userEvent.click(body.getByRole('button', { name: 'Restore lead' }));
-  await waitFor(() => expect(c.getByRole('button', { name: 'Archive' })).toBeVisible());
+  await waitFor(() => expect(body.queryByRole('alertdialog')).not.toBeInTheDocument());
+  await expect((await openLeadActions(canvasElement)).getByRole('menuitem', { name: 'Archive' })).toBeVisible();
 } };
 export const FailedArchive: Story = { args: { initialRecord: 'jordan', failActions: true }, play: async ({ canvasElement }) => {
-  const c = within(canvasElement), body = within(canvasElement.ownerDocument.body);
-  await userEvent.click(c.getByRole('button', { name: 'Archive' }));
+  const body = within(canvasElement.ownerDocument.body);
+  await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: 'Archive' }));
   await userEvent.click(body.getByRole('button', { name: 'Archive lead' }));
   await waitFor(() => expect(body.getByRole('alertdialog')).toBeVisible());
   await expect(body.getByRole('button', { name: 'Archive lead' })).toBeEnabled();
@@ -116,7 +121,7 @@ export const CreateFlow: Story = { play: async ({ canvasElement }) => {
 } };
 export const MoveFlow: Story = { ...Detail, play: async ({ canvasElement }) => {
   const c = within(canvasElement), body = within(canvasElement.ownerDocument.body);
-  await userEvent.click(c.getByRole('button', { name: copy.move }));
+  await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: copy.move }));
   await userEvent.selectOptions(body.getByRole('combobox', { name: 'New stage' }), 'contacted');
   await userEvent.click(body.getByRole('button', { name: 'Confirm move' }));
   await waitFor(() => expect(body.queryByRole('alertdialog')).not.toBeInTheDocument());
@@ -124,7 +129,7 @@ export const MoveFlow: Story = { ...Detail, play: async ({ canvasElement }) => {
 } };
 export const AssignFlow: Story = { ...Detail, play: async ({ canvasElement }) => {
   const c = within(canvasElement), body = within(canvasElement.ownerDocument.body);
-  await userEvent.click(c.getByRole('button', { name: copy.assign }));
+  await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: copy.assign }));
   await userEvent.selectOptions(body.getByRole('combobox', { name: 'Lead owner' }), 'ava');
   await userEvent.click(body.getByRole('button', { name: copy.assignConfirm }));
   await waitFor(() => expect(body.queryByRole('alertdialog')).not.toBeInTheDocument());
@@ -139,16 +144,24 @@ export const NoteFlow: Story = { ...Detail, play: async ({ canvasElement }) => {
 } };
 export const EditFlow: Story = { ...Detail, play: async ({ canvasElement }) => {
   const c = within(canvasElement), body = within(canvasElement.ownerDocument.body);
-  await userEvent.click(c.getByRole('button', { name: 'Edit lead' }));
+  await userEvent.click(within(c.getByRole('region', { name: 'Contact details' })).getByRole('button', { name: 'Edit' }));
   const input = body.getByRole('textbox', { name: 'Service requested' });
   await userEvent.clear(input); await userEvent.type(input, copy.stories.updatedService);
   await userEvent.click(body.getByRole('button', { name: 'Save changes' }));
   await waitFor(() => expect(body.queryByRole('dialog')).not.toBeInTheDocument());
   await expect(c.getByRole('heading', { name: copy.stories.updatedService })).toBeVisible();
 } };
+export const EditOwner: Story = { ...Detail, play: async ({ canvasElement }) => {
+  const c = within(canvasElement), body = within(canvasElement.ownerDocument.body);
+  await userEvent.click(within(c.getByRole('region', { name: 'Contact details' })).getByRole('button', { name: 'Edit' }));
+  await userEvent.selectOptions(body.getByRole('combobox', { name: 'Lead owner' }), 'ava');
+  await userEvent.click(body.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() => expect(body.queryByRole('dialog')).not.toBeInTheDocument());
+  await expect(within(c.getByRole('region', { name: 'Contact details' })).getByText('Ava Morgan')).toBeVisible();
+} };
 export const EditDiscardGuard: Story = { ...Detail, play: async ({ canvasElement }) => {
   const c = within(canvasElement), body = within(canvasElement.ownerDocument.body);
-  await userEvent.click(c.getByRole('button', { name: 'Edit lead' }));
+  await userEvent.click((await openLeadActions(canvasElement)).getByRole('menuitem', { name: 'Edit lead' }));
   const input = body.getByRole('textbox', { name: 'Service requested' });
   await userEvent.clear(input); await userEvent.type(input, copy.stories.updatedService);
   await userEvent.click(body.getByRole('button', { name: 'Close panel' }));

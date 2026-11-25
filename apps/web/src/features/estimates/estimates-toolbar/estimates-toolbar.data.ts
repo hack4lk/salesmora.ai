@@ -10,7 +10,6 @@ export const estimatesToolbarData = {
   allOwners: "All owners",
   me: "Me",
   unassigned: "Unassigned",
-  countUnavailable: "Estimate count unavailable.",
   includeHidden: "Include archived and superseded",
   allStatuses: "All statuses",
   allRelated: "Lead and job",
@@ -23,8 +22,6 @@ export const estimatesToolbarData = {
   searchFilter: (value: string) => `Search: ${value}`,
   ownerFilter: (value: string) => `Owner: ${value}`,
   relatedFilter: (value: string) => `Related: ${value}`,
-  count: (shown: number, total: number) =>
-    `${shown.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} estimates`,
   statuses: {
     draft: "Draft",
     sent: "Sent · awaiting response",

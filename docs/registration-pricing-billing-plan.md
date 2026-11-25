@@ -25,7 +25,7 @@ The user selected **Compare first**. Paid checkout follows account creation and 
 
 ## Approved allowances and remaining package decisions
 
-The user approved the seats, all-new-lead counting, campaigns, AI tokens and storage allowances below during the walkthrough. Prices remain draft. AI tokens and the existing lead/teammate admission paths are enforced locally. Campaign/storage limits will be connected with their modules. Automation limits are deferred.
+The user approved the seats, all-new-lead counting, campaigns, AI tokens and storage allowances below during the walkthrough. Prices remain draft. AI tokens and the existing lead/teammate admission paths are enforced locally. Campaign/storage limits will be connected with their modules. Workflow limit enforcement remains planned.
 
 | Allowance | Free | Standard | Premium | Measurement |
 | --- | --- | --- | --- | --- |
@@ -35,7 +35,7 @@ The user approved the seats, all-new-lead counting, campaigns, AI tokens and sto
 | Published intake campaigns | 1 | 5 | Unlimited | Concurrent published campaigns, not total campaign history |
 | AI tokens/month | 1,000,000 | 5,000,000 | 20,000,000 | Shared workspace allowance: planning + answers + query embeddings and unresolved reservations |
 | Attachment storage | 1 GB | 10 GB | 25 GB | Stored bytes; staged uploads reserve capacity |
-| Active automations | Deferred | Deferred | Deferred | Important follow-up; no approved limits or registration pricing claims yet |
+| AI-assisted workflows | 2 | 10 | 25 | Planned limits count all saved workflows, including drafts and paused workflows; enforcement is not implemented |
 
 Packaging decisions still needed before enforcement:
 
@@ -53,7 +53,7 @@ Planned features are not paid production capabilities merely because a quota exi
 
 ## Important follow-up — automations
 
-**Priority: important. Deferred by the user during the tier walkthrough.** Define and build event-triggered workspace rules, such as lead assignment, follow-up tasks and accepted-estimate/job actions. Review supported triggers/actions, role and record-scope enforcement, retry/idempotency behavior, execution costs and per-plan limits before implementation. No automation allowance is approved. Exclude automation benefits and limits from registration pricing cards until the feature is defined and available.
+**Priority: important.** The user selected planned limits of 2 / 10 / 25 AI-assisted workflows for Free / Standard / Premium, counting all saved workflows, including drafts and paused workflows. The homepage and registration cards mark these limits as planned; they are not enforced or added to the entitlement catalog. Define workflow classification, admission and downgrade behavior, role and record-scope enforcement, retry/idempotency behavior, and execution costs before implementing the limits.
 
 ## Application entitlement layer
 

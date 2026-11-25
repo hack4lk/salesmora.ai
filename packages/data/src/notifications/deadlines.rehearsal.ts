@@ -31,7 +31,7 @@ async function premium() {
 }
 const dates = (await db.raw("SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD') AS today, to_char(clock_timestamp() AT TIME ZONE 'UTC' + interval '1 day','YYYY-MM-DD') AS tomorrow, to_char(clock_timestamp() AT TIME ZONE 'UTC' - interval '1 day','YYYY-MM-DD') AS yesterday")).rows[0];
 async function job(deadline = dates.today, primaryOwnerId = users.owner, teamUserIds = [users.field]) {
-  const id = (await createJob(db, identity(), enabled, { workspaceId, submissionId: randomUUID(), customerId, title: 'Private fixture title', completionDeadline: deadline, primaryOwnerId, teamUserIds })).jobId;
+  const id = (await createJob(db, identity(), enabled, {postalCode:'10001', workspaceId, submissionId: randomUUID(), customerId, title: 'Private fixture title', completionDeadline: deadline, primaryOwnerId, teamUserIds })).jobId;
   // This suite isolates reminder counts; creation events have their own rehearsal.
   await db('jobNotifications').where({ workspaceId, jobId: id }).delete();
   return id;

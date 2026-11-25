@@ -1,8 +1,7 @@
 export const copy={
- caption:'Work orders',title:'Find work orders',search:'Search work orders',placeholder:'Number, title, customer, job or address',
+ caption:'Work orders',search:'Search work orders',placeholder:'Number, title, customer, job or address',
  status:'Status',assignee:'Assignee',job:'Job',from:'Scheduled from',to:'Scheduled to',all:'All',allJobs:'All jobs',unassigned:'Unassigned',
  mine:'My work orders',archived:'Show archived',export:'Export CSV',exporting:'Exporting…',
- count:(n:number)=>`${n} work ${n===1?'order':'orders'} in this view`,
  number:'Work order',customer:'Customer / job',scheduled:'Scheduled',progress:'Tasks',updated:'Updated',actions:'Actions',notScheduled:'Not scheduled',overdue:'Overdue',
  taskProgress:(done:number,total:number)=>`${done}/${total}`,
  open:(title:string)=>`Open ${title}`,

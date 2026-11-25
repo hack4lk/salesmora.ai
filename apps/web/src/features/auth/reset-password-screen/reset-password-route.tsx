@@ -17,5 +17,5 @@ export function ResetPasswordRoute({ token }: { token?: string }) {
       return { ok: false, reason: body?.code === 'INVALID_TOKEN' ? 'invalid-link' : undefined };
     } catch { return { ok: false }; }
   }
-  return <ResetPasswordScreen onSubmit={submit} invalidLink={!token} />;
+  return <ResetPasswordScreen layoutVariant="public" onSubmit={submit} invalidLink={!token} />;
 }

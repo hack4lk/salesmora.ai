@@ -1,3 +1,4 @@
+import {serviceDisplaySql} from '../services/store';
 import { randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
 import { z } from 'zod';
@@ -114,7 +115,7 @@ export async function prepareJobReportCSVProjectionInTransaction(
           ELSE j."jobNumber"::text END || ' / ' || CASE WHEN j.title = '' THEN j."customerName" ELSE j.title END AS label`,
       ), trx.raw(`CASE WHEN j."primaryOwnerId" IS NULL THEN 'No current primary owner'
         ELSE COALESCE(NULLIF("reportOwner".name, ''), 'Current teammate') END AS owner`));
-    if (query.view !== 'completion') evidenceQuery.select(trx.raw(`COALESCE(NULLIF(btrim(j.service), ''), 'No recorded service') AS service`));
+    if (query.view !== 'completion') evidenceQuery.select(trx.raw(`COALESCE(NULLIF(btrim(${serviceDisplaySql('j')}), ''), 'No recorded service') AS service`));
     if (query.view === 'workload') evidenceQuery.orderByRaw('j."completionDeadline" ASC NULLS LAST')
       .orderByRaw('j."scheduledDate" ASC NULLS LAST');
     else evidenceQuery.orderBy(query.view === 'completion' ? 'completionDate' : 'reportDate', 'desc');

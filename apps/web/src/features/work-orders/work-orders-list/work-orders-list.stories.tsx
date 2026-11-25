@@ -32,11 +32,12 @@ const staticArgs={rows:[],total:0,page:1,pageSize:25,filters:defaultWorkOrderLis
 
 export const Default:Story={args:staticArgs,render:()=> <Stateful/>,play:async({canvasElement})=>{
  const c=within(canvasElement);
- await expect(await c.findByText('6 work orders in this view')).toBeVisible();
+ await expect(c.queryByText(/work orders in this view/)).not.toBeInTheDocument();
+ await expect(await c.findByText('Showing 1–6 of 6')).toBeVisible();
  await userEvent.selectOptions(c.getByLabelText('Status'),'in-progress');
- await expect(await c.findByText('2 work orders in this view')).toBeVisible();
+ await expect(await c.findByText('Showing 1–2 of 2')).toBeVisible();
  await userEvent.click(c.getByRole('button',{name:/Clear all/}));
- await expect(await c.findByText('6 work orders in this view')).toBeVisible();
+ await expect(await c.findByText('Showing 1–6 of 6')).toBeVisible();
 }};
 export const ManyRows:Story={args:staticArgs,render:()=> <Stateful data={workOrderListMany} initialPageSize={25}/>};
 export const FilteredByStatus:Story={args:staticArgs,render:()=> <Stateful initial={{status:'issued',assignee:'Sam Rivera'}}/>};

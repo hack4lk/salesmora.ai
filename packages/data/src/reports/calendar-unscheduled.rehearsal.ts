@@ -44,17 +44,17 @@ try {
           workspaceId, view: 'calendar-unscheduled', selected: 'visits', page: 1, pageSize: 25,
           filters: { participants: [], recordTypes: [] }, ...patch,
         }));
-    const shared = await createJob(trx, identity, enabled, {
+    const shared = await createJob(trx, identity, enabled, {postalCode:'10001',
       workspaceId, submissionId: randomUUID(), customerId, title: 'Identical queue', primaryOwnerId: field, teamUserIds: [teammate],
       scheduledDate: '2026-11-01',
     });
-    const separate = await createJob(trx, identity, enabled, {
+    const separate = await createJob(trx, identity, enabled, {postalCode:'10001',
       workspaceId, submissionId: randomUUID(), customerId, title: 'Identical queue', primaryOwnerId: field,
     });
-    const unassigned = await createJob(trx, identity, enabled, {
+    const unassigned = await createJob(trx, identity, enabled, {postalCode:'10001',
       workspaceId, submissionId: randomUUID(), customerId, title: 'Unassigned queue', primaryOwnerId: null,
     });
-    await createJob(trx, identity, enabled, {
+    await createJob(trx, identity, enabled, {postalCode:'10001',
       workspaceId, submissionId: randomUUID(), customerId, title: 'Future not a queue', primaryOwnerId: field, scheduledDate: '2099-01-01',
     });
     const joinOrder = async (assigneeId: string | null, issued: boolean) => {
@@ -208,7 +208,7 @@ try {
       assert.equal(filtered.page, 2);
       assert.equal(filtered.visits[0]?.records.length, 27);
       assert(!JSON.stringify(filtered).includes(teammate));
-      for (let i = 0; i < 27; i++) await createJob(trx, identity, enabled, {
+      for (let i = 0; i < 27; i++) await createJob(trx, identity, enabled, {postalCode:'10001',
         workspaceId, submissionId: randomUUID(), customerId, title: 'Paged queue', primaryOwnerId: field,
       });
       for (const selected of ['visits', 'jobs'] as const) {

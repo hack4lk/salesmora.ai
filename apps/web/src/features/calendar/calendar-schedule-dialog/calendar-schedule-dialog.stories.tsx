@@ -117,3 +117,34 @@ export const ConfirmationFailure: Story = { args: { onConfirm: fn(async () => { 
   await userEvent.click(d.getByRole('button', { name: copy.back }));
   await expect(d.getByLabelText(copy.date)).toHaveValue(copy.stories.nextDate);
 } };
+
+export const PlannedWork: Story = { args: { workTimeEnabled: true }, play: async ({ canvasElement, args }) => {
+  const d = await dialogFor(canvasElement);
+  await userEvent.click(d.getByRole('checkbox', { name: 'Add planned work time' }));
+  const start = d.getByLabelText('Planned start'); await userEvent.type(start, '09:00');
+  const duration = d.getByLabelText('Time needed (minutes)'); await userEvent.clear(duration); await userEvent.type(duration, '90');
+  await expect(d.getByText('10:30 AM · 1 hour 30 min')).toBeVisible();
+  await userEvent.click(d.getByRole('button', { name: copy.review }));
+  await expect(d.getByText('Planned work: 9:00 AM–10:30 AM · 1 hour 30 min')).toBeVisible();
+  await expect(args.onConfirm).not.toHaveBeenCalled();
+  await userEvent.click(d.getByRole('button', { name: copy.confirm }));
+  await expect(args.onConfirm).toHaveBeenCalledWith({ visitId: targets[0].id, revision: targets[0].revision, scheduledDate: targets[0].scheduledDate,
+    arrivalWindow: targets[0].arrivalWindow, workTime: { startTime: '09:00', durationMinutes: 90 } });
+} };
+export const PlannedWorkIncomplete: Story = { args: { workTimeEnabled: true, initialVisitId: targets[1].id, initialDate: copy.stories.nextDate }, play: async ({ canvasElement }) => {
+  const d = await dialogFor(canvasElement); await userEvent.click(d.getByRole('checkbox', { name: 'Add planned work time' }));
+  await expect(d.getByRole('button', { name: copy.review })).toBeDisabled();
+} };
+export const PlannedWorkClear: Story = { args: { workTimeEnabled: true, targets: [{ ...targets[0], workTime: { startTime: '08:00', durationMinutes: 60 } }] }, play: async ({ canvasElement, args }) => {
+  const d = await dialogFor(canvasElement); await userEvent.click(d.getByRole('button', { name: copy.clear }));
+  await expect(d.getByText(copy.workTimeClearHelp)).toBeVisible();
+  await expect(d.getByText('Planned work: Not recorded')).toBeVisible();
+  await userEvent.click(d.getByRole('button', { name: copy.confirmClear }));
+  await expect(args.onConfirm).toHaveBeenCalledWith({ visitId: targets[0].id, revision: targets[0].revision, scheduledDate: null, arrivalWindow: null, workTime: null });
+} };
+export const PlannedWorkCancel: Story = { args: { workTimeEnabled: true }, play: async ({ canvasElement, args }) => {
+  const d = await dialogFor(canvasElement); await userEvent.click(d.getByRole('checkbox', { name: 'Add planned work time' }));
+  await userEvent.type(d.getByLabelText('Planned start'), '09:00');
+  await userEvent.click(d.getByRole('button', { name: dialogCopy.close })); await expect(args.onConfirm).not.toHaveBeenCalled();
+} };
+export const PlannedWorkMobile: Story = { args: { workTimeEnabled: true, targets: [{ ...targets[0], workTime: { startTime: '08:00', durationMinutes: 60 } }] }, globals: { viewport: { value: 'phone', isRotated: false } } };

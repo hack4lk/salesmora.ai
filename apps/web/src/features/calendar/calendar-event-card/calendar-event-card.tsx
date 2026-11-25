@@ -2,10 +2,12 @@
 
 import { useId, useState } from "react";
 import type {
+  CalendarWorkTime,
   JobStatus,
   WorkOrderStatus,
   arrivalWindows,
 } from "@salesmora/contracts";
+import { calendarWorkTimeSummary } from "@salesmora/domain";
 import { StatusBadge } from "@salesmora/ui";
 import { JobStatusBadge } from "../../jobs/job-status-badge/job-status-badge";
 import { WorkOrderStatusBadge } from "../../work-orders/work-order-status-badge/work-order-status-badge";
@@ -17,6 +19,7 @@ type CalendarRecordPreview = { id: string; number: string; title: string } & (
 );
 /** Presentation contract only. The future server DTO must include only authorized records and people. */
 export type CalendarVisitPreview = {
+  workTime?: CalendarWorkTime | null; workTimezone?: string | null;
   id: string;
   title: string;
   customerName: string;
@@ -41,6 +44,7 @@ export function CalendarEventCard({
 }: CalendarEventCardProps) {
   const id = useId(),
     [expanded, setExpanded] = useState(initiallyExpanded);
+  const work = calendarWorkTimeSummary(visit.workTime);
   const kinds = new Set(visit.records.map((record) => record.type));
   const kind =
     visit.records.length > 1
@@ -58,14 +62,13 @@ export function CalendarEventCard({
     >
       <button
         type="button"
-        aria-label={copy.toggleVisit(visit.title)}
         aria-expanded={expanded}
         aria-controls={`${id}-details`}
         onClick={() => setExpanded((value) => !value)}
         className="group relative grid min-h-11 w-full min-w-0 cursor-pointer gap-2 rounded-xl bg-paper p-3 text-left hover:bg-canvas focus-visible:focus-ring"
       >
         <span className="text-sm font-semibold wrap-anywhere group-hover:text-primary-dark">
-          {visit.title}
+          <span className="sr-only">{copy.visitPrefix} </span>{visit.title}
         </span>
         <span className="text-xs leading-5 text-muted wrap-anywhere">
           <span className="sr-only">{copy.crew}: </span>
@@ -88,11 +91,16 @@ export function CalendarEventCard({
             <span className="text-sm text-muted wrap-anywhere">
               {visit.customerName}
             </span>
-            <span className="text-sm font-semibold text-ink">
+            {work && <div className="grid min-w-0 gap-1">
+              <span className="text-xs font-semibold text-muted">{copy.planned}</span>
+              <span className="text-sm font-semibold text-ink wrap-anywhere">{work.range}</span>
+              <span className="text-xs text-muted wrap-anywhere">{work.duration}{visit.workTimezone ? ` · ${visit.workTimezone}` : ''}</span>
+            </div>}
+            {(!work || visit.arrivalWindow) && <span className="text-sm font-semibold text-ink">
               {visit.arrivalWindow
                 ? copy.window(visit.arrivalWindow)
                 : copy.noWindow}
-            </span>
+            </span>}
             <span className="grid min-w-0 gap-2 border-t border-line pt-3">
               {visit.records.map((record) => (
                 <span

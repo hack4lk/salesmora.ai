@@ -3,6 +3,7 @@ import { captureSetupEvidenceAllowed, visibleCaptureSetupTicket } from '@salesmo
 import { captureChatSnapshotSchema, type CaptureChatSnapshot, type CaptureChatTicket } from '@salesmora/contracts';
 import { captureBusinessContextInTransaction, captureChatStamp, readCaptureForChat, captureDraftFingerprint } from '@salesmora/data';
 import { captureChatDeliveryStamp } from './capture-policy';
+import { visibleWorkflowDraft } from '@salesmora/data';
 import { calendarProposalEvidenceSchema } from '@salesmora/contracts';
 import { calendarProposalEvidenceAllowed,visibleCalendarScheduleProposal } from '@salesmora/data';
 import { calendarChatClockInTransaction, readCalendarFocusForChat, readCalendarVisitInTransaction } from '@salesmora/data';
@@ -34,7 +35,7 @@ import type {
   ChatSurfaceKey,
   HelpSource,
 } from "@salesmora/contracts";
-import { authorize, resolveAuthorizedCollectionScope } from "@salesmora/domain";
+import { authorize, resolveAuthorizedCollectionScope, availableWorkflowRecipes } from "@salesmora/domain";
 import {
   leadHistoryResultSchema,
   leadDetailsResultSchema,
@@ -164,6 +165,7 @@ async function evidenceAllowed(
   proposals?: Awaited<ReturnType<typeof readHistoryProposalPresence>>,
 ) {
   if (admittedChatRequest(context, turn.id)) return true;
+  if ((Array.isArray(turn.proposalFamilies) && turn.proposalFamilies.includes("workflow")) && !availableWorkflowRecipes(context).length) return false;
   return historicalEvidenceAllowed(trx, context, turn, proposals);
 }
 async function recover(trx: Knex.Transaction, identity: ChatIdentity) {
@@ -546,6 +548,7 @@ export async function readThreads(identity: ChatIdentity, threadId?: string, pur
           ...(purpose === 'runtime' && allowed && turn.state === 'completed'
             ? { proposalHistory: hasProposal.states(turn.id) } : {}),
           createdAt: turn.createdAt,
+          workflowDraft: allowed && turn.state === "completed" && hasProposal(turn.id, "workflow") ? await visibleWorkflowDraft(trx, context, { turnId: turn.id }) : undefined,
           calendarProposal: turn.state === "completed" && showProposal(turn.id, "calendar") ? await visibleCalendarScheduleProposal(trx,context,enabledPermissions,turn.id) : undefined,
           calendarProposalEvidence: allowed ? turn.calendarProposalEvidence ?? [] : undefined,
           captureSource: turn.state === 'completed' && showProposal(turn.id, "captureSource") ? await visibleCaptureSourceTicket(trx, context, turn.id, captureChatDeliveryStamp(context.workspaceId)) : undefined,

@@ -6,7 +6,6 @@ export const registrationPricingConceptData = {
   description: 'Start small, bring your team, and grow your workspace when you’re ready.',
   accountTitle: 'Create your account', accountDescription: 'Your business details come next. You can review your plan before subscribing.',
   choose: 'Choose your workspace plan', selected: 'Selected', monthly: '/ month',
-  planned: 'Campaigns and storage are planned features. Lead limits cover all creation sources. AI tokens are shared across the workspace. Monthly lead and AI allowances reset on the first of each month at midnight UTC, without rollover.',
   payment: 'Review your monthly payment before subscribing. No charge on this screen.',
   freePayment: 'No credit card required. Upgrade when you need more.',
   continue: 'Continue with', back: 'Back to plans', change: 'Change plan',

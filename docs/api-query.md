@@ -590,3 +590,7 @@ Validation under Node 22:
   server-rendered controls, avoiding pre-hydration clicks.
 
 No shared database is reset and no production build is required for this slice.
+
+### Notification inbox
+
+The bell lists unread notifications only. The server filters read rows before ordering and paging for every notification type, while retaining the read history and email-delivery state. After a successful Mark as read mutation, the scoped React Query cache removes that item and updates the unread count immediately; the existing invalidation refreshes the remaining unread pages. Failed writes keep the item available for retry. Cached legacy read rows are also excluded from presentation. The panel header shows Notifications without the company name.

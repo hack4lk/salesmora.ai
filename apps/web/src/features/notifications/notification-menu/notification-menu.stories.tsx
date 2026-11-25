@@ -15,7 +15,7 @@ function Preview(args: NotificationMenuProps) {
   return <NotificationMenu {...args} items={items} unreadCount={count} state={state} hasMore={hasMore}
     onRetry={() => { args.onRetry(); setState('ready'); }}
     onMarkRead={id => { args.onMarkRead(id); setItems(current => current.map(item => item.id === id ? { ...item, read: true } : item)); setCount(current => current === null ? null : Math.max(0, current - 1)); }}
-    onLoadMore={() => { args.onLoadMore(); setItems(current => [...current, { ...fixture, id: 'preview-older', read: true, createdAt: copy.stories.olderDate }]); setHasMore(false); }}/>;
+    onLoadMore={() => { args.onLoadMore(); setItems(current => [...current, { ...fixture, id: 'preview-older', read: false, createdAt: copy.stories.olderDate }]); setHasMore(false); }}/>;
 }
 async function open(canvasElement: HTMLElement) {
   await userEvent.click(within(canvasElement).getByRole('button', { name: /^Open notifications/ }));
@@ -37,6 +37,7 @@ export const Default: Story = { play: async ({ canvasElement, args }) => {
   await expect(dialog.getByRole('link', { name: copy.view })).toHaveAttribute('href', copy.stories.leadHref);
   await expect(dialog.getByRole('link', { name: copy.preferences })).toHaveAttribute('href', copy.stories.preferencesHref);
   await expect(args.onOpen).toHaveBeenCalledOnce();
+  await expect(dialog.queryByText(copy.stories.workspace)).not.toBeInTheDocument();
 } };
 export const WorkOrderEvent: Story = {
   args: { items: [{ id: 'preview-wo', title: copy.workOrderTitles.issued, description: copy.workOrderDescription('Alex Rivera', 'WO-0042', 'Replace kitchen faucet'), createdAt: copy.stories.date, read: false, href: '/work-orders/preview-wo?workspace=preview-workspace', actionLabel: copy.viewWorkOrder }] },
@@ -114,7 +115,7 @@ export const MarkRead: Story = { play: async ({ canvasElement, args }) => {
   await expect(args.onMarkRead).toHaveBeenCalledWith(fixture.id);
   await expect(args.onMarkRead).toHaveBeenCalledOnce();
   await expect(dialog.queryByRole('button', { name: copy.markRead })).not.toBeInTheDocument();
-  await expect(dialog.getByText(copy.read, { exact: true })).toBeVisible();
+  await expect(dialog.getByText(copy.emptyTitle, { exact: true })).toBeVisible();
   await userEvent.click(dialog.getByRole('button', { name: copy.close }));
   await expect(within(canvasElement).getByRole('button', { name: copy.open(0) })).toHaveFocus();
 } };
@@ -263,7 +264,7 @@ export const JobAssignmentEnded: Story = {
     await expect(panel.queryByRole('link', { name: copy.viewJob })).not.toBeInTheDocument();
     await expect(panel.getByRole('link', { name: copy.openHome })).toHaveAttribute('href', '/home?workspace=preview-workspace');
     await userEvent.click(panel.getByRole('button', { name: copy.markRead }));
-    await expect(panel.getByText(copy.read, { exact: true })).toBeVisible();
+    await expect(panel.getByText(copy.emptyTitle, { exact: true })).toBeVisible();
   },
 };
 
@@ -280,7 +281,7 @@ function deadlineStory(before: string | null, after: string | null): Story {
       await expect(panel.getByText(copy.jobDeadlineStories.timezone)).toBeVisible();
       await expect(panel.getByRole('link', { name: copy.viewJob })).toHaveAttribute('href', '/jobs/preview-deadline?workspace=preview-workspace');
       await userEvent.click(panel.getByRole('button', { name: copy.markRead }));
-      await expect(panel.getByText(copy.read, { exact: true })).toBeVisible();
+      await expect(panel.getByText(copy.emptyTitle, { exact: true })).toBeVisible();
     } };
 }
 export const JobDeadlineChanged = deadlineStory(copy.jobDeadlineStories.before, copy.jobDeadlineStories.after);

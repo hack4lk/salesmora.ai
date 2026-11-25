@@ -1,3 +1,5 @@
+import { publicSiteLinks } from '../../public-site/public-site-links';
+
 export const registrationScreenData = {
   documentTitle: 'Create your account — SalesMora.ai',
   title: 'Create your account',
@@ -15,12 +17,10 @@ export const registrationScreenData = {
   signIn: 'Sign in',
   loginHref: '/login',
   footer: 'No payment details required to create your account.',
-  termsHref: '#terms-preview',
-  privacyHref: '#privacy-preview',
+  termsHref: publicSiteLinks.terms,
+  privacyHref: publicSiteLinks.privacy,
   legal: {
-    termsTitle: 'Terms of Service (preview)',
-    privacyTitle: 'Privacy Policy (preview)',
-    unavailable: 'Development draft only. Use fictional details for local testing. Final legal documents must be approved before public registration opens.',
+    notice: 'The Terms of Service and Privacy Policy are drafts for review and are not effective. Final legal documents must be approved before public registration opens.',
   },
   stories: { serverError: 'Registration is temporarily unavailable. Please try again.' },
 } as const;

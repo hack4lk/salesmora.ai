@@ -139,3 +139,9 @@ export const KeyboardAssistant: Story = { ...AssistantReady,args:{ ...AssistantR
   const chat = within(await body.findByRole('dialog',{ name:assistantCopy.title }));await expect(chat.getByRole('textbox',{ name:assistantCopy.composer })).toHaveFocus();
   chat.getByRole('button',{ name:assistantCopy.collapse }).focus();await user.keyboard('{Enter}');await waitFor(() => expect(body.queryByRole('dialog')).not.toBeInTheDocument());await expect(launch).toHaveFocus();
 } };
+
+export const PlannedWork: Story = { args: { visit: { ...fixtures.shared, workTime: { startTime: '09:00', durationMinutes: 90 }, workTimezone: fixtures.shared.timezone } }, play: async ({ canvasElement }) => {
+  const dialog = within(await within(canvasElement.ownerDocument.body).findByRole('dialog'));
+  await expect(dialog.getByText('Planned work', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('9:00 AM–10:30 AM · 1 hour 30 min')).toBeVisible();
+} };

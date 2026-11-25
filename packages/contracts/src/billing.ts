@@ -18,6 +18,7 @@ export interface WorkspacePlanDefinition {
   readonly currency: "usd";
   readonly limits: {
     readonly teammates: number;
+    readonly workflows: number;
     readonly newLeadsPerMonth: number;
     /** Null represents unlimited concurrent published capture sources. */
     readonly publishedCaptureSources: number | null;

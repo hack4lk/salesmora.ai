@@ -11,6 +11,7 @@
     "evaluate": "tsx src/evaluate.ts",
     "start": "tsx src/index.ts",
     "status": "tsx src/status.ts",
+    "test:workflows": "node --import tsx src/workflow-queue.rehearsal.ts",
     "test:runtime": "tsx src/rehearsal.ts --test",
     "test:admin-workspace-exports": "node --import tsx src/admin-workspace-exports.rehearsal.ts",
     "test:file-processing": "tsx src/file-processing-simple.test.ts"

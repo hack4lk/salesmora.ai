@@ -30,7 +30,7 @@ export const estimateArchiveDialogData = {
   errors: {
     read: "This estimate is unavailable. Your access may have changed.",
     permission: "You do not have permission to archive or restore this estimate.",
-    status: "Only Declined, Expired, Superseded or Void estimates can be archived.",
+    status: "Only Accepted, Declined, Expired, Superseded or Void estimates can be archived.",
     archived: "This estimate is already archived. Close this review and use Restore instead.",
     notArchived: "This estimate is not archived. There is nothing to restore.",
     record: "The estimate's saved details are unavailable or invalid. Reload before confirming.",

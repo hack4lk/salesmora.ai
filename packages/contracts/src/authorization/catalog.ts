@@ -2,6 +2,40 @@ import { type PermissionDefinition } from './types';
 
 /** Code-owned catalog; stored policies cannot widen its eligible-role ceilings. */
 export const permissionCatalog = {
+  "customers.email.send": {description:"Send reviewed customer emails and authorize automatic visit reminders",resource:"workspace",mode:"workspace",scopes:["enabled"],eligibleRoles:["owner","admin","office"],locked:false,reviewed:true,dependencies:["customers.read"],defaults:{owner:"enabled",admin:"enabled",office:null,field:null}},
+  "workflows.read": {
+    description: "Read workspace workflows",
+    resource: "workspace",
+    mode: "workspace",
+    scopes: ["enabled"],
+    eligibleRoles: ["owner", "admin", "office"],
+    locked: false,
+    reviewed: true,
+    dependencies: [],
+    defaults: {"owner": "enabled", "admin": "enabled", "office": "enabled", "field": null},
+  },
+  "workflows.publish": {
+    description: "Create and publish workflow automation",
+    resource: "workspace",
+    mode: "workspace",
+    scopes: ["enabled"],
+    eligibleRoles: ["owner", "admin"],
+    locked: false,
+    reviewed: true,
+    dependencies: ["workflows.read", "assistant.use"],
+    defaults: {"owner": "enabled", "admin": "enabled", "office": null, "field": null},
+  },
+  "workflows.manage": {
+    description: "Pause, resume, and delete workspace workflows",
+    resource: "workspace",
+    mode: "workspace",
+    scopes: ["enabled"],
+    eligibleRoles: ["owner", "admin", "office"],
+    locked: false,
+    reviewed: true,
+    dependencies: ["workflows.read"],
+    defaults: {"owner": "enabled", "admin": "enabled", "office": null, "field": null},
+  },
   "home.access": {
     description: "Open workspace Home; widgets use underlying read grants",
     resource: "workspace",
